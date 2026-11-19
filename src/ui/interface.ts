@@ -11,6 +11,7 @@
 // whether an edit is legal: it asks (game.edit → canApply) and shows the
 // refusal. The view is used only through TownView.
 
+import { maybeWelcome } from './welcome';
 import { edgeOf, keyY, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
 import type { DressingPlan } from '@/resolve/plan';
@@ -563,6 +564,9 @@ export function createInterface(host: InterfaceHost): Interface {
   });
   stepper.show(heldLength());
 
+  // First visit to an empty island: point at Grow a town (see welcome.ts).
+  const closeWelcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
+
   const api: Interface = {
     el: root,
     tray,
@@ -600,6 +604,7 @@ export function createInterface(host: InterfaceHost): Interface {
       growth.stop();
       tray.styles.dispose();
       guide.dispose();
+      closeWelcome();
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);

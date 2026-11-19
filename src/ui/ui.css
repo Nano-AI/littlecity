@@ -796,3 +796,52 @@
   .lc-marker .lc-icon, .lc-shake { animation: none; }
   .lc-btn { transition: none; }
 }
+
+/* ── first-visit welcome card ──────────────────────────────────────────── */
+
+.lc-welcome-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(242, 237, 227, 0.35);
+  pointer-events: auto;
+}
+.lc-welcome {
+  box-sizing: border-box;
+  width: min(360px, 100%);
+  padding: 18px 20px 14px;
+  text-align: center;
+}
+.lc-welcome h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.lc-welcome p {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.lc-welcome-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.lc-welcome-buttons .lc-text-btn {
+  min-height: 44px;
+  padding-left: 18px;
+  padding-right: 18px;
+  font-size: 15px;
+}
+.lc-welcome small {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.75;
+}

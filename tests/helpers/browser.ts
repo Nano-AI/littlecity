@@ -14,6 +14,8 @@ export interface OpenOptions extends BrowserContextOptions {
   width?: number;
   height?: number;
   scale?: number;
+  /** Show the first-visit welcome card (it is marked as already seen by default). */
+  welcome?: boolean;
 }
 
 export interface App {

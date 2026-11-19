@@ -25,8 +25,19 @@ export async function launchBrowser() {
  * Opens a page of the dev server and fails loudly on page errors.
  * Returns { page, errors }: `errors` collects uncaught exceptions and console errors.
  */
-export async function openPage(browser, url, { width = 1280, height = 800, scale = 1, ...context } = {}) {
+export async function openPage(browser, url, { width = 1280, height = 800, scale = 1, welcome = false, ...context } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, ...context });
+  // The game greets a first visit with a welcome card that covers the town. Tools and tests are not
+  // first-time players: mark it seen unless a test asks for it with { welcome: true }.
+  if (!welcome) {
+    await ctx.addInitScript(() => {
+      try {
+        globalThis.localStorage.setItem('lc:welcomed', '1');
+      } catch {
+        // No storage on this page (about:blank, file:): nothing to mark.
+      }
+    });
+  }
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e?.stack ?? e)));
