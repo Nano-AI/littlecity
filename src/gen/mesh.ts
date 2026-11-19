@@ -287,7 +287,8 @@ export class MeshBuilder {
       m[12] === 0 && m[13] === 0 && m[14] === 0;
     const det = a * (e * i - f * h) - d * (b * i - c * h) + g * (b * f - c * e);
     this.flip = det < 0;
-    // Normals transform by the cofactor matrix (= det × inverse transpose); the sign fixes mirrors.
+    // Normals transform by the cofactor matrix (= det × inverse transpose), stored row by row;
+    // the sign fixes mirrors.
     const s = det < 0 ? -1 : 1;
     this.normalMat = [
       s * (e * i - f * h), s * (c * h - b * i), s * (b * f - c * e),
@@ -350,13 +351,17 @@ export class MeshBuilder {
     const [x0, y0, z0] = min;
     const [x1, y1, z1] = max;
     const want = (f: BoxFace): boolean => (opts.only ? opts.only.includes(f) : !opts.skip?.includes(f));
-    const side = opts.bevelTop ? { edge: [y1 - y0, y1 - y0, 0, 0] } : undefined;
+    // Opposite faces split along matching diagonals, so two boxes sharing a
+    // wall produce coincident triangles (which findDuplicateFaces can catch).
+    const h = y1 - y0;
+    const bottomFirst = opts.bevelTop ? { edge: [h, h, 0, 0] } : undefined;
+    const upFirst = opts.bevelTop ? { edge: [h, 0, 0, h] } : undefined;
     if (want('top')) this.quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]);
-    if (want('bottom')) this.quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
-    if (want('s')) this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], side);
-    if (want('n')) this.quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], side);
-    if (want('e')) this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], side);
-    if (want('w')) this.quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], side);
+    if (want('bottom')) this.quad([x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [x0, y0, z0]);
+    if (want('s')) this.quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], bottomFirst);
+    if (want('n')) this.quad([x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0], upFirst);
+    if (want('e')) this.quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], bottomFirst);
+    if (want('w')) this.quad([x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [x0, y0, z0], upFirst);
     return this;
   }
 
@@ -517,9 +522,9 @@ export class MeshBuilder {
       m[1]! * x + m[5]! * y + m[9]! * z + m[13]!,
       m[2]! * x + m[6]! * y + m[10]! * z + m[14]!,
     );
-    const tx = k[0]! * nx + k[3]! * ny + k[6]! * nz;
-    const ty = k[1]! * nx + k[4]! * ny + k[7]! * nz;
-    const tz = k[2]! * nx + k[5]! * ny + k[8]! * nz;
+    const tx = k[0]! * nx + k[1]! * ny + k[2]! * nz;
+    const ty = k[3]! * nx + k[4]! * ny + k[5]! * nz;
+    const tz = k[6]! * nx + k[7]! * ny + k[8]! * nz;
     const len = Math.hypot(tx, ty, tz) || 1;
     this.nor.push(tx / len, ty / len, tz / len);
   }

@@ -3,16 +3,14 @@
 // contracts (TownView, Signals, LifeRuntime, scenarios), so it keeps working
 // whatever the app, the UI and the renderer become.
 
-import { key } from '@/core/grid';
 import { createLife } from '@/life/runtime';
 import { createSignals, partPhases } from '@/life/signals';
 import type { LifeRuntime, SignalsDriver } from '@/life/api';
 import { createTownView } from '@/render/index';
 import type { TownView } from '@/render/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario, cameraName, type BuiltScenario, type TimeOfDay } from '@/scenario';
+import { buildScenario, cameraName, TownBuilder, type BuiltScenario, type TimeOfDay } from '@/scenario';
 import { findScenario, matchScenarios } from '@/scenario/discover';
-import { applyEdit, canApply } from '@/world/world';
 
 const canvas = document.getElementById('town') as HTMLCanvasElement;
 let view: TownView | null = null;
@@ -100,14 +98,11 @@ const api = {
     }
     const stats = view!.stats();
 
-    // One edit: a block on a free column near the middle of the town.
+    // One edit at a time: an Auto block on top of whatever stands in a column.
     let world = built.world;
     const edits: { shapeMs: number; dressingMs: number; rebuildMs: number }[] = [];
-    for (let i = 0; i < 12; i++) {
-      const cell = key(6 + i, 1, 5);
-      const e = { type: 'placeBlock', cell, kind: 'auto', color: 'auto', from: null } as const;
-      if (!canApply(world, built.terrain, e).ok) continue;
-      world = applyEdit(world, built.terrain, e);
+    for (let i = 0; i < 20; i++) {
+      world = new TownBuilder(world, built.terrain).put('auto', 4 + ((i * 7) % 40), 4 + ((i * 11) % 40)).world;
       const a = performance.now();
       const shape = resolveShape(world, built.terrain);
       const b = performance.now();

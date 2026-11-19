@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from 'vitest/config';
-import viteConfig from './vite.config';
+import viteConfig from './vite.config.ts';
 
 // Two projects, one runner:
 //   unit  every *.test.ts beside the code, in tests/ and in scenarios/ (Node, fast).

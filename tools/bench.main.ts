@@ -2,11 +2,9 @@
 // both logic stages on the synthetic town, after one edit, with the rule
 // engine and every discovered rule loaded.
 
-import { key } from '@/core/grid';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario } from '@/scenario';
+import { buildScenario, TownBuilder } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
-import { applyEdit, canApply } from '@/world/world';
 
 export interface LogicBench {
   scenario: string;
@@ -37,9 +35,8 @@ export function main(name = 'bench-2000', runs = 30): LogicBench {
   let structures = 0;
   let rules = 0;
   for (let i = 0; i < runs; i++) {
-    const cell = key(4 + (i % 40), 1 + Math.floor(i / 40), 8);
-    const e = { type: 'placeBlock', cell, kind: 'auto', color: 'auto', from: null } as const;
-    if (canApply(world, built.terrain, e).ok) world = applyEdit(world, built.terrain, e);
+    // One edit: an Auto block on top of whatever stands in a column, a different column each time.
+    world = new TownBuilder(world, built.terrain).put('auto', 4 + ((i * 7) % 40), 4 + ((i * 11) % 40)).world;
     const a = performance.now();
     const shape = resolveShape(world, built.terrain, { clock });
     const b = performance.now();
