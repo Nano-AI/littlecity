@@ -27,7 +27,9 @@ export function buildMill(town: Town): boolean {
     if (h < 0) return null;
     const d = fromSquare(town, f.x(2, 1), f.z(2, 1));
     if (d < 9) return null;
-    return { score: Math.abs(d - 15) + (town.site.waterDist[columnIndex(f.x(2, 1), f.z(2, 1))]! < 3 ? 3 : 0), data: h };
+    // A mill stands best on a river bank.
+    const rd = town.site.riverDist[columnIndex(f.x(1, 1), f.z(1, 1))]!;
+    return { score: Math.abs(d - 15) * 0.5 + (rd <= 3 ? -8 : 0) + (town.site.waterDist[columnIndex(f.x(2, 1), f.z(2, 1))]! < 2 ? 3 : 0), data: h };
   });
   if (!found) return false;
   const f = found.frame;

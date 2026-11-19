@@ -35,7 +35,10 @@ export function buildSquare(town: Town): boolean {
       if (water < shore) return null;
       const d = Math.abs(cx - site.centre[0]) + Math.abs(cz - site.centre[1]);
       // Facing the default camera (from the south-east) with its open side: the hall to the north, the inn west.
-      return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 4), data: h };
+      // Near a river (a crossing, a waterfront) is the best place for a square.
+      const rd = site.riverDist[Math.round(cx) + Math.round(cz) * 48]!;
+      const river = rd >= 4 && rd <= 8 ? -6 : 0;
+      return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 4) + river, data: h };
     });
     if (!found) continue;
     const f = found.frame;
@@ -88,6 +91,50 @@ export function buildSquare(town: Town): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * The small square, for an island with no room for the big one (small,
+ * steep or cut up by rivers): a 3 × 3 plaza with its fountain and a stall,
+ * the town hall (4 × 2) along the north side, shops down the east side, the
+ * clock tower at the south-west corner, streets round it.
+ *
+ *   v=-1   H H H H          H town hall
+ *   v=0    H H H H
+ *   v=1    . P P P S        P plaza, S shop, . path
+ *   v=2    . P F P S
+ *   v=3    . P P P S
+ *   v=4    T . . . .        T clock tower
+ */
+export function buildSmallSquare(town: Town): boolean {
+  const { g, site } = town;
+  const found = search(g, 'square-small', (f) => {
+    if (!fits(g, f, 0, -1, 4, 4, 0)) return null;
+    const h = rectFlat(g, f, 0, -1, 4, 4);
+    if (h < 0) return null;
+    const cx = f.x(2, 2), cz = f.z(2, 2);
+    const d = Math.abs(cx - site.centre[0]) + Math.abs(cz - site.centre[1]);
+    const rd = site.riverDist[cx + cz * 48]!;
+    return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 3) + (rd >= 3 && rd <= 7 ? -6 : 0), data: h };
+  });
+  if (!found) return false;
+  const f = found.frame;
+  const L = new Local(g, f);
+  const h = found.data;
+  town.square = { x: f.x(2, 2), z: f.z(2, 2), h };
+  const d = startDistrict(town, 'square', town.square.x, town.square.z);
+  L.claim(0, -1, 4, 4, CLAIM.built);
+  for (let v = 1; v <= 3; v++) for (let u = 1; u <= 3; u++) L.floor('plaza', u, v, h);
+  for (let v = 1; v <= 3; v++) pave(g, f.x(0, v), f.z(0, v));
+  for (let u = 1; u <= 4; u++) pave(g, f.x(u, 4), f.z(u, 4));
+  L.house(0, -1, 3, 0, 2, 'town-hall');
+  for (let v = 1; v <= 3; v++) L.house(4, v, 4, v, 1 + (g.chance(0.4, 'small-shop', v) ? 1 : 0), `small-shop${v}`);
+  L.stack('tower', 0, 4, 4, L.color('tower', [[0, h, 4]], 'clock'));
+  if (!town.pumps) L.put('fountain', 2, h, 2);
+  L.put('stall', 3, h, 1);
+  L.put('tree', 1, h, 3, 0);
+  for (const [u, v] of [[0, 1], [4, 4], [0, 3]] as const) L.way(d, u, v);
+  return true;
 }
 
 /** A street round the outside of a local rectangle, where the ground allows (steps of one level at most). */
