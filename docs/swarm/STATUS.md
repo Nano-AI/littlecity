@@ -418,3 +418,16 @@ island. Full check green: 1,568 tests. Published.
 Open: terrain rebuild p95 30 ms on a steep island (budget 8); banks are
 angular, not curved; a free-standing 2×2 summit block can remain.
 Running: coplanar, ships, walk (preview only).
+
+**Coplanar cleanup merged** (`722c124`): overlaps removed at the source
+(everything 130 → 1, grown-town-1 231 → 1, people-town 82 → 0), regression
+test `src/render/testing/coplanar.test.ts`. Flicker scores unchanged (the
+tie-break already settled these pairs). Orchestrator added a TEMPORARY
+allowance for pairs introduced by Grow a town pass 3 (dock/dock, arch/dock,
+marble/marble, arch/marble) → follow-up sent to the same agent, with the
+doubled stilt-house ladder (R-H04). Full check green: 1,576 tests.
+Published.
+**Walk mode preview ready** (`swarm/walk` at `1ec9159`, NOT merged, NOT
+published): served from its worktree at http://127.0.0.1:5174/ (try
+`/?walk=everything`, `/?walk=grown-town-2`). Waiting on Derek's verdict.
+Running: ships, coplanar follow-up.
