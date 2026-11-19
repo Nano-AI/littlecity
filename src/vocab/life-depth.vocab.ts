@@ -8,6 +8,11 @@ declare module '@/core/vocab' {
     // L03. A windmill's cap (hood, crown ball, windshaft) at its 'mill-hub' socket; life turns it to the wind.
     'mill-cap': true;
 
+    // L18. The fishing boat's berth by the docks (world x, z and the yaw it lies at there).
+    'fishing-boat.berthX': number;
+    'fishing-boat.berthZ': number;
+    'fishing-boat.berthYaw': number;
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand
