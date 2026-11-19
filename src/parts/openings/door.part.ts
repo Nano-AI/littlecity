@@ -140,7 +140,9 @@ export default definePart({
         anchors.door = translation(0, 0, 0.3);
       }
       // A small canopy over some main doors: a board roof on two brackets.
-      if (main && variant === 'plain' && ctx.rand('canopy') < 0.45) {
+      // (Not under a grand doorway (U09): its pediment is the door's hood.)
+      const grand = (ctx.structure ? (ctx.plan.featuresByStructure.get(ctx.structure.id) ?? []) : []).some((f) => f.type === 'vista' && f.variant === 'doorway' && f.cell === item.cell && f.dir === item.dir);
+      if (main && variant === 'plain' && !grand && ctx.rand('canopy') < 0.45) {
         const y0 = arched ? 0.6 : 0.6;
         b.with({ color: p.roofColor, pattern: PATTERN.shingles, ink: 'canopy' }, () => {
           b.at(compose(translation(0, y0, 0), rotationX(0.42)), () => b.box([-0.25, 0, 0], [0.25, 0.03, 0.2]));

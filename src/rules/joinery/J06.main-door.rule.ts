@@ -29,11 +29,13 @@ export default defineRule<{ at: Facade }>({
         const wet = ground.filter((f) => f.water === 1 || hf.outside(f.cell, f.dir) === 'deck');
         if (wet.length > 0) ground = wet;
       }
+      // U11: a town hall opens onto its square.
+      const hall = roleOf(ctx.plan, id) === 'town-hall';
       let best: Facade | null = null;
       let bestScore = -Infinity;
       for (const f of ground) {
         // The seed breaks ties (and nothing else: it is worth less than any rule point).
-        const score = doorScore(f) + rand(s.seed, 'main-door', f.cell, f.dir) * 0.5;
+        const score = doorScore(f) + (hall && f.plaza === 1 ? 3 : 0) + rand(s.seed, 'main-door', f.cell, f.dir) * 0.5;
         if (score > bestScore) {
           bestScore = score;
           best = f;
@@ -47,7 +49,7 @@ export default defineRule<{ at: Facade }>({
     const { at } = c.data;
     const structure = c.structure!;
     const role = roleOf(ctx.plan, structure);
-    const variant = role === 'chapel' || role === 'boathouse' ? 'double' : role === 'shop' ? 'shop' : 'plain';
+    const variant = role === 'chapel' || role === 'boathouse' || role === 'town-hall' ? 'double' : role === 'shop' ? 'shop' : 'plain';
     // A stoop spans one storey at most; a door higher than that (a mill on a tower) is reached from inside.
     const steps = at.drop === 1 && at.water !== 1 ? STEPS_PER_LEVEL : 0; // and never down into the sea
     const door = out.feature({

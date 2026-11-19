@@ -3,6 +3,7 @@
 //   a watchtower's cap      a pennant, half the time (DRESSING.flagWatchtower)
 //   a castle turret         a swallow-tailed banner, always
 //   a lighthouse gallery    a pennant, always
+//   a town hall (U11)       a flag on a staff raked out beside its clock, always
 //   the end of a pier       a pennant on its post, half the time (flagPier)
 //   a square                a free-standing flagpole, on a plaza containing
 //                           a DRESSING.flagSquare² block with no fountain:
@@ -26,7 +27,7 @@ import { clearways } from './clearways.fact';
 import { lucky, townColor } from './lib';
 
 interface Flag {
-  variant: 'pennant' | 'banner' | 'pole';
+  variant: 'pennant' | 'banner' | 'pole' | 'wall';
   /** A pennant on a pier flies from a tall staff standing on the deck. */
   staff?: number;
   /** A flagpole at the middle of an even square stands this far behind its corner slot. */
@@ -56,6 +57,7 @@ export default defineRule<Flag>({
       if (role === 'castle-turret') variant = 'banner';
       else if (role === 'watchtower') variant = lucky(seed, RULE, s.cell, 'tower', DRESSING.flagWatchtower) ? 'pennant' : null;
       else if (role === 'lighthouse' && owner?.type === 'gallery') variant = 'pennant';
+      else if (role === 'town-hall' && owner?.type === 'vista') variant = 'wall';
       // From a gallery rail the staff must clear the lantern room.
       const staff = owner?.type === 'gallery' ? 0.95 : undefined;
       if (variant) out.push({ anchor: s.cell, structure: s.structure, key: s.id, data: { variant, staff, at: { socket: s.id }, claim: slot.socket(s.id) } });

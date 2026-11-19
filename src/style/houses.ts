@@ -8,6 +8,7 @@
 import type { Role } from '@/core/vocab';
 import { defineStyle } from '@/core/style';
 import { hash, rand } from '@/core/rand';
+import { DEPTH } from './depth';
 import { PALETTE, RAMPS } from './palette';
 
 export const HOUSE = defineStyle(
@@ -101,6 +102,11 @@ export interface Personality {
   plankUpper: boolean;
   /** −1 … 1: a whole-house bias for small leans and offsets. */
   lean: number;
+  /**
+   * U12 (edge half): how a rustic house far out from the town is built, or null for a town house.
+   * 'timber' half-timbered walls, 'stone' a rough stone ground storey, 'planks' weatherboard.
+   */
+  rustic: 'timber' | 'stone' | 'planks' | null;
 }
 
 /** Roof ramp indices that sit badly on each wall ramp index (too close in hue or value). */
@@ -123,7 +129,7 @@ const ACCENT_CLASH: readonly (readonly string[])[] = [[], ['glass'], ['redDark']
  * cells (only small cottages are thatched). Pure: the same structure always
  * gets the same answers.
  */
-export function personalityOf(seed: number, color: number, role?: Role, size = 1): Personality {
+export function personalityOf(seed: number, color: number, role?: Role, size = 1, rustic = false): Personality {
   const r = (...p: (number | string)[]): number => rand(seed, 'persona', ...p);
   const c = ((color % 8) + 8) % 8;
   const roofs = RAMPS.roof.map((_, i) => i).filter((i) => !ROOF_CLASH[c]!.includes(i));
@@ -156,8 +162,19 @@ export function personalityOf(seed: number, color: number, role?: Role, size = 1
     roof = 0;
     accent = PALETTE.redDark;
     trim = PALETTE.red;
+  } else if (role === 'town-hall') {
+    // U11: a civic front: tall windows, a panelled double door, bands between the storeys.
+    family = 'tall';
+    door = 'panel';
   } else if (role === 'cottage' && size <= 4 && r('thatch') < 0.16) {
     cover = 'thatch';
+  }
+  // U12 (edge half): out at the edge of town a small house is often thatched, and its walls are
+  // timber, rough stone or boards.
+  let rusticWalls: Personality['rustic'] = null;
+  if (rustic) {
+    if (size <= 6 && r('rustic-thatch') < DEPTH.rusticThatch) cover = 'thatch';
+    rusticWalls = (['timber', 'timber', 'stone', 'planks'] as const)[Math.floor(r('rustic-walls') * 4)]!;
   }
   const accent2 = [PALETTE.yellow, PALETTE.pink, PALETTE.red, PALETTE.white][hash(seed, 'accent2') % 4]!;
   return {
@@ -169,10 +186,11 @@ export function personalityOf(seed: number, color: number, role?: Role, size = 1
     accent,
     accent2,
     door,
-    storeyBands: r('bands') < 0.7,
+    storeyBands: role === 'town-hall' || (rusticWalls !== 'timber' && r('bands') < 0.7),
     timberGable: role !== 'chapel' && role !== 'stilt-house' && r('timber-gable') < 0.22,
     plankUpper: role !== 'chapel' && r('plank-upper') < 0.18,
     lean: r('lean') * 2 - 1,
+    rustic: rusticWalls,
   };
 }
 
