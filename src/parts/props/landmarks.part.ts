@@ -283,7 +283,9 @@ export const ladder = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 151));
-    const foot = 0.06, len = 0.95 + r('len') * 0.15, lean = 0.2;
+    // `back`: how far behind the slot the wall is. The foot stands 0.3 out from it, the top rests on it.
+    const back = item.params?.back ?? 0.22;
+    const len = 0.95 + r('len') * 0.15, foot = -back + 0.3, lean = Math.asin(0.28 / len);
     b.at(compose(translation((r('x') - 0.5) * 0.15, 0, foot), rotationX(-lean)), () => {
       b.with({ color: PALETTE.wood, pattern: PATTERN.none, ink: 'ladder' }, () => {
         for (const x of [-0.09, 0.09]) b.box([x - 0.016, 0, -0.016], [x + 0.016, len, 0.016], { skip: ['bottom'] });

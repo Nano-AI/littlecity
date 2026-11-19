@@ -96,6 +96,7 @@ declare module '@/core/vocab' {
     // cart are the role props of R-H99.
     'ladder': true;
     'ladder.look': number;
+    'ladder.back': number; //         how far behind the slot the wall it leans on is; default 0.22
 
     // D26: a fingerpost at a junction, square to the world (anchor face 2): an arm toward each
     // side d with bit d set in `mask`, each with a little picture of what lies that way
