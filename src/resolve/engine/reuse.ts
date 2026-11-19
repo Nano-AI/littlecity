@@ -258,6 +258,31 @@ class RuleMemo {
 }
 
 const memos = new WeakMap<Rule, RuleMemo>();
+
+interface FindEntry {
+  a: number;
+  b: number;
+  found: Candidate<unknown>[];
+}
+/** Per rule with findEach: the last two resolves' candidates, by structure. */
+class FindMemo {
+  cur = new Map<string, FindEntry>();
+  prev = new Map<string, FindEntry>();
+  prev2 = new Map<string, FindEntry>();
+  begin(): void {
+    this.prev2 = this.prev;
+    this.prev = this.cur;
+    this.cur = new Map();
+  }
+  get(k: string, a: number, b: number): Candidate<unknown>[] | undefined {
+    let e = this.prev.get(k);
+    if (!e || e.a !== a || e.b !== b) e = this.prev2.get(k);
+    if (!e || e.a !== a || e.b !== b) return undefined;
+    this.cur.set(k, e);
+    return e.found;
+  }
+}
+const findMemos = new WeakMap<Rule, FindMemo>();
 interface Box {
   x0: number;
   z0: number;
@@ -358,6 +383,50 @@ export class ShapeReuse {
     return sc;
   }
 
+  /** Everything a local rule may read about structure `s` now, as two lanes (RuleDef.local). */
+  private keyFor(rule: Rule, s: StructureId, ctx: RuleContext, salt: number): { a: number; b: number } {
+    const sc = this.scope(s, rule.local!);
+    const L = this.lanes;
+    const own = L.of(s);
+    let a = mix(mix(mix(mix(sc.a, salt), this.style), s), own.a);
+    let b = mix(mix(mix(mix(sc.b, salt), this.style), s), own.b);
+    for (const id of sc.near) {
+      const l = L.of(id);
+      a = mix(a, l.a);
+      b = mix(b, l.b);
+    }
+    if (rule.localAlso) {
+      const also = rule.localAlso(ctx, s);
+      a = mix(a, also);
+      b = mix(b, also ^ 0x3c6ef372);
+    }
+    return { a: fmix(mix(a, L.orphanA)), b: fmix(mix(b, L.orphanB)) };
+  }
+
+  /**
+   * find() for a rule with `findEach`: each structure's candidates are kept
+   * across resolves like apply's output, and found again only when
+   * something they may depend on changed.
+   */
+  find(rule: Rule, ctx: RuleContext): Candidate<unknown>[] {
+    const each = rule.findEach!;
+    let memo = findMemos.get(rule);
+    if (!memo) findMemos.set(rule, (memo = new FindMemo()));
+    memo.begin();
+    const out: Candidate<unknown>[] = [];
+    for (const st of each.over(ctx)) {
+      const { a, b } = this.keyFor(rule, st.id, ctx, 0x0f1d);
+      const key = String(st.id);
+      let found = memo.get(key, a, b);
+      if (!found) {
+        found = each.find(ctx, st) as Candidate<unknown>[];
+        memo.cur.set(key, { a, b, found });
+      }
+      for (const c of found) out.push(c);
+    }
+    return out;
+  }
+
   /**
    * Applies a local rule's candidate: replays its recorded output if every
    * input it may read is unchanged, else calls apply and records it.
@@ -366,23 +435,7 @@ export class ShapeReuse {
     if (!memosOn() || rule.local === undefined || c.structure === undefined) return run(out);
     let memo = memos.get(rule);
     if (!memo) memos.set(rule, (memo = new RuleMemo()));
-    const sc = this.scope(c.structure, rule.local);
-    const L = this.lanes;
-    const own = L.of(c.structure);
-    let a = mix(mix(mix(sc.a, this.style), c.structure), own.a);
-    let b = mix(mix(mix(sc.b, this.style), c.structure), own.b);
-    for (const id of sc.near) {
-      const l = L.of(id);
-      a = mix(a, l.a);
-      b = mix(b, l.b);
-    }
-    if (rule.localAlso) {
-      const also = rule.localAlso(ctx, c);
-      a = mix(a, also);
-      b = mix(b, also ^ 0x3c6ef372);
-    }
-    a = fmix(mix(a, L.orphanA));
-    b = fmix(mix(b, L.orphanB));
+    const { a, b } = this.keyFor(rule, c.structure, ctx, 0x0a99);
     const key = c.key === undefined ? `${c.anchor}` : `${c.anchor}:${typeof c.key}:${c.key}`;
     const hit = memo.get(key, a, b);
     if (hit && this.canReplay(hit)) {

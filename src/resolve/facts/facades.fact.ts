@@ -6,7 +6,7 @@ import type { EdgeKind, Kind, StructureKind } from '@/core/kinds';
 import type { StructureId } from '../plan';
 import { FACTS } from '@/style/facts';
 import { defineFact, type Facts } from './api';
-import { contentKeys, regionKey, RegionMemo, registerMemo, saltKey } from './content-keys.fact';
+import { contentKeys, memosOn, regionKey, RegionMemo, registerMemo, saltKey } from './content-keys.fact';
 import { DIRS, edgeBetween } from './lib';
 import { KINDS } from '@/core/kinds';
 import { BULKY, FLOOR_CODES, SOLID, TERRAIN } from './occupancy.fact';
@@ -102,9 +102,49 @@ function surfaceUnder(occ: Look, cell: CellKey, out: { drop: number }): number {
 // A structure's facades, all but their alley flags, read the columns within
 // facadeReach of it and straight down each of them: they are kept across
 // resolves by the content of those columns (see content-keys.fact.ts). The
-// alley flags are worked out every time (an alley run is found from its
-// first cell, which may lie far away), the way alleys.fact.ts finds them.
+// alley flags are worked out the way alleys.fact.ts finds runs (from a run's
+// first cell, which may lie far away) and kept by the columns that walk read.
 const memo = registerMemo(new RegionMemo<Facade[]>());
+
+/** A structure's alley flags (set on `list`), with the columns the corridor walks read and their key. */
+interface AlleyEntry {
+  list: Facade[];
+  x0: number;
+  z0: number;
+  x1: number;
+  z1: number;
+  a: number;
+  b: number;
+  digest: number;
+}
+/** Alley flags across resolves; the key is checked over the very columns that were read. */
+class AlleyMemo {
+  private cur = new Map<StructureId, AlleyEntry>();
+  private prev = new Map<StructureId, AlleyEntry>();
+  private prev2 = new Map<StructureId, AlleyEntry>();
+  begin(): void {
+    if (!memosOn()) return;
+    this.prev2 = this.prev;
+    this.prev = this.cur;
+    this.cur = new Map();
+  }
+  /** The last entry for the structure, if any (the caller checks its key). */
+  get(id: StructureId): AlleyEntry | undefined {
+    if (!memosOn()) return undefined;
+    const e = this.prev.get(id) ?? this.prev2.get(id);
+    if (e) this.cur.set(id, e);
+    return e;
+  }
+  put(id: StructureId, e: AlleyEntry): void {
+    if (memosOn()) this.cur.set(id, e);
+  }
+  clear(): void {
+    this.cur = new Map();
+    this.prev = new Map();
+    this.prev2 = new Map();
+  }
+}
+const alleyMemo = registerMemo(new AlleyMemo());
 
 export const facades = defineFact<Facades>('facades', (f) => {
   const list: Facade[] = [];
@@ -112,7 +152,9 @@ export const facades = defineFact<Facades>('facades', (f) => {
   const digests = new Map<StructureId, number>();
   const keys = contentKeys(f);
   const k = regionKey();
+  const k2 = regionKey();
   memo.begin();
+  alleyMemo.begin();
   let env: Env | null = null;
   const look = lookOf(f);
   const ids = [...f.structures.keys()].sort((a, b) => a - b);
@@ -123,19 +165,25 @@ export const facades = defineFact<Facades>('facades', (f) => {
     let mine = memo.get(id, k);
     if (!mine) {
       mine = facadesOf(f, id, (env ??= envOf(f, look)));
-      for (const fc of mine) fc.alley = inAlley(look, neighbor(fc.cell, fc.dir));
       memo.put(id, k, mine);
     }
-    // The alley flags, worked out every time: a remembered list whose flags differ is copied.
+    // The alley flags: kept while the columns the corridor walks read are unchanged.
     let digest = 0x2f;
-    for (let i = 0; i < mine.length; i++) {
-      const fc = mine[i]!;
-      const alley = inAlley(look, neighbor(fc.cell, fc.dir));
-      if (alley !== fc.alley) {
-        mine = mine.map((x) => ({ ...x, alley: inAlley(look, neighbor(x.cell, x.dir)) }));
+    const kept = alleyMemo.get(id);
+    if (kept && kept.list === mine && keys.region(kept.x0, kept.z0, kept.x1, kept.z1, k2) && saltKey(k2, FACTS.alleyMin).a === kept.a && k2.b === kept.b) {
+      digest = kept.digest;
+    } else {
+      const box = { x0: 99, z0: 99, x1: -1, z1: -1 };
+      const flags = mine.map((fc) => inAlley(look, neighbor(fc.cell, fc.dir), box));
+      if (flags.some((v, i) => v !== mine![i]!.alley)) {
+        mine = mine.map((x, i) => ({ ...x, alley: flags[i]! }));
         memo.put(id, k, mine);
       }
-      if (alley) digest = (Math.imul(digest, 31) + i + 1) | 0;
+      flags.forEach((v, i) => {
+        if (v) digest = (Math.imul(digest, 31) + i + 1) | 0;
+      });
+      saltKey(keys.region(box.x0, box.z0, box.x1, box.z1, k2), FACTS.alleyMin);
+      alleyMemo.put(id, { list: mine, ...box, a: k2.a, b: k2.b, digest });
     }
     digests.set(id, digest);
     if (!mine.length) continue;
@@ -192,10 +240,18 @@ function lookOf(f: Facts): Look {
  * The cell is in an alley (alleys.fact.ts, exactly: a run of 2+ corridor
  * cells, found from its first cell, which must not hold a building).
  */
-function inAlley(look: Look, c: CellKey): boolean {
+function inAlley(look: Look, c: CellKey, box: { x0: number; z0: number; x1: number; z1: number }): boolean {
   const wall = (n: CellKey): boolean => n !== NO_CELL && look.kind(n) !== undefined && (look.flags(n) & BULKY) !== 0;
   const standable = (n: CellKey): boolean => n !== NO_CELL && !(look.flags(n) & SOLID) && n >> 12 > 0 && (look.flags(n - (1 << 12)) & SOLID) !== 0;
   const along = (n: CellKey, axis: 'x' | 'z'): boolean => {
+    if (n !== NO_CELL) {
+      // Everything along() reads lies in this column and the four beside it.
+      const x = n & 63, z = (n >> 6) & 63;
+      if (x - 1 < box.x0) box.x0 = x - 1;
+      if (x + 1 > box.x1) box.x1 = x + 1;
+      if (z - 1 < box.z0) box.z0 = z - 1;
+      if (z + 1 > box.z1) box.z1 = z + 1;
+    }
     if (!standable(n)) return false;
     const [a, b, c1, c2] = axis === 'x' ? ([0, 2, 1, 3] as const) : ([1, 3, 0, 2] as const);
     if (!wall(neighbor(n, a)) || !wall(neighbor(n, b))) return false;

@@ -7,7 +7,7 @@
 import type { CellKey } from '@/core/grid';
 import type { Role, Tag } from '@/core/vocab';
 import { createFacts, type FactsBase } from '../facts/api';
-import { contentKeys, regionKey, RegionMemo, registerMemo } from '../facts/content-keys.fact';
+import { contentKeys, memosOn, regionKey, RegionMemo, registerMemo } from '../facts/content-keys.fact';
 import type {
   Actor,
   Anchor,
@@ -123,7 +123,7 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
       env.reuse?.beginRule(rule);
       let found: AnyCandidate[];
       try {
-        found = rule.find(ctx) as AnyCandidate[];
+        found = env.reuse && rule.findEach && rule.local !== undefined && memosOn() ? env.reuse.find(rule, ctx) : (rule.find(ctx) as AnyCandidate[]);
       } catch (err) {
         throw annotate(err, `rule ${rule.id} find()`);
       }
@@ -156,7 +156,7 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
         for (const s of wanted) claims.set(s, rule.id);
         const out = outs ? (outs.get(rule) ?? outs.set(rule, env.makeOut(rule, c)).get(rule)!) : env.makeOut(rule, c);
         try {
-          if (env.reuse && rule.local !== undefined) {
+          if (env.reuse && rule.local !== undefined && rule.localReplay !== false) {
             env.reuse.apply(rule, c, ctx, out, (o) => rule.apply(c, o, { ...ctx, ...candidateRandom(seed, rule.id, c) }));
           } else rule.apply(c, out, { ...ctx, ...candidateRandom(seed, rule.id, c) } as ApplyContext);
         } catch (err) {

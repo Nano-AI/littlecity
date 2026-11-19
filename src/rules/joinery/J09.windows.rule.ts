@@ -29,7 +29,7 @@ export default defineRule<{ s: Structure }>({
   tier: 1,
   priority: 910,
   local: 3, // apply reads only facades (reach 3, and their alley flags), the roofs of the houses beside it (RuleDef.local)
-  localAlso: (ctx, c) => facades(ctx.facts).alleyDigest(c.structure!),
+  localAlso: (ctx, s) => facades(ctx.facts).alleyDigest(s),
   about: 'Reads: facades, alleys (through facades), door and roof features, roles. Emits: window features with window sockets; balconies on townhouses.',
   find: (ctx) => houseStructures(ctx).map((s) => ({ anchor: s.cells[0]!, structure: s.id, data: { s } })),
   apply(c, out, ctx) {
