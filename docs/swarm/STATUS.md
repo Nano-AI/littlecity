@@ -256,3 +256,12 @@ tests. Published.
 - Flicker and clipping on camera rotation → `swarm/steady-ink` (renderer).
 Running: polish (speed), animation-polish, grow-town pass 2, guide,
 steady-ink.
+
+**Grow a town pass 2 merged** (`d614f3a`): town hall on every square with a
+ring road, dense two-ring centre, corner houses, courtyard block, summit
+streets up two-level cliffs, a valley viaduct on 4 of 5 seeds, harbour
+access. 58–68 roles per town. One seed in five is a "pump town" with no
+fountains (D33 needs none). Orchestrator fixed `L10.fireflies` (negative
+seeds gave a negative index) and the stepper test (it measured a button
+mid-press, scaled to 0.97). Full check green: 1,370 tests. Published.
+Running: polish (speed), animation-polish, guide, steady-ink.
