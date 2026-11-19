@@ -57,6 +57,9 @@ describe('the style in the hand', () => {
     const onTop = ghostFor(planUse({ item: 'house', swatch: 6, style: 5 }, pickAt(ctx, 10.5, 10.5), ctx), host)!;
     const joined = onTop.plan.structures.get(onTop.show[0]!)!;
     expect(joined.cells).toHaveLength(2);
+    // The building it joins is framed; a block standing alone frames nothing.
+    expect(onTop.shimmer).toEqual([key(10, 1, 10)]);
+    expect(apart.shimmer).toBeUndefined();
     expect(structureStyle(onTop.plan.world, joined)).toBe(4);
   });
 

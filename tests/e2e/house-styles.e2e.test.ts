@@ -197,6 +197,118 @@ async function touch(cdp: CDPSession, type: 'touchStart' | 'touchEnd', x: number
   await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: Math.round(x), y: Math.round(y), id: 1 }] });
 }
 
+/**
+ * Clicks the visible part of the top of column (x, z) (its ground, or the roof of what is built
+ * there), as a player aiming at it would. Fails if none of it shows.
+ */
+async function clickTop(page: Page, x: number, z: number): Promise<void> {
+  const at = await js<[number, number] | null>(
+    page,
+    `(async () => {
+      const { pickCell } = await import('/src/ui/pick.ts');
+      const t = window.__lc.terrain(), w = window.__lc.world();
+      let y = t.height[${x} + ${z} * 48];
+      while (w.blocks.has(${x} | (${z} << 6) | (y << 12))) y++;
+      const want = ${x} | (${z} << 6) | (y << 12);
+      const r = window.__lc.view.canvas.getBoundingClientRect();
+      for (const fz of [0.5, 0.3, 0.7, 0.15, 0.85]) for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        const [sx, sy] = window.__lc.view.worldToScreen([${x} + fx, y * 0.8, ${z} + fz]);
+        const p = pickCell(window.__lc.view.screenToRay(sx - r.left, sy - r.top), w, t);
+        if (p && p.target === want && p.normal[1] === 1) return [sx, sy];
+      }
+      return null;
+    })()`,
+  );
+  expect(at, `the top of column (${x}, ${z}) is in view`).not.toBeNull();
+  await page.mouse.move(at![0], at![1]);
+  await page.mouse.click(at![0], at![1]);
+}
+
+/** The structures the houses in these columns belong to, and the role of the first. */
+const buildingOf = (page: Page, cells: readonly (readonly [number, number, number])[]): Promise<{ ids: number[]; role: string | null }> =>
+  js(
+    page,
+    `(() => {
+      const s = window.__lc.shape();
+      const ids = [...new Set(${JSON.stringify(cells.map(([x, y, z]) => key(x, y, z)))}.map((c) => s.structureAt.get(c)))];
+      return { ids, role: s.roles.get(ids[0])?.role ?? null };
+    })()`,
+  );
+
+const rect = (x0: number, z0: number, w: number, d: number): [number, number][] =>
+  Array.from({ length: w * d }, (_, i) => [x0 + (i % w), z0 + Math.floor(i / w)] as [number, number]);
+
+describe('desktop: one building, not a row of strangers', () => {
+  async function chooseStyle(page: Page, style: number): Promise<void> {
+    await page.hover('[data-item="house"]');
+    await page.waitForSelector('[data-ui="styles"]:not([hidden])');
+    await page.click(`[data-style="${style}"]`);
+    await page.mouse.move(640, 200);
+  }
+  /** Ground clicks over the footprint, then a click on top of each for every further storey. Far cells first, so nothing new hides them. */
+  async function build(page: Page, cells: [number, number][], storeys: number): Promise<void> {
+    const depth = await js<number[]>(page, `${JSON.stringify(cells)}.map(([x, z]) => window.__lc.view.worldToScreen([x + 0.5, 0.8, z + 0.5])[1])`);
+    const order = cells.map((c, i) => [c, depth[i]!] as const).sort((a, b) => a[1] - b[1]).map(([c]) => c);
+    for (let s = 0; s < storeys; s++) for (const [x, z] of order) await clickTop(page, x, z);
+  }
+
+  test('a style, six ground clicks beside a path and a storey on each: one inn', async () => {
+    const { page, errors } = await open();
+    for (let x = 14; x <= 20; x++) expect(await js(page, `window.__lc.edit({ type: 'placeFloor', cell: ${key(x, 1, 30)}, floor: 'path' })`)).toBe(true);
+    await chooseStyle(page, 4);
+    const cells = rect(16, 28, 3, 2);
+    await build(page, cells, 2);
+    expect(await js(page, 'window.__lc.world().blocks.size')).toBe(5 + 12);
+    const all = cells.flatMap(([x, z]) => [[x, 1, z], [x, 2, z]] as [number, number, number][]);
+    for (const [x, y, z] of all) expect(await blockAt(page, x, y, z)).toMatchObject({ kind: 'house', color: 0, style: 4 });
+    expect(await buildingOf(page, all)).toEqual({ ids: [expect.any(Number)], role: 'inn' });
+    await page.screenshot({ path: path.join(SHOTS, 'house-styles-inn.png') });
+    expect(errors).toEqual([]);
+  });
+
+  test('a 5 × 2 footprint in one style is one manor; the ghost frames the building a block would join', async () => {
+    const { page, errors } = await open();
+    await chooseStyle(page, 6);
+    const cells = rect(14, 28, 5, 2);
+    await build(page, cells.slice(0, 9), 1);
+    // Hovering the last cell: the ghost shows the whole building and frames the nine blocks it joins.
+    const [gx, gy] = await ground(page, 18, 29);
+    await page.mouse.move(gx, gy);
+    await page.waitForFunction('(window.__lc.ui.debug().ghost?.shimmer.length ?? 0) === 9');
+    const ghost = await debug<{ show: number[] }>(page, 'ghost');
+    expect(ghost.show).toEqual([(await buildingOf(page, [[14, 1, 28]])).ids[0]]);
+    await page.screenshot({ path: path.join(SHOTS, 'house-styles-ghost-join.png') });
+    await page.mouse.click(gx, gy);
+    await page.waitForFunction('window.__lc.world().blocks.size === 15');
+    expect(await buildingOf(page, cells.map(([x, z]) => [x, 1, z]))).toEqual({ ids: [expect.any(Number)], role: 'manor' });
+    // Placed apart, a house of the same style is a building of its own, and its ghost frames nothing.
+    const [ax, ay] = await ground(page, 26, 30);
+    await page.mouse.move(ax, ay);
+    await page.waitForFunction('window.__lc.ui.debug().ghost !== null && window.__lc.ui.debug().ghost.shimmer.length === 0');
+    await page.mouse.click(ax, ay);
+    await page.waitForFunction('window.__lc.world().blocks.size === 16');
+    expect((await buildingOf(page, [[14, 1, 28], [26, 1, 30]])).ids).toHaveLength(2);
+    expect(errors).toEqual([]);
+  });
+
+  test('with Random the old behaviour holds: each ground click starts its own building', async () => {
+    const { page, errors } = await open();
+    await page.click('[data-item="house"]');
+    const cells = rect(16, 28, 3, 2);
+    await build(page, cells, 1);
+    const colours = await js<number[]>(page, `${JSON.stringify(cells.map(([x, z]) => key(x, 1, z)))}.map((c) => window.__lc.world().blocks.get(c).color)`);
+    // The bare-ground colour rule, unchanged: hash(seed, cell) mod 8 for each (seed 11).
+    const expected = await js<number[]>(
+      page,
+      `(async () => { const { bareGroundColor } = await import('/src/world/world.ts'); return ${JSON.stringify(cells.map(([x, z]) => key(x, 1, z)))}.map((c) => bareGroundColor(11, c, 'house')); })()`,
+    );
+    expect(colours).toEqual(expected);
+    for (const [x, z] of cells) expect((await blockAt(page, x, 1, z))?.style).toBeUndefined();
+    expect((await buildingOf(page, cells.map(([x, z]) => [x, 1, z]))).ids.length).toBeGreaterThan(1);
+    expect(errors).toEqual([]);
+  });
+});
+
 describe('phone: house styles', () => {
   test('a long press on House opens the flyout with 44 px targets; a tap chooses', async () => {
     const { page, errors } = await open(PHONE);
