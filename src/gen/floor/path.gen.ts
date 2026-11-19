@@ -14,7 +14,7 @@
 // Reads: the region's cells, the block under each, terrain heights of its
 // own and side columns, and its features. Nothing else.
 
-import { below, CELL_H, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { below, CELL_H, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { MAT } from '@/core/world';
 import { defineGenerator, placeFeatures } from '@/gen/api';
@@ -169,8 +169,3 @@ export default defineGenerator({
     return { mesh: b.build(), anchors };
   },
 });
-
-/** For tests: the cells of a path region and how each side is treated. */
-export function pathSides(cells: ReadonlySet<CellKey>, cell: CellKey): boolean[] {
-  return DIRS.map((d) => cells.has(neighbor(cell, d)));
-}
