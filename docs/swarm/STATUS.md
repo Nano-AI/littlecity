@@ -80,3 +80,10 @@ house rules (budget 8 ms).
 Branches `swarm/animation`, `swarm/people`, `swarm/dressing` (all Fable
 5.2), plus one art director reviewing Stage 2 into
 `docs/swarm/art-review-1.md` (branch `swarm/art-review`).
+
+**05:25** Art review 1 merged (`docs/swarm/art-review-1.md`, showcase
+`scenarios/core/everything.scenario.ts`, 55 roles asserted). Fix passes sent
+to Houses, Monuments, Ground and Look (same agents, resumed) on their
+existing branches. Unit-test timeout raised to 30 s. Seven agents running:
+Animation, People, Dressing, plus the four fix passes. Dev server hit its
+two-hour limit and is not restarted (Derek can run `npm run dev`).
