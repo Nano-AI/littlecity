@@ -349,3 +349,12 @@ Still open from animation: gust front not visible; everything-town troop
 has no loop; bell small; gulls, small birds, sailboats near piers and the
 rower's route not watched.
 Running: terrain2, coplanar, house-styles follow-ups.
+
+**House follow-ups merged** (`5f45fbb`): a house joins a same-colour house
+one level up or down in a side-adjacent column (step must be terrain,
+marble, arch, dock or pillar; never across two levels or diagonally);
+storeys counted on the tallest column; R-H05 boathouse limited to footprint
+≤ 4 and ≤ 2 storeys. Full check green: 1,515 tests. Published. Split-level
+houses draw with a separate roof and door per level (stepped look); a
+continuous roof across a step is not built.
+Running: terrain2, coplanar.
