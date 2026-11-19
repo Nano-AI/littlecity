@@ -91,8 +91,8 @@ export function posy(b: MeshBuilder, x: number, y: number, z: number, r: number,
   });
   b.with({ color: flower, pattern: PATTERN.none, ink, sway: 0.25 }, () => {
     for (let i = 0; i < heads; i++) {
-      const a = rng('fa', key, i) * Math.PI * 2, d = r * (0.25 + rng('fd', key, i) * 0.45);
-      dab(b, x + Math.cos(a) * d, y + r * (0.62 + rng('fy', key, i) * 0.2), z + Math.sin(a) * d, r * 0.34, TONE.mid, 5, r * 0.22);
+      const a = (i / heads + rng('fa', key, i) * 0.25) * Math.PI * 2, d = r * (0.3 + rng('fd', key, i) * 0.3);
+      dab(b, x + Math.cos(a) * d, y + r * (0.66 + rng('fy', key, i) * 0.2), z + Math.sin(a) * d, r * 0.5, TONE.lit, 5, r * 0.3);
     }
   });
 }

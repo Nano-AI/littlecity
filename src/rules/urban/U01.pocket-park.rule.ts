@@ -5,7 +5,8 @@
 // square is nobody's garden, so the town makes it a little park:
 //
 //   a low clipped hedge along every side that faces the street or square,
-//   with one way in;
+//   with a way in (where a door, a stair or a trail already leads through
+//   it, else in one seeded place);
 //   a bench with its back to a house wall if there is one (else in the
 //   middle of a cell with its back to the hedge), looking into the park;
 //   a round flower bed, and from three cells up a shrub or two in the back
@@ -48,7 +49,10 @@ export default defineRule<Placed[]>({
       const hedged: [CellKey, Dir4][] = [];
       for (const c of park.cells) for (const d of sidesWith(plot, c, 'street')) hedged.push([c, d]);
       const isHedged = (c: CellKey, d: Dir4): boolean => hedged.some(([hc, hd]) => hc === c && hd === d);
-      const gate = hedged.length ? hedged[hash(seed, RULE, 'gate', anchor) % hedged.length]! : null;
+      // The way in: wherever people already walk through (a door, a stair foot, a trail), else one seeded place.
+      const walkedIn = hedged.filter(([c, d]) => clear.walked(c, edgePos(d)));
+      const gate = walkedIn[0] ?? (hedged.length ? hedged[hash(seed, RULE, 'gate', anchor) % hedged.length]! : null);
+      const isGate = (c: CellKey, d: Dir4): boolean => (walkedIn.length ? walkedIn.some(([gc, gd]) => gc === c && gd === d) : gate !== null && gate[0] === c && gate[1] === d);
       for (const [c, d] of hedged) {
         const minus = ((d + 3) % 4) as Dir4, plus = ((d + 1) % 4) as Dir4;
         // An end runs on if the next cell along is hedged too, or the hedge turns the corner of this cell.
@@ -57,7 +61,7 @@ export default defineRule<Placed[]>({
           if (plot.beyond(c, side) !== 'in') return 1;
           return isHedged(neighbor(c, side), d) ? 0 : 1;
         };
-        p.put({ type: 'hedge', variant: gate && gate[0] === c && gate[1] === d ? 'gap' : 'run', cell: c, pos: edgePos(d), face: opposite(d), claim: false, params: { from: end(minus), to: end(plus), look: look('hedge', c) + d } });
+        p.put({ type: 'hedge', variant: isGate(c, d) ? 'gap' : 'run', cell: c, pos: edgePos(d), face: opposite(d), claim: false, params: { from: end(minus), to: end(plus), look: look('hedge', c) + d } });
       }
 
       // Benches: against a wall, else in the open with their back to the street.

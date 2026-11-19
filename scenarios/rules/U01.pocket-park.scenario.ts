@@ -46,7 +46,7 @@ export default scenario({
       const props = inBox(x0, z0, x1, z1);
       const hedges = props.filter((p) => p.type === 'hedge');
       check.equal(hedges.length, streetSides, `${name}: a hedge piece on every street side`);
-      check.equal(hedges.filter((p) => p.variant === 'gap').length, 1, `${name}: one way in`);
+      check.ok(hedges.filter((p) => p.variant === 'gap').length >= 1, `${name}: a way in`);
       const benches = props.filter((p) => p.type === 'bench');
       check.ok(benches.length >= 1, `${name}: a bench`);
       for (const bench of benches) check.equal(dressing.sockets.filter((s) => s.owner === bench.id && s.type === 'seat').length, 2, `${name}: two seats on the bench`);

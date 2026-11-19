@@ -55,16 +55,16 @@ export const hedge = definePart({
   prop: 'hedge',
   build(item, ctx) {
     const b = ctx.mesh();
-    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 911));
     const from = item.params?.from ?? 1, to = item.params?.to ?? 1;
     const h = 0.2, t = 0.085;
     const x0 = from === 1 ? -0.44 : -0.5, x1 = to === 1 ? 0.44 : 0.5;
     const piece = (a: number, c: number, ra: boolean, rc: boolean): void => {
       const rad = t * 0.95;
       const outline = roundedRect(a, LINE - t, c, LINE + t, [ra ? rad : 0, rc ? rad : 0, rc ? rad : 0, ra ? rad : 0], 3);
-      b.extrude(outline, 0, h + (r('h', a) - 0.5) * 0.02, { cap: 'top', smooth: true });
+      b.extrude(outline, 0, h, { cap: 'top', smooth: true });
     };
-    b.setColor(vary(mixColor(PALETTE.bush, PALETTE.leafDark, 0.35), 0.5 + (r('c') - 0.5) * 0.4)).setPattern(PATTERN.leaves).setInkId(INK_HEDGE);
+    // One colour and one height for every piece: a hedge is one clipped mass, with no step at each cell.
+    b.setColor(mixColor(PALETTE.bush, PALETTE.leafDark, 0.35)).setPattern(PATTERN.leaves).setInkId(INK_HEDGE);
     if (item.variant === 'gap') {
       piece(x0, -0.2, from === 1, true);
       piece(0.2, x1, true, to === 1);
