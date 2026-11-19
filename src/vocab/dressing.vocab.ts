@@ -10,6 +10,10 @@
 import '@/core/vocab';
 
 declare module '@/core/vocab' {
+  interface SocketVocab {
+    // D06: where a bracket is fixed to a wall: half-way up a cell face, +Z out. Declared by the rule that hangs something there.
+    'wall-mount': true;
+  }
   interface PropVocab {
     // ── tier 1 additions to existing types ──────────────────────────────
 
@@ -146,7 +150,7 @@ declare module '@/core/vocab' {
     'bunting.look': number;
     'bunting.drop': number; //         hung this far below the line between its two ends (from lamp heads)
 
-    // D06: a lantern on a wall bracket (at a 'line-anchor' socket on a cell face).
+    // D06: a lantern on a wall bracket (at a 'wall-mount' socket on a cell face).
     'hanging-lantern/bracket': true;
 
     // D08. At a floor slot. Owns 'seat' sockets 'seat-0' and 'seat-1'.
