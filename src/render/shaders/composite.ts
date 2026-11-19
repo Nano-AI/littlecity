@@ -137,16 +137,14 @@ float edgeAt(vec2 uv, vec2 px){
   return max(eDepth * uWeights.x, max(eId * uWeights.y, eN * uWeights.z));
 }
 
-// A few rotated sub-samples: cheap anti-aliasing for the ink.
+// Four rotated sub-samples, a pixel's width apart: cheap anti-aliasing for the ink. With fewer (there
+// used to be two where the picture is not super-sampled: phones, and screens of 1.5x and up) a line a
+// pixel or less wide popped on and off as it crossed pixel centres while the camera moved.
 float edge(vec2 uv, float thick){
   vec2 px = thick * uPR * 0.5 / uOut;
   vec2 q = 0.5 / uOut;
-#if INK_TAPS == 4
   return 0.25 * (edgeAt(uv + vec2(q.x, 0.5 * q.y), px) + edgeAt(uv + vec2(-0.5 * q.x, q.y), px)
                + edgeAt(uv + vec2(-q.x, -0.5 * q.y), px) + edgeAt(uv + vec2(0.5 * q.x, -q.y), px));
-#else
-  return 0.5 * (edgeAt(uv + vec2(0.5 * q.x, 0.25 * q.y), px) + edgeAt(uv + vec2(-0.5 * q.x, -0.25 * q.y), px));
-#endif
 }
 
 void main(){

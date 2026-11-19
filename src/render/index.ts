@@ -356,7 +356,6 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uStars: { value: 0 },
     uHalo: { value: 0 },
   };
-  const inkTaps = superSample > 1 ? 4 : 2;
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -367,13 +366,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       depthTest: false,
       depthWrite: false,
     });
-  const compositeMaterial = post(halfInk ? { INK_TAPS: inkTaps, INK_TEX: 1 } : { INK_TAPS: inkTaps });
+  const compositeMaterial = post(halfInk ? { INK_TEX: 1 } : {});
   // The half-resolution ink mask shares the uniforms but has its own target size.
   const inkUniforms = { ...compositeUniforms, uOut: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
   const inkMaterial = halfInk
     ? new THREE.RawShaderMaterial({
         glslVersion: THREE.GLSL3,
-        defines: { INK_TAPS: 2, INK_ONLY: 1 },
+        defines: { INK_ONLY: 1 },
         vertexShader: screenVertex,
         fragmentShader: compositeFragment,
         uniforms: inkUniforms,
@@ -386,7 +385,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const ghostUniforms = { ...compositeUniforms, tColor: { value: null as THREE.Texture | null }, tId: { value: null as THREE.Texture | null }, tDepth: { value: null as THREE.Texture | null } };
   const ghostComposite = new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { INK_TAPS: 4, GHOST: 1 },
+    defines: { GHOST: 1 },
     vertexShader: screenVertex,
     fragmentShader: compositeFragment,
     uniforms: ghostUniforms,
