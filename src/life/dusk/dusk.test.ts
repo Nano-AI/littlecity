@@ -113,7 +113,8 @@ describe('L07 windows', () => {
 describe('lamps', () => {
   test('lamps along a street light in order, a few seconds apart; a lamp catches with a flicker', () => {
     const { shape, dressing, rec } = fixture();
-    const found = dressing.props.filter((p) => p.type === 'lamp').map((p) => ({ id: p.id, pos: [rec.of(p.id).base[12]!, rec.of(p.id).base[13]!, rec.of(p.id).base[14]!] as const }));
+    // The fixture's own nine street lamps (the real D01 and D02 rules light the town as well now).
+    const found = dressing.props.filter((p) => p.type === 'lamp' && p.rule === 'X-L07.lamps').map((p) => ({ id: p.id, pos: [rec.of(p.id).base[12]!, rec.of(p.id).base[13]!, rec.of(p.id).base[14]!] as const }));
     expect(found.length).toBe(9);
     const order = lampOrder(shape, found, 1);
     const along = [...found].sort((a, b) => a.pos[0] - b.pos[0]).map((l) => order.get(l.id)!);

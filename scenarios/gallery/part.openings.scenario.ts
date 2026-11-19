@@ -3,13 +3,14 @@
 // neutral wall with no house rules of its own; one structure per column, so
 // the door looks and trims vary), with the props that hang on
 // them: an awning, signs for the eight trades, a flower box. A scenario-local
-// rule emits exactly these, whatever the real rules decide.
+// rule emits exactly these, whatever the real rules decide: it runs before
+// the real D07 and D09 and claims each socket, so they skip this wall.
 //
 //   npm run shots -- part.openings
 
 import { key, S } from '@/core/grid';
 import type { ShopType } from '@/core/vocab';
-import { defineRule } from '@/resolve/engine/api';
+import { defineRule, slot } from '@/resolve/engine/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { scenario } from '@/scenario';
 
@@ -53,7 +54,8 @@ const dress = defineRule<{ socket: string; type: string; n: number }>({
   id: 'X-PARTS.dressing',
   part: 'decoration',
   tier: 1,
-  priority: -500,
+  priority: 2000,
+  claims: (c) => [slot.socket(c.data.socket)],
   find: ({ facts }) =>
     (['sign-bracket', 'awning-mount', 'window'] as const).flatMap((type) =>
       socketsOfType(facts, type)

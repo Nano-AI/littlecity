@@ -133,7 +133,8 @@ describe('scenario rules', () => {
       name: 'gallery-lamp', seed: 1, rules: [show], build() {},
       expect: (_plan, _dressing, check) => void check.hasProp({ type: 'lamp', rule: 'G-LAMP.show' }, 4),
     });
-    expect(checkScenario(s).dressing.props.map((p) => p.variant)).toEqual(['post', 'four-arm', 'bridge', 'pier']);
+    // Its own props only: the discovered rules dress even an empty island (D24 wild ground).
+    expect(checkScenario(s).dressing.props.filter((p) => p.rule === 'G-LAMP.show').map((p) => p.variant)).toEqual(['post', 'four-arm', 'bridge', 'pier']);
   });
 });
 
