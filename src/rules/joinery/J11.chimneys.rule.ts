@@ -2,7 +2,8 @@
 // role (a cottage: one, p = 0.7; a chapel: none; a stilt house: a stove
 // pipe). They stand on the ridge, preferring a cell beside a party wall
 // (always, for a row house). A chimney with a taller wall within one cell
-// becomes a tall flue rising past that wall.
+// becomes a tall flue: a brick breast climbing that wall to just above its
+// eave (`chimney.against` names the side).
 import { CELL_H, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import type { Role } from '@/core/vocab';
 import { defineRule } from '@/resolve/engine/api';
@@ -43,7 +44,7 @@ export default defineRule<{ s: Structure }>({
       for (const k of region.cells) {
         if (pierced.has(k)) continue;
         roofCells++;
-        if (!dormers.has(k)) eligible.push(k); // a dormer has the cell already
+        if (!dormers.has(k) && hf.roofDoorAt(k) === undefined) eligible.push(k); // a dormer or a roof door has the cell already
       }
     }
     if (eligible.length === 0 || (role && NONE.has(role))) return;
@@ -72,15 +73,16 @@ export default defineRule<{ s: Structure }>({
     for (const cell of chosen.sort((a, b) => a - b)) {
       const wall = tallest(cell);
       const pipe = role === 'stilt-house';
-      // At most one tall flue a house, only past a wall one storey taller, and not every time:
-      // more would be a factory.
-      const tall = !pipe && wall === 1 && ctx.rand('flue', cell) < 0.6 && flues++ === 0;
+      // Beside a wall one or two storeys taller the flue climbs that wall as a brick breast and
+      // ends just above its eave. At most one a house, and not every time.
+      const tall = !pipe && wall >= 1 && wall <= 2 && ctx.rand('flue', cell) < 0.6 && flues++ === 0;
+      const against = tall ? ([0, 1, 2, 3] as Dir4[]).find((d) => hf.wallBeside(cell, d) === wall) : undefined;
       const id = out.feature({
         type: 'chimney',
         structure: s.id,
         cell,
         variant: pipe ? 'pipe' : tall ? 'tall-flue' : 'plain',
-        ...(tall ? { params: { height: Math.round((CELL_H + 0.3) * 100) / 100 } } : {}),
+        ...(tall ? { params: { height: Math.round((wall * CELL_H + 0.25) * 100) / 100, ...(against !== undefined ? { against } : {}) } } : {}),
       });
       out.socket({ type: 'chimney-top', owner: id, structure: s.id, cell });
     }

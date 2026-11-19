@@ -14,9 +14,18 @@ import { bar, face, personaOf, plate, rectPts } from './lib';
 
 export default definePart({
   feature: 'dormer',
-  build(_item, ctx) {
+  build(item, ctx) {
     const b = ctx.mesh();
     const p = personaOf(ctx);
+    if (item.variant === 'skylight') {
+      // A roof light: a framed pane lying on the slope (the frame's +Y is the slope's normal).
+      b.with({ color: p.trim, ink: 'window' }, () => {
+        b.box([-0.15, -0.01, -0.19], [0.15, 0.035, 0.19], { skip: ['bottom'] });
+        b.with({ color: PALETTE.glass, pattern: PATTERN.glass }, () => b.quad([-0.11, 0.038, 0.15], [0.11, 0.038, 0.15], [0.11, 0.038, -0.15], [-0.11, 0.038, -0.15]));
+        b.quad([-0.011, 0.04, 0.15], [0.011, 0.04, 0.15], [0.011, 0.04, -0.15], [-0.011, 0.04, -0.15]);
+      });
+      return { mesh: b.build() };
+    }
     const s = ctx.structure;
     const wall = s && !ctx.plan.tags.get(s.id)?.has('white-walls') ? rampColor('house', s.color) : PALETTE.white;
     const hw = 0.185, top = 0.26, peak = 0.41, foot = -0.16, back = -0.8, over = 0.04;

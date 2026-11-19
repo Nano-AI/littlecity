@@ -38,5 +38,6 @@ export default scenario({
     check.equal(check.applied('R-H14.lookout-cottage'), 1, 'lookout cottages');
     check.hasFeature({ type: 'finial', variant: 'vane', on: [12, 4, 12] });
     check.noFeature({ type: 'finial', on: [27, 4, 12] });
+    check.equal(check.props({ type: 'role-prop', variant: 'telescope' }).length, 1, 'telescopes');
   },
 });

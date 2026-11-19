@@ -205,6 +205,13 @@ export interface RoofLook {
   thick: number;
   fascia: ColorInput;
   fasciaInk: string;
+  /**
+   * Ridge and hip caps: a raised strip of ridge tile along every line where the roof folds
+   * outward. Omit for a roof without them.
+   */
+  cap?: { color: ColorInput; ink: string; width: number; proud: number };
+  /** The tile colour at a point (seeded bands of slightly different tone). Default: `color` everywhere. */
+  tone?(x: number, z: number): ColorInput;
 }
 
 type P2 = readonly [number, number];
@@ -212,6 +219,8 @@ type P2 = readonly [number, number];
 /** Emits the roof surface, its overhangs and its edge. World space. */
 export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
   const input = f.input;
+  /** Every roof triangle drawn, for finding the folds afterwards (only when caps are wanted). */
+  const faces: { v: [Vec3, Vec3, Vec3]; flat: [Vec3, Vec3, Vec3]; n: Vec3 }[] = [];
   /** One triangle of roof over `cell`, counter-clockwise seen from above. */
   const tri = (cell: CellKey, p: P2, q: P2, r: P2): void => {
     const A: Vec3 = [p[0], f.planeAt(cell, p[0], p[1]), p[1]];
@@ -221,13 +230,14 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
     const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
     const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
     const n: Vec3 = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
-    if (Math.hypot(n[0], n[1], n[2]) < 1e-9) return;
-    b.tri(
-      [p[0], f.heightAt(cell, p[0], p[1]), p[1]],
-      [q[0], f.heightAt(cell, q[0], q[1]), q[1]],
-      [r[0], f.heightAt(cell, r[0], r[1]), r[1]],
-      { normals: [n, n, n] },
-    );
+    const len = Math.hypot(n[0], n[1], n[2]);
+    if (len < 1e-9) return;
+    const P: Vec3 = [p[0], f.heightAt(cell, p[0], p[1]), p[1]];
+    const Q: Vec3 = [q[0], f.heightAt(cell, q[0], q[1]), q[1]];
+    const R: Vec3 = [r[0], f.heightAt(cell, r[0], r[1]), r[1]];
+    const tone = look.tone?.((p[0] + q[0] + r[0]) / 3, (p[1] + q[1] + r[1]) / 3);
+    b.tri(P, Q, R, tone === undefined ? { normals: [n, n, n] } : { normals: [n, n, n], colors: [tone, tone, tone] });
+    if (look.cap) faces.push({ v: [P, Q, R], flat: [A, B, C], n: [n[0] / len, n[1] / len, n[2] / len] });
   };
   /** A four-sided patch a→b→c→d (counter-clockwise from above), split along the diagonal the field creases on. */
   const patch = (cell: CellKey, a: P2, p: P2, c: P2, d: P2): void => {
@@ -342,4 +352,84 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
       }
     }
   }
+  if (look.cap) ridgeCaps(b, faces, look.cap);
+}
+
+/**
+ * Ridge and hip caps. Wherever two roof triangles meet at a fold that points
+ * outward (a ridge or a hip, not a valley), lay a small tent of ridge tile
+ * along the shared edge. Found from the drawn triangles, so it is right for
+ * every roof type and footprint without knowing which is which.
+ */
+function ridgeCaps(
+  b: MeshBuilder,
+  faces: readonly { v: [Vec3, Vec3, Vec3]; flat: [Vec3, Vec3, Vec3]; n: Vec3 }[],
+  cap: { color: ColorInput; ink: string; width: number; proud: number },
+): void {
+  const q = (p: Vec3): string => `${Math.round(p[0] * 2000)},${Math.round(p[2] * 2000)}`;
+  const edges = new Map<string, { face: number; a: number; b: number }[]>();
+  faces.forEach((face, i) => {
+    for (let k = 0; k < 3; k++) {
+      const a = k, c = (k + 1) % 3;
+      const ka = q(face.v[a]), kc = q(face.v[c]);
+      const id = ka < kc ? `${ka}|${kc}` : `${kc}|${ka}`;
+      const list = edges.get(id);
+      if (list) list.push({ face: i, a, b: c });
+      else edges.set(id, [{ face: i, a, b: c }]);
+    }
+  });
+  const sub = (u: Vec3, v: Vec3): Vec3 => [u[0] - v[0], u[1] - v[1], u[2] - v[2]];
+  const dot = (u: Vec3, v: Vec3): number => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const cross = (u: Vec3, v: Vec3): Vec3 => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const unit = (u: Vec3): Vec3 => {
+    const l = Math.hypot(u[0], u[1], u[2]) || 1;
+    return [u[0] / l, u[1] / l, u[2] / l];
+  };
+  const along = (p: Vec3, d: Vec3, t: number): Vec3 => [p[0] + d[0] * t, p[1] + d[1] * t, p[2] + d[2] * t];
+
+  const folds: { a: Vec3; c: Vec3; n1: Vec3; n2: Vec3; d1: Vec3; d2: Vec3 }[] = [];
+  const ends = new Map<string, number>();
+  for (const pair of edges.values()) {
+    if (pair.length !== 2) continue;
+    const f1 = faces[pair[0]!.face]!, f2 = faces[pair[1]!.face]!;
+    if (dot(f1.n, f2.n) > 0.985) continue; // the same slope, or nearly
+    const a = f1.v[pair[0]!.a]!, c = f1.v[pair[0]!.b]!;
+    // Outward fold: the far corner of the second triangle lies below the plane of the first.
+    const far2 = f2.flat[3 - pair[1]!.a - pair[1]!.b]!, far1 = f1.flat[3 - pair[0]!.a - pair[0]!.b]!;
+    const on = f1.flat[pair[0]!.a]!;
+    if (dot(sub(far2, on), f1.n) > -1e-5) continue;
+    const e = unit(sub(c, a));
+    // In each slope, the direction straight away from the fold.
+    let d1 = unit(cross(f1.n, e)), d2 = unit(cross(f2.n, e));
+    if (dot(d1, sub(far1, on)) < 0) d1 = [-d1[0], -d1[1], -d1[2]];
+    if (dot(d2, sub(far2, on)) < 0) d2 = [-d2[0], -d2[1], -d2[2]];
+    folds.push({ a, c, n1: f1.n, n2: f2.n, d1, d2 });
+    for (const p of [a, c]) ends.set(q(p), (ends.get(q(p)) ?? 0) + 1);
+  }
+  if (folds.length === 0) return;
+  const hw = cap.width / 2;
+  b.with({ color: cap.color, ink: cap.ink }, () => {
+    for (const { a, c, n1, n2, d1, d2 } of folds) {
+      const up = unit([n1[0] + n2[0], n1[1] + n2[1], n1[2] + n2[2]]);
+      const peakA = along(a, up, cap.proud), peakC = along(c, up, cap.proud);
+      const side = (d: Vec3, n: Vec3): void => {
+        const footA = along(along(a, d, hw), n, 0.003), footC = along(along(c, d, hw), n, 0.003);
+        // Wind it so the face looks away from the roof.
+        const normal = cross(sub(peakC, peakA), sub(footA, peakA));
+        if (dot(normal, n) >= 0) b.quad(peakA, peakC, footC, footA);
+        else b.quad(peakA, footA, footC, peakC);
+      };
+      side(d1, n1);
+      side(d2, n2);
+      // Close an end where the cap stops (a ridge at a gable end).
+      for (const [p, peak, out] of [[a, peakA, -1], [c, peakC, 1]] as const) {
+        if (ends.get(q(p)) !== 1) continue;
+        const f1 = along(along(p, d1, hw), n1, 0.003), f2 = along(along(p, d2, hw), n2, 0.003);
+        const e = sub(c, a);
+        const normal = cross(sub(f1, peak), sub(f2, peak));
+        if (dot(normal, e) * out >= 0) b.tri(peak, f1, f2);
+        else b.tri(peak, f2, f1);
+      }
+    }
+  });
 }

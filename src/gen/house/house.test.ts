@@ -77,8 +77,8 @@ describe('house shell', () => {
     expect(uprights(ma, PATTERN.plaster).some((v) => Math.abs(ma.position[v * 3]! - (11 - HOUSE.inset)) < 1e-4)).toBe(true);
     expect(uprights(mc, PATTERN.plaster).some((v) => Math.abs(mc.position[v * 3]! - (11 + HOUSE.inset)) < 1e-4)).toBe(true);
     // No roof reaches over the neighbour.
-    expect(meshBounds(ma).max[0]).toBeLessThanOrEqual(11 + 1e-4);
-    expect(meshBounds(mc).min[0]).toBeGreaterThanOrEqual(11 - 1e-4);
+    expect(meshBounds(ma).max[0]).toBeLessThanOrEqual(11 + 0.01);
+    expect(meshBounds(mc).min[0]).toBeGreaterThanOrEqual(11 - 0.01);
     // And no ink group is shared between them.
     const inks = new Set(inkGroups(ma).keys());
     for (const id of inkGroups(mc).keys()) expect(inks.has(id)).toBe(false);

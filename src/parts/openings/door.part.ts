@@ -70,6 +70,26 @@ export default definePart({
       knob(b, -0.035, 0.25, 0.062);
       knob(b, 0.035, 0.25, 0.062);
       anchors['sign-bracket'] = translation(0.36, 0.66, 0);
+      // R-H01: a chapel door stands in a small gabled porch on two posts.
+      if (ctx.structure && ctx.plan.roles.get(ctx.structure.id)?.role === 'chapel') {
+        const out = 0.27, eave = 0.5, peak = 0.73, e = 0.37;
+        b.with({ color: PALETTE.wood, ink: 'porch-posts' }, () => {
+          for (const x of [-0.3, 0.3]) b.box([x - 0.02, 0.05, out - 0.06], [x + 0.02, eave, out - 0.02], { skip: ['bottom', 'top'] });
+          b.box([-0.32, eave - 0.035, out - 0.065], [0.32, eave, out - 0.015], { skip: ['top'] });
+        });
+        b.with({ color: p.roofColor, pattern: PATTERN.shingles, ink: 'porch-roof' }, () => {
+          b.quad([e, eave - 0.02, out], [e, eave - 0.02, 0], [0, peak, 0], [0, peak, out]);
+          b.quad([-e, eave - 0.02, 0], [-e, eave - 0.02, out], [0, peak, out], [0, peak, 0]);
+        });
+        b.with({ color: p.trim, ink: 'porch-trim' }, () => {
+          const t = 0.04;
+          b.quad([0, peak - t, out], [e, eave - 0.02 - t, out], [e, eave - 0.02, out], [0, peak, out]);
+          b.quad([-e, eave - 0.02 - t, out], [0, peak - t, out], [0, peak, out], [-e, eave - 0.02, out]);
+          // undersides, seen under the far slope
+          b.quad([e, eave - 0.02 - t, out], [0, peak - t, out], [0, peak - t, 0], [e, eave - 0.02 - t, 0]);
+          b.quad([0, peak - t, out], [-e, eave - 0.02 - t, out], [-e, eave - 0.02 - t, 0], [0, peak - t, 0]);
+        });
+      }
       const out = stoop(b, 0.62, steps);
       anchors.door = translation(0, -steps * STEP_RISE, out + 0.2);
     } else if (variant === 'shop') {

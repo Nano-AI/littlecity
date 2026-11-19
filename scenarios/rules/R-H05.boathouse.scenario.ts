@@ -28,6 +28,7 @@ export default scenario({
     { name: 'close', yaw: 130, pitch: 26, zoom: 10, target: [11, 1.3, 14.5] },
   ],
   expect(plan, _dressing, check) {
+    check.equal(check.applied('R-H99.role-props') >= 3, true, 'role props placed');
     check.role(10, 1, 14, 'boathouse');
     check.hasTag(10, 1, 14, 'plank-walls');
     check.role(15, 1, 14, 'boathouse');
@@ -38,5 +39,8 @@ export default scenario({
     const door = check.hasFeature({ type: 'door', variant: 'double', on: [10, 1, 14] })[0]!;
     check.equal(door.dir, 2, 'the boat doors face the sea to the south');
     check.hasFeature({ type: 'door', variant: 'double', on: [15, 1, 14], dir: 2 });
+    // Its props: a slipway where the doors face open water, a net on a landward wall.
+    check.hasProp({ type: 'role-prop', variant: 'slipway' }, 2);
+    check.hasProp({ type: 'role-prop', variant: 'net' }, 2);
   },
 });
