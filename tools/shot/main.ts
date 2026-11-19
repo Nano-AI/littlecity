@@ -9,8 +9,10 @@ import type { LifeRuntime, SignalsDriver } from '@/life/api';
 import { createTownView } from '@/render/index';
 import type { TownView } from '@/render/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario, cameraName, scenarioResolveOptions, TownBuilder, type BuiltScenario, type TimeOfDay } from '@/scenario';
+import { buildScenario, cameraName, scenarioResolveOptions, type BuiltScenario, type TimeOfDay } from '@/scenario';
 import { findScenario, matchScenarios } from '@/scenario/discover';
+import { benchEdit } from '@/scenario/edits';
+import { applyEdit } from '@/world/world';
 
 const canvas = document.getElementById('town') as HTMLCanvasElement;
 let view: TownView | null = null;
@@ -101,18 +103,25 @@ const api = {
     }
     const stats = view!.stats();
 
-    // One edit at a time: an Auto block on top of whatever stands in a column.
+    // One edit at a time: an Auto block on top of a column, a legal one for this town (benchEdit).
+    // As in the app: the shape is drawn at once (the rebuild), the dressing a frame later.
     let world = built.world;
-    const edits: { shapeMs: number; dressingMs: number; rebuildMs: number }[] = [];
+    const opts = scenarioResolveOptions(built.scenario);
+    const edits: { shapeMs: number; dressingMs: number; rebuildMs: number; dressMs: number }[] = [];
     for (let i = 0; i < 20; i++) {
-      world = new TownBuilder(world, built.terrain).put('auto', 4 + ((i * 7) % 40), 4 + ((i * 11) % 40)).world;
+      const edit = benchEdit(world, built.terrain, i);
+      if (!edit) break;
+      world = applyEdit(world, built.terrain, edit);
       const a = performance.now();
-      const shape = resolveShape(world, built.terrain);
+      const shape = resolveShape(world, built.terrain, opts);
       const b = performance.now();
-      const dressing = resolveDressing(shape);
+      view!.setTown(shape, null);
+      const rebuildMs = view!.stats().rebuildMs;
       const c = performance.now();
-      view!.setTown(shape, dressing);
-      edits.push({ shapeMs: b - a, dressingMs: c - b, rebuildMs: view!.stats().rebuildMs });
+      const dressing = resolveDressing(shape, opts);
+      const d = performance.now();
+      view!.setDressing(dressing);
+      edits.push({ shapeMs: b - a, dressingMs: d - c, rebuildMs, dressMs: view!.stats().rebuildMs });
     }
     const gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | null;
     const info = gl?.getExtension('WEBGL_debug_renderer_info');

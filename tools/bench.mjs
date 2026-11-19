@@ -68,6 +68,7 @@ if (!flags['no-browser'] && !failed) {
     row('resolveShape() after one edit', `${ms(median(r.edits.map((e) => e.shapeMs)))} / ${ms(p95(r.edits.map((e) => e.shapeMs)))}`, 'budget ≤ 8 ms');
     row('resolveDressing() after one edit', `${ms(median(r.edits.map((e) => e.dressingMs)))} / ${ms(p95(r.edits.map((e) => e.dressingMs)))}`, 'budget ≤ 30 ms');
     row('geometry rebuild after one edit', `${ms(median(r.edits.map((e) => e.rebuildMs)))} / ${ms(p95(r.edits.map((e) => e.rebuildMs)))}`, 'budget ≤ 8 ms');
+    row('  then setDressing (props and actors)', `${ms(median(r.edits.map((e) => e.dressMs)))} / ${ms(p95(r.edits.map((e) => e.dressMs)))}`);
     if (errors.length) {
       console.error(`\nThe page reported errors:\n${errors.slice(0, 10).join('\n')}`);
       failed = true;
