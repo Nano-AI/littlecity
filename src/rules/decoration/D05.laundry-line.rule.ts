@@ -8,10 +8,12 @@
 // made lines rare exactly where they belong. Someone leans out of one window
 // and the far end is a hook on the wall opposite.)
 //
-// Where: over a drop (the line is a storey or more above anything a person
-// can stand on), or at ground level only between two single-storey houses a
-// single cell apart, where the wash hangs across the lane above head height.
-// Never over a plaza (bunting belongs there, D04), never through a tree.
+// Where: over a drop only: the line is a full storey or more above anything a
+// person can stand on or climb, so it never crosses a lane, a path's walking
+// line or the top of a stair at head height. (The catalogue also allows a
+// ground-level line between two cottages a cell apart; that hangs across the
+// lane at head height and read wrong, so it is left out.) Never over a plaza
+// (bunting belongs there, D04), never through a tree.
 // At most DRESSING.laundryPerThree lines in any three cells along a lane.
 //
 // Stability: a pair's chance roll is seeded by its own cell and side only.
@@ -28,7 +30,6 @@ import { facades } from '@/resolve/facts/facades.fact';
 import { standable } from '@/resolve/facts/lib';
 import { occupancy, TERRAIN } from '@/resolve/facts/occupancy.fact';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
-import { structureInfo } from '@/resolve/facts/structure.fact';
 import { DRESSING } from '@/style/dressing';
 import { lucky } from './lib';
 
@@ -57,7 +58,6 @@ export default defineRule<Line>({
   find({ facts, seed }) {
     const all = facades(facts);
     const occ = occupancy(facts);
-    const info = structureInfo(facts);
     const features = new Map(facts.shape.features.map((f) => [f.id, f]));
     // The plain window of each facade cell and side.
     const windows = new Set<number>();
@@ -89,11 +89,8 @@ export default defineRule<Line>({
       if (other === NO_CELL || gap < 1 || gap > maxGap) continue;
       const back = ((fc.dir + 2) % 4) as Dir4;
       if (!windows.has(fc.cell * 4 + fc.dir) && !windows.has(other * 4 + back)) continue;
-      // What is under the line.
-      if (between.some((b) => standable(facts, b))) {
-        const single = (id: number): boolean => (info.get(id)?.storeys ?? 9) === 1;
-        if (gap !== 1 || !single(fc.structure) || !single(occ.structure[other]!)) continue;
-      }
+      // What is under the line: nothing walkable at its own level, and no stair climbing up to it.
+      if (between.some((b) => standable(facts, b) || (b >= LEVEL && occ.kindAt(b - LEVEL) === 'stairs'))) continue;
       let blocked = false;
       for (const b of between) {
         // A tree's crown just below, or a plaza anywhere under the line.
