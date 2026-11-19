@@ -25,8 +25,10 @@ Branch `swarm/monuments`. Brief: `docs/swarm/art-review-1.md`, section "Monument
 - Nothing in progress. If a second review comes, start with the temple.
 
 ## Gotchas
-- Run `npm run check` alone: on a loaded machine `tests/e2e/interface.e2e.test.ts`
-  ("one-finger drag orbits") fails on timing; it passes with `-t "one-finger drag"`.
+- `npm run check` has not been fully green in one run since the fix pass: at load
+  average 15 to 20 the timing tests fail (`tests/e2e/interface.e2e.test.ts` "phone:
+  touch", `src/gen/terrain/terrain.test.ts` "quick enough"). Each passes run alone
+  (`-t "phone: touch"`). Typecheck, lint and all other tests pass. Retry when idle.
 - Big combined shell commands get killed (exit 137); run tsc, eslint, vitest apart.
 - One part per feature type: tower, lighthouse, marble and arch generators draw
   their own cap, window, door, gallery, bollard and never ask the registry.
