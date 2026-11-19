@@ -8,7 +8,10 @@ No forks. Commit after each note. Finish with `npm run check` green.
 - **G1 trees: done** (`8f00f9a`). `src/gen/tree/species.ts`.
 - **G2 stairs: done.** Lighter tread slabs with a nosing, uneven and worn
   treads by seed, sides against a wall run `STAIRS.into` into it, closed.
-- **Next:** G3 curtain wall (`src/gen/wall/wall.gen.ts`, R-E02), G4 iron
+- **G3 curtain wall: done.** Batter, corbel course, parapet band, merlons
+  wider than gaps, slits; stone tint from the tower it touches (tag
+  `stone:N` pinned by R-E02).
+- **Next:** G4 iron
   railing (`src/parts/ground/edge-draw.ts`, `railing.part.ts`, J19, J20),
   G5 plaza motif (`src/gen/floor/plaza.gen.ts`, function `motif`).
 

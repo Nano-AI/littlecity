@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { edgeKey } from '@/core/grid';
 import { findDuplicateFaces, inkGroups, triangleCount, validateMesh } from '@/gen/checks';
-import { MeshBuilder, meshBounds } from '@/gen/mesh';
+import { MeshBuilder, meshBounds, parseColor } from '@/gen/mesh';
 import { defineRule } from '@/resolve/engine/api';
 import { resolveTown } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
+import { WALL } from '@/style/edges';
+import { rampColor } from '@/style/palette';
 import { emptyWorld } from '@/world/world';
 import { blockStructure, EDGE_RULES, edgeParts, edgeStructure, town } from '../fence/testing';
 import wall from './wall.gen';
@@ -34,7 +36,7 @@ describe('the wall generator', () => {
 
   test('a curtain wall stands one storey tall between its towers and ends in them without piers', () => {
     const plan = town((b) => {
-      b.tower(9, 10, { floors: 2 }).tower(15, 10, { floors: 2 });
+      b.tower(9, 10, { floors: 2, color: 3 }).tower(15, 10, { floors: 2, color: 3 });
       for (let x = 10; x <= 14; x++) b.put('wall', x, 10);
     });
     const s = blockStructure(plan, 10, 1, 10);
@@ -43,10 +45,19 @@ describe('the wall generator', () => {
     expect(validateMesh(mesh)).toEqual([]);
     expect(findDuplicateFaces(mesh)).toBe(0);
     const { min, max } = meshBounds(mesh);
-    expect(max[1] - min[1]).toBeCloseTo(0.8, 5);
+    expect(max[1] - min[1]).toBeLessThanOrEqual(0.8 + 1e-6);
+    expect(max[1] - min[1]).toBeGreaterThan(0.78);
+    // Built of its towers' stone (R-E02 pins the tint), not the wall ramp's default.
+    expect(plan.tags.get(s.id)?.has('stone:3')).toBe(true);
+    const [tr, tg, tb] = parseColor(rampColor('tower', 3));
+    let towerStone = 0;
+    for (let v = 0; v < mesh.color.length / 3; v++) if (mesh.color[v * 3] === tr && mesh.color[v * 3 + 1] === tg && mesh.color[v * 3 + 2] === tb) towerStone++;
+    expect(towerStone / (mesh.color.length / 3)).toBeGreaterThan(0.6);
+    // The parapet is solid more than it is gap: merlons wider than the crenels between them.
+    expect(WALL.merlon).toBeGreaterThan(WALL.crenel);
     expect(min[0]).toBeLessThan(10); // into the west tower
     expect(max[0]).toBeGreaterThan(15); // and the east one
-    expect(inkGroups(mesh).size).toBe(3); // body, wall-walk, merlons: no piers
+    expect(inkGroups(mesh).size).toBe(5); // body, batter, corbel course, parapet (band and merlons as one), slits: no piers
     expect(triangleCount(mesh)).toBeLessThan(5 * CURTAIN);
   });
 

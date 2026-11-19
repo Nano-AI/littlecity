@@ -71,13 +71,25 @@ export const WALL = defineStyle(
     curtainThick: 0.3,
     curtainWalk: 0.44,
     parapet: 0.17,
+    /** Its top: the corbel course under the parapet band, the band (which oversails the wall by `oversail`), and the merlons on it. */
+    corbel: 0.045,
+    band: 0.12,
+    oversail: 0.03,
+    merlon: 0.24,
+    crenel: 0.14,
+    merlonHeight: 0.12,
+    /** The batter at its foot: height, and how far it stands out at the ground. */
+    batter: 0.15,
+    batterOut: 0.05,
+    /** An arrow slit every this many cells. */
+    slitEvery: 3,
     /** Its corner turrets: width, and how far they rise above the wall. */
     turret: 0.52,
     turretRise: 0.2,
     /** The arched opening: half its width, and the height its arch springs from, in a low wall and in a curtain wall. */
     archHalf: 0.3,
     archSpring: 0.36,
-    curtainSpring: 0.26,
+    curtainSpring: 0.23,
     /** R-E02: the chance that a garden wall carries creepers. */
     creepers: 0.4,
   },
@@ -91,6 +103,15 @@ export const WALL = defineStyle(
     curtainThick: [0.2, 0.45, 0.01],
     curtainWalk: [0.3, 0.6, 0.01],
     parapet: [0.08, 0.3, 0.01],
+    corbel: [0.02, 0.1, 0.005],
+    band: [0.06, 0.2, 0.01],
+    oversail: [0, 0.08, 0.005],
+    merlon: [0.14, 0.4, 0.01],
+    crenel: [0.08, 0.3, 0.01],
+    merlonHeight: [0.06, 0.24, 0.01],
+    batter: [0, 0.3, 0.01],
+    batterOut: [0, 0.12, 0.005],
+    slitEvery: [1, 6, 1],
     turret: [0.4, 0.7, 0.01],
     turretRise: [0, 0.5, 0.01],
     archHalf: [0.2, 0.36, 0.01],

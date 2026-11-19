@@ -28,4 +28,16 @@ declare module '@/core/vocab' {
     // open sides (J18). `cell` = the stairs cell.
     'stair-landing': true;
   }
+  interface TagVocab {
+    // R-E02: the stone of a curtain wall is the stone of the tower or marble it touches
+    // (the palette index of that block: RAMPS.stone), so a castle is one material.
+    'stone:0': true;
+    'stone:1': true;
+    'stone:2': true;
+    'stone:3': true;
+    'stone:4': true;
+    'stone:5': true;
+    'stone:6': true;
+    'stone:7': true;
+  }
 }
