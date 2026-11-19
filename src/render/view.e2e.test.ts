@@ -222,9 +222,11 @@ describe('the view', () => {
     const rest = (await settled()).drawCalls;
     expect(await look<number>(`window.__look.spawn(60)`)).toBe(60);
     await settled();
-    // Sixty things moving every frame: one more draw call (their pool) and nothing else, ever.
+    // Sixty things moving every frame: at most one more draw call (their pool) and nothing else, ever.
+    // Since the life rules landed the scene already has actors (smoke, birds), so the pool may exist at rest.
     const walking = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('spawned', 30)`);
-    expect(walking.drawCalls).toBe(rest + 1);
+    expect(walking.drawCalls).toBeGreaterThanOrEqual(rest);
+    expect(walking.drawCalls).toBeLessThanOrEqual(rest + 1);
     // A prop stands in the picture (it throws shade), so moving one redraws it, every other frame at most.
     const sliding = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('prop', 30)`);
     expect(sliding.drawCalls).toBeGreaterThan(rest + 3);
