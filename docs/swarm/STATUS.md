@@ -296,3 +296,17 @@ Found by the guide agent and sent to animation-polish: a lone keep gets no
 garrison (no gate is found), and the rider is only drawn when a plaza
 exists; both contradict catalogue L36/L37.
 Running: steady-ink, animation-polish pass 2.
+
+**Four more requests from Derek, specced (commit `b6c3910`) and dispatched:**
+- Rivers and varied islands (gentle, hilly, steep, archipelago), rock tops,
+  `World.terrainGen` so old towns keep their island → new Opus agent on
+  `swarm/terrain2`. After it merges, Grow a town needs a third pass
+  (bridge rivers, build on steep islands).
+- House style did not let him build an inn or manor (same roof, different
+  wall colours, so blocks never merged) → house-styles agent resumed: each
+  style gets a signature wall colour so houses of one style join.
+- Night: lights should go out through the night, silhouettes in lit windows
+  (catalogue L07 rewritten) → animation-polish agent.
+- Fireflies removed entirely → animation-polish agent.
+Running: steady-ink, animation-polish pass 2, house-styles fix, terrain2.
+Not started: discovery rounds (Stage 5), final art pass (Stage 6).
