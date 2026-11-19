@@ -12,7 +12,7 @@ import { defineGenerator } from '@/gen/api';
 import { MeshBuilder } from '@/gen/mesh';
 import { rngOf, type Rng } from '@/parts/ground/kit';
 import { fountainSocketId, fountainSockets, type FountainRole } from '@/rules/roles/ground-props';
-import { birdbath, smallBasin, stoneOf, tieredFountain, well, type FountainAnchors } from './draw';
+import { birdbath, setBakeJets, smallBasin, stoneOf, tieredFountain, well, type FountainAnchors } from './draw';
 
 const DRAW: Record<FountainRole, (b: MeshBuilder, r: Rng, stone: string) => FountainAnchors> = {
   'tiered-fountain': tieredFountain,
@@ -34,13 +34,18 @@ function stance(role: FountainRole, r: Rng): Mat4 {
  * Draws one fountain on the builder's origin and returns the frames of its
  * sockets by name, relative to that origin. Also used by galleries and tests.
  */
-export function drawFountain(b: MeshBuilder, role: FountainRole, seed: number, color = 0): FountainAnchors {
+export function drawFountain(b: MeshBuilder, role: FountainRole, seed: number, color = 0, jets = true): FountainAnchors {
   const r = rngOf(seed);
   const m = stance(role, r);
   let local: FountainAnchors = {};
-  b.at(m, () => {
-    local = DRAW[role](b, r, stoneOf(color));
-  });
+  setBakeJets(jets);
+  try {
+    b.at(m, () => {
+      local = DRAW[role](b, r, stoneOf(color));
+    });
+  } finally {
+    setBakeJets(true);
+  }
   const out: FountainAnchors = {};
   for (const name of Object.keys(local)) out[name] = multiply(m, local[name]!);
   return out;
@@ -48,7 +53,9 @@ export function drawFountain(b: MeshBuilder, role: FountainRole, seed: number, c
 
 export default defineGenerator({
   kind: 'fountain',
-  build(s, plan) {
+  build(s, plan, parts) {
+    // Falling water is an actor when its part exists (L29: the jets play); otherwise it is baked here.
+    const jets = !parts.has('actor', 'water-jet');
     const anchors: Record<string, Mat4Like> = {};
     const b = new MeshBuilder({ ink: s.id });
     const given = plan.roles.get(s.id)?.role;
@@ -57,7 +64,7 @@ export default defineGenerator({
       const origin = translation(keyX(cell) + 0.5, keyY(cell) * CELL_H, keyZ(cell) + 0.5);
       let local: FountainAnchors = {};
       b.at(origin, () => {
-        local = drawFountain(b, role, s.seed, s.color);
+        local = drawFountain(b, role, s.seed, s.color, jets);
       });
       for (const socket of fountainSockets(role)) {
         const at = local[socket.name];

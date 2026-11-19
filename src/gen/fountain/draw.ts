@@ -30,6 +30,15 @@ function rimFrame(x: number, y: number, z: number, dx: number, dz: number): Mat4
   return frame([x, y, z], [dz, 0, -dx], UP, [dx, 0, dz]);
 }
 
+/**
+ * Whether falling water is drawn here. Off when a part for 'water-jet' actors exists: then the
+ * water is an actor at each 'water-jet' socket, and life makes it play (L29). Set by drawFountain.
+ */
+let bakeJets = true;
+export function setBakeJets(on: boolean): void {
+  bakeJets = on;
+}
+
 /** Water in the air: nearly white, a breath of blue so it stands off pale stone. */
 const WATER_WHITE = mixColor(PALETTE.foam, PALETTE.shallow, 0.45);
 /** `edge` for pale still water with no shore marks (see the header). */
@@ -101,7 +110,7 @@ export function tieredFountain(b: MeshBuilder, r: Rng, stone: ColorInput): Fount
     const dx = Math.cos(a), dz = Math.sin(a);
     const reach = 0.075 + r('reach', k) * 0.02;
     const at = (d: number, y: number): Vec3 => [dx * d, y, dz * d];
-    b.with({ color: WATER_WHITE, pattern: PATTERN.foam, ink: 'falls' }, () =>
+    if (bakeJets) b.with({ color: WATER_WHITE, pattern: PATTERN.foam, ink: 'falls' }, () =>
       tube(b, [at(br - 0.02, bh - 0.012), at(br + reach * 0.55, bh - 0.03), at(br + reach * 0.95, bh - 0.15), at(br + reach, wy)], [0.022, 0.026, 0.03, 0.036], { seg: 5 }),
     );
     anchors[`rim${k}`] = spoutFrame(br * dx, bh, br * dz, dx, dz);
@@ -138,7 +147,7 @@ export function smallBasin(b: MeshBuilder, r: Rng, stone: ColorInput): FountainA
     const dx = alongX ? sgn : 0, dz = alongX ? 0 : sgn;
     const at = (d: number, y: number): Vec3 => [dx * d, y, dz * d];
     b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'spouts' }, () => tube(b, [at(0.07, ys), at(0.135, ys)], 0.024, { seg: 6, capEnd: true }));
-    b.with({ color: WATER_WHITE, pattern: PATTERN.foam, ink: 'jets' }, () =>
+    if (bakeJets) b.with({ color: WATER_WHITE, pattern: PATTERN.foam, ink: 'jets' }, () =>
       tube(b, [at(0.13, ys), at(0.19, ys - 0.02), at(0.235, ys - 0.085), at(0.255, wy)], [0.022, 0.027, 0.03, 0.034], { seg: 6 }),
     );
     anchors[`spout${k}`] = spoutFrame(dx * 0.135, ys, dz * 0.135, dx, dz);

@@ -5,15 +5,16 @@
 // Frame: the 'mill-hub' socket (+Z along the windshaft, out of the cap); the
 // wheel lies in the socket's XY plane and turns about Z. Posed on twos.
 //
-// The cap does not yaw: it is baked into the windmill's own mesh by its
-// generator (see docs/swarm/requests/animation.md).
+// The cap turns to the wind (src/life/mechanisms/mill-cap.behaviour.ts) and
+// the wheel goes round with it: its pose is multiplied by capTurnOf.
 
-import { multiply, positionOf, rotationZ } from '@/core/mat4';
+import { multiply, positionOf, rotationZ, type Mat4Like } from '@/core/mat4';
 import { WINDY } from '@/style/animation';
 import { defineBehaviour } from '../api';
 import { carryOf } from '../feedback/carry';
 import { glide } from '../motion/ease';
 import { Twos } from '../motion/twos';
+import { capTurnOf } from '../mechanisms/turn';
 
 /** How fast a wheel wants to turn (radians a second) in wind of this strength meeting it at this cosine. */
 export function sailSpeed(strength: number, facing: number): number {
@@ -25,14 +26,16 @@ export function sailSpeed(strength: number, facing: number): number {
 export default defineBehaviour({
   actor: 'windmill-sails',
   create(_item, ctx) {
-    return { angle: ctx.rand('angle') * Math.PI * 2, speed: WINDY.sailIdle, twos: new Twos(ctx.rand('twos')), carried: false };
+    return { angle: ctx.rand('angle') * Math.PI * 2, speed: WINDY.sailIdle, twos: new Twos(ctx.rand('twos')), carried: false, turn: null as Mat4Like | null };
   },
   update(state, dt, signals, ctx) {
     const step = state.twos.tick(dt);
     const carry = carryOf(ctx.stage, ctx.item.home);
-    // While the mill bounces from a landing the wheel rides with it, every frame.
-    if (step === 0 && !carry && !state.carried) return;
-    const base = ctx.instance.base;
+    const turn = capTurnOf(ctx.stage, ctx.item.home);
+    // While the mill bounces from a landing, or its cap is coming round, the wheel rides with it, every frame.
+    if (step === 0 && !carry && !state.carried && turn === state.turn) return;
+    state.turn = turn;
+    const base = turn ? multiply(turn, ctx.instance.base) : ctx.instance.base;
     if (step > 0) {
       const [x, , z] = positionOf(base);
       const wind = signals.wind(x, z);

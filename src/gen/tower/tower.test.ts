@@ -82,7 +82,12 @@ describe('tower (J13, R-T01, R-T07)', () => {
     expect(validateMesh(mesh)).toEqual([]);
     expect(findDuplicateFaces(mesh)).toBe(0);
     const ink = new MeshBuilder({ ink: s.id });
-    expect(inkGroups(mesh).has(ink.inkOf('bell'))).toBe(true);
+    // The bell is an actor that swings (L29): the generator draws only its beam; with no bell part it draws the bell too.
+    expect(inkGroups(mesh).has(ink.inkOf('bell-beam'))).toBe(true);
+    expect(inkGroups(mesh).has(ink.inkOf('bell'))).toBe(!allParts().has('actor', 'bell'));
+    const parts = allParts();
+    const still = { ...parts, has: (c: Parameters<typeof parts.has>[0], type: string) => !(c === 'actor' && type === 'bell') && parts.has(c, type) };
+    expect(inkGroups(allGenerators().build(s, t.plan, still).mesh).has(ink.inkOf('bell'))).toBe(true);
     expect(meshBounds(mesh).max[1]).toBeGreaterThan(5 * CELL_H + 1.2);
     expect(triangleCount(mesh)).toBeLessThan(4 * 500);
   });

@@ -190,3 +190,36 @@ export const DUSKY = defineStyle(
     beamFade: [0, 10, 0.5],
   },
 );
+
+/** L03 caps and L29: the town's mechanisms. */
+export const MECHANISMS = defineStyle(
+  'mechanisms',
+  {
+    /** A mill cap turning to the wind: how quickly (per second) it closes on it, and the most it turns a second (radians). */
+    capTurn: 0.35,
+    capMaxSpeed: 0.3,
+    /** Bells: seconds a peal lasts at the start of dusk, the swing (radians) at its height, and seconds a swing takes. */
+    pealTime: 14,
+    bellSwing: 0.75,
+    bellPeriod: 1.7,
+    /** Fountain jets: beads in each stream, and seconds a bead takes from lip to pool. */
+    jetBeads: 3,
+    jetFall: 0.7,
+    /** Shop signs: radians of swing per unit of wind across the board, and how springy the hinge is. */
+    signSwing: 0.45,
+    signSpring: 9,
+    signDamp: 1.4,
+  },
+  {
+    capTurn: [0.02, 3, 0.01],
+    capMaxSpeed: [0.02, 3, 0.01],
+    pealTime: [0, 60, 1],
+    bellSwing: [0, 1.4, 0.05],
+    bellPeriod: [0.6, 4, 0.1],
+    jetBeads: [0, 8, 1],
+    jetFall: [0.2, 2, 0.05],
+    signSwing: [0, 1.2, 0.05],
+    signSpring: [1, 30, 0.5],
+    signDamp: [0, 8, 0.1],
+  },
+);
