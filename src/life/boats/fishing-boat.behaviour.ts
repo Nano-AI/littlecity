@@ -1,15 +1,205 @@
-// The fishing boat afloat. Until L18 (tier 2) sends it out at dawn and home
-// at dusk, it lies where it was put and rides the swell.
+// L18: the fishing boat. Overnight it lies at its berth by the docks and
+// rides the swell. At dawn it puts out: across to the sea lane, then slowly
+// round it through the day, working. At dusk it turns for home and the gulls
+// of the harbour come trailing after it (fishingBoatOf, read by the gulls).
+// A town opened by day finds it already out; at night, already home.
+//
+// A fishing boat anchored to a cell (the gallery) just lies there afloat.
+//
+// Travel (where it is, which way it heads) is smooth; the swell is posed on
+// twos; it leaves a wake of rings under way.
 
+import { SEA_Y } from '@/core/grid';
+import type { Mat4 } from '@/core/mat4';
+import type { ShapePlan } from '@/resolve/plan';
+import { seaLane, type SeaLane } from '@/rules/life/sea-lanes.fact';
 import { BOATS } from '@/style/boats';
-import { defineBehaviour } from '../api';
+import { defineBehaviour, type LifeStage, type TimeSignal } from '../api';
+import { angleDelta, easeInOut, glide } from '../motion/ease';
+import { fly } from '../motion/pose';
+import { onTwos } from '../motion/twos';
+import { swellAt, wakeRing, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
-export default defineBehaviour<'fishing-boat', Floating>({
+/** Columns a second, under way. */
+export const FISH_SPEED = 0.9;
+
+export type FishingMode = 'berth' | 'out' | 'lane' | 'return' | 'home';
+
+/** Where the boat should be at a time of day: out from dawn to dusk, home from dusk to dawn. */
+export const wantsOut = (time: TimeSignal): boolean => time.isDawn || time.isDay;
+
+/** Where the fishing boat is, for the gulls: and whether it is coming home with them in tow. */
+export interface BoatNews {
+  x: number;
+  z: number;
+  homeward: boolean;
+}
+const news = new WeakMap<LifeStage, BoatNews>();
+export function fishingBoatOf(stage: LifeStage): BoatNews | null {
+  return news.get(stage) ?? null;
+}
+
+interface State {
+  moored: Floating | null;
+  mode: FishingMode;
+  started: boolean;
+  shape: ShapePlan | null;
+  lane: SeaLane | null;
+  bx: number;
+  bz: number;
+  byaw: number;
+  x: number;
+  z: number;
+  yaw: number;
+  /** A leg between two points (out to the lane, or home): where it began, where it ends, how far along. */
+  fx: number;
+  fz: number;
+  tx: number;
+  tz: number;
+  leg: number;
+  legLen: number;
+  /** Distance along the lane, and where along it the way home leaves it. */
+  s: number;
+  turnHome: number;
+  wake: number;
+  phase: number;
+  swell: Swell;
+  drawn: number;
+  m: Mat4;
+}
+
+function startLeg(state: State, tx: number, tz: number): void {
+  state.fx = state.x;
+  state.fz = state.z;
+  state.tx = tx;
+  state.tz = tz;
+  state.leg = 0;
+  state.legLen = Math.max(0.01, Math.hypot(tx - state.x, tz - state.z));
+}
+
+export default defineBehaviour({
   actor: 'fishing-boat',
-  create: (_item, ctx) => floatingAt(ctx.instance.base, ctx.rand('swell'), BOATS.fishLength, BOATS.fishBeam),
-  changed: (state, ctx) => refloat(state, ctx.instance.base),
-  update(state, _dt, signals, ctx) {
-    poseFloating(state, signals, ctx.instance, ctx.stage, ctx.dressing);
+  create(item, ctx): State {
+    const p = item.params ?? {};
+    const moored = item.at !== null ? floatingAt(ctx.instance.base, ctx.rand('swell'), BOATS.fishLength, BOATS.fishBeam) : null;
+    const bx = p.berthX ?? 0, bz = p.berthZ ?? 0, byaw = p.berthYaw ?? 0;
+    return {
+      moored, mode: 'berth', started: false, shape: null, lane: null,
+      bx, bz, byaw, x: bx, z: bz, yaw: byaw,
+      fx: bx, fz: bz, tx: bx, tz: bz, leg: 1, legLen: 1, s: 0, turnHome: 0, wake: 0,
+      phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, drawn: NaN, m: new Array<number>(16).fill(0),
+    };
+  },
+  changed(state, ctx) {
+    if (state.moored) refloat(state.moored, ctx.instance.base);
+    const p = ctx.item.params ?? {};
+    state.bx = p.berthX ?? state.bx;
+    state.bz = p.berthZ ?? state.bz;
+    state.byaw = p.berthYaw ?? state.byaw;
+  },
+  update(state, dt, signals, ctx) {
+    if (state.moored) {
+      poseFloating(state.moored, signals, ctx.instance, ctx.stage, ctx.dressing);
+      return;
+    }
+    if (ctx.shape !== state.shape) {
+      state.shape = ctx.shape;
+      const lane = seaLane(ctx.shape.facts);
+      state.lane = lane.kind === 'none' ? null : lane;
+      if (state.lane && state.mode === 'lane') state.s = state.lane.nearest(state.x, state.z);
+    }
+    const lane = state.lane;
+    const out = wantsOut(signals.time) && lane !== null;
+    if (!state.started) {
+      state.started = true;
+      if (out) {
+        // Opened by day: already at work on the lane.
+        state.s = (lane!.nearest(state.bx, state.bz) + lane!.length * 0.3 * ctx.rand('start')) % lane!.length;
+        const p = lane!.at(state.s);
+        state.x = p.x;
+        state.z = p.z;
+        state.yaw = Math.atan2(p.dx, p.dz);
+        state.mode = 'lane';
+      }
+    }
+    // Decide.
+    if (out && state.mode === 'berth') {
+      const s = lane!.nearest(state.bx, state.bz);
+      const p = lane!.at(s);
+      state.s = s;
+      startLeg(state, p.x, p.z);
+      state.mode = 'out';
+    } else if (!out && state.mode === 'lane' && lane) {
+      // Home along the lane to the point nearest the berth, then in: never across the island.
+      state.turnHome = lane.nearest(state.bx, state.bz);
+      state.mode = 'return';
+    } else if (!out && (state.mode === 'out' || (state.mode === 'return' && !lane))) {
+      startLeg(state, state.bx, state.bz);
+      state.mode = 'home';
+    } else if (out && (state.mode === 'return' || state.mode === 'home')) {
+      // Morning came before it was in (a short night): back to work.
+      state.mode = 'lane';
+      if (lane) state.s = lane.nearest(state.x, state.z);
+    }
+
+    // Travel: smooth, every frame.
+    const px = state.x, pz = state.z;
+    let heading: number;
+    if (state.mode === 'out' || state.mode === 'home') {
+      state.leg = Math.min(1, state.leg + (FISH_SPEED * dt) / state.legLen);
+      // Gathering way at the start of a leg and coming gently alongside at the end.
+      const t = state.legLen > 2 ? state.leg : easeInOut(state.leg);
+      state.x = state.fx + (state.tx - state.fx) * t;
+      state.z = state.fz + (state.tz - state.fz) * t;
+      heading = Math.atan2(state.tx - state.fx, state.tz - state.fz);
+      if (state.leg >= 1) {
+        if (state.mode === 'out') state.mode = 'lane';
+        else state.mode = 'berth';
+      }
+    } else if ((state.mode === 'lane' || state.mode === 'return') && lane) {
+      const v = FISH_SPEED * (state.mode === 'return' ? 1 : 0.6) * dt;
+      let ahead = (state.turnHome - state.s) % lane.length;
+      if (ahead < 0) ahead += lane.length;
+      // Working, it goes round; going home, it takes the shorter way round to where it turns in.
+      const back = state.mode === 'return' && ahead > lane.length / 2;
+      state.s = (((state.s + (back ? -v : v)) % lane.length) + lane.length) % lane.length;
+      if (state.mode === 'return' && Math.min(ahead, lane.length - ahead) <= v) {
+        startLeg(state, state.bx, state.bz);
+        state.mode = 'home';
+      }
+      const p = lane.at(state.s);
+      // Ease onto the lane (it may have moved under the boat).
+      const k = glide(1.5, dt);
+      state.x += (p.x - state.x) * k;
+      state.z += (p.z - state.z) * k;
+      heading = back ? Math.atan2(-p.dx, -p.dz) : Math.atan2(p.dx, p.dz);
+    } else {
+      // At the berth: swing round to lie along the dock.
+      heading = state.byaw;
+      const k = glide(1.2, dt);
+      state.x += (state.bx - state.x) * k;
+      state.z += (state.bz - state.z) * k;
+    }
+    state.yaw += angleDelta(state.yaw, heading) * glide(BOATS.turn, dt);
+    const moved = Math.hypot(state.x - px, state.z - pz);
+    state.wake += moved;
+    if (state.wake > 1.1) {
+      state.wake = 0;
+      wakeRing(ctx.stage, state.x - Math.sin(state.yaw) * 0.45, state.z - Math.cos(state.yaw) * 0.45, BOATS.fishBeam * 0.6, 2.2, BOATS.wakeLife);
+    }
+    news.set(ctx.stage, { x: state.x, z: state.z, homeward: state.mode === 'home' || state.mode === 'return' });
+
+    // Poses: the swell on twos; the place every frame.
+    const now = onTwos(signals.time.seconds, state.phase);
+    if (now !== state.drawn) {
+      state.drawn = now;
+      swellAt(now, state.phase, BOATS.fishLength, signals.wind(state.x, state.z).strength, state.swell);
+    }
+    fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll, 1, state.m);
+    ctx.instance.setMatrix(state.m);
+  },
+  dispose(_state, ctx) {
+    news.delete(ctx.stage);
   },
 });

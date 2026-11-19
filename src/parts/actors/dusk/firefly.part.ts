@@ -6,18 +6,19 @@
 
 import { definePart } from '@/gen/api';
 import { PATTERN } from '@/gen/mesh';
-import { PALETTE } from '@/style/palette';
 import { ball } from '../kit';
 
 export default definePart({
   actor: 'firefly',
   build(_item, ctx) {
     const b = ctx.mesh();
-    b.setColor(PALETTE.yellow).setPattern(PATTERN.beam).setInk('fly');
-    b.setEdge(0.72);
-    ball(b, 0, 0, 0, 0.075, 0.075, 0.075, 8, 4);
+    // Drawn as light in its own colour (the behaviour sets param c): a warm yellow-green heart in a
+    // wide soft halo.
+    b.setColor('#d8f070').setPattern(PATTERN.beam).setInk('fly');
+    b.setEdge(0.35);
+    ball(b, 0, 0, 0, 0.16, 0.16, 0.16, 12, 7);
     b.setEdge(0);
-    ball(b, 0, 0, 0, 0.036, 0.036, 0.036, 6, 3);
+    ball(b, 0, 0, 0, 0.045, 0.045, 0.045, 6, 3);
     return { mesh: b.build(), animated: true };
   },
 });

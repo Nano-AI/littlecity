@@ -86,6 +86,7 @@ const api = {
     }
     const frameMs: number[] = [];
     const renderMs: number[] = [];
+    const frameTriangles: number[] = [];
     let last = await nextFrame();
     for (let i = 0; i < frames; i++) {
       const t0 = performance.now();
@@ -93,6 +94,7 @@ const api = {
       view!.orbit(0.5, 0);
       view!.render(signals!);
       renderMs.push(performance.now() - t0);
+      frameTriangles.push(view!.stats().triangles);
       const now = await nextFrame();
       frameMs.push(now - last);
       last = now;
@@ -121,6 +123,7 @@ const api = {
       renderMs,
       drawCalls: stats.drawCalls,
       triangles: stats.triangles,
+      frameTriangles,
       edits,
       gpu: gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : 'unknown',
     };

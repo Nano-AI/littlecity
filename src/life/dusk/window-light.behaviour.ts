@@ -5,7 +5,9 @@
 // "page glow × the structure's param a". This behaviour owns that param for
 // its house:
 //
-//   shops and inns   a = 1 from the start: their panes are the first to show
+//   shops and inns   a = 1 from the start, and param c leads their panes: all of
+//                    them come on over DUSKY.shopRamp seconds as soon as
+//                    anything can glow, before any home
 //   a home           a = 0 until its turn (a seeded moment in the 20 s after
 //                    lights can first be lit), then it fades up: houses come
 //                    on one after another down the street
@@ -46,6 +48,13 @@ export function wantsLight(h: HouseLight, time: TimeSignal, occupied: boolean): 
   return eveningSeconds(time) >= h.order * RAMP ? 1 : 0;
 }
 
+/** How far a shop's panes lead the page's own order (param c of the structure): grows over DUSKY.shopRamp. */
+export const SHOP_LEAD = 0.75;
+export function shopLead(h: HouseLight, time: TimeSignal): number {
+  if (!h.shop || time.isDay) return 0;
+  return DUSKY.shopRamp > 0 ? SHOP_LEAD * Math.min(1, eveningSeconds(time) / DUSKY.shopRamp) : SHOP_LEAD;
+}
+
 interface State {
   house: HouseLight;
   level: number;
@@ -81,13 +90,14 @@ export default defineBehaviour({
     const want = wantsLight(state.house, time, isOccupied(ctx.stage, home));
     // The first drawing of an evening (or of a town opened at night) starts where it should be.
     state.level = state.level < 0 ? want : approach(state.level, want, DUSKY.houseFade > 0 ? dt / DUSKY.houseFade : 1);
-    if (state.level >= 1 && !state.lift) return; // fully lit is the default: nothing to hold
+    const lead = shopLead(state.house, time);
+    if (state.level >= 1 && lead === 0 && !state.lift) return; // fully lit is the default: nothing to hold
     if (!state.lift || state.held !== home) {
       state.lift?.release();
       state.lift = ctx.stage.liftStructure(home);
       state.held = home;
     }
-    state.lift?.setParams(state.level);
+    state.lift?.setParams(state.level, 0, lead);
   },
   dispose(state) {
     if (state.lift) {

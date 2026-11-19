@@ -97,15 +97,21 @@ export const WINDY = defineStyle(
   {
     // L02 smoke.
     /** Puffs alive over one chimney by day, and at dawn and dusk (the stove is lit). */
-    smokePuffs: 4,
-    smokePuffsBusy: 6,
+    smokePuffs: 3,
+    smokePuffsBusy: 4,
     /** Seconds a puff lives. */
-    smokeLife: 3.6,
-    smokeRise: 0.8,
-    /** How far a puff has drifted downwind by the end of its life, per unit of wind strength. */
-    smokeLean: 0.6,
-    smokeSize: 0.12,
-    smokeGrow: 2.3,
+    smokeLife: 4.6,
+    smokeRise: 1.0,
+    /** Columns a second a puff drifts downwind, per unit of wind strength. */
+    smokeLean: 0.3,
+    /** Width of a puff leaving the pot, and how many times that it grows to. */
+    smokeSize: 0.16,
+    smokeGrow: 3.1,
+    /** Opacity of the wash by day, and at dawn and dusk. */
+    smokeOpacity: 0.62,
+    smokeOpacityBusy: 0.82,
+    /** ... and at night, when it is hard to see against the dark. */
+    smokeOpacityNight: 0.3,
     // L03 sails.
     /** Radians a second at wind strength 1; a mill in calm air still creeps at sailIdle. */
     sailSpeed: 1.9,
@@ -125,9 +131,12 @@ export const WINDY = defineStyle(
     smokePuffsBusy: [0, 8, 1],
     smokeLife: [1, 8, 0.1],
     smokeRise: [0.2, 2, 0.05],
-    smokeLean: [0, 3, 0.05],
-    smokeSize: [0.03, 0.2, 0.005],
+    smokeLean: [0, 2, 0.02],
+    smokeSize: [0.03, 0.4, 0.005],
     smokeGrow: [1, 4, 0.1],
+    smokeOpacity: [0, 1, 0.01],
+    smokeOpacityBusy: [0, 1, 0.01],
+    smokeOpacityNight: [0, 1, 0.01],
     sailSpeed: [0, 6, 0.1],
     sailIdle: [0, 1, 0.02],
     sailInertia: [0.1, 4, 0.1],
@@ -179,5 +188,38 @@ export const DUSKY = defineStyle(
     beamReach: [3, 24, 0.5],
     beamReachPerStorey: [0, 4, 0.1],
     beamFade: [0, 10, 0.5],
+  },
+);
+
+/** L03 caps and L29: the town's mechanisms. */
+export const MECHANISMS = defineStyle(
+  'mechanisms',
+  {
+    /** A mill cap turning to the wind: how quickly (per second) it closes on it, and the most it turns a second (radians). */
+    capTurn: 0.35,
+    capMaxSpeed: 0.3,
+    /** Bells: seconds a peal lasts at the start of dusk, the swing (radians) at its height, and seconds a swing takes. */
+    pealTime: 14,
+    bellSwing: 0.75,
+    bellPeriod: 1.7,
+    /** Fountain jets: beads in each stream, and seconds a bead takes from lip to pool. */
+    jetBeads: 3,
+    jetFall: 0.7,
+    /** Shop signs: radians of swing per unit of wind across the board, and how springy the hinge is. */
+    signSwing: 0.45,
+    signSpring: 9,
+    signDamp: 1.4,
+  },
+  {
+    capTurn: [0.02, 3, 0.01],
+    capMaxSpeed: [0.02, 3, 0.01],
+    pealTime: [0, 60, 1],
+    bellSwing: [0, 1.4, 0.05],
+    bellPeriod: [0.6, 4, 0.1],
+    jetBeads: [0, 8, 1],
+    jetFall: [0.2, 2, 0.05],
+    signSwing: [0, 1.2, 0.05],
+    signSpring: [1, 30, 0.5],
+    signDamp: [0, 8, 0.1],
   },
 );

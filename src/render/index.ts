@@ -27,6 +27,7 @@ import * as THREE from 'three';
 import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { allStyles, styleVersion } from '@/core/style';
+import { isAirMesh } from '@/gen/airborne';
 import type { PartOutput } from '@/gen/api';
 import { createLayout, type Layout } from '@/gen/layout';
 import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
@@ -55,7 +56,17 @@ import { registriesFor, type Registries } from './registries';
 import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
 import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
 import { surfaceFragment, surfaceVertex } from './shaders/surface';
-import { SLOT_WIDTH, SlotTable } from './slots';
+import { SLOT_AIR, SLOT_GROUNDED, SLOT_LIFTED, SLOT_WIDTH, SlotTable } from './slots';
+
+/** While only props and actors move, the grounding picture is redrawn every this many frames. */
+const GROUND_ITEMS = 4;
+/** Whether a mesh is all in the air (src/gen/airborne.ts), remembered per mesh. */
+const airMeshes = new WeakMap<MeshData, boolean>();
+const airOf = (mesh: MeshData): boolean => {
+  let air = airMeshes.get(mesh);
+  if (air === undefined) airMeshes.set(mesh, (air = isAirMesh(mesh)));
+  return air;
+};
 
 export type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
 export { overrideRegistries, registriesFor } from './registries';
@@ -669,7 +680,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       }
       const hash = item.hash * 31 + Math.round(span * 1000);
       if (it.hash !== hash) {
-        (it.mover ? movers : dynamic).pool.put(`i:${item.id}`, hash, propOutput(item, category, span).mesh, it.slot);
+        const mesh = propOutput(item, category, span).mesh;
+        (it.mover ? movers : dynamic).pool.put(`i:${item.id}`, hash, mesh, it.slot);
+        slots.setKind(it.slot, airOf(mesh) ? SLOT_AIR : SLOT_GROUNDED);
         it.hash = hash;
       }
       it.base = base;
@@ -693,6 +706,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const spawnMesh = (data: MeshData, at: Mat4Like): InstanceHandle => {
     const key = `x:${spawnCounter++}`;
     let slot = slots.alloc(true);
+    if (airOf(data)) slots.setKind(slot, SLOT_AIR);
     slots.setMatrix(slot, at);
     movers.pool.put(key, 0, data, slot);
     return makeHandle(
@@ -732,6 +746,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const entryOf = () => chunkPools.get(d.chunk)!.pool.entries.get(`s:${id}`);
       if (d.slot === 0) {
         d.slot = slots.alloc();
+        slots.setKind(d.slot, SLOT_LIFTED);
         const e = entryOf();
         if (e) chunkPools.get(d.chunk)!.pool.setSlot(e, d.slot);
       }
@@ -1044,14 +1059,19 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uCast.value = grade.cast;
 
       renderer.info.reset();
-      // Grounding: redraw the height picture when geometry changed, and (at most every other frame)
-      // when something moved. A still town pays nothing for it.
+      // Grounding: redraw the height picture when geometry changed; at most every other frame while a
+      // lifted structure bounces; every GROUND_ITEMS frames while props and actors move (a bobbing
+      // boat's shade at 15 Hz is indistinguishable, and it is the most expensive pass in the frame).
+      // Things in the air (src/gen/airborne.ts) are not in the picture and never make it stale.
+      // A still town pays nothing for it.
       groundAge++;
       if (rebuilt) groundStale = true;
-      else if (slots.moved && groundAge >= 2) groundStale = true;
+      else if (slots.urgent && groundAge >= 2) groundStale = true;
+      else if (slots.moved && groundAge >= GROUND_ITEMS) groundStale = true;
       if (groundStale && LOOK.ground > 0) {
         groundStale = false;
         slots.moved = false;
+        slots.urgent = false;
         groundAge = 0;
         const moversShown = movers.mesh.visible;
         paperMesh.visible = false;

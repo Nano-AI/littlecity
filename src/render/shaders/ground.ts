@@ -47,8 +47,10 @@ void main(){
     glow = texelFetch(uSlots, at + ivec2(3, 0), 0).x;
     p = vec3(dot(r0.xyz, position) + r0.w, dot(r1.xyz, position) + r1.w, dot(r2.xyz, position) + r2.w);
   }
-  // Light beams and ghosts are not there as far as the ground is concerned.
-  if (abs(color.a * 255.0 - 27.0) < 0.5 || glow < -0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  // Light beams, mist, things in the air (src/gen/airborne.ts) and ghosts are not there as far as
+  // the ground is concerned.
+  float pat = color.a * 255.0;
+  if (pat > 127.5 || abs(pat - 27.0) < 0.5 || abs(pat - 28.0) < 0.5 || glow < -0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   vec2 uv = (p.xz - uMap.xy) * uMap.z;
   gl_Position = vec4(uv * 2.0 - 1.0, (uMap.w - p.y) / uMapRange * 2.0 - 1.0, 1.0);
 }

@@ -10,12 +10,12 @@
 // part on the tower's leaning wall.
 
 import { CELL_H, DIR4, keyX, keyY, keyZ, type Dir4 } from '@/core/grid';
-import { compose, rotationX, rotationY, scaling, translation, type Mat4Like } from '@/core/mat4';
-import { rand } from '@/core/rand';
-import { RAMPS, PALETTE } from '@/style/palette';
+import { compose, rotationX, rotationY, translation, type Mat4Like } from '@/core/mat4';
+import { PALETTE } from '@/style/palette';
 import { WINDMILL } from '@/style/houses';
 import { defineGenerator, placeFeatures } from '../api';
 import { MeshBuilder, PATTERN } from '../mesh';
+import { capRoof, hubInNeck, millCap } from './cap';
 
 /** The rotation about Y that turns +Z to face side `dir`. */
 const yawOf = (dir: Dir4): number => Math.atan2(DIR4[dir]![0], DIR4[dir]![1]);
@@ -82,25 +82,17 @@ export default defineGenerator({
         });
       }
 
-      // The cap: a boat-shaped hood turned to face `facing`, on a white curb ring.
-      const roof = RAMPS.roof[rand(s.seed, 'cap') < 0.7 ? 0 : 4]!;
+      // The cap: a boat-shaped hood turned to face `facing`, on a white curb ring. When a part for
+      // 'mill-cap' actors exists the hood is that actor (L03: life turns it to the wind) and only the
+      // curb is baked here.
       b.at(compose(translation(0, H, 0), rotationY(yawOf(facing))), () => {
         b.with({ color: PALETTE.white, ink: 'curb' }, () => b.lathe([[neck + 0.035, -0.03], [neck + 0.035, 0.035]], { segments: 16, capTop: true }));
-        b.with({ color: roof, pattern: PATTERN.shingles, ink: 'cap' }, () => {
-          // Longer front to back than side to side, like an upturned boat.
-          b.at(compose(translation(0, 0.035, -0.03), scaling(1, 1, 1.22)), () =>
-            b.lathe([[neck + 0.05, 0], [neck + 0.02, 0.13], [neck * 0.72, 0.25], [neck * 0.34, 0.33], [0, 0.36]], { segments: 14 }));
-        });
-        // A ball on the crown.
-        b.with({ color: PALETTE.white, ink: 'crown' }, () => b.at(translation(0, 0.4, -0.03), () => b.lathe([[0, -0.045], [0.032, -0.032], [0.045, 0], [0.032, 0.032], [0, 0.045]], { segments: 8 })));
-        // The windshaft: a stub out of the cap's face for the sails to sit on.
-        b.with({ color: PALETTE.wood, ink: 'shaft' }, () =>
-          b.at(compose(translation(0, 0.17, neck + 0.02), rotationX(Math.PI / 2 - 0.1)), () => b.lathe([[0.045, 0], [0.04, 0.16]], { segments: 8, capTop: true })));
+        if (!parts.has('actor', 'mill-cap')) millCap(b, neck, capRoof(s.seed));
       });
     });
 
     // The hub: where the sails turn. +Z runs along the windshaft, out of the cap, tipped up a little.
-    const hub = compose(translation(cx, y0 + H + 0.17, cz), rotationY(yawOf(facing)), translation(0, 0, neck + 0.02), rotationX(-0.1), translation(0, 0, 0.17));
+    const hub = compose(translation(cx, y0 + H, cz), rotationY(yawOf(facing)), hubInNeck(neck));
     if (cap) for (const socket of plan.socketsByOwner.get(cap.id) ?? []) anchors[socket.id] = hub;
 
     placeFeatures(b, anchors, s, plan, parts, (f) => {

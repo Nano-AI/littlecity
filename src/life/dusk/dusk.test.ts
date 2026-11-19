@@ -15,7 +15,7 @@ import firefly, { firefliesOut, FIREFLY_UNTIL, flashing } from './firefly.behavi
 import { canGlow, glowOf, litParam } from './glow';
 import lamps, { catching, lampOrder, lightLamp } from './lamps.system';
 import { setOccupied } from './occupancy';
-import windowLight, { RAMP, wantsLight } from './window-light.behaviour';
+import windowLight, { RAMP, SHOP_LEAD, shopLead, wantsLight } from './window-light.behaviour';
 
 const phases = partPhases();
 const at = (part: 'day' | 'dusk' | 'night' | 'dawn', within: number) => timeAt(phases[part].start + (phases[part].end - phases[part].start) * within, 0);
@@ -73,6 +73,17 @@ describe('L07 windows', () => {
     expect(wantsLight(home, at('day', 0.5), true)).toBe(0);
   });
 
+  test("a shop's panes lead the street's: param c grows to SHOP_LEAD over the shop ramp, never by day or for a home", () => {
+    const shop = { ...home, shop: true };
+    expect(shopLead(shop, at('day', 0.5))).toBe(0);
+    expect(shopLead(home, at('night', 0.5))).toBe(0);
+    expect(shopLead(shop, at('night', 0.5))).toBe(SHOP_LEAD);
+    let half = -1;
+    for (let i = 0; i <= 600 && half < 0; i++) if (shopLead(shop, at('dusk', i / 600)) >= SHOP_LEAD / 2) half = eveningSeconds(at('dusk', i / 600));
+    expect(half).toBeGreaterThan(DUSKY.shopRamp * 0.4);
+    expect(half).toBeLessThan(DUSKY.shopRamp * 0.6);
+  });
+
   test('most homes go dark late at night; night owls stay up until dawn breaks', () => {
     expect(wantsLight(home, at('night', 0.5), true)).toBe(1);
     expect(wantsLight(home, at('night', 0.7), true)).toBe(0);
@@ -90,12 +101,15 @@ describe('L07 windows', () => {
     signals.hold('night');
     step(life, signals, 1);
     const lights = dressing.actors.filter((a) => a.type === 'window-light');
-    const dark = lights.filter((a) => rec.lifted.has(a.home!));
+    const isShop = (a: (typeof lights)[number]): boolean => (a.params as { shop?: number } | undefined)?.shop === 1;
+    // Shops are held lit all evening, their panes led on by param c.
+    for (const a of lights.filter(isShop)) expect(rec.of(`structure:${a.home}`).params.slice(0, 3)).toEqual([1, 0, SHOP_LEAD]);
+    const dark = lights.filter((a) => !isShop(a) && rec.lifted.has(a.home!));
     // Mid-night: some homes are in bed (held at 0), the rest are simply lit (not held).
     expect(dark.length).toBeGreaterThan(0);
     expect(dark.length).toBeLessThan(lights.length);
     for (const a of dark) expect(rec.of(`structure:${a.home}`).params[0]).toBe(0);
-    const lit = lights.find((a) => !rec.lifted.has(a.home!))!;
+    const lit = lights.find((a) => !isShop(a) && !rec.lifted.has(a.home!))!;
     setOccupied(rec.stage, lit.home!, false);
     step(life, signals, DUSKY.houseFade / 2);
     const mid = rec.of(`structure:${lit.home}`).params[0];

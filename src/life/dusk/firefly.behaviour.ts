@@ -61,8 +61,9 @@ export default defineBehaviour({
     );
     ctx.instance.setMatrix(scratch);
     const lit = flashing(onTwos(t, state.offset), state.period, state.offset);
-    // A shaft-of-light surface shows at (0.10 + 0.42 × page glow) × param: this makes the core full bright.
-    ctx.instance.setParams(lit ? 1 / (0.1 + 0.42 * glowOf(time)) : 0);
+    // A shaft-of-light surface shows at (0.10 + 0.42 × page glow) × param: this makes the core more than
+    // full bright (it saturates to a warm white heart), in its own colour (param c), with a wide halo.
+    ctx.instance.setParams(lit ? 2.4 / (0.1 + 0.42 * glowOf(time)) : 0, 0, 1, 0.17);
     // Dark between flashes: not drawn at all, so no unlit speck shows.
     if (lit !== state.shown) {
       state.shown = lit;

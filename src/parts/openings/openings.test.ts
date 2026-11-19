@@ -6,7 +6,7 @@ import { CELL_H, key } from '@/core/grid';
 import { positionOf } from '@/core/mat4';
 import { findDuplicateFaces, inkGroups, validateMesh } from '@/gen/checks';
 import { allGenerators, allParts } from '@/gen/discover';
-import { meshBounds, PATTERN, triangleCount } from '@/gen/mesh';
+import { meshBounds, PATTERN, transformMesh, triangleCount } from '@/gen/mesh';
 import { resolveTown } from '@/resolve/index';
 import type { Actor, Feature, Prop, ShapePlan } from '@/resolve/plan';
 import { flatTerrain, TownBuilder } from '@/scenario';
@@ -120,7 +120,10 @@ describe('openings', () => {
 
 describe('windmill', () => {
   const mill = plan.structures.get(plan.structureAt.get(key(14, 1, 10))!)!;
-  const out = allGenerators().build(mill, plan, allParts());
+  // The cap is an actor that turns to the wind (L03); with no part for it the generator draws it.
+  const parts = allParts();
+  const still = { ...parts, has: (c: Parameters<typeof parts.has>[0], type: string) => !(c === 'actor' && type === 'mill-cap') && parts.has(c, type) };
+  const out = allGenerators().build(mill, plan, still);
 
   test('a two-cell mill is one tapered body with a cap, inside its budget', () => {
     expect(mill.cells.length).toBe(2);
@@ -147,6 +150,19 @@ describe('windmill', () => {
     expect(zx * (x - 14.5) + zz * (z - 10.5)).toBeGreaterThan(0);
     // The door is a feature drawn by the door part, and it owns its threshold.
     expect(Object.keys(out.anchors).some((id) => id.endsWith('/door'))).toBe(true);
+  });
+
+  test('with the cap part, the cap is an actor drawn about the hub, where the baked cap was', () => {
+    expect(parts.has('actor', 'mill-cap')).toBe(true);
+    const bare = allGenerators().build(mill, plan, parts);
+    expect(meshBounds(bare.mesh).max[1]).toBeLessThan(3 * CELL_H + 0.1); // only the curb ring above the body
+    const hub = plan.sockets.find((s) => s.type === 'mill-hub' && s.structure === mill.id)!;
+    const cap = parts.actor({ id: 'cap', type: 'mill-cap', at: { socket: hub.id }, home: mill.id, rule: 'test', hash: 0 } as Actor, { plan });
+    expect(validateMesh(cap.mesh)).toEqual([]);
+    // Carried to the hub's frame, the actor covers what the baked cap covered.
+    const placed = transformMesh(cap.mesh, bare.anchors[hub.id]!);
+    const a = meshBounds(placed), b = meshBounds(out.mesh);
+    expect(a.max[1]).toBeCloseTo(b.max[1], 4);
   });
 
   test('the sails are their own part: four sails and a hub, turning about Z', () => {

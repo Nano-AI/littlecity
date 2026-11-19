@@ -15,7 +15,7 @@ import { MONUMENTS } from '@/style/monuments';
 import { PALETTE, RAMPS, rampColor } from '@/style/palette';
 import { battlementCap, coneCap, domeCap, dovecoteCap, flatCap, pyramidCap, spireCap, type CapLook } from '@/parts/monuments/caps';
 import { ownSockets, wallFrame } from '@/parts/monuments/kit';
-import { arrowSlit, clockFace, doveHoles, slitWindow, towerDoor } from '@/parts/monuments/openings';
+import { arrowSlit, BELL_PIVOT, bellShape, clockFace, doveHoles, slitWindow, towerDoor } from '@/parts/monuments/openings';
 import { profileSlab } from '@/parts/monuments/slab';
 
 const DOORS = [PALETTE.redDark, PALETTE.wood, PALETTE.glass, PALETTE.leafDark];
@@ -58,12 +58,14 @@ export function towerShape(s: Structure, plan: ShapePlan): TowerShape {
   };
 }
 
-/** A bell hanging from a beam. Origin: the middle of the belfry floor; `span` is the room's width. */
-function bell(b: MeshBuilder, span: number, y: number): void {
+/**
+ * A bell hanging from a beam. Origin: the middle of the belfry floor; `span` is the room's width.
+ * With `swinging`, only the beam: the bell is an actor at the belfry's 'bell' socket (L29), drawn by
+ * bellShape in src/parts/monuments/openings.ts, which this draws too when it stays still.
+ */
+function bell(b: MeshBuilder, span: number, y: number, swinging: boolean): void {
   b.with({ color: PALETTE.wood, pattern: PATTERN.none, ink: 'bell-beam' }, () => b.boxAt([0, y + 0.3, 0], [span, 0.05, 0.06]));
-  b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'bell' }, () =>
-    b.lathe([[0.15, y + 0.05], [0.135, y + 0.075], [0.1, y + 0.14], [0.085, y + 0.24], [0.045, y + 0.29], [0, y + 0.3]], { segments: 10, capBottom: true }),
-  );
+  if (!swinging) b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'bell' }, () => b.at(translation(0, y + 0.3, 0), () => bellShape(b)));
 }
 
 export default defineGenerator({
@@ -138,7 +140,7 @@ export default defineGenerator({
           }
         }
       });
-      if (belfry >= 0 && !round) bell(b, half * 2 - 0.1, bodyTop);
+      if (belfry >= 0 && !round) bell(b, half * 2 - 0.1, bodyTop, parts.has('actor', 'bell'));
 
       // ── band courses ──
       const every = Math.max(1, Math.round(MONUMENTS.bandEvery));
@@ -188,7 +190,8 @@ export default defineGenerator({
           break;
         }
         case 'belfry':
-          ownSockets(plan, anchors, id, world, { bell: translation(0, storeyOf(f) * CELL_H + 0.4, 0) });
+          // The bell's pivot: under the beam (bodyTop + 0.3, with the belfry's sill of 0.14).
+          ownSockets(plan, anchors, id, world, { bell: translation(0, storeyOf(f) * CELL_H + BELL_PIVOT, 0) });
           break;
         case 'window': {
           const y = Math.max(storeyOf(f) * CELL_H, foot) + 0.3 + ((f.params as { lift?: number } | undefined)?.lift ?? 0) + (rand(s.seed, id) - 0.5) * 0.03;
@@ -205,7 +208,7 @@ export default defineGenerator({
           break;
         }
         case 'clock-face':
-          draw(wall(f, storeyOf(f) * CELL_H + 0.42, 0), (mb) => clockFace(mb, 'c', 0.25, 1 + Math.floor(rand(s.seed, 'hour') * 11) + rand(s.seed, 'minute')));
+          draw(wall(f, storeyOf(f) * CELL_H + 0.42, 0), (mb) => clockFace(mb, 'c', 0.25, 1 + Math.floor(rand(s.seed, 'hour') * 11) + rand(s.seed, 'minute'), !parts.has('actor', 'clock-hands')));
           break;
         case 'dove-holes':
           draw(wall(f, storeyOf(f) * CELL_H + 0.1, 0.01), (mb) => doveHoles(mb, 'd', PALETTE.stoneShade));

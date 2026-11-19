@@ -22,7 +22,8 @@ import gull from './gull.behaviour';
 import pigeon from './pigeon.behaviour';
 import scare from './scare.system';
 import swift from './swift.behaviour';
-import { openWater } from './town';
+import { columnTops, openWater, topUnder } from './town';
+import { findScenario } from '@/scenario/discover';
 
 const BEHAVIOURS = [gull, pigeon, swift];
 
@@ -191,6 +192,27 @@ describe('pigeons (L12) and the scatter (L16)', () => {
       expect(y).toBeLessThan(CELL_H + 0.1);
       expect(Math.hypot(x - keyX(at) - 0.5, z - keyZ(at) - 0.5)).toBeLessThan(1.5);
     }
+  });
+
+  test('a frightened flock wheels clear of every roof round its square (the showcase town)', () => {
+    const scn = findScenario('everything')!;
+    const { town, signals, life, of, pos } = live(scn);
+    const tops = columnTops(town.shape);
+    step(life, signals, 2);
+    const pigeons = of('pigeon');
+    expect(pigeons.length).toBeGreaterThan(3);
+    for (const p of pigeons) signals.emit('blockLanded', (p.at as { cell: number }).cell);
+    step(life, signals, 1.2);
+    let checked = 0;
+    for (let k = 0; k < 24; k++) {
+      step(life, signals, 0.1);
+      for (const p of pigeons) {
+        const [x, y, z] = pos(p);
+        expect(y, `${p.id} at ${x.toFixed(2)},${z.toFixed(2)}`).toBeGreaterThan(topUnder(tops, x, z, 0.12) + 0.05);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(50);
   });
 
   test('a person walking through puts up only the pigeons at their feet', () => {

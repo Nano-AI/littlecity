@@ -2,7 +2,9 @@
 // pure: MeshBuilder in, triangles out. See docs/swarm/ART.md for the look.
 
 import { compose, scaling, translation, type Vec3 } from '@/core/mat4';
+import { MIST } from '@/gen/airborne';
 import { MeshBuilder } from '@/gen/mesh';
+import { PALETTE } from '@/style/palette';
 
 /** A ball of radius 1 as a lathe profile, `rings` steps from the bottom pole to the top. */
 function ballProfile(rings: number): [number, number][] {
@@ -37,6 +39,18 @@ export function flatRing(b: MeshBuilder, y: number, r0: number, r1: number, segm
 /** The ink id of the sea's surface: a mesh drawn with it lies on the water with no pen line round it. */
 export function seaInk(): number {
   return new MeshBuilder({ ink: 'terrain' }).inkOf('sea');
+}
+
+/**
+ * A puff of mist, about 1 across (radius 0.5), centred on the origin: a soft ball and one lobe,
+ * drawn as MIST (src/gen/airborne.ts), so it has no outline and thins away at its rim.
+ * `look` turns the lobe to one of a few places. White; the page grades it.
+ */
+export function mistPuff(b: MeshBuilder, look: number): void {
+  const a = (look % 4) * 1.7 + 0.4;
+  b.setColor(PALETTE.white).setPattern(MIST).setInk('mist');
+  ball(b, 0, 0, 0, 0.42, 0.36, 0.42, 9, 5);
+  ball(b, Math.cos(a) * 0.24, 0.09, Math.sin(a) * 0.24, 0.27, 0.24, 0.27, 7, 4);
 }
 
 /** A thin two-sided sheet through the given outline (any plane), so it shows from both sides. */

@@ -20,7 +20,7 @@ import { fly, yawOf } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { attitude, steer, Wings, type Attitude } from './flight';
 import { scareDistance, scaresOf, type Scare } from './scare';
-import { tallestNear } from './town';
+import { columnTops, topUnder } from './town';
 
 type Mode = 'ground' | 'air' | 'toPerch' | 'perched' | 'fromPerch' | 'hold';
 type Act = 'idle' | 'walk' | 'peck' | 'hop';
@@ -65,6 +65,8 @@ export interface PigeonState {
   wheelDir: number;
   /** How high over the square the wheel flies (world units above the floor). */
   wheelUp: number;
+  /** Its wheel's radius, as a share of the full one (smaller beside tall houses). */
+  wheelR: number;
   landX: number;
   landZ: number;
   // Its perch, if the rule gave it one.
@@ -86,19 +88,29 @@ const LAND = 1.3;
 const CLIMB = 0.9;
 const FLOOR = 0.03;
 
-/** One answer per town and flock: every pigeon of a flock asks the same thing. */
-const wheelHeights = new WeakMap<ShapePlan, Map<number, number>>();
-/** How high the flock must wheel to clear the roofs round its square (but not a tower: it goes round those). */
-function wheelHeight(shape: ShapePlan, spot: number, x: number, z: number, floor: number): number {
-  let byFlock = wheelHeights.get(shape);
-  if (!byFlock) wheelHeights.set(shape, (byFlock = new Map()));
-  let up = byFlock.get(spot);
-  if (up === undefined) {
-    const over = tallestNear(shape, x, z, BIRDS.pigeonWheel * 1.3 + 0.5) - floor + 0.3;
-    up = Math.min(Math.max(BIRDS.pigeonHeight * 0.8, over), BIRDS.pigeonHeight + 1.6);
-    byFlock.set(spot, up);
+/**
+ * The wheel one pigeon flies (its own radius, by p1): the widest of a few that clears every roof under
+ * it by a margin within reach of the square, and how high it must fly for that. A tall house beside the
+ * square pulls the wheel in rather than the bird flying through it; if even the smallest wheel cannot
+ * clear, the bird flies over at whatever height that takes.
+ */
+export function wheelFor(shape: ShapePlan, x: number, z: number, floor: number, p1: number): { scale: number; up: number } {
+  const tops = columnTops(shape);
+  const cap = BIRDS.pigeonHeight + 1.6;
+  let best = { scale: 0.35, up: cap };
+  for (const scale of [1, 0.8, 0.62, 0.48, 0.35]) {
+    const r = BIRDS.pigeonWheel * (0.75 + 0.5 * (p1 / TAU)) * scale;
+    let top = topUnder(tops, x, z, 0.3);
+    for (let k = 0; k < 28; k++) {
+      const a = (k / 28) * TAU;
+      for (const rr of [r * 0.86, r * 1.14 + 0.2]) top = Math.max(top, topUnder(tops, x + rr * Math.cos(a), z + rr * Math.sin(a), 0.25));
+    }
+    // Its own bob and height spread are added on top of this; it clears the roofs by a margin.
+    const need = top - floor + 0.4;
+    best = { scale, up: Math.max(BIRDS.pigeonHeight * 0.8, need) };
+    if (need <= cap) return best;
   }
-  return up;
+  return best;
 }
 
 function canStand(s: PigeonState, x: number, z: number): boolean {
@@ -144,7 +156,9 @@ function survey(s: PigeonState, ctx: Ctx): void {
   s.wx = spot === undefined ? s.homeX : keyX(spot) + 0.5;
   s.wz = spot === undefined ? s.homeZ : keyZ(spot) + 0.5;
   s.wheelDir = ((params.plaza ?? 0) & 1) === 0 ? 1 : -1;
-  s.wheelUp = wheelHeight(shape, spot ?? -1, s.wx, s.wz, homeY);
+  const wheel = wheelFor(shape, s.wx, s.wz, homeY, s.p1);
+  s.wheelUp = wheel.up;
+  s.wheelR = wheel.scale;
   const frame = params.perch ? ctx.stage.socket(params.perch) : null;
   s.hasPerch = frame !== null;
   if (frame) {
@@ -248,7 +262,7 @@ const air = { x: 0, y: 0, z: 0 };
 /** Where an airborne pigeon is, `tau` seconds after it left the ground (into `air`). */
 function airAt(s: PigeonState, tau: number): void {
   const ground = floorAt(s, s.landX, s.landZ);
-  const radius = BIRDS.pigeonWheel * (0.75 + 0.5 * (s.p1 / TAU)) * (1 + 0.14 * Math.sin(tau * 1.3 + s.p1));
+  const radius = BIRDS.pigeonWheel * s.wheelR * (0.75 + 0.5 * (s.p1 / TAU)) * (1 + 0.14 * Math.sin(tau * 1.3 + s.p1));
   const angle = s.wheelAt + s.wheelDir * (BIRDS.pigeonSpeed / BIRDS.pigeonWheel) * tau;
   const wx = s.wx + radius * Math.cos(angle), wz = s.wz + radius * Math.sin(angle);
   const wy = ground + s.wheelUp + BIRDS.pigeonHeight * 0.4 * ((s.p1 * 3) % 1) + 0.16 * Math.sin(tau * 2.1 + s.p1);
@@ -451,7 +465,7 @@ export default defineBehaviour<'pigeon', PigeonState>({
       x: 0, y: 0, z: 0, yaw: ctx.rand('yaw') * TAU, wantYaw: 0,
       fromX: 0, fromZ: 0, toX: 0, toZ: 0,
       homeX: 0, homeZ: 0, free: new Map(), blocked: [],
-      ax: 0, ay: 0, az: 0, wx: 0, wz: 0, wheelAt: 0, wheelDir: 1, wheelUp: BIRDS.pigeonHeight, landX: 0, landZ: 0,
+      ax: 0, ay: 0, az: 0, wx: 0, wz: 0, wheelAt: 0, wheelDir: 1, wheelUp: BIRDS.pigeonHeight, wheelR: 1, landX: 0, landZ: 0,
       hasPerch: false, px: 0, py: 0, pz: 0,
       shape: null, dressing: null,
       seen: scaresOf(ctx.stage).seq,

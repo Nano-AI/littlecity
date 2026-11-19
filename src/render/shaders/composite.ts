@@ -215,6 +215,29 @@ void main(){
     // the bigger ones are drawn as a little four-point sparkle
     star = max(star, (1.0 - smoothstep(0.0, 0.5, min(abs(d.x), abs(d.y)))) * (1.0 - smoothstep(size, size * 2.6, length(d))) * step(1.6, size));
     g = mix(g, uStar, star * step(0.82, r) * twinkle * uStars * bg);
+    // L10: the moon, a pale disc with a pencilled rim, high on the page's right, on bare paper only.
+    vec2 mc = vec2(uOut.x / uPR - 120.0, uOut.y / uPR - 110.0);
+    float md = length(fc - mc);
+    float moon = 1.0 - smoothstep(26.0, 27.5, md);
+    float bite = 1.0 - smoothstep(24.0, 25.5, length(fc - mc - vec2(11.0, 6.0)));
+    float lit = moon * (1.0 - bite * 0.85);
+    float mrim = (1.0 - smoothstep(0.0, 1.2, abs(md - 26.5))) * 0.5;
+    g = mix(g, uStar * 1.04, lit * uStars * bg * (0.8 + 0.2 * n2(fc * 0.12)));
+    g = mix(g, uInk, mrim * uStars * bg * 0.5);
+    // L10: rarely, a shooting star: in one window of ~23 s in four, a short bright streak across the
+    // paper that draws itself and is gone in under a second.
+    float win = floor(uTime / 23.0);
+    float tw = uTime - win * 23.0;
+    if (h1(vec2(win, 7.7)) > 0.75 && tw < 0.9) {
+      vec2 s0 = vec2(h1(vec2(win, 1.3)), 0.55 + 0.4 * h1(vec2(win, 2.9))) * uOut / uPR;
+      vec2 sd = normalize(vec2(-1.0, -0.45 - 0.3 * h1(vec2(win, 4.1))));
+      float len = 140.0 * tw / 0.9;
+      vec2 rel = fc - s0;
+      float along = dot(rel, sd), off = abs(dot(rel, vec2(-sd.y, sd.x)));
+      float trail = step(0.0, along) * step(along, len) * (along / max(len, 1.0));
+      float fadeOut = 1.0 - smoothstep(0.6, 0.9, tw);
+      g = mix(g, uStar, (1.0 - smoothstep(0.4, 1.4, off)) * trail * fadeOut * uStars * bg);
+    }
   }
 
   float dens = mix(1.0, 0.8 + 0.2 * n2(fw * 0.07 + 3.0 + t), steady);

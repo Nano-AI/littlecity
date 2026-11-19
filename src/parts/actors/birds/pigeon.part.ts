@@ -5,7 +5,9 @@
 // Frame: facing +Z, feet at the origin (see kit.ts).
 
 import { compose, rotationX, scaling, translation } from '@/core/mat4';
+import { airborne } from '@/gen/airborne';
 import { definePart } from '@/gen/api';
+import { PATTERN } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 import { ball } from '../kit';
 import { birdColors, bodyScale } from './kit';
@@ -16,7 +18,7 @@ const TILT = 0.55;
 export default definePart({
   actor: 'pigeon',
   build(_item, ctx) {
-    const b = ctx.mesh();
+    const b = ctx.mesh().setPattern(airborne(PATTERN.none)); // in the air: no shade on the ground (src/gen/airborne.ts)
     const c = birdColors();
     b.setInk('body');
     b.at(scaling(bodyScale('pigeon')), () => {

@@ -15,7 +15,8 @@ import { positionOf, type Mat4 } from '@/core/mat4';
 import type { ActorOf, DressingPlan, ShapePlan } from '@/resolve/plan';
 import { BIRDS } from '@/style/birds';
 import { defineBehaviour, type LifeContext, type Signals } from '../api';
-import { arc, easeInOut, lerp } from '../motion/ease';
+import { fishingBoatOf } from '../boats/fishing-boat.behaviour';
+import { arc, easeInOut, glide, lerp } from '../motion/ease';
 import { fly, yawOf } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { attitude, steer, Wings, type Attitude } from './flight';
@@ -73,16 +74,21 @@ export interface GullState {
   flurry: number;
   drawn: number;
   wing: number;
+  /** How far its circle is drawn off home, trailing the fishing boat in (L18). */
+  followX: number;
+  followZ: number;
 }
 
 const TAU = Math.PI * 2;
+/** Gulls whose home circle is within this many columns of the homeward fishing boat follow it in. */
+const FOLLOW_REACH = 18;
 const spot = { x: 0, y: 0, z: 0 };
 
 /** Where the gull's circle is at its clock and angle (into `spot`). */
 function orbit(s: GullState): void {
   const r = s.radius * (1 + 0.16 * Math.sin(0.21 * s.t + s.p1));
-  spot.x = s.cx + 0.5 * Math.sin(0.083 * s.t + s.p2) + r * Math.cos(s.theta) * (1 + 0.12 * Math.sin(0.13 * s.t + s.p3));
-  spot.z = s.cz + 0.5 * Math.cos(0.061 * s.t + s.p3) + r * Math.sin(s.theta);
+  spot.x = s.cx + s.followX + 0.5 * Math.sin(0.083 * s.t + s.p2) + r * Math.cos(s.theta) * (1 + 0.12 * Math.sin(0.13 * s.t + s.p3));
+  spot.z = s.cz + s.followZ + 0.5 * Math.cos(0.061 * s.t + s.p3) + r * Math.sin(s.theta);
   spot.y = s.height + 0.2 * Math.sin(0.37 * s.t + s.p1) + 0.1 * Math.sin(0.9 * s.t + s.p2) + s.startle;
 }
 
@@ -198,10 +204,17 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
   s.startle *= Math.exp(-1.1 * dt);
   s.flurry = Math.max(0, s.flurry - dt);
 
+  // L18: the fishing boat coming home at dusk draws the harbour's gulls out to it, wheeling over its wake.
+  const boat = fishingBoatOf(ctx.stage);
+  const trailing = boat !== null && boat.homeward && !signals.time.isNight && Math.hypot(boat.x - s.cx, boat.z - s.cz) < FOLLOW_REACH;
+  const k = glide(0.6, dt);
+  s.followX += ((trailing ? boat.x - s.cx : 0) - s.followX) * k;
+  s.followZ += ((trailing ? boat.z - s.cz : 0) - s.followZ) * k;
+
   const b = s.body;
   if (s.mode === 'sit') {
     const night = signals.time.isNight;
-    if (s.modeT >= s.modeLen && !night) {
+    if ((s.modeT >= s.modeLen || trailing) && !night) {
       takeOff(s, false);
     } else {
       if (!redraw) return; // a sitting bird is one drawing until the next
@@ -229,7 +242,7 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
     orbit(s);
     steer(b, spot.x, spot.y, spot.z, dt);
     const wantsDown = s.modeT >= s.modeLen || (signals.time.isNight && s.modeT > 3);
-    if (wantsDown && s.hasSpot && s.flurry <= 0) {
+    if (wantsDown && s.hasSpot && s.flurry <= 0 && !trailing) {
       s.mode = 'land';
       s.modeT = 0;
       s.modeLen = BIRDS.gullLand * (0.85 + 0.3 * ctx.rand('land', s.n++));
@@ -297,6 +310,8 @@ export default defineBehaviour<'gull', GullState>({
       flurry: 0,
       drawn: NaN,
       wing: 0.16,
+      followX: 0,
+      followZ: 0,
     };
     if (s.mode === 'hold') return s;
     survey(s, ctx);

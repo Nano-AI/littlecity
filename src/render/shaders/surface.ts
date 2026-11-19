@@ -54,6 +54,7 @@ out float vEdge;
 flat out vec4 vParams;
 flat out float vPat;
 flat out vec2 vId;
+flat out vec3 vOrigin;   // the slot's origin in the world (a glow centre)
 
 ${COLOR}
 
@@ -61,6 +62,7 @@ void main(){
   vec3 p = position;
   vec3 n = normal.xyz;
   vec4 params = vec4(1.0, 0.0, 0.0, 0.0);
+  vOrigin = vec3(0.0);
   int s = int(slot + 0.5);
   if (s > 0) {
     ivec2 at = ivec2((s & 63) * 4, s >> 6);
@@ -68,13 +70,16 @@ void main(){
     vec4 r1 = texelFetch(uSlots, at + ivec2(1, 0), 0);
     vec4 r2 = texelFetch(uSlots, at + ivec2(2, 0), 0);
     params = texelFetch(uSlots, at + ivec2(3, 0), 0);
+    vOrigin = vec3(r0.w, r1.w, r2.w);
     p = vec3(dot(r0.xyz, position) + r0.w, dot(r1.xyz, position) + r1.w, dot(r2.xyz, position) + r2.w);
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
   float pat = color.a * 255.0;
+  // The AIRBORNE bit (src/gen/airborne.ts) only matters to the grounding picture.
+  if (pat > 127.5) pat -= 128.0;
   // Three passes share this shader and each draws its own triangles: the page (everything solid),
-  // OVERLAY (light beams) and GHOST (the preview: slots whose glow is negative).
-  bool beam = abs(pat - 27.0) < 0.5;
+  // OVERLAY (light beams and mist) and GHOST (the preview: slots whose glow is negative).
+  bool beam = abs(pat - 27.0) < 0.5 || abs(pat - 28.0) < 0.5;
   bool ghost = params.x < -0.5;
 #if defined(GHOST)
   if (!ghost || beam) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -123,6 +128,7 @@ in float vEdge;
 flat in vec4 vParams;
 flat in float vPat;
 flat in vec2 vId;
+flat in vec3 vOrigin;
 
 uniform vec3 uLight;
 uniform float uTime;
@@ -165,6 +171,8 @@ uniform vec2 uCanvas;
 uniform vec3 uStar;
 uniform vec3 uMagic;
 uniform vec3 uRed;
+uniform vec3 uTint;
+uniform vec3 uLift;
 #endif
 #ifdef OVERLAY
 out vec4 oColor;
@@ -303,8 +311,48 @@ void main(){
 #if defined(OVERLAY)
   // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
-  float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
-  oColor = vec4(uStar * a, 0.0);
+  vec3 vn = normalize(vVN);
+  if (pat == 28) {
+    // Mist (smoke, cloud): a watercolour wash, thick where the puff faces you and thinning to
+    // nothing at its rim, so it has no edge to ink; a slow grain breaks it up like pigment on paper.
+    // Graded like the page (it is drawn after the grade). Param a is its opacity.
+    vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
+    float face = smoothstep(0.0, 0.5, abs(vn.z));
+    // Param d > 0: a soft round patch lying flat (a cloud's shadow), d its radius in world units.
+    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.35, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
+    float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
+    float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
+    vec3 c = toSrgb(base) * uTint + uLift;
+    // Param c > 0.5: a cloud, whose wash is edged with a soft graphite line where it thins.
+    if (vParams.z > 0.5 && vParams.w <= 0.0) {
+      float rim = smoothstep(0.04, 0.16, face) * (1.0 - smoothstep(0.18, 0.42, face));
+      float line = rim * (0.55 + 0.45 * n2(spx * 0.05 + 3.0));
+      c = mix(c, toSrgb(uInk) * uTint, line * 0.55);
+      a = max(a, line * 0.5 * max(vParams.x, 0.0) * 1.6);
+    }
+    oColor = vec4(c * a, a);
+  } else {
+    // A shaft of light. Seen end on (pointing at you) its walls are edge-on: it fades away there,
+    // instead of laying a flat sheet of light over the lighthouse it comes out of.
+    float side = smoothstep(0.15, 0.55, abs(vn.z));
+    if (vParams.z > 0.5 && vParams.w > 0.0) {
+      // A point of light (param d is its halo's radius): bright at the centre, gone at the rim, the
+      // same from every side.
+      vec3 off = vW - vOrigin;
+      float d = length(vec2(dot(off, uCamRight), dot(off, uCamUp))) / vParams.w;
+      side = pow(clamp(1.0 - d, 0.0, 1.0), 1.7);
+    } else {
+      // Turned toward you, the shaft runs down over the tower it stands on: there it fades in only
+      // well clear of the lantern on the page. Seen across, it starts at the lamp.
+      vec3 off = vW - vOrigin;
+      float onPage = length(vec2(dot(off, uCamRight), dot(off, uCamUp)));
+      float across = onPage / max(length(off), 1e-3);
+      side *= mix(smoothstep(0.2, 4.5, onPage), 1.0, smoothstep(0.62, 0.95, across));
+    }
+    // Param c > 0.5: the light is the colour of the mesh (a firefly), not starlight.
+    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0) * side;
+    oColor = vec4((vParams.z > 0.5 ? toSrgb(base) : uStar) * a, 0.0);
+  }
 #elif defined(GHOST)
   // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
   // the ghost composite then outlines in pencil. Anything hidden behind the finished drawing is left out.
@@ -494,7 +542,9 @@ void main(){
       float glint = smoothstep(0.02, 0.0, abs(g - 0.35) - 0.06) * 0.45;
       col = mix(col, vec3(1.0), glint);
       float hsh = h1(vId * 255.0 + 0.37);
-      float on = smoothstep(hsh * 0.75, hsh * 0.75 + 0.12, uGlow) * step(hsh, 0.86) * vParams.x;
+      // Param c of the slot brings the panes forward (a shop lights before the street: L07).
+      float at = hsh * 0.75 - vParams.z;
+      float on = smoothstep(at, at + 0.12, uGlow) * step(hsh, 0.86) * vParams.x * step(0.001, uGlow);
       vec3 lit = mix(uLamp, uWhite, glint * 0.5) * (0.9 + 0.1 * h1(vId * 91.0));
       col = mix(col, lit, on);
       glow = on;

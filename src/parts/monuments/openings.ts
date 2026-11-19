@@ -75,8 +75,27 @@ export function towerDoor(b: MeshBuilder, stone: ColorInput, leaf: ColorInput, s
   return { door: translation(0, 0, 0.24) };
 }
 
-/** A clock (R-T03): a white dial in a dark rim, with hour ticks and two hands (the hands are still: L29 owns moving ones). */
-export function clockFace(b: MeshBuilder, id: string, radius: number, hour: number): Record<string, Mat4Like> {
+/** Height of a belfry's bell pivot (under its beam) over the belfry storey's floor: sill 0.14 + 0.3. */
+export const BELL_PIVOT = 0.44;
+
+/** A bell hanging from its pivot at the origin (it reaches 0.25 down), mouth down. Colour and ink are the caller's. */
+export function bellShape(b: MeshBuilder): void {
+  b.lathe([[0.15, -0.25], [0.135, -0.225], [0.1, -0.16], [0.085, -0.06], [0.045, -0.01], [0, 0]], { segments: 10, capBottom: true });
+}
+
+/** The two hands of a clock, in the dial's plane at z = 0.05, at an hour (0–12, fractional). Ink and colour are the caller's. */
+export function clockHands(b: MeshBuilder, radius: number, hour: number, which: 'both' | 'hour' | 'minute' = 'both'): void {
+  const hand = (angle: number, len: number, w: number): void => {
+    const c = Math.sin(angle), s = Math.cos(angle); // 0 = twelve o'clock, clockwise
+    const px = s * w, py = -c * w;
+    b.quad([-px, -py, 0.05], [px, py, 0.05], [c * len + px, s * len + py, 0.05], [c * len - px, s * len - py, 0.05]);
+  };
+  if (which !== 'minute') hand((hour / 12) * TAU, radius * 0.45, 0.016);
+  if (which !== 'hour') hand((((hour * 12) % 12) / 12) * TAU, radius * 0.68, 0.012);
+}
+
+/** A clock (R-T03): a white dial in a dark rim, with hour ticks and two hands (still ones unless `hands` is false: L29 then draws moving ones at the 'clock-hands' socket). */
+export function clockFace(b: MeshBuilder, id: string, radius: number, hour: number, hands = true): Record<string, Mat4Like> {
   const disc = (r: number, z: number, n = 16): Vec3[] => {
     const pts: Vec3[] = [];
     for (let i = 0; i < n; i++) pts.push([r * Math.cos((i / n) * TAU), r * Math.sin((i / n) * TAU), z]);
@@ -95,18 +114,12 @@ export function clockFace(b: MeshBuilder, id: string, radius: number, hour: numb
   // The dial is lit from behind after dark.
   b.with({ color: PALETTE.white, pattern: PATTERN.glow }, () => b.polygon(disc(radius - 0.035, 0.045)));
   b.with({ color: PALETTE.metal, pattern: PATTERN.none }, () => {
-    const hand = (angle: number, len: number, w: number): void => {
-      const c = Math.sin(angle), s = Math.cos(angle); // 0 = twelve o'clock, clockwise
-      const px = s * w, py = -c * w;
-      b.quad([-px, -py, 0.05], [px, py, 0.05], [c * len + px, s * len + py, 0.05], [c * len - px, s * len - py, 0.05]);
-    };
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * TAU;
       const c = Math.sin(a), s = Math.cos(a), r0 = radius - 0.075, r1 = radius - 0.045;
       b.quad([c * r0 - s * 0.012, s * r0 + c * 0.012, 0.048], [c * r0 + s * 0.012, s * r0 - c * 0.012, 0.048], [c * r1 + s * 0.012, s * r1 - c * 0.012, 0.048], [c * r1 - s * 0.012, s * r1 + c * 0.012, 0.048]);
     }
-    hand((hour / 12) * TAU, radius * 0.45, 0.016);
-    hand(((hour * 12) % 12 / 12) * TAU, radius * 0.68, 0.012);
+    if (hands) clockHands(b, radius, hour);
   });
   return { 'clock-hands': translation(0, 0, 0.05) };
 }

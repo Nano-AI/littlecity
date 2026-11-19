@@ -12,7 +12,9 @@
 // side × X, its leading edge toward +Z. One ink group.
 
 import { scaling } from '@/core/mat4';
+import { airborne } from '@/gen/airborne';
 import { definePart } from '@/gen/api';
+import { PATTERN } from '@/gen/mesh';
 import { birdColors, wingPanels, wingScale, type Rgb, type Species, type Station } from './kit';
 
 const WINGS: Record<Species, readonly Station[]> = {
@@ -39,7 +41,7 @@ const WINGS: Record<Species, readonly Station[]> = {
 export default definePart({
   actor: 'bird-wing',
   build(item, ctx) {
-    const b = ctx.mesh();
+    const b = ctx.mesh().setPattern(airborne(PATTERN.none)); // in the air: no shade on the ground (src/gen/airborne.ts)
     const species: Species = item.variant ?? 'gull';
     const side = (item.params?.side ?? 1) < 0 ? -1 : 1;
     const c = birdColors();

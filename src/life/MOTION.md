@@ -75,6 +75,12 @@ in `dusk/glow.ts` (the page's own measure of how lit lamps are).
 - Matrices: `motion/pose.ts` (`place`, `fly`, `squash`). A thing built
   facing +Z heads along `(sin yaw, cos yaw)`.
 
+- **Things in the air** (birds, insects, leaves, sparkles) draw with the
+  AIRBORNE pattern bit, and smoke and clouds with MIST (`src/gen/airborne.ts`):
+  no smear of shade on the ground, and moving them never makes the renderer
+  redraw its grounding picture. Anything else that moves on the ground costs
+  a redraw: set its matrix only when its drawing actually changed.
+
 ## 5. Looking at motion
 
 One screenshot shows nothing. `src/life/testing/sequence.mjs` runs the real
