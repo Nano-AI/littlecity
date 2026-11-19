@@ -81,7 +81,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'auto',
     group: 'auto',
     name: 'The Auto block',
-    how: 'The Auto block picks what to be from where you put it. On water it is a dock; across a gap, an arch; three stacked, a tower; four stacked near the sea, a lighthouse; anything else, a house.',
+    how: 'The Auto block picks what to be from where you put it. On water it is a dock; across a gap of up to six, an arch; three stacked, a tower; four stacked near the sea, a lighthouse; anything else, a house.',
     proof: { autoKinds: ['dock', 'arch', 'tower', 'lighthouse', 'house'] },
     seed: 7001,
     ground: seaSouth,
@@ -149,7 +149,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'town-hall',
     group: 'houses',
     name: 'Town hall',
-    how: 'Build a big house, eight or more squares of floor, opening onto a plaza at least three squares by three.',
+    how: 'Build a big house covering eight or more squares of ground, opening onto a plaza at least three squares by three.',
     proof: { role: 'town-hall' },
     seed: 7104,
     build(b) {
@@ -192,7 +192,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'row-house',
     group: 'houses',
     name: 'Row house',
-    how: 'Squeeze a house one or two squares wide between two houses of other colours, on opposite sides.',
+    how: 'Squeeze a small house, one or two squares of ground, between two houses of other colours on opposite sides.',
     proof: { role: 'row-house' },
     seed: 7107,
     build(b) {

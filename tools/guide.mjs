@@ -10,6 +10,7 @@
 // --sheet also writes .context/shots/guide-sheet.png: every picture on one
 // cream page with its name, to judge the set at thumbnail size.
 
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { launchBrowser, openPage } from './lib/browser.mjs';
