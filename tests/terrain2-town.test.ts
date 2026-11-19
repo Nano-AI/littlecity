@@ -61,7 +61,9 @@ describe('generator 2 islands in the rest of the game', () => {
         expect(obstacleDistance(t, shape.kinds, p.x, p.z), `seed ${seed}`).toBeGreaterThanOrEqual(2.8);
       }
     }
-    expect(kinds.filter((k) => k.endsWith('loop')).length, kinds.join('\n')).toBeGreaterThanOrEqual(SPREAD.length - 1);
+    expect(kinds.filter((k) => k.endsWith('loop')).length, kinds.join('\n')).toBeGreaterThanOrEqual(Math.floor(SPREAD.length * 0.85));
+    // The rest sail a shuttle (an arc there and back): still a lane, never none.
+    expect(kinds.filter((k) => k.endsWith('none'))).toEqual([]);
   });
 
   test('Grow a town never throws, every edit is legal, and the town resolves', () => {

@@ -24,9 +24,9 @@ export class TerrainBuilder {
   readonly height = new Uint8Array(SIZE_X * SIZE_Z);
   constructor(readonly seed: number) {}
 
-  /** Sets one column's height (0 = water, up to 6). */
+  /** Sets one column's height (0 = water, up to 10). */
   set(x: number, z: number, h: number): this {
-    if (inColumnBounds(x, z)) this.height[columnIndex(x, z)] = Math.max(0, Math.min(6, Math.round(h)));
+    if (inColumnBounds(x, z)) this.height[columnIndex(x, z)] = Math.max(0, Math.min(10, Math.round(h)));
     return this;
   }
   /** Sets a rectangle of columns (inclusive corners) to a height. */

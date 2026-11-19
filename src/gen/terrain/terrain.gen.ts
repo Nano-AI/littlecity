@@ -37,6 +37,7 @@ import { MAT, type Terrain, type World } from '@/core/world';
 import type { ShapePlan } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
 import { terraceGrass, TERRAIN } from '@/style/terrain';
+import { MAT_RIVER } from '@/terrain/terrain2';
 import { defineLayer } from '../api';
 import { EDGE_FAR, MeshBuilder, parseColor, PATTERN } from '../mesh';
 
@@ -81,6 +82,12 @@ interface Ground {
   mat(x: number, z: number): number;
   /** Corner radius of the level-L outline at grid vertex (vx, vz). */
   radius(vx: number, vz: number, level: number): number;
+  /**
+   * 0 to 1: how far the corner at grid vertex (vx, vz) is cut straight instead of rounded. A corner
+   * of a diagonal staircase along a river (generator 2) is cut on the chord between the two edge
+   * midpoints, so the steps chain into one straight bank instead of a row of scallops.
+   */
+  straight(vx: number, vz: number, level: number): number;
   /** Moves an outline point off the grid a little. */
   warp(x: number, z: number): Pt;
   /** True if a block or floor stands in column (x, z) anywhere from level `lo` up to below `hi`. */
@@ -115,6 +122,26 @@ function groundOf(plan: ShapePlan): Ground {
   const w = plan.world;
   const seed = t.seed;
   const h = (x: number, z: number): number => (inColumnBounds(x, z) ? t.height[columnIndex(x, z)]! : 0);
+  const river = (x: number, z: number): boolean => inColumnBounds(x, z) && t.material[columnIndex(x, z)] === MAT_RIVER;
+  /** A corner of a one-step diagonal staircase whose open side is a river (see Ground.straight). */
+  const straightAt = (vx: number, vz: number, level: number): number => {
+    const inn = (x: number, z: number): boolean => h(x, z) >= level;
+    const cells: [number, number][] = [[vx - 1, vz - 1], [vx, vz - 1], [vx - 1, vz], [vx, vz]];
+    let count = 0, wet = false;
+    for (const [x, z] of cells) {
+      if (inn(x, z)) count++;
+      else if (river(x, z)) wet = true;
+    }
+    if (!wet || (count !== 1 && count !== 3)) return 0;
+    const convex = count === 1;
+    const [ox, oz] = cells.find(([x, z]) => inn(x, z) === convex)!;
+    const sx = ox === vx - 1 ? 1 : -1, sz = oz === vz - 1 ? 1 : -1;
+    // The corners at the far ends of the two edges from here must be the other kind: the stair goes on.
+    const same = (x: number, z: number): boolean => inn(x, z) === convex;
+    const a = same(ox, oz - sz) && same(ox + sx, oz - sz);
+    const b = same(ox - sx, oz) && same(ox - sx, oz + sz);
+    return a && b ? 1 : a || b ? 0.6 : 0;
+  };
   return {
     seed,
     h,
@@ -123,7 +150,13 @@ function groundOf(plan: ShapePlan): Ground {
       if (mustSquare(t, w, vx - 1, vz - 1, level) || mustSquare(t, w, vx, vz - 1, level) || mustSquare(t, w, vx - 1, vz, level) || mustSquare(t, w, vx, vz, level)) {
         return Math.min(TERRAIN.radiusBuilt, TERRAIN.radius);
       }
-      return Math.max(0.05, TERRAIN.radius - TERRAIN.radiusVary * rand(seed, 'r', vx, vz));
+      const r = Math.max(0.05, TERRAIN.radius - TERRAIN.radiusVary * rand(seed, 'r', vx, vz));
+      const st = straightAt(vx, vz, level);
+      return st > 0 ? r + (0.5 - r) * st : r;
+    },
+    straight(vx, vz, level) {
+      if (mustSquare(t, w, vx - 1, vz - 1, level) || mustSquare(t, w, vx, vz - 1, level) || mustSquare(t, w, vx - 1, vz, level) || mustSquare(t, w, vx, vz, level)) return 0;
+      return straightAt(vx, vz, level);
     },
     warp(x, z) {
       const a = TERRAIN.wobble * 2;
@@ -250,6 +283,11 @@ function splitTop(b: MeshBuilder, g: Ground, level: number, a: TopVert, c: TopVe
   fan(grassPoly, false);
 }
 
+/** True where the quarter's outline turns a corner (a convex corner of this cell or a fillet in it). */
+function convexOrFillet(inA: boolean, inB: boolean, inC: boolean, inD: boolean): boolean {
+  return (inA && !inB && !inC) || (!inA && inB && inC && inD);
+}
+
 /** A wall strip between two outline points, facing along the given normals. */
 function wallQuad(b: MeshBuilder, lo0: Vec3, lo1: Vec3, hi1: Vec3, hi0: Vec3, n0lo: Vec3, n1lo: Vec3, n1hi: Vec3, n0hi: Vec3, e0 = EDGE_FAR, e1 = EDGE_FAR): void {
   const ux = lo1[0] - lo0[0], uy = lo1[1] - lo0[1], uz = lo1[2] - lo0[2];
@@ -370,9 +408,19 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
     return r00 * (1 - s) * (1 - t) + r10 * s * (1 - t) + r01 * (1 - s) * t + r11 * s * t;
   };
   b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
+  // A quarter circle, or (on a river's diagonal staircase) partway to the straight chord between the
+  // same two end points; `bend` gives the matching outward normal.
+  const st = convexOrFillet(inA, inB, inC, inD) ? g.straight(vx, vz, level) : 0;
   const arc = (i: number): [number, number] => {
     const phi = (i / ARC) * (Math.PI / 2);
-    return [r - r * Math.sin(phi), r - r * Math.cos(phi)];
+    const t = i / ARC;
+    return [r - r * Math.sin(phi) + (r * (1 - t) - (r - r * Math.sin(phi))) * st, r - r * Math.cos(phi) + (r * t - (r - r * Math.cos(phi))) * st];
+  };
+  const bend = (i: number): [number, number] => {
+    const phi = (i / ARC) * (Math.PI / 2);
+    const nu = Math.sin(phi) + (Math.SQRT1_2 - Math.sin(phi)) * st, nv = Math.cos(phi) + (Math.SQRT1_2 - Math.cos(phi)) * st;
+    const len = Math.hypot(nu, nv) || 1;
+    return [nu / len, nv / len];
   };
   // The polygon, as a fan: [u, v, on the outline?]. `hub` is a point every corner can see.
   let hub: [number, number] = [0.5, 0.5];
@@ -430,10 +478,10 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
     const kB = edgeKind(g, x + sx, z, x, z, level), kC = edgeKind(g, x, z + sz, x, z, level);
     const pts: WallPoint[] = [];
     for (let i = 0; i <= ARC; i++) {
-      const phi = (i / ARC) * (Math.PI / 2);
       const [u, v] = arc(i);
+      const [nu, nv] = bend(i);
       // The foot and any ledge stay inside the fillet's own curve.
-      pts.push(point(u, v, Math.sin(phi), Math.cos(phi), blend(kC, kB, i / ARC), r * 0.8));
+      pts.push(point(u, v, nu, nv, blend(kC, kB, i / ARC), r * 0.8));
     }
     emitBank(b, pts, harder(kB, kC), yb, yt, level);
     return;
@@ -443,9 +491,9 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
   if (kB && kC) {
     const pts: WallPoint[] = [];
     for (let i = 0; i <= ARC; i++) {
-      const phi = (i / ARC) * (Math.PI / 2);
       const [u, v] = arc(i);
-      pts.push(point(u, v, -Math.sin(phi), -Math.cos(phi), blend(kC, kB, i / ARC)));
+      const [nu, nv] = bend(i);
+      pts.push(point(u, v, -nu, -nv, blend(kC, kB, i / ARC)));
     }
     emitBank(b, pts, harder(kB, kC), yb, yt, level);
   }
@@ -528,18 +576,165 @@ function shoreDistance(g: Ground, px: number, pz: number): number {
       const qx = px - (cx + 0.5), qz = pz - (cz + 0.5);
       const ex = qx >= 0 ? 1 : -1, ez = qz >= 0 ? 1 : -1;
       // This cell's corner on the point's side is rounded only if it is a convex corner of the island.
-      const round = g.h(cx + ex, cz) < 1 && g.h(cx, cz + ez) < 1 ? Math.min(0.5, g.radius(cx + (ex > 0 ? 1 : 0), cz + (ez > 0 ? 1 : 0), 1)) : 0;
+      const cvx = cx + (ex > 0 ? 1 : 0), cvz = cz + (ez > 0 ? 1 : 0);
+      const convex = g.h(cx + ex, cz) < 1 && g.h(cx, cz + ez) < 1;
+      const round = convex ? Math.min(0.5, g.radius(cvx, cvz, 1)) : 0;
       const ax = Math.abs(qx) - 0.5 + round, az = Math.abs(qz) - 0.5 + round;
-      const d = Math.hypot(Math.max(ax, 0), Math.max(az, 0)) + Math.min(Math.max(ax, az), 0) - round;
+      let d = Math.hypot(Math.max(ax, 0), Math.max(az, 0)) + Math.min(Math.max(ax, az), 0) - round;
+      const st = convex ? g.straight(cvx, cvz, 1) : 0;
+      if (st > 0) {
+        // A corner cut straight (a river's diagonal bank): the square with its corner chamfered.
+        const bx0 = Math.abs(qx) - 0.5, bz0 = Math.abs(qz) - 0.5;
+        const box = Math.hypot(Math.max(bx0, 0), Math.max(bz0, 0)) + Math.min(Math.max(bx0, bz0), 0);
+        d += (Math.max(box, (bx0 + bz0 + round) / Math.SQRT2) - d) * st;
+      }
       const low = g.h(cx, cz) === 1;
       const run = (low && g.mat(cx, cz) === MAT.sand ? TERRAIN.beachRun : low && g.mat(cx, cz) === MAT.grass ? TERRAIN.bankRun : TERRAIN.shoreRun) * wet;
       if (d - run < best) best = d - run;
     }
   }
+  // In a river, the fillets that grow into the water at its inside corners are shore too.
+  for (let cz = bz - 1; cz <= bz + 1; cz++) {
+    for (let cx = bx - 1; cx <= bx + 1; cx++) {
+      if (g.h(cx, cz) !== 0 || g.mat(cx, cz) !== MAT_RIVER) continue;
+      for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+        if (g.h(cx + sx, cz) < 1 || g.h(cx, cz + sz) < 1 || g.h(cx + sx, cz + sz) < 1) continue;
+        const vx = cx + (sx > 0 ? 1 : 0), vz = cz + (sz > 0 ? 1 : 0);
+        const r = Math.min(0.5, g.radius(vx, vz, 1)), st = g.straight(vx, vz, 1);
+        // Into the water cell from its corner.
+        const u = (vx - px) * sx, v = (vz - pz) * sz;
+        if (u < -0.05 || v < -0.05 || u > 1.5 || v > 1.5) continue;
+        const arc = u < r && v < r ? r - Math.hypot(u - r, v - r) : Math.min(Math.hypot(u - r, v), Math.hypot(u, v - r));
+        const chord = (u + v - r) / Math.SQRT2;
+        const d = arc + (chord - arc) * st - TERRAIN.bankRun * wet * 0.8;
+        if (d < best) best = d;
+      }
+    }
+  }
   return Math.max(0, best);
 }
 
-function emitSea(b: MeshBuilder, g: Ground, x: number, z: number): void {
+// ──────────────────────────────────────────────────────────── the river ──
+
+/** Pattern id of river water: the water pattern, with riverness and the way the river flows in the vertex colour. */
+export const PATTERN_RIVER = 40;
+
+interface RiverField {
+  /** Per column: 1 on a river, ramping to 0 over the sea off its mouth (the fan of shallows); land takes its water's. */
+  riv: Float32Array;
+  /** Per column: unit direction the water flows (downstream, and out to sea off the mouth). */
+  fx: Float32Array;
+  fz: Float32Array;
+}
+const riverFields = new WeakMap<Terrain, RiverField | null>();
+
+/** Where the rivers are and which way they flow, for the whole island (null if it has no river). */
+function riverField(t: Terrain): RiverField | null {
+  if (riverFields.has(t)) return riverFields.get(t)!;
+  const n = SIZE_X * SIZE_Z;
+  const isRiver = (i: number): boolean => t.material[i] === MAT_RIVER;
+  let any = false;
+  for (let i = 0; i < n && !any; i++) any = isRiver(i);
+  if (!any) {
+    riverFields.set(t, null);
+    return null;
+  }
+  const water = (i: number): boolean => t.height[i] === 0;
+  const bfs = (from: (i: number) => boolean, through: (i: number) => boolean): Int32Array => {
+    const d = new Int32Array(n).fill(-1);
+    const q: number[] = [];
+    for (let i = 0; i < n; i++) if (from(i)) { d[i] = 0; q.push(i); }
+    for (let k = 0; k < q.length; k++) {
+      const i = q[k]!, x = i % SIZE_X, z = (i / SIZE_X) | 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nx = x + dx, nz = z + dz;
+        if (!inColumnBounds(nx, nz)) continue;
+        const j = columnIndex(nx, nz);
+        if (d[j] === -1 && through(j)) { d[j] = d[i]! + 1; q.push(j); }
+      }
+    }
+    return d;
+  };
+  // Up the river from the sea, and out to sea from the river.
+  const up = bfs((i) => water(i) && !isRiver(i), isRiver);
+  const out = bfs(isRiver, (i) => water(i) && !isRiver(i));
+  const pot = new Float32Array(n);
+  const riv = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    if (!water(i)) continue;
+    if (isRiver(i)) {
+      pot[i] = -Math.max(1, up[i]! < 0 ? 1 : up[i]!);
+      riv[i] = 1;
+    } else {
+      pot[i] = out[i]! < 0 ? 99 : out[i]!;
+      riv[i] = out[i]! < 0 ? 0 : Math.max(0, 1 - out[i]! / 4);
+    }
+  }
+  let fx = new Float32Array(n), fz = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    if (!water(i) || riv[i] === 0) continue;
+    const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+    let gx = 0, gz = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      if (!inColumnBounds(x + dx, z + dz)) continue;
+      const j = columnIndex(x + dx, z + dz);
+      if (!water(j)) continue;
+      const dp = Math.min(3, pot[j]! - pot[i]!);
+      gx += dx * dp;
+      gz += dz * dp;
+    }
+    fx[i] = gx;
+    fz[i] = gz;
+  }
+  // Smooth the flow, so it turns with the bends instead of cell by cell.
+  for (let pass = 0; pass < 3; pass++) {
+    const nx = fx.slice(), nz = fz.slice();
+    for (let i = 0; i < n; i++) {
+      if (!water(i) || riv[i] === 0) continue;
+      const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        if (!inColumnBounds(x + dx, z + dz)) continue;
+        const j = columnIndex(x + dx, z + dz);
+        if (!water(j) || riv[j] === 0) continue;
+        nx[i] += fx[j]! * 0.5;
+        nz[i] += fz[j]! * 0.5;
+      }
+    }
+    fx = nx;
+    fz = nz;
+  }
+  for (let i = 0; i < n; i++) {
+    const l = Math.hypot(fx[i]!, fz[i]!);
+    if (l > 1e-6) { fx[i] = fx[i]! / l; fz[i] = fz[i]! / l; }
+  }
+  // Land under the rounded banks takes the water's values beside it.
+  const lr = riv.slice(), lx = fx.slice(), lz = fz.slice();
+  for (let i = 0; i < n; i++) {
+    if (water(i)) continue;
+    const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+    let sr = 0, sx = 0, sz = 0, k = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      if (!inColumnBounds(x + dx, z + dz)) continue;
+      const j = columnIndex(x + dx, z + dz);
+      if (!water(j)) continue;
+      sr += riv[j]!; sx += fx[j]!; sz += fz[j]!; k++;
+    }
+    if (k) { lr[i] = sr / k; lx[i] = sx / k; lz[i] = sz / k; }
+  }
+  const f = { riv: lr, fx: lx, fz: lz };
+  riverFields.set(t, f);
+  return f;
+}
+
+/** Bilinear read of a per-column field at a point (between column centres). */
+function sampleField(a: Float32Array, px: number, pz: number): number {
+  const fx = px - 0.5, fz = pz - 0.5;
+  const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+  const v = (x: number, z: number): number => a[columnIndex(Math.min(SIZE_X - 1, Math.max(0, x)), Math.min(SIZE_Z - 1, Math.max(0, z)))]!;
+  return (v(ix, iz) * (1 - tx) + v(ix + 1, iz) * tx) * (1 - tz) + (v(ix, iz + 1) * (1 - tx) + v(ix + 1, iz + 1) * tx) * tz;
+}
+
+function emitSea(b: MeshBuilder, g: Ground, x: number, z: number, rf: RiverField | null = null): void {
   // Water shows wherever this cell or a neighbour is water (rounded corners uncover a little of it).
   let open = false, near = false;
   for (let dz = -2; dz <= 2; dz++) {
@@ -555,6 +750,35 @@ function emitSea(b: MeshBuilder, g: Ground, x: number, z: number): void {
     const [sx, sz] = intoSlab(px, pz);
     return { p: [sx, y, sz], e: near ? shoreDistance(g, sx, sz) : SEA_FAR };
   };
+  let rivered = false;
+  if (rf) for (let dz = -1; dz <= 1 && !rivered; dz++) for (let dx = -1; dx <= 1; dx++) if (inColumnBounds(x + dx, z + dz) && rf.riv[columnIndex(x + dx, z + dz)]! > 0) rivered = true;
+  if (rf && rivered) {
+    // River water: the same sheet, with how much river it is and which way it flows in the colour.
+    b.setPattern(PATTERN_RIVER);
+    const n = SEA_GRID;
+    const grid: { p: Vec3; e: number; c: [number, number, number] }[] = [];
+    for (let j = 0; j <= n; j++) {
+      for (let i = 0; i <= n; i++) {
+        const v = vert(x + i / n, z + j / n);
+        const px = x + i / n, pz = z + j / n;
+        const r = Math.min(1, Math.max(0, sampleField(rf.riv, px, pz)));
+        let fx = sampleField(rf.fx, px, pz), fz = sampleField(rf.fz, px, pz);
+        const l = Math.hypot(fx, fz) || 1;
+        fx /= l;
+        fz /= l;
+        grid.push({ ...v, c: [Math.round(r * 255), Math.round(127.5 + 127 * fx), Math.round(127.5 + 127 * fz)] });
+      }
+    }
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        const a = grid[j * (n + 1) + i]!, c = grid[j * (n + 1) + i + 1]!, d = grid[(j + 1) * (n + 1) + i + 1]!, e = grid[(j + 1) * (n + 1) + i]!;
+        b.tri(a.p, d.p, c.p, { edge: [a.e, d.e, c.e], colors: [a.c, d.c, c.c] });
+        b.tri(a.p, e.p, d.p, { edge: [a.e, e.e, d.e], colors: [a.c, e.c, d.c] });
+      }
+    }
+    b.setPattern(PATTERN.water);
+    return;
+  }
   if (near) {
     const n = SEA_GRID;
     const grid: { p: Vec3; e: number }[] = [];
@@ -637,6 +861,7 @@ function emitSlab(b: MeshBuilder, chunk: Chunk): void {
 /** The terrain mesh for one chunk. Exported for tests. */
 export function buildTerrainChunk(chunk: Chunk, plan: ShapePlan): MeshBuilder {
   const g = groundOf(plan);
+  const rivers = riverField(plan.terrain);
   // One ink namespace for the whole island: a lawn that crosses a chunk border is still one surface.
   const b = new MeshBuilder({ ink: 'terrain' });
   for (let z = chunk.z0; z <= chunk.z1; z++) {
@@ -651,7 +876,7 @@ export function buildTerrainChunk(chunk: Chunk, plan: ShapePlan): MeshBuilder {
       }
       emitScree(b, g, x, z);
       b.setColor(PALETTE.sea).setPattern(PATTERN.water).setInk('sea');
-      emitSea(b, g, x, z);
+      emitSea(b, g, x, z, rivers);
     }
   }
   emitSlab(b, chunk);

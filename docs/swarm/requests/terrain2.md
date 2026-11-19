@@ -14,7 +14,8 @@ need to do.
   undo step. Nothing else in the file changed.
 - `src/scenario/scenario.ts`: `ScenarioDef.terrainGen?: 1 | 2`, read only
   with `terrain: 'generated'`; default 1. The built world records 2 when
-  asked. `TerrainBuilder.set` still clamps hand-made heights to 6.
+  asked. `TerrainBuilder.set` clamps hand-made heights to 10 (was 6; the
+  pass of 2026-11-19 evening), so a fixture can build a steep island.
 
 ## 2. How old towns keep their island
 
@@ -62,11 +63,26 @@ steep ground yet:
 
 ## 4. Notes for other owners
 
-- **Logic (`src/resolve/kinds.ts`, K3 lighthouse):** "open water within 4
-  columns" counts a river, so an Auto column of 4+ beside a river becomes a
-  lighthouse. Probably it should want the sea (open water connected to the
-  map border by a wide way); left as it is.
-- **Look (shaders, not touched):** rock tops are drawn with `PATTERN.rock`
+- **River columns are marked:** generator 2 gives river water the material
+  `MAT_RIVER` (4, exported from `src/terrain/terrain2.ts`; not in the frozen
+  `MAT` table, which only names 0 to 3). Height 0 still means open water
+  everywhere; only code that wants to tell a river from the sea reads it.
+- **Logic (`src/resolve/kinds.ts`, K3 lighthouse), changed (three lines):**
+  Auto K3 wanted "open water within 4 columns", which let an Auto column far
+  inland beside a narrow river turn into a lighthouse. It now wants open
+  water that is not `MAT_RIVER`. A lighthouse by a river mouth still counts
+  the sea beside it. The lighthouse role (R-L01) follows the kind, so it
+  needs no change; a placed lighthouse is the player's choice anywhere.
+- **Look (`src/render/shaders/surface.ts`), changed:** river water is the
+  water pattern under id 40 (pattern 28 is mist), drawn by the same branch
+  as the sea. Its vertex colour is data, not colour: r = how much river
+  (1 in the channel, ramping to 0 over a fan of sea off the mouth), g and b =
+  the way it flows. The branch tints the channel a deeper teal, keeps the
+  pale shallows to a thin line along each bank, draws a fan of shallows off
+  the mouth, and lays flow marks in the hand of the wave marks along the
+  current, drifting downstream and anchored to the water like the sea's.
+  Nothing else in the shader changed.
+- **Look (shaders), rock tops:** rock tops are drawn with `PATTERN.rock`
   on top faces (the existing blotchy flat with cracks), split from the grass
   along a wandering contour in the mesh, with mossy and dry vertex colours
   near the border. A softer blend (grass ticks thinning into stone) would

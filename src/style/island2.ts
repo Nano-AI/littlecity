@@ -20,9 +20,9 @@ export const ISLAND2 = defineStyle(
     /** Chance a river has a small island in it. */
     riverIslandChance: 0.3,
     /** How hard rivers wind: the largest swing of the heading from the straight line, radians. */
-    meander: 0.75,
+    meander: 0.95,
     /** Columns of river per meander, range. */
-    meanderLength: [7, 12] as [number, number],
+    meanderLength: [6, 10] as [number, number],
     /** Ground lower than this is cut down into a valley by a river; higher ground makes a gorge. */
     gorgeAbove: 3.5,
     /** Columns of open water kept on every side of the map. */

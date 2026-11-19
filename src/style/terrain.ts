@@ -30,7 +30,7 @@ export const TERRAIN = defineStyle(
     /** The same at the waterline, where every shore gets a foot. */
     shoreRun: 0.1,
     /** A grass bank one level above the water (a river bank) slopes in this far. */
-    bankRun: 0.22,
+    bankRun: 0.34,
     /** Bare rock on a terrace top (summits, ridges, gorge rims): paler and cooler than a cliff face, so tops read as tops. */
     rockTop: '#d9d0c0',
     /** Rock turns this mossy green near grass, and grass this dry olive near rock: the soft border between them. */

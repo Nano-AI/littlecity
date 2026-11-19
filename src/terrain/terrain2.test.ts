@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { columnIndex, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { MAT } from '@/core/world';
-import { checkTerrain2, generateIsland2, MAX_HEIGHT_2, type IslandCharacter } from './terrain2';
+import { checkTerrain2, generateIsland2, MAT_RIVER, MAX_HEIGHT_2, type IslandCharacter } from './terrain2';
 import { generateTerrain, initialWorld } from './terrain';
 import { components, D4, hAt } from './noise';
 
@@ -74,7 +74,7 @@ describe('generator 2', () => {
         for (let x = 0; x < SIZE_X; x++) {
           const h = hAt(t.height, x, z);
           const m = t.material[columnIndex(x, z)];
-          if (h === 0) expect(m).toBe(MAT.water);
+          if (h === 0) expect([MAT.water, MAT_RIVER]).toContain(m);
           else expect(m).not.toBe(MAT.water);
           if (m === MAT.sand) {
             expect(h).toBe(1);

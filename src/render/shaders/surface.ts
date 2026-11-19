@@ -403,35 +403,63 @@ void main(){
   oId = vec4(normalize(vVN).xy * 0.5 + 0.5, vId);
 #else
 
-  if (pat == 11 && top) {
-    // ── water: flat colour, deeper patches, a pale shallow band, little wave marks, foam at the shore
+  if ((pat == 11 || pat == 40) && top) {
+    // ── water: flat colour, deeper patches, a pale shallow band, little wave marks, foam at the shore.
+    //    Pattern 40 is river water (src/gen/terrain): the vertex colour carries how much river it is (r,
+    //    0 out at sea to 1 in the channel) and the way it flows (g, b), not a colour.
     hatchable = 0.0;
+    float riv = 0.0;
+    vec2 flow = vec2(1.0, 0.0);
+    if (pat == 40) {
+      vec3 raw = pow(max(vCol, vec3(0.0)), vec3(1.0 / 2.2));
+      riv = clamp(raw.r, 0.0, 1.0);
+      vec2 fd = raw.gb * 2.0 - 1.0;
+      flow = length(fd) > 0.08 ? normalize(fd) : vec2(1.0, 0.0);
+    }
+    float inRiver = smoothstep(0.55, 0.95, riv);   // the channel itself
+    float fan = riv * (1.0 - inRiver);              // the shallows off the mouth
     vec3 c = uSea;
     float m = n2(vW.xz * 0.32 + vec2(uTime * 0.03, 0.0));
     c = mix(c, uSeaDeep, smoothstep(0.5, 0.8, m) * 0.45);
+    // A river is a touch greener and deeper than the sea, with a darker thread down the middle.
+    c = mix(c, uSeaDeep * vec3(0.66, 0.9, 0.76), inRiver * 0.85);
     float sd = vEdge + (n2(vW.xz * 2.3 + uTime * 0.05) - 0.5) * 0.09;
     // Round the island the water pales in two steps, like the contours of a chart: a wide lazy
-    // shelf with a pencilled edge, then the pale shallows at the shore itself.
+    // shelf with a pencilled edge, then the pale shallows at the shore itself. Not in a river.
     float sd2 = vEdge + (n2(vW.xz * 0.8 + 4.0) - 0.5) * 0.6 + (n2(vW.xz * 3.1) - 0.5) * 0.1;
     float fw2 = max(fwidth(sd2), 1e-4);
-    c = mix(c, uShallow, (1.0 - smoothstep(1.3 - fw2, 1.3 + fw2, sd2)) * 0.3);
-    c = mix(c, uSeaDeep, (1.0 - smoothstep(0.5, 1.5, abs(sd2 - 1.3) / fw2)) * 0.55 * step(vEdge, 3.0));
-    c = mix(c, uShallow, (1.0 - smoothstep(0.0, 0.62, sd)) * 0.7);
+    float chart = 1.0 - inRiver;
+    c = mix(c, uShallow, (1.0 - smoothstep(1.3 - fw2, 1.3 + fw2, sd2)) * 0.3 * chart);
+    c = mix(c, uSeaDeep, (1.0 - smoothstep(0.5, 1.5, abs(sd2 - 1.3) / fw2)) * 0.55 * step(vEdge, 3.0) * chart);
+    // The pale shallows: a narrow band along a river's banks, a fan of them off its mouth.
+    c = mix(c, uShallow, (1.0 - smoothstep(0.0, mix(0.62, 0.2, inRiver), sd)) * 0.7);
+    c = mix(c, uShallow, fan * 0.45 * (0.8 + 0.2 * n2(vW.xz * 1.4)));
     c *= uSeaKeep;       // the sea keeps its blue through a warm dusk (index.ts)
     // Wave marks lie level on the page whichever way the island is turned, each at its own place on
     // the water (waveMarks), so turning the view turns no mark out of its place.
     vec2 r2 = normalize(uCamRight.xz);
     float fwq = fwidth(dot(vW.xz, vec2(-r2.y, r2.x))) * 1.2;   // from the unbroken coordinate: no hairline between cells
-    float open = smoothstep(0.25, 0.5, sd);
+    float open = smoothstep(0.25, 0.5, sd) * (1.0 - inRiver);
     // Each layer is read only where it shows: near the shore neither, and at most zooms only one.
     float near = fade(0.2) * open;
     if (near > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.07, r2, 0.55, 0.1, 0.0, 0.11, 0.08, 0.05, 26.0, 0.014, 1.5, 0.7, 0.45, 0.011, fwq) * 0.85 * near);
     // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
     float far = (1.0 - fade(0.2)) * open;
     if (far > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.12, 31.0, 0.4, 0.4, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / uPx), fwq) * 0.7 * far);
+    if (riv > 0.0) {
+      // Flow marks: the same hand as the wave marks, laid along the current and drifting down it, each at
+      // its own place on the water. Long and close in the channel; seen from far off, fewer and bolder.
+      float fwf = fwidth(dot(vW.xz, vec2(-flow.y, flow.x))) * 1.2;
+      float wet = smoothstep(0.12, 0.3, sd) * riv;
+      float fm = waveMarks(vW.xz - flow * uTime * 0.22, flow, 0.42, 0.09, 53.0, 0.12, 0.12, 0.06, 14.0, 0.012, 1.1, 0.8, 0.4, 0.011, fwf) * fade(0.2)
+               + waveMarks(vW.xz - flow * uTime * 0.3, flow, 1.1, 0.14, 71.0, 0.32, 0.3, 0.14, 4.0, 0.03, 0.8, 0.5, 0.45, max(0.026, 0.8 / uPx), fwf) * (1.0 - fade(0.2));
+      c = mix(c, uFoam, clamp(fm, 0.0, 1.0) * 0.8 * wet);
+      // and the water catches the light down the middle of the channel
+      c = mix(c, uShallow, smoothstep(0.35, 0.75, sd) * inRiver * 0.16 * (0.6 + 0.4 * n2(vW.xz * 0.9 - flow * uTime * 0.1)));
+    }
     float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
-    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12);
+    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12) * (1.0 - inRiver);
     c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0));
     // Things standing in the water (a dock, a hull) darken it a little where they meet it.
     c *= mix(vec3(1.0), vec3(0.8, 0.84, 0.93), grounding(n) * uGround * smoothstep(0.15, 0.4, sd));
