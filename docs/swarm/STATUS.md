@@ -50,7 +50,33 @@ merges a stack into one structure.
   renderer's cache in-game.
 - Dev server for Derek: http://127.0.0.1:5173/ (restart at each gate).
 
-## Stage 2: The town — RUNNING (launched 03:20)
+## Stage 2: The town — PASSED (04:40)
 
-Branches `swarm/houses`, `swarm/monuments`, `swarm/ground` (all Fable 5.2),
-plus the Look owner continuing on `swarm/look` with the open look issues.
+All merged with no conflicts; 886 tests green. Every R and J rule in the
+catalogue is built (all three owners went past tier 1), so Stage 4 has no
+"structures depth" left beyond art fixes.
+
+- Look second pass `2018856`: grounding shade, edge-ink fix, island polish,
+  sketched ghost, style changes redraw.
+- Monuments `816d812`: all R-T, R-L, R-M, R-A rules, J13–J16, supports layer.
+- Houses `c5c2f20`: all R-H rules, R-W01, J04–J12, J24–J27. Stand-in rules
+  for D07, D09 and L03 live in `scenarios/houses/standins.ts`; Stage 3 must
+  replace them with real rules.
+- Ground `370dd4d`: all R-D, R-P, R-F, R-S, R-G, R-E rules, J17–J23, J28.
+- Orchestrator fix: `src/terrain/terrain.test.ts` got a 60 s timeout (it
+  timed out under machine load for every agent).
+- `npm run shots` takes ONE scenario pattern per call.
+
+Open items for the art fix pass: gap where an arch meets a house or round
+tower; notch at inner corners of keep battlements; terrace railings 0.07
+outside the house wall line; stilt-house ladders draw as markers (no
+`ladder` part); chapel is plain; big hip roofs are flat areas; over-tall
+flues; walls, stairs and fountains are ruler-straight; some parts over the
+triangle aim. Speed: `resolveShape` about 8 ms median on bench-2000 with
+house rules (budget 8 ms).
+
+## Stage 3: Life — RUNNING (launched 04:45)
+
+Branches `swarm/animation`, `swarm/people`, `swarm/dressing` (all Fable
+5.2), plus one art director reviewing Stage 2 into
+`docs/swarm/art-review-1.md` (branch `swarm/art-review`).
