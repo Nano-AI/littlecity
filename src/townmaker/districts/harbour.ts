@@ -69,7 +69,7 @@ export function buildHarbour(town: Town): boolean {
   const anchor: [number, number] = [qf.x(qlen / 2, 0), qf.z(qlen / 2, 0)];
 
   buildPier(town, d, anchor);
-  for (let i = 0; i < 2; i++) buildStiltHouse(town, anchor, i);
+  for (let i = 0; i < 2; i++) buildStiltHouse(town, d, anchor, i);
   buildBoathouse(town, d, anchor);
   buildQuayWall(town, anchor);
   shoreTrees(town, anchor);
@@ -108,44 +108,59 @@ function buildPier(town: Town, d: District, anchor: readonly [number, number]): 
   return true;
 }
 
-function buildStiltHouse(town: Town, anchor: readonly [number, number], i: number): boolean {
+/**
+ * A stilt house on a platform two docks out from the beach: the dock next to
+ * the shore carries a path, so the house's door opens onto it and people
+ * walk out to it from the land.
+ */
+function buildStiltHouse(town: Town, d: District, anchor: readonly [number, number], i: number): boolean {
   const { g } = town;
   const found = search(g, `stilt${i}`, (f) => {
-    // Land at v = 0, water at v = 1 and at the house (v = 2), water round it.
-    if (g.h(f.ox, f.oz) === 0) return null;
-    if (!openWater(g, f.x(0, 1), f.z(0, 1)) || !openWater(g, f.x(0, 2), f.z(0, 2))) return null;
-    for (const [u, v] of [[-1, 2], [1, 2], [0, 3]] as const) if (!openWater(g, f.x(u, v), f.z(u, v))) return null;
-    if (besideSeaBlock(g, f.x(0, 2), f.z(0, 2))) return null;
+    if (!landFree(g, f.ox, f.oz, 1)) return null;
+    for (const [u, v] of [[0, 1], [0, 2], [-1, 1], [1, 1], [-1, 2], [1, 2], [0, 3]] as const) if (!openWater(g, f.x(u, v), f.z(u, v))) return null;
+    if (besideSeaBlock(g, f.x(0, 1), f.z(0, 1)) || besideSeaBlock(g, f.x(0, 2), f.z(0, 2))) return null;
     const dist = near(anchor, f);
     if (dist < 2) return null;
     return { score: dist, data: null };
   });
   if (!found) return false;
-  const L = new Local(g, found.frame);
+  const f = found.frame;
+  const L = new Local(g, f);
+  pave(g, f.ox, f.oz);
+  L.put('dock', 0, 0, 1, 0);
   L.put('dock', 0, 0, 2, 0);
+  L.floor('path', 0, 1, 1);
   const c = L.color('house', [[0, 1, 2]], `stilt${i}`);
   L.put('house', 0, 1, 2, c);
   if (g.chance(0.5, 'stilt-up', i)) L.put('house', 0, 2, 2, c);
   L.claim(0, 1, 0, 3, CLAIM.built);
+  L.way(d, 0, 0);
   return true;
 }
 
+/** A boathouse on the beach, its boat doors onto a short landing stage that joins the beach beside it. */
 function buildBoathouse(town: Town, d: District, anchor: readonly [number, number]): boolean {
   const { g } = town;
   const found = search(g, 'boathouse', (f) => {
-    if (!landFree(g, f.ox, f.oz, 1) || !landFree(g, f.x(1, 0), f.z(1, 0), 1)) return null;
-    if (!openWater(g, f.x(0, 1), f.z(0, 1)) || !openWater(g, f.x(1, 1), f.z(1, 1))) return null;
+    if (!landFree(g, f.ox, f.oz, 1) || !landFree(g, f.x(1, 0), f.z(1, 0), 1) || !landFree(g, f.x(2, 0), f.z(2, 0), 1)) return null;
+    for (let u = 0; u <= 2; u++) if (!openWater(g, f.x(u, 1), f.z(u, 1)) || besideSeaBlock(g, f.x(u, 1), f.z(u, 1))) return null;
     if (!landFree(g, f.x(0, -1), f.z(0, -1))) return null;
     const dist = near(anchor, f);
     if (dist < 2) return null;
     return { score: dist, data: null };
   });
   if (!found) return false;
-  const L = new Local(g, found.frame);
+  const f = found.frame;
+  const L = new Local(g, f);
   L.claim(0, 0, 1, 0, CLAIM.built);
+  L.claim(0, 1, 2, 1, CLAIM.built);
+  pave(g, f.x(2, 0), f.z(2, 0));
   L.house(0, 0, 1, 0, 1, 'boathouse');
-  if (g.h(found.frame.x(0, -1), found.frame.z(0, -1)) > 0) {
-    pave(g, found.frame.x(0, -1), found.frame.z(0, -1));
+  for (let u = 0; u <= 2; u++) L.put('dock', u, 0, 1, 0);
+  for (let u = 0; u <= 2; u++) L.floor('path', u, 1, 1);
+  L.way(d, 2, 0);
+  if (g.h(f.x(0, -1), f.z(0, -1)) > 0) {
+    pave(g, f.x(0, -1), f.z(0, -1));
     L.way(d, 0, -1);
   }
   return true;
