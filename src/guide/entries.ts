@@ -438,7 +438,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     proof: { role: 'gatehouse' },
     seed: 7303,
     build(b) {
-      b.path(20, 17, 20, 23).put('arch', 20, 20);
+      b.path(20, 18, 20, 22).put('arch', 20, 20);
       b.stack('marble', 19, 20, { floors: 2 }).stack('marble', 21, 20, { floors: 2 });
     },
     also: [
@@ -479,7 +479,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     proof: { role: 'plinth' },
     seed: 7306,
     build(b) {
-      b.plaza(18, 18, 22, 22);
+      b.plaza(19, 19, 21, 21);
       b.put('marble', 20, 20);
     },
     view: FRONT,
@@ -538,8 +538,8 @@ export const ENTRIES: readonly GuideEntry[] = [
     proof: { role: 'gateway' },
     seed: 7404,
     build(b) {
-      b.path(20, 17, 20, 23).put('arch', 20, 20);
-      b.put('wall', 18, 20).put('wall', 19, 20).put('wall', 21, 20).put('wall', 22, 20);
+      b.path(20, 18, 20, 22).put('arch', 20, 20);
+      b.put('wall', 19, 20).put('wall', 21, 20);
     },
     view: FRONT,
   },
@@ -644,7 +644,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     seed: 7602,
     build(b) {
       b.garden(18, 18, 21, 21);
-      b.put('tree', 19, 19);
+      b.put('tree', 19, 19).put('tree', 21, 20);
     },
     view: FRONT,
   },
@@ -656,7 +656,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     proof: { prop: { rule: 'U02.fenced-field', type: 'espalier' } },
     seed: 7603,
     build(b) {
-      b.fenceAround(18, 19, 21, 21, 'wall');
+      b.fenceAround(19, 19, 21, 21, 'wall');
     },
     view: FRONT,
   },
@@ -668,7 +668,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     proof: { prop: { rule: 'U02.fenced-field', type: 'grazer' } },
     seed: 7604,
     build(b) {
-      b.fenceAround(18, 19, 22, 21);
+      b.fenceAround(19, 19, 21, 21);
     },
     view: FRONT,
   },
@@ -724,15 +724,15 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'laundry-lines',
     group: 'town',
     name: 'Laundry lines',
-    how: 'Build two houses two or more storeys tall facing each other across a narrow gap of one to three squares.',
+    how: 'Face two houses two or more storeys tall across a narrow gap of one to three squares; most such gaps get a washing line.',
     proof: { prop: { rule: 'D05.laundry-line', type: 'laundry-line' } },
-    seed: 7702,
+    seed: 7703,
     build(b) {
-      b.house(18, 19, { w: 4, floors: 3, color: 0 });
-      b.house(18, 21, { w: 4, floors: 3, color: 2 });
-      b.path(17, 20, 22, 20);
+      b.house(19, 19, { w: 2, floors: 3, color: 0 });
+      b.house(19, 21, { w: 2, floors: 3, color: 2 });
+      b.path(18, 20, 21, 20);
     },
-    view: { yaw: 70, pitch: 34 },
+    view: { yaw: 90, pitch: 16 },
   },
 ];
 

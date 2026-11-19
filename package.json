@@ -17,7 +17,8 @@
     "check": "npm run typecheck && npm run lint && vitest run",
     "shots": "node tools/shots.mjs",
     "inspect": "node tools/inspect.mjs",
-    "bench": "node tools/bench.mjs"
+    "bench": "node tools/bench.mjs",
+    "guide": "node tools/guide.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"
