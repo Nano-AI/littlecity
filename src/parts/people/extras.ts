@@ -160,3 +160,30 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   }
   return b.build();
 }
+
+/**
+ * L07: somebody at a lit window, as the street sees them: a dark head and shoulders against the pane.
+ * Flat, facing +Z, one unit wide (x is scaled to the width wanted: 0.1 for a whole figure, less as it
+ * slides in at the pane's edge); y is in world units, standing on y = 0.
+ */
+export function silhouetteMesh(): MeshData {
+  const b = new MeshBuilder({ ink: 'silhouette' });
+  b.setInk('figure').setColor('#2e211d').setPattern(PATTERN.none);
+  const head: [number, number, number][] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    head.push([Math.cos(a) * 0.34, 0.215 + Math.sin(a) * 0.05, 0]);
+  }
+  b.polygon(head);
+  // Shoulders: a rounded trapezium.
+  b.polygon([[-0.5, 0, 0], [0.5, 0, 0], [0.48, 0.11, 0], [0.3, 0.16, 0], [-0.3, 0.16, 0], [-0.48, 0.11, 0]]);
+  return b.build();
+}
+
+/** L07: a curtain being drawn across a lit pane: one unit wide (x scaled), 0.24 tall, standing on y = 0, facing +Z. */
+export function curtainMesh(): MeshData {
+  const b = new MeshBuilder({ ink: 'curtain' });
+  b.setInk('curtain').setColor('#8a5a46').setPattern(PATTERN.cloth);
+  b.polygon([[0, 0, 0], [1, 0, 0], [1, 0.24, 0], [0, 0.24, 0]]);
+  return b.build();
+}

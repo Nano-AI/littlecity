@@ -65,8 +65,11 @@ export default scenario({
     const orders = lights.map((a) => Number((a.params as { order?: number }).order));
     check.ok(orders.every((o) => o >= 0 && o < 1), 'every house has its moment in the ramp');
     check.ok(new Set(orders).size === orders.length, 'no two houses light at the same instant');
-    const beds = lights.map((a) => Number((a.params as { bedtime?: number }).bedtime));
-    check.ok(beds.some((b) => b > 1) && beds.some((b) => b <= 1), 'some stay up, most go to bed');
+    const p = (a: (typeof lights)[number]) => a.params as { bedtime?: number; owl?: number; shop?: number; inn?: number; storeys?: number };
+    const homes = lights.filter((a) => p(a).shop !== 1 && p(a).inn !== 1);
+    check.ok(homes.every((a) => Number(p(a).bedtime) > 0 && Number(p(a).bedtime) <= 0.5), 'they go to bed in the first half of the night');
+    check.equal(homes.filter((a) => p(a).owl === 1).length, Math.round(homes.length / 6), 'about one home in six stays up');
+    check.ok(lights.some((a) => Number(p(a).storeys) > 1), 'the tall ones put out downstairs first');
     check.noActor({ type: 'window-light', at: [23, 1, 27] });
     check.hasActor({ type: 'lighthouse-beam', rule: 'L09.lighthouse-beam' }, 1);
     check.hasActor({ type: 'beam-glow', rule: 'L09.lighthouse-beam' }, 1);
