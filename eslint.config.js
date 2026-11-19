@@ -4,7 +4,7 @@
 //     under src/core, src/terrain, src/resolve, src/rules, src/gen, src/parts
 //     and src/scenario there is no Math.random, no clock, no DOM. Chance
 //     comes from rand(seed, ...) in src/core/rand.ts.
-//  2. THE LAYERS. core, vocab ← style ← world, terrain ← resolve, rules ←
+//  2. THE LAYERS. core, vocab ← style ← world, terrain ← resolve, rules, townmaker ←
 //     scenario ← gen, parts ← life, render ← ui, app. A module may import
 //     from its own layer and the ones before it, never from a later one.
 //     (Checked on '@/...' imports: use the alias to import across modules.)
@@ -16,16 +16,16 @@ const LAYERS = [
   ['core', 'vocab'],
   ['style'],
   ['world', 'terrain'],
-  ['resolve', 'rules'],
+  ['resolve', 'rules', 'townmaker'],
   ['scenario'],
   ['gen', 'parts'],
   ['life', 'render'],
   ['ui', 'app'],
 ];
 
-const PURE = ['core', 'terrain', 'resolve', 'rules', 'gen', 'parts', 'scenario'];
+const PURE = ['core', 'terrain', 'resolve', 'rules', 'townmaker', 'gen', 'parts', 'scenario'];
 /** Pure code that may not use Three.js at all (gen and parts may use its maths). */
-const NO_THREE = ['core', 'vocab', 'style', 'world', 'terrain', 'resolve', 'rules', 'scenario'];
+const NO_THREE = ['core', 'vocab', 'style', 'world', 'terrain', 'resolve', 'rules', 'townmaker', 'scenario'];
 
 const purityRules = {
   'no-restricted-properties': [
