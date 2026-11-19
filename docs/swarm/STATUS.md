@@ -133,3 +133,11 @@ is quieter before the next Pages deploy. Still open from these passes:
 Ground's half of the terrace railing (G4), bench not re-measured after
 Houses' heavier J10. Held-length feature in progress on `swarm/held-length`
 (Opus 5.5).
+
+**12:15** Merged Ground fix pass `8419265` (G1–G5). Orchestrator rewrote the
+end of `scenarios/rules/J05.terrace-edges.scenario.ts`: Ground no longer
+adds J19 railings on house roofs, so the house parapet stands there.
+856 unit tests green. Open seams: fence edge pieces round a pitched-roof
+house float at eaves level (needs a decision: skip drawing them); stall and
+fountain triangle trims not done. Still running: Animation, Dressing, Look
+fix pass, held-length; People finishing.
