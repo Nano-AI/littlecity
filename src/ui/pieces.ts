@@ -1,0 +1,96 @@
+// The tray's contents (design sections 6, 7 and 20): every placeable piece
+// and the three tools, grouped into drawers so the tray never becomes one
+// long row. Owner: Interface.
+//
+// The list of pieces is read from the kind table, so a new kind shows up in
+// the tray by existing. To give it a home and a name, add it to PIECE_INFO;
+// to give it a picture, add an icon of the same id in ./icons.ts. Without
+// either it lands in the Build drawer with a plain box icon.
+
+import { ALL_KINDS, FLOOR_KINDS, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
+
+export type PieceId = PlacedKind | FloorKind;
+export type ToolId = 'change' | 'paint' | 'erase';
+export type ItemId = PieceId | ToolId;
+export type DrawerId = 'build' | 'ground' | 'nature' | 'tools';
+
+export const TOOL_IDS: readonly ToolId[] = ['change', 'paint', 'erase'];
+
+export interface TrayItem {
+  id: ItemId;
+  label: string;
+  /** One short line for the tooltip. */
+  hint: string;
+  drawer: DrawerId;
+}
+
+const PIECE_INFO: Partial<Record<PieceId, { label: string; hint: string; drawer: DrawerId; order: number }>> = {
+  auto: { label: 'Auto', hint: 'Decides for itself what to be', drawer: 'build', order: 0 },
+  house: { label: 'House', hint: 'House', drawer: 'build', order: 1 },
+  tower: { label: 'Tower', hint: 'Tower', drawer: 'build', order: 2 },
+  lighthouse: { label: 'Light', hint: 'Lighthouse', drawer: 'build', order: 3 },
+  arch: { label: 'Arch', hint: 'Arch or bridge', drawer: 'build', order: 4 },
+  dock: { label: 'Dock', hint: 'Dock, on the water', drawer: 'build', order: 5 },
+  marble: { label: 'Marble', hint: 'Marble block', drawer: 'build', order: 6 },
+  pillar: { label: 'Pillar', hint: 'Pillar', drawer: 'build', order: 7 },
+  stairs: { label: 'Stairs', hint: 'Stairs', drawer: 'build', order: 8 },
+  windmill: { label: 'Mill', hint: 'Windmill', drawer: 'build', order: 9 },
+  path: { label: 'Path', hint: 'Path', drawer: 'ground', order: 0 },
+  plaza: { label: 'Plaza', hint: 'Plaza', drawer: 'ground', order: 1 },
+  fence: { label: 'Fence', hint: 'Fence: the middle of a square, or along its edge', drawer: 'ground', order: 2 },
+  wall: { label: 'Wall', hint: 'Low wall: the middle of a square, or along its edge', drawer: 'ground', order: 3 },
+  stall: { label: 'Stall', hint: 'Market stall', drawer: 'ground', order: 4 },
+  tree: { label: 'Tree', hint: 'Tree', drawer: 'nature', order: 0 },
+  garden: { label: 'Garden', hint: 'Garden', drawer: 'nature', order: 1 },
+  fountain: { label: 'Fountain', hint: 'Fountain', drawer: 'nature', order: 2 },
+};
+
+const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
+  change: { label: 'Change', hint: 'Change what a block is, or turn stairs' },
+  paint: { label: 'Paint', hint: 'Recolour a block' },
+  erase: { label: 'Erase', hint: 'Remove a piece' },
+};
+
+export const DRAWER_LABELS: Record<DrawerId, string> = { build: 'Build', ground: 'Ground', nature: 'Nature', tools: 'Tools' };
+export const DRAWER_IDS: readonly DrawerId[] = ['build', 'ground', 'nature', 'tools'];
+
+const titleCase = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Every piece the kind table knows, Auto first. */
+export function allPieceIds(): PieceId[] {
+  return ['auto', ...ALL_KINDS, ...FLOOR_KINDS];
+}
+
+export function isToolId(id: ItemId): id is ToolId {
+  return id === 'change' || id === 'paint' || id === 'erase';
+}
+export function isFloorPiece(id: ItemId): id is FloorKind {
+  return (FLOOR_KINDS as readonly string[]).includes(id);
+}
+export function isEdgePiece(id: ItemId): id is EdgeKind {
+  return id === 'fence' || id === 'wall';
+}
+/** Pieces a Shift-drag paints as a run (design section 7). */
+export function paintsRuns(id: ItemId): boolean {
+  return isFloorPiece(id) || isEdgePiece(id) || id === 'marble';
+}
+
+export function trayItem(id: ItemId): TrayItem {
+  if (isToolId(id)) return { id, drawer: 'tools', ...TOOL_INFO[id] };
+  const info = PIECE_INFO[id];
+  return { id, label: info?.label ?? titleCase(id), hint: info?.hint ?? titleCase(id), drawer: info?.drawer ?? 'build' };
+}
+
+/** The items of one drawer, in tray order. Keys 1–9 and 0 pick them by position. */
+export function drawerItems(drawer: DrawerId): TrayItem[] {
+  if (drawer === 'tools') return TOOL_IDS.map(trayItem);
+  return allPieceIds()
+    .map((id, index) => ({ item: trayItem(id), order: PIECE_INFO[id]?.order ?? 100 + index }))
+    .filter(({ item }) => item.drawer === drawer)
+    .sort((a, b) => a.order - b.order)
+    .map(({ item }) => item);
+}
+
+export function drawerOf(id: ItemId): DrawerId {
+  return trayItem(id).drawer;
+}

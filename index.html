@@ -2,17 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f2ede3" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Little City</title>
+    <link rel="stylesheet" href="/src/ui/ui.css" />
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #f2ede3; font: 14px/1.4 system-ui, sans-serif; color: #3a2f2a; }
-      #town { display: block; width: 100vw; height: 100vh; touch-action: none; }
-      #hud { position: fixed; left: 12px; top: 10px; padding: 6px 10px; background: rgba(255, 255, 255, 0.7); border-radius: 8px; pointer-events: none; white-space: pre; }
+      html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #f2ede3; color: #3a2f2a; }
+      body { position: fixed; inset: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      #town { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
     </style>
   </head>
   <body>
     <canvas id="town"></canvas>
-    <div id="hud"></div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>
