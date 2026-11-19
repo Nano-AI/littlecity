@@ -711,6 +711,38 @@ decoration density (one global knob).
 - **New island**: confirms, then new seed and empty world.
 - Undo and redo cover every edit, at least 200 steps, cleared on new island.
 
+## 15a. Grow a town (Derek's request, 2026-11-19)
+
+A menu entry, **Grow a town**, fills the current island with a complete,
+procedurally generated town, and doubles as the game's showcase: a grown
+town is meant to show off every building combination the rules know.
+
+- **Pure and seeded.** `growTown(terrain, seed): Edit[]` in `src/townmaker/`
+  returns an ordered list of ordinary edits. It uses only `rand(seed, …)`,
+  and every edit must pass `canApply` when applied in order, so a grown town
+  is exactly a town a player could have built. Nothing else in the game
+  knows it exists.
+- **It plans like a town.** It reads the island first (beach, cove, hill,
+  cliffs, flat ground) and lays out districts that suit it: a harbour with
+  quay, pier and stilt houses in the cove; a market square with fountain,
+  stalls, shops and a clock tower on the largest flat patch; a castle with
+  keep, turrets, curtain wall and gatehouse on the hill; a chapel; a temple
+  on pillars; a lighthouse on a point; rows and townhouses along streets; a
+  windmill by a wheat field; gardens, a fenced paddock, a park; stairs and
+  carved steps up the terraces; and a vertical quarter of viaducts, sky
+  bridges, towers on arches and houses on generated supports. Streets
+  connect everything so residents can walk it.
+- **Coverage.** Across seeds 1 to 5 every role in catalogue part R must
+  appear at least once, and any single grown town must show at least 30
+  distinct roles. A test enforces both.
+- **In the game.** Choosing it asks for confirmation if the island has
+  anything on it besides the starting trees, clears those, then plays the
+  edits in order at about 25 a second so the town visibly builds itself with
+  the landing bounce, district by district. A click or key skips to the end.
+  The whole growth is one undo step. A dice button beside the entry grows a
+  different town on a new island.
+- **Speed.** Generating the edit list takes under 200 ms for a full island.
+
 ## 16. Code layout and contracts
 
 ```
