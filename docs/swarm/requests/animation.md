@@ -1,15 +1,29 @@
 # Requests and notes from Animation (Stage 3)
 
 Nothing here blocked the work. No frozen file was changed: `src/life/api.ts`
-is as Stage 0 wrote it. Section 1 is the one file outside my paths that I
+is as Stage 0 wrote it. Section 1 lists the three files outside my paths that I
 edited; the rest are seams and asks.
 
-## 1. A file outside my paths that I changed
+## 1. Files outside my paths that I changed
 
 - `scenarios/houses/standins.ts`: the `X-L03.sails` stand-in is removed from
   `houseDressing` (the brief gave it to me to replace). The real rule is
   `src/rules/life/L03.sails.rule.ts`; with both, every mill had two wheels.
   `X-D07` and `X-D09` are untouched and still Dressing's to replace.
+
+- `tests/e2e/gallery.e2e.test.ts` (the filter assertion): typing `light`
+  must now show `gen.lighthouse` among entries that all contain "light",
+  and fewer entries than the whole list; it used to demand exactly
+  `['gen.lighthouse']`. The frozen vocabulary's own actor types
+  `lighthouse-beam` and `window-light` now have parts, so that could never
+  pass again (Monuments' note 1 foresaw it).
+- `tests/e2e/interface.e2e.test.ts` (harness only, no assertion changed): an
+  `afterEach` closes the pages a test opened. They used to stay open to the
+  end of the file; twenty living towns drawing every frame starved the last
+  tests (30 s page-load timeouts). The file now runs in 45 s instead of 7
+  minutes, and the phone one-finger-drag test that failed on main passes.
+  The same leak is worth fixing in any other browser test that opens many
+  pages.
 
 ## 2. For Houses: the windmill cap cannot yaw (L03)
 

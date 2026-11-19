@@ -14,7 +14,7 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - Nothing half-done. Next step is the list below.
 
 ## Next, in order
-1. Merge `yaoderek/bloom-s-monkey-city-builder` again, `npm run check` green, report.
+1. Main merged at f96fa30 and `npm run check` is green (65 files, 968 tests, 74 s). Merge again before reporting if main moved.
 2. Tier 2/3 if budget allows, cheapest first: L29 (fountain jets at `water-jet` sockets, clock hands at `clock-hands`, bell at `bell`), L18 fishing boat (mesh and a floating behaviour exist; needs the rule and a dawn/dusk route on the sea lane), L10 fireflies, L05 falling leaves, L14 sparrows. Sound (F06) last.
 
 ## Gotchas
@@ -22,7 +22,8 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - The renderer resets every item to its base frame and shows it on each `setDressing`; the runtime's `Posed` handle undoes that. Spawned instances are not touched.
 - Anything self-lit shows at `page glow × param a`; use `litParam()` in `dusk/glow.ts`. Window params need the structure lifted (`liftStructure`), released by day.
 - Feedback sets a lifted structure back to identity before releasing (others may hold the lift).
-- `npm run check` takes about 7 minutes; one phone-touch e2e test (`interface.e2e`, one-finger orbit) failed on the untouched baseline under load. Use `npx tsc --noEmit && npx eslint . --max-warnings 0 && npx vitest run --project unit` while working.
+- `npm run check` takes about 75 s now (the interface browser tests close their pages after each test; before that, open pages of living towns starved the GPU). Do not add timing assertions to unit tests: the machine is often very busy.
+- Do not name a scenario or part with a word another gallery test filters on without checking `tests/e2e/gallery.e2e.test.ts`.
 
 ## Verifying motion
 `node src/life/testing/sequence.mjs <scenario> [--edit …] [--time dusk|night|0.6 --run] --frames N --every ms --name x` writes a contact sheet to `.context/shots/seq/`. Tests step life with `recordingStage`/`step` from `src/life/testing/stage.ts`.
