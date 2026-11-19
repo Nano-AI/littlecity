@@ -3,6 +3,7 @@ import { CELL_H, key } from '@/core/grid';
 import { findDuplicateFaces, inkGroups, triangleCount, validateMesh } from '@/gen/checks';
 import { MeshBuilder, meshBounds } from '@/gen/mesh';
 import { flightSteps } from '@/rules/joinery/edges-lib';
+import { STAIRS } from '@/style/edges';
 import { blockStructure, edgeParts, town } from '../fence/testing';
 import stairs from './stairs.gen';
 
@@ -89,7 +90,7 @@ describe('the stairs generator (J18)', () => {
     expect(triangleCount(mesh)).toBeLessThan(5 * RAILED);
   });
 
-  test('against a wall the treads run flush to it: no cheek wall, no rail on that side', () => {
+  test('against a wall the treads run a little way into it with closed ends: no cheek wall, no rail on that side', () => {
     const plan = town((b) => {
       b.fill('marble', 9, 10, 9, 11, { floors: 2 });
       b.put('marble', 10, 10);
@@ -99,7 +100,7 @@ describe('the stairs generator (J18)', () => {
     const { mesh } = stairs.build(s, plan, edgeParts);
     expect(findDuplicateFaces(mesh)).toBe(0);
     expect(inkGroups(mesh).get(inkOf(s.id, 'cheek'))).toBe(6); // the east side only
-    expect(meshBounds(mesh).min[0]).toBeCloseTo(10, 5); // flush with the wall on the west
+    expect(meshBounds(mesh).min[0]).toBeCloseTo(10 - STAIRS.into, 5); // into the wall on the west (a house wall stands 0.07 inside its cell)
     expect(plan.features.filter((f) => f.type === 'railing')).toHaveLength(0);
   });
 });

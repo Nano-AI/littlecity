@@ -113,7 +113,12 @@ export const STAIRS = defineStyle(
     cheekRise: 0.06,
     /** The tread slab: thickness and how far it stands proud of the riser. */
     nosing: 0.03,
-    proud: 0.012,
+    proud: 0.02,
+    /** How far the treads run into a wall or a bank beside the flight (a house wall stands 0.07 inside its cell). */
+    into: 0.075,
+    /** Treads differ in height by up to this much either way, and this share of them is worn a tone darker. */
+    uneven: 0.01,
+    worn: 0.17,
     /** A landing every this many cells of a flight, and its depth. */
     landingEvery: 3,
     landing: 0.4,
@@ -130,6 +135,9 @@ export const STAIRS = defineStyle(
     cheekRise: [0, 0.2, 0.01],
     nosing: [0.01, 0.06, 0.005],
     proud: [0, 0.03, 0.002],
+    into: [0, 0.12, 0.005],
+    uneven: [0, 0.03, 0.002],
+    worn: [0, 0.5, 0.01],
     landingEvery: [2, 6, 1],
     landing: [0.25, 0.55, 0.01],
     newel: [0.08, 0.2, 0.01],
