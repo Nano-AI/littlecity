@@ -194,6 +194,7 @@ function frame(now: number): void {
   if (ready) {
     view.setDressing(ready.dressing);
     life.sync(ready);
+    ui?.dressed(ready.dressing);
   }
   life.update(dt);
   render();
