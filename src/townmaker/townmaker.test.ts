@@ -1,6 +1,7 @@
 // Grow a town (design section 15a): legal, deterministic, fast, and a
 // showcase: across seeds 1 to 5 every role in catalogue part R appears, and
-// every single town shows at least 30.
+// every single town shows at least 30. Pinned to generator 1, the island these
+// numbers were tuned on; tests/terrain2-town.test.ts covers generator 2.
 
 import { describe, expect, test } from 'vitest';
 import { columnIndex, key } from '@/core/grid';
@@ -67,7 +68,7 @@ describe('grow a town', () => {
 
   test('seeds 1 to 50: every edit is legal on its own island, and none throws', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      const t = generateTerrain(seed);
+      const t = generateTerrain(seed, 1);
       const edits = growTown(t, seed);
       expect(edits.length, `seed ${seed}`).toBeGreaterThan(300);
       expect(() => build(t, edits), `seed ${seed}`).not.toThrow();
@@ -75,13 +76,13 @@ describe('grow a town', () => {
   }, 240_000);
 
   test('deterministic per seed, different between seeds', () => {
-    const t = generateTerrain(7);
+    const t = generateTerrain(7, 1);
     expect(JSON.stringify(growTown(t, 7))).toBe(JSON.stringify(growTown(t, 7)));
     expect(JSON.stringify(growTown(t, 8))).not.toBe(JSON.stringify(growTown(t, 7)));
   });
 
   test('under 200 ms for a full island', () => {
-    const terrains = [3, 11, 19, 27, 35].map((s) => generateTerrain(s));
+    const terrains = [3, 11, 19, 27, 35].map((s) => generateTerrain(s, 1));
     growTown(terrains[0]!, 3); // warm up
     for (const [i, t] of terrains.entries()) {
       // The best of several: the generator's own time, not other tests sharing the machine. It stops as
@@ -99,7 +100,7 @@ describe('grow a town', () => {
   test('the watching order is the one used (never the fallback), and every district joins the streets', () => {
     let viaducts = 0;
     for (let seed = 1; seed <= 10; seed++) {
-      const plan = planTown(generateTerrain(seed), seed);
+      const plan = planTown(generateTerrain(seed, 1), seed);
       expect(plan.fellBack, `seed ${seed}`).toBe(false);
       expect(plan.unjoined.length, `seed ${seed}: ${plan.unjoined.join(', ')}`).toBeLessThanOrEqual(2);
       if (seed <= 5 && plan.districts.some((d) => d.name === 'viaduct')) viaducts++;
@@ -114,7 +115,7 @@ describe('grow a town', () => {
     const seen = new Map<string, number[]>();
     const terrains: Terrain[] = [];
     for (let seed = 1; seed <= 5; seed++) {
-      const t = generateTerrain(seed);
+      const t = generateTerrain(seed, 1);
       terrains.push(t);
       const roles = rolesOf(build(t, growTown(t, seed)), t);
       expect(roles.size, `seed ${seed}`).toBeGreaterThanOrEqual(30);
@@ -132,17 +133,17 @@ describe('grow a town', () => {
 
   test('a role impossible on islands 1 to 5 appears on the first island that allows it', () => {
     for (const role of ROLES) {
-      if ([1, 2, 3, 4, 5].some((s) => impossible(role, generateTerrain(s)) === null)) continue;
+      if ([1, 2, 3, 4, 5].some((s) => impossible(role, generateTerrain(s, 1)) === null)) continue;
       let seed = 6;
-      while (impossible(role, generateTerrain(seed)) !== null) seed++;
-      const t = generateTerrain(seed);
+      while (impossible(role, generateTerrain(seed, 1)) !== null) seed++;
+      const t = generateTerrain(seed, 1);
       expect(rolesOf(build(t, growTown(t, seed)), t).has(role), `${role} on seed ${seed}`).toBe(true);
     }
   });
 
   test('people can walk from most houses to the square, and the streets are dressed', () => {
     for (const seed of [1, 4]) {
-      const t = generateTerrain(seed);
+      const t = generateTerrain(seed, 1);
       const plan = planTown(t, seed);
       const w = build(t, plan.edits);
       const town = resolveTown(w, t);
@@ -172,7 +173,7 @@ describe('grow a town', () => {
     const counts = new Map<string, number>();
     const add = (id: string, n: number): void => void counts.set(id, (counts.get(id) ?? 0) + n);
     for (let seed = 1; seed <= 5; seed++) {
-      const t = generateTerrain(seed);
+      const t = generateTerrain(seed, 1);
       const town = resolveTown(build(t, growTown(t, seed)), t);
       const by = (id: string): number =>
         town.dressing.props.filter((p) => p.rule.startsWith(`${id}.`)).length + town.shape.features.filter((f) => f.rule.startsWith(`${id}.`)).length;

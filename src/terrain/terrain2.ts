@@ -530,8 +530,8 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
   const wide = rand(s, tag, 'wide') < ISLAND2.wideShare;
   const pool = !through && rand(s, tag, 'pool') < ISLAND2.poolChance;
   // Wider downstream: a one-wide river is two wide at the bends (r > 0.71 takes both cells of a diagonal step).
-  const mouthR = wide ? 1.12 : 0.9;
-  const sourceR = wide ? 0.82 : 0.64;
+  const mouthR = wide ? 1.4 : 1.15;
+  const sourceR = wide ? 0.95 : 0.7;
   const mine = new Uint8Array(N);
   const radiusAt = (p: Sample): number => {
     const down = through ? Math.min(p.t, total - p.t) / (total / 2) : p.t / total;

@@ -299,8 +299,10 @@ export function initialWorld(seed: number, t: Terrain, gen: TerrainGen = 1): Wor
   }
   for (let i = 0, placed = 0; placed < want && i < 400; i++) {
     const c = centres[i % clumps]!;
-    const x = (c % SIZE_X) + randInt(-3, 3, seed, 'tx', i);
-    const z = ((c / SIZE_X) | 0) + randInt(-3, 3, seed, 'tz', i);
+    // On generator 2 the first tree stands on the river bank itself (the clump centre), where it grows a willow.
+    const onBank = gen === 2 && i === 0;
+    const x = (c % SIZE_X) + (onBank ? 0 : randInt(-3, 3, seed, 'tx', i));
+    const z = ((c / SIZE_X) | 0) + (onBank ? 0 : randInt(-3, 3, seed, 'tz', i));
     if (!inColumnBounds(x, z) || t.material[columnIndex(x, z)] !== MAT.grass) continue;
     const cell = key(x, t.height[columnIndex(x, z)]!, z);
     const e = { type: 'placeBlock', cell, kind: 'tree', color: 'auto', from: null } as const;

@@ -14,7 +14,7 @@ export const ISLAND2 = defineStyle(
     /** Of the islands with rivers, how often a river runs right across, coast to coast (splitting the land). */
     throughShare: 0.4,
     /** Share of rivers two columns wide (the rest are one wide, two at the bends). */
-    wideShare: 0.35,
+    wideShare: 0.45,
     /** Chance a river that ends inland ends in a round pool. */
     poolChance: 0.55,
     /** Chance a river has a small island in it. */
