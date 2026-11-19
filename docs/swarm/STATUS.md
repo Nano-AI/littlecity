@@ -80,3 +80,34 @@ house rules (budget 8 ms).
 Branches `swarm/animation`, `swarm/people`, `swarm/dressing` (all Fable
 5.2), plus one art director reviewing Stage 2 into
 `docs/swarm/art-review-1.md` (branch `swarm/art-review`).
+
+**05:25** Art review 1 merged (`docs/swarm/art-review-1.md`, showcase
+`scenarios/core/everything.scenario.ts`, 55 roles asserted). Fix passes sent
+to Houses, Monuments, Ground and Look (same agents, resumed) on their
+existing branches. Unit-test timeout raised to 30 s. Seven agents running:
+Animation, People, Dressing, plus the four fix passes. Dev server hit its
+two-hour limit and is not restarted (Derek can run `npm run dev`).
+
+**~05:30 STOPPED: Fable usage limit.** All seven running agents died
+mid-work (Animation, People, Dressing, and the Houses, Monuments, Ground and
+Look fix passes). Work survived in their worktrees.
+
+**10:40 RESUMED** after Derek reset the limit. All seven resumed by message
+with: commit after every rule or fix, must-fix notes only for the fix
+passes, no sub-agent forks. State at resume: animation 1 commit (plus dead
+forks `swarm/animation-boats`, `swarm/animation-birds` with uncommitted
+work), people 2 commits + 4 files, dressing 0 commits + 31 files, houses 16
+files, monuments 12 files, ground and look at the start of their passes.
+
+To stay inside the limit from here: no forks; discovery rounds cut to 2
+with one explorer and one builder each; logic-only work goes to Opus 5.5.
+
+**10:40 (second resume).** The session restarted a minute after the first
+resume and stopped all seven again; resumed again by message.
+
+**Standing instruction from Derek:** if an agent dies on the Fable usage
+limit, do not wait: relaunch that owner as a fresh Opus 5.5 agent pointed at
+the SAME worktree path (no new worktree), with a handoff brief: read
+`git status`, `git log`, the owner's original brief (in this log's stage
+sections and the plan), `docs/swarm/requests/<owner>.md`, then continue.
+Worktree paths: `git worktree list`.
