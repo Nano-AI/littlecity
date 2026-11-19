@@ -20,7 +20,7 @@ const BUDGET: Record<TreeRole, number> = {
   'willow': 400,
   'pine': 160,
   'planter-tree': 400,
-  'fruit-tree': 500,
+  'fruit-tree': 480,
   'grove-tree': 480,
 };
 const COMPANION = 160;

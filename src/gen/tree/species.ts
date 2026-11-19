@@ -58,13 +58,14 @@ function cloud(b: MeshBuilder, r: Rng, o: CloudOptions): void {
   const n = o.lumps ?? TREE.lumps;
   const ink = o.ink ?? 'crown';
   const shadeColor = mixColor(o.color, PALETTE.leafDark, TREE.shadeMix);
+  const twist = r('tw') * 6;
   const scallop = (a: number, d: number, cy: number, rr: number, tone: Vec3, key: string): void => {
     const dx = Math.cos(a), dz = Math.sin(a);
     const out = Math.hypot(d, cy - y) || 1;
     lump(b, x + dx * d, cy, z + dz * d, rr, rr * 0.85, rr, { seg: 8, rings: 4, normal: tone, twist: r(key) * 6, facing: [(dx * d) / out, (cy - y) / out, (dz * d) / out], cut: -0.3 });
   };
   b.with({ color: o.color, pattern: PATTERN.leaves, ink, sway: o.sway }, () => {
-    lump(b, x, y, z, R, ry, R, { seg: 12, rings: 6, normal: TONE.lit, twist: r('tw') * 6, facing: [0, 1, 0], cut: -0.62 });
+    lump(b, x, y, z, R, ry, R, { seg: 12, rings: 6, normal: TONE.lit, twist, facing: [0, 1, 0], cut: -0.62 });
     const a0 = r('a0') * 6.28;
     for (let j = 0; j < n; j++) {
       const a = a0 + (j * 6.28) / n + (r('ja', j) - 0.5) * 0.9;
@@ -74,8 +75,10 @@ function cloud(b: MeshBuilder, r: Rng, o: CloudOptions): void {
     scallop(1.7 + (r('ma') - 0.5) * 0.9, R * 0.62, y - ry * (0.2 + r('my') * 0.2), R * (0.44 + r('mr') * 0.12), TONE.mid, 'mt');
   });
   b.with({ color: shadeColor, pattern: PATTERN.leaves, ink, sway: o.sway }, () => {
-    // The shadow: the core's own shape slid down and to the shade side, so it shows as a rim and a crescent.
-    lump(b, x + SHADE_SIDE[0] * R * 0.18, y - ry * 0.26, z + SHADE_SIDE[1] * R * 0.18, R * 0.94, ry * 0.86, R * 0.94, { seg: 10, rings: 5, normal: TONE.shade, twist: 0.4, facing: [0, -1, 0], cut: -0.45 });
+    // The shadow under the crown: a belly that swells out of the core's lower half, a little toward the
+    // shade side, so it shows as a dark rim below and a crescent on the far flank. It meets the core at
+    // a steep angle and shares its facets, which keeps the line between light and shade an even curve.
+    lump(b, x + SHADE_SIDE[0] * R * 0.12, y - ry * 0.5, z + SHADE_SIDE[1] * R * 0.12, R * 0.84, ry * 0.62, R * 0.84, { seg: 12, rings: 5, normal: TONE.shade, twist, facing: [0, -1, 0], cut: -0.2 });
     // East, north and west flanks.
     const flanks = [-0.15, -1.75, 3.2];
     for (let k = 0; k < flanks.length; k++) {
@@ -93,7 +96,7 @@ function speckle(b: MeshBuilder, r: Rng, x: number, y: number, z: number, R: num
       const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.4;
       const up = -0.25 + r('fu', i) * 1.05;
       const s = Math.sqrt(Math.max(0, 1 - up * up));
-      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 5, rings: 3, normal: TONE.lit });
+      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 6, rings: 2, normal: TONE.lit });
     }
   });
 }
@@ -134,8 +137,9 @@ export function cypress(b: MeshBuilder, r: Rng): number {
   const sway = swayTo(top);
   trunk(b, r, [[0, 0, 0], [0, 0.22, 0]], 0.045, sway);
   const color = vary(PALETTE.leafDark, r('leaf'));
+  const twist = r('tw') * 6;
   b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => {
-    lump(b, 0, y0 + h * 0.46, 0, rad, h * 0.46, rad, { seg: 8, rings: 6, normal: TONE.lit, twist: r('tw') * 6 });
+    lump(b, 0, y0 + h * 0.46, 0, rad, h * 0.46, rad, { seg: 8, rings: 6, normal: TONE.lit, twist });
     // The tip, a little off the axis, and a shoulder or two so the outline is not an ellipse.
     lump(b, (r('tx') - 0.5) * 0.05, y0 + h * 0.82, (r('tz') - 0.5) * 0.05, rad * 0.6, h * 0.2, rad * 0.6, { seg: 6, rings: 4, normal: TONE.lit });
     for (let j = 0; j < 2; j++) {
@@ -144,7 +148,7 @@ export function cypress(b: MeshBuilder, r: Rng): number {
     }
   });
   b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
-    lump(b, SHADE_SIDE[0] * rad * 0.36, y0 + h * 0.42, SHADE_SIDE[1] * rad * 0.36, rad * 0.96, h * 0.42, rad * 0.96, { seg: 8, rings: 5, normal: TONE.shade }),
+    lump(b, SHADE_SIDE[0] * rad * 0.4, y0 + h * 0.42, SHADE_SIDE[1] * rad * 0.4, rad * 0.96, h * 0.42, rad * 0.96, { seg: 8, rings: 6, normal: TONE.shade, twist }),
   );
   return top;
 }
@@ -337,7 +341,7 @@ export function planterTree(b: MeshBuilder, r: Rng): number {
   const ball = (y: number, rad: number): void => {
     b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => lump(b, 0, y, 0, rad, rad * 0.94, rad, { seg: 12, rings: 6, normal: TONE.lit }));
     b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
-      lump(b, SHADE_SIDE[0] * rad * 0.2, y - rad * 0.2, SHADE_SIDE[1] * rad * 0.2, rad * 0.97, rad * 0.9, rad * 0.97, { seg: 10, rings: 5, normal: TONE.shade, facing: [SHADE_SIDE[0] * 0.6, -0.7, SHADE_SIDE[1] * 0.6], cut: -0.3 }),
+      lump(b, SHADE_SIDE[0] * rad * 0.14, y - rad * 0.48, SHADE_SIDE[1] * rad * 0.14, rad * 0.84, rad * 0.6, rad * 0.84, { seg: 12, rings: 5, normal: TONE.shade, facing: [0, -1, 0], cut: -0.2 }),
     );
   };
   ball(cy, R);

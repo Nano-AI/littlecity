@@ -106,6 +106,10 @@ export default scenario({
     { name: 'east', yaw: 45, pitch: 36, zoom: 3, target: [34.5, 1.5, 17] },
     { name: 'lookout', yaw: 225, pitch: 34, zoom: 3.6, target: [33.5, 2, 23] },
     { name: 'inlet', yaw: 315, pitch: 36, zoom: 3.6, target: [10, 1, 27] },
+    { name: 'close-square', yaw: 45, pitch: 30, zoom: 7.5, target: [23.5, 1.3, 22] },
+    { name: 'close-park', yaw: 135, pitch: 30, zoom: 7.5, target: [14.5, 1.3, 21.5] },
+    { name: 'close-pier', yaw: 315, pitch: 28, zoom: 7.5, target: [18.5, 1, 29.5] },
+    { name: 'close-steps', yaw: 225, pitch: 30, zoom: 7.5, target: [24, 1.6, 15.5] },
   ],
   expect(plan, _dressing, check) {
     const floorRole = (x: number, y: number, z: number): string | undefined => plan.roles.get(check.floorStructure(x, y, z).id)?.role;
