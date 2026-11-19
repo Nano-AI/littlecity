@@ -40,7 +40,6 @@ describe('generator 2', () => {
       meanRolls: Math.round((rolls / SEEDS.length) * 10) / 10,
       steepHighest: Math.min(...highest.steep), gentleHighest: Math.max(...highest.gentle),
     };
-    if (process.env.SHARES) throw new Error('SHARES ' + JSON.stringify(shares));
     expect(fell).toBe(0);
     expect(Math.abs(shares.gentle - 45)).toBeLessThanOrEqual(7);
     expect(Math.abs(shares.hilly - 30)).toBeLessThanOrEqual(7);

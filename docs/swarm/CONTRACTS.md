@@ -148,7 +148,8 @@ createHistory(w), pushHistory(h, w), undo(h), redo(h), canUndo(h), canRedo(h)   
 encodeTown(w): string;  decodeTown(code): { ok: true; world } | { ok: false; reason }
 saveTown(storage | null, w): boolean;  loadTown(storage | null): World | null
 // @/terrain/terrain
-generateTerrain(seed): Terrain;  initialWorld(seed, t): World
+generateTerrain(seed, gen = 1): Terrain;  initialWorld(seed, t, gen = 1): World   // gen 2: terrain2.ts
+terrainOf(world): Terrain        // the island a saved world stands on (World.terrainGen, absent = 1)
 terrainFromHeights(seed, height: Uint8Array): Terrain;  heightAt(t, x, z)
 // @/resolve/index
 resolveShape(w, t, opts?): ShapePlan;  resolveDressing(shape, opts?): DressingPlan;  resolveTown(w, t, opts?)
@@ -667,7 +668,7 @@ tests, `shots`, `inspect`, `bench`, the gallery and discovery rounds.
 ```ts
 scenario({ name, seed, about?,
   terrain?: 'flat' | 'generated' | (t: TerrainBuilder) => void,   // default 'flat': height 1 on columns 4–43
-  startingTrees?: boolean, rules?: Rule[], time?: 'day' | 'dusk' | 'night' | 'dawn' | phase,
+  terrainGen?: 1 | 2 /* with 'generated'; default 1 */, startingTrees?: boolean, rules?: Rule[], time?: 'day' | 'dusk' | 'night' | 'dawn' | phase,
   build(b: TownBuilder): void,
   cameras?: { name?, yaw, pitch, zoom, target: [x, level, z], time? }[],   // default: one camera framing what was built
   expect?(plan: ShapePlan, dressing: DressingPlan, check: Check): void })

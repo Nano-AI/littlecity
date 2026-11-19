@@ -332,7 +332,7 @@ function sculpt2(s: number, ch: IslandCharacter, land: Uint8Array): { h: Uint8Ar
     }
     peakH = 5;
   } else if (ch === 'hilly') {
-    const hills = rollHills(randInt(3, 4, s, 'hills'), [4, 6], [4, 7], 4, 12);
+    const hills = rollHills(randInt(3, 5, s, 'hills'), [5, 6], [4.5, 7.5], 4, 11);
     for (let i = 0; i < N; i++) {
       if (!land[i]) continue;
       const x = xOf(i), z = zOf(i);

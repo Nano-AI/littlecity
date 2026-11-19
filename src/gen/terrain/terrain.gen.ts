@@ -211,7 +211,7 @@ function splitTop(b: MeshBuilder, g: Ground, level: number, a: TopVert, c: TopVe
   const ra = rockiness(g, a), rc = rockiness(g, c), rd = rockiness(g, d);
   const lo = Math.min(ra, rc, rd), hi = Math.max(ra, rc, rd);
   // How much the noise can move inside a triangle this size.
-  const margin = 1.6 * TERRAIN.rockWander * (0.5 / (1 << depth)) + 0.04;
+  const margin = 1.1 * TERRAIN.rockWander * (0.5 / (1 << depth)) + 0.03;
   if (depth < ROCK_DEPTH && lo < 0.5 + margin && hi > 0.5 - margin) {
     const ac = lerpTop(a, c, 0.5), cd = lerpTop(c, d, 0.5), da = lerpTop(d, a, 0.5);
     splitTop(b, g, level, a, ac, da, depth + 1);
