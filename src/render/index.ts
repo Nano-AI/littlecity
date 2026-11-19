@@ -1,123 +1,449 @@
-// STUB (Stage 0). Owner: Look (Stage 1). Final signature: createTownView.
+// The view (Look, Stage 1): `createTownView` puts a town on a canvas as an
+// ink-and-pencil drawing. The contract is ./api.ts; this file wires the
+// pieces together:
 //
-// A plain Three.js view that satisfies TownView (./api.ts): one lit,
-// vertex-coloured mesh per structure, per layer chunk and per prop, with no
-// ink, paper, chunk baking or instancing. The Look owner replaces all of it
-// with the spike's renderer; the contract in ./api.ts stays.
+//   pool.ts / poolmesh.ts   geometry: each 16 × 16 chunk of structures and
+//                           layers is ONE vertex pool and one draw call;
+//                           props, actors, spawned things and the ghost
+//                           share one more.
+//   slots.ts                movement: anything that moves has a slot (a
+//                           matrix and four params in a float texture).
+//                           Lifting a structure for its landing bounce only
+//                           re-points its vertices at a slot.
+//   shaders/surface.ts      the one material: stepped shading, pencil
+//                           patterns, hatching; writes colour + glow and
+//                           normal + ink id in a single pass (two render
+//                           targets).
+//   shaders/composite.ts    ink lines, dusk grade, halo, stars, paper grain.
+//   camera.ts, grade.ts     pure maths, unit-tested.
+//
+// A frame is three or four draw passes and about a dozen draw calls,
+// whatever the town holds: paper + chunks + the dynamic pool into the
+// two-target buffer; (optionally) a half-resolution ink mask; the composite
+// to the canvas; and, only when there is something to show, the overlay
+// (light beams, the ghost preview).
 
 import * as THREE from 'three';
-import { allChunks, CELL_H, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
+import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
-import type { GenOutput, PartOutput } from '@/gen/api';
-import { allGenerators, allParts } from '@/gen/discover';
+import { styleVersion } from '@/core/style';
+import type { PartOutput } from '@/gen/api';
 import { createLayout, type Layout } from '@/gen/layout';
-import type { MeshData } from '@/gen/mesh';
+import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
 import type { InstanceHandle, LifeStage, Signals, SpawnSpec } from '@/life/api';
 import type { Actor, DressingPlan, Prop, ShapePlan, StructureId } from '@/resolve/plan';
+import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
 import type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
+import {
+  CAMERA_FAR,
+  CAMERA_NEAR,
+  clampPose,
+  easePose,
+  frameOf,
+  panPose,
+  pixelsPerUnit,
+  project,
+  rayAt,
+  samePose,
+  zoomPose,
+  type CameraFrame,
+} from './camera';
+import { gradeAt } from './grade';
+import { PoolMesh } from './poolmesh';
+import { registriesFor, type Registries } from './registries';
+import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
+import { surfaceFragment, surfaceVertex } from './shaders/surface';
+import { SLOT_WIDTH, SlotTable } from './slots';
 
 export type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
+export { overrideRegistries, registriesFor } from './registries';
 
-const SRGB_TO_LINEAR = new Float32Array(256).map((_, i) => {
-  const c = i / 255;
-  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-});
+/** The fixed light every surface is shaded from (the spike's). */
+export const LIGHT: Vec3 = (() => {
+  const v = [0.35, 1, 0.6] as const;
+  const len = Math.hypot(...v);
+  return [v[0] / len, v[1] / len, v[2] / len] as const;
+})();
 
-/** MeshData → BufferGeometry (position, normal, linear vertex colour). */
-export function toGeometry(mesh: MeshData): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(mesh.position, 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(mesh.normal, 3));
-  const color = new Float32Array(mesh.color.length);
-  for (let i = 0; i < color.length; i++) color[i] = SRGB_TO_LINEAR[mesh.color[i]!]!;
-  g.setAttribute('color', new THREE.BufferAttribute(color, 3));
-  return g;
+/** The wind texture covers the map plus this margin, at this many texels a side. */
+const WIND_MARGIN = 8;
+const WIND_TEXELS = 16;
+/** How far under the sea the sheet of paper lies (where the slab's shadow falls). */
+const PAPER_Y = -3.2;
+
+const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+function setSrgb(v: THREE.Vector3, hex: string): void {
+  const [r, g, b] = parseColor(hex);
+  v.set(r / 255, g / 255, b / 255);
+}
+function setLinear(v: THREE.Vector3, hex: string): void {
+  const [r, g, b] = parseColor(hex);
+  v.set(srgbToLinear(r / 255), srgbToLinear(g / 255), srgbToLinear(b / 255));
 }
 
-interface Drawn {
+interface DrawnStructure {
   hash: number;
-  mesh: THREE.Mesh;
+  chunk: string;
+  anchors: Record<string, Mat4Like>;
+  /** 0 while baked; a slot while lifted. */
+  slot: number;
+  lifts: number;
+  /** False once the structure has left the town (stale handles then do nothing). */
+  alive: boolean;
+}
+interface DrawnLayer {
+  hash: number;
   anchors: Record<string, Mat4Like>;
 }
+interface DrawnItem {
+  hash: number;
+  slot: number;
+  base: Mat4Like;
+  handle: InstanceHandle;
+}
 
-const DEG = Math.PI / 180;
-const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+/** True on phones: small screen and a coarse pointer. They get the half-resolution ink pass. */
+function looksLikePhone(): boolean {
+  const g = globalThis as { matchMedia?: (q: string) => { matches: boolean }; screen?: { width: number; height: number } };
+  const coarse = g.matchMedia?.('(pointer: coarse)').matches ?? false;
+  const small = Math.min(g.screen?.width ?? 4000, g.screen?.height ?? 4000) < 700;
+  return coarse && small;
+}
 
 export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}): TownView {
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias: false,
+    alpha: false,
+    depth: true,
+    stencil: false,
+    powerPreference: 'high-performance',
     preserveDrawingBuffer: opts.preserveDrawingBuffer ?? false,
   });
-  renderer.setPixelRatio(opts.pixelRatio ?? Math.min(globalThis.devicePixelRatio ?? 1, 2));
-  renderer.setClearColor(new THREE.Color(PALETTE.paper));
+  const pixelRatio = opts.pixelRatio ?? Math.min(globalThis.devicePixelRatio ?? 1, 2);
+  renderer.setPixelRatio(pixelRatio);
+  renderer.autoClear = false;
+  renderer.info.autoReset = false;
 
+  const halfInk = opts.ink === 'half' || ((opts.ink ?? 'auto') === 'auto' && looksLikePhone());
+  // The drawing is made at 2 device pixels per CSS pixel at least (as the spike did) and averaged down:
+  // that is what makes the colour edges under the ink smooth. Phones skip it.
+  const superSample = halfInk || pixelRatio >= 1.5 ? 1 : 2;
+
+  let width = Math.max(1, canvas.clientWidth || canvas.width || 1);
+  let height = Math.max(1, canvas.clientHeight || canvas.height || 1);
+
+  // ── render targets ───────────────────────────────────────────────────────
+  const sceneRT = new THREE.WebGLRenderTarget(4, 4, {
+    count: 2,
+    type: THREE.UnsignedByteType,
+    format: THREE.RGBAFormat,
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    generateMipmaps: false,
+    depthBuffer: true,
+    stencilBuffer: false,
+    colorSpace: THREE.NoColorSpace,
+  });
+  sceneRT.depthTexture = new THREE.DepthTexture(4, 4, THREE.UnsignedIntType);
+  const colorTex = sceneRT.textures[0]!;
+  const idTex = sceneRT.textures[1]!;
+  colorTex.minFilter = colorTex.magFilter = THREE.LinearFilter; // averages the super-sampled colour down
+  const inkRT = halfInk
+    ? new THREE.WebGLRenderTarget(4, 4, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace })
+    : null;
+
+  // ── data textures ────────────────────────────────────────────────────────
+  const slots = new SlotTable();
+  let slotGeneration = -1;
+  let slotTex = new THREE.DataTexture(slots.data, SLOT_WIDTH, slots.rows, THREE.RGBAFormat, THREE.FloatType);
+  const windData = new Uint8Array(WIND_TEXELS * WIND_TEXELS * 4);
+  const windTex = new THREE.DataTexture(windData, WIND_TEXELS, WIND_TEXELS, THREE.RGBAFormat, THREE.UnsignedByteType);
+  windTex.minFilter = windTex.magFilter = THREE.LinearFilter;
+  windTex.wrapS = windTex.wrapT = THREE.ClampToEdgeWrapping;
+
+  // ── materials ────────────────────────────────────────────────────────────
+  const v3 = (): { value: THREE.Vector3 } => ({ value: new THREE.Vector3() });
+  const surfaceUniforms = {
+    uSlots: { value: slotTex as THREE.Texture },
+    uWind: { value: windTex as THREE.Texture },
+    uTime: { value: 0 },
+    uSway: { value: 0 },
+    uLight: { value: new THREE.Vector3(...LIGHT) },
+    uPx: { value: 1 },
+    uCss: { value: 1 },
+    uCamRight: v3(),
+    uCamUp: v3(),
+    uPencil: { value: 1 },
+    uHatch: { value: 0 },
+    uHatchSpacing: { value: 5 },
+    uGlow: { value: 0 },
+    uInk: v3(),
+    uSand: v3(),
+    uSea: v3(),
+    uSeaDeep: v3(),
+    uShallow: v3(),
+    uFoam: v3(),
+    uWhite: v3(),
+    uTimber: v3(),
+    uLamp: v3(),
+    uFlowerA: v3(),
+    uFlowerB: v3(),
+    uFlowerC: v3(),
+    // overlay only
+    tDepth: { value: sceneRT.depthTexture as THREE.Texture },
+    uCanvas: { value: new THREE.Vector2(1, 1) },
+    uTint: v3(),
+    uLift: v3(),
+    uStar: v3(),
+    uMagic: v3(),
+    uRed: v3(),
+  };
+  const surfaceMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+  });
+  const overlayMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { OVERLAY: 1 },
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+    transparent: true,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    depthTest: true,
+    depthWrite: true,
+  });
+  const paperUniforms = {
+    uPaper: v3(),
+    uInk: v3(),
+    uEye: v3(),
+    uRight: v3(),
+    uUp: v3(),
+    uForward: v3(),
+    uSlab: { value: new THREE.Vector4(SIZE_X / 2, SIZE_Z / 2, SIZE_X / 2, SIZE_Z / 2) },
+    uShadowY: { value: PAPER_Y },
+    uShadow: { value: 0 },
+  };
+  const paperMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    vertexShader: screenVertex,
+    fragmentShader: paperFragment,
+    uniforms: paperUniforms,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const compositeUniforms = {
+    tColor: { value: colorTex as THREE.Texture },
+    tId: { value: idTex as THREE.Texture },
+    tDepth: { value: sceneRT.depthTexture as THREE.Texture },
+    tInk: { value: (inkRT?.texture ?? null) as THREE.Texture | null },
+    uOut: { value: new THREE.Vector2(1, 1) },
+    uPR: { value: 1 },
+    uOrigin: { value: new THREE.Vector2() },
+    uTime: { value: 0 },
+    uThick: { value: 1.6 },
+    uDepthRange: { value: CAMERA_FAR - CAMERA_NEAR },
+    uDepthT: { value: 0.07 },
+    uWeights: v3(),
+    uWobble: { value: 1 },
+    uBoil: { value: 0 },
+    uPaperAmt: { value: 1 },
+    uInk: v3(),
+    uTint: v3(),
+    uLift: v3(),
+    uSat: { value: 1 },
+    uLampWarm: v3(),
+    uStar: v3(),
+    uGlow: { value: 0 },
+    uStars: { value: 0 },
+    uHalo: { value: 0 },
+  };
+  const inkTaps = superSample > 1 ? 4 : 2;
+  const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
+    new THREE.RawShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      defines,
+      vertexShader: screenVertex,
+      fragmentShader: compositeFragment,
+      uniforms: compositeUniforms,
+      depthTest: false,
+      depthWrite: false,
+    });
+  const compositeMaterial = post(halfInk ? { INK_TAPS: inkTaps, INK_TEX: 1 } : { INK_TAPS: inkTaps });
+  // The half-resolution ink mask shares the uniforms but has its own target size.
+  const inkUniforms = { ...compositeUniforms, uOut: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
+  const inkMaterial = halfInk
+    ? new THREE.RawShaderMaterial({
+        glslVersion: THREE.GLSL3,
+        defines: { INK_TAPS: 2, INK_ONLY: 1 },
+        vertexShader: screenVertex,
+        fragmentShader: compositeFragment,
+        uniforms: inkUniforms,
+        depthTest: false,
+        depthWrite: false,
+      })
+    : null;
+
+  // ── scenes ───────────────────────────────────────────────────────────────
+  const screenGeometry = new THREE.BufferGeometry();
+  screenGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+  const screenMesh = (material: THREE.Material): THREE.Mesh => {
+    const m = new THREE.Mesh(screenGeometry, material);
+    m.frustumCulled = false;
+    return m;
+  };
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb9a98f, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.7);
-  sun.position.set(0.35, 1, 0.6);
-  scene.add(sun);
+  const overlayScene = new THREE.Scene();
+  const paperMesh = screenMesh(paperMaterial);
+  paperMesh.renderOrder = -1;
+  scene.add(paperMesh);
+  const postScene = new THREE.Scene();
+  postScene.add(screenMesh(compositeMaterial));
+  const inkScene = inkMaterial ? new THREE.Scene().add(screenMesh(inkMaterial)) : null;
+  const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, CAMERA_NEAR, CAMERA_FAR);
+  camera.matrixAutoUpdate = false;
 
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const ghostMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false });
-  const refuseMaterial = new THREE.MeshBasicMaterial({ color: 0xe5484d, wireframe: true });
+  // ── pools ────────────────────────────────────────────────────────────────
+  const chunkPools = new Map<string, PoolMesh>();
+  const addPool = (cull: boolean): PoolMesh => {
+    const p = new PoolMesh(surfaceMaterial, overlayMaterial, cull);
+    scene.add(p.mesh);
+    overlayScene.add(p.overlay);
+    return p;
+  };
+  for (const c of allChunks()) chunkPools.set(`${c.cx}:${c.cz}`, addPool(true));
+  const dynamic = addPool(false);
+  const allPools = [...chunkPools.values(), dynamic];
+  const chunkKeyOf = (x: number, z: number): string => `${Math.floor(x / CHUNK)}:${Math.floor(z / CHUNK)}`;
 
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
-  let pose: CameraPose = { yaw: 45, pitch: 35, zoom: 1.6, target: [SIZE_X / 2, 1, SIZE_Z / 2] };
-  let width = canvas.clientWidth || canvas.width || 1;
-  let height = canvas.clientHeight || canvas.height || 1;
-
-  const structures = new Map<StructureId, Drawn>();
-  const layers = new Map<string, Drawn>();
-  const items = new Map<string, { hash: number; mesh: THREE.Mesh; base: Mat4Like }>();
-  const extras = new Set<THREE.Mesh>();
-  const ghostGroup = new THREE.Group();
-  scene.add(ghostGroup);
-
+  // ── town state ───────────────────────────────────────────────────────────
+  const structures = new Map<StructureId, DrawnStructure>();
+  const layers = new Map<string, DrawnLayer>();
+  const items = new Map<string, DrawnItem>();
+  const partOutputs = new Map<string, PartOutput>();
+  const spawnOutputs = new Map<string, PartOutput>();
   let shape: ShapePlan | null = null;
   let dressing: DressingPlan | null = null;
   let layout: Layout | null = null;
+  let registries: Registries | null = null;
+  let seenStyle = styleVersion();
   let rebuildMs = 0;
-  const partOutputs = new Map<string, PartOutput>();
+  let spawnCounter = 0;
+  let ghostKeys: string[] = [];
+  let ghostSlots: number[] = [];
 
-  const addMesh = (data: MeshData, mat: THREE.Material = material): THREE.Mesh => {
-    const mesh = new THREE.Mesh(toGeometry(data), mat);
-    mesh.matrixAutoUpdate = false;
-    scene.add(mesh);
-    return mesh;
-  };
-  const drop = (mesh: THREE.Mesh): void => {
-    mesh.removeFromParent();
-    mesh.geometry.dispose();
-  };
+  // ── camera ───────────────────────────────────────────────────────────────
+  const aspect = (): number => width / height;
+  let goal: CameraPose = clampPose({ yaw: 45, pitch: 35, zoom: 1.6, target: [SIZE_X / 2, 1, SIZE_Z / 2] }, aspect());
+  let shown: CameraPose = goal;
+  let frame: CameraFrame = frameOf(shown, width, height);
+  let lastSeconds: number | null = null;
 
-  const updateCamera = (): void => {
-    const yaw = pose.yaw * DEG;
-    const pitch = pose.pitch * DEG;
-    const target = new THREE.Vector3(pose.target[0], pose.target[1] * CELL_H, pose.target[2]);
-    const dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
-    camera.position.copy(target).addScaledVector(dir, 200);
-    camera.up.set(0, 1, 0);
-    camera.lookAt(target);
-    const halfH = SIZE_Z / 2 / pose.zoom;
-    const halfW = halfH * (width / height);
-    camera.left = -halfW;
-    camera.right = halfW;
-    camera.top = halfH;
-    camera.bottom = -halfH;
-    camera.near = 1;
-    camera.far = 600;
+  const applyCamera = (): void => {
+    frame = frameOf(shown, width, height);
+    camera.left = -frame.halfW;
+    camera.right = frame.halfW;
+    camera.top = frame.halfH;
+    camera.bottom = -frame.halfH;
     camera.updateProjectionMatrix();
+    const { right: r, up: u, forward: f, eye: e } = frame;
+    // Camera looks down its own −Z: the columns are right, up, back.
+    camera.matrix.set(r[0], u[0], -f[0], e[0], r[1], u[1], -f[1], e[1], r[2], u[2], -f[2], e[2], 0, 0, 0, 1);
+    camera.matrixWorldNeedsUpdate = true;
     camera.updateMatrixWorld(true);
   };
 
+  const resizeTargets = (): void => {
+    const w = Math.max(1, Math.round(width * pixelRatio));
+    const h = Math.max(1, Math.round(height * pixelRatio));
+    sceneRT.setSize(w * superSample, h * superSample);
+    inkRT?.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+  };
+
+  // ── building geometry ────────────────────────────────────────────────────
+  const dropAll = (): void => {
+    for (const p of chunkPools.values()) p.pool.clear();
+    for (const d of structures.values()) {
+      d.alive = false;
+      slots.release(d.slot);
+    }
+    structures.clear();
+    layers.clear();
+    partOutputs.clear();
+    spawnOutputs.clear();
+    for (const [id, it] of items) {
+      dynamic.pool.remove(`i:${id}`);
+      slots.release(it.slot);
+    }
+    items.clear();
+  };
+
+  const structureChunk = (s: { cells: readonly number[]; edges: readonly number[] }): string => {
+    const c = s.cells[0] ?? s.edges[0]! >> 1;
+    return chunkKeyOf(keyX(c), keyZ(c));
+  };
+
+  const syncShape = (next: ShapePlan): void => {
+    const reg = registriesFor(next);
+    if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts || styleVersion() !== seenStyle) {
+      // Other generators, or a style value changed: every cached mesh is stale.
+      dropAll();
+      registries = reg;
+      seenStyle = styleVersion();
+    }
+    const { generators, parts } = reg;
+    for (const [id, d] of structures) {
+      if (next.structures.has(id)) continue;
+      chunkPools.get(d.chunk)!.pool.remove(`s:${id}`);
+      d.alive = false;
+      slots.release(d.slot);
+      structures.delete(id);
+    }
+    for (const s of next.structures.values()) {
+      const old = structures.get(s.id);
+      if (old && old.hash === s.hash) continue;
+      const out = generators.build(s, next, parts);
+      const chunk = structureChunk(s);
+      if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
+      chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
+      if (old) {
+        old.hash = s.hash;
+        old.chunk = chunk;
+        old.anchors = out.anchors;
+      } else {
+        structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, slot: 0, lifts: 0, alive: true });
+      }
+    }
+    for (const layer of generators.layers()) {
+      for (const chunk of allChunks()) {
+        const k = `${chunk.cx}:${chunk.cz}`;
+        const id = `l:${layer.layer}:${k}`;
+        const hash = layer.hash(chunk, next);
+        const old = layers.get(id);
+        if (old && old.hash === hash) continue;
+        const out = layer.build(chunk, next, parts);
+        chunkPools.get(k)!.pool.put(id, hash, out.mesh, 0);
+        layers.set(id, { hash, anchors: out.anchors });
+      }
+    }
+  };
+
   const propOutput = (item: Prop | Actor, category: 'prop' | 'actor', span: number): PartOutput => {
-    const k = `${item.id}:${item.hash}:${span.toFixed(3)}`;
+    const k = `${category}:${item.id}:${item.hash}:${span.toFixed(3)}`;
     let out = partOutputs.get(k);
     if (!out) {
       const env = { plan: shape!, span };
-      out = category === 'prop' ? allParts().prop(item as Prop, env) : allParts().actor(item as Actor, env);
+      out = category === 'prop' ? registries!.parts.prop(item as Prop, env) : registries!.parts.actor(item as Actor, env);
       partOutputs.set(k, out);
     }
     return out;
@@ -131,110 +457,195 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     layout = createLayout({ shape, dressing, anchors, propOutput: (p, span) => propOutput(p, 'prop', span) });
   };
 
-  const syncShape = (next: ShapePlan): void => {
-    const generators = allGenerators();
-    const parts = allParts();
-    const upsert = (map: Map<StructureId, Drawn> | Map<string, Drawn>, k: never, hash: number, build: () => GenOutput): void => {
-      const m = map as Map<unknown, Drawn>;
-      const old = m.get(k);
-      if (old && old.hash === hash) return;
-      if (old) drop(old.mesh);
-      const out = build();
-      m.set(k, { hash, mesh: addMesh(out.mesh), anchors: out.anchors });
-    };
-    for (const [id, d] of structures) {
-      if (!next.structures.has(id)) {
-        drop(d.mesh);
-        structures.delete(id);
-      }
-    }
-    for (const s of next.structures.values()) {
-      upsert(structures, s.id as never, s.hash, () => generators.build(s, next, parts));
-    }
-    for (const layer of generators.layers()) {
-      for (const chunk of allChunks()) {
-        const k = `${layer.layer}:${chunk.cx}:${chunk.cz}`;
-        upsert(layers, k as never, layer.hash(chunk, next), () => layer.build(chunk, next, parts));
-      }
-    }
-  };
+  const makeHandle = (slot: () => number, base: () => Mat4Like, release: () => void): InstanceHandle => ({
+    get base() {
+      return base();
+    },
+    setMatrix(m) {
+      const s = slot();
+      if (s > 0) slots.setMatrix(s, m);
+    },
+    setVisible(v) {
+      const s = slot();
+      if (s > 0) slots.setVisible(s, v);
+    },
+    setParams(a, b, c, d) {
+      const s = slot();
+      if (s > 0) slots.setParams(s, a, b, c, d);
+    },
+    release,
+  });
 
   const syncDressing = (next: DressingPlan): void => {
     const seen = new Set<string>();
+    const live = new Set<string>();
     const visit = (item: Prop | Actor, category: 'prop' | 'actor'): void => {
       seen.add(item.id);
       const placed = layout!.item(item.id);
+      const span = placed?.span ?? 0;
       const base = placed?.frame ?? identity();
-      const old = items.get(item.id);
-      if (old && old.hash === item.hash) {
-        old.base = base;
-        old.mesh.matrix.fromArray(base as number[]);
-        return;
+      live.add(`${category}:${item.id}:${item.hash}:${span.toFixed(3)}`);
+      let it = items.get(item.id);
+      if (!it) {
+        const slot = slots.alloc();
+        const entry: DrawnItem = { hash: NaN, slot, base, handle: null as unknown as InstanceHandle };
+        entry.handle = makeHandle(() => (items.get(item.id) === entry ? slot : 0), () => entry.base, () => {});
+        items.set(item.id, (it = entry));
       }
-      if (old) drop(old.mesh);
-      const mesh = addMesh(propOutput(item, category, placed?.span ?? 0).mesh);
-      mesh.matrix.fromArray(base as number[]);
-      mesh.visible = placed !== null || item.at === null;
-      items.set(item.id, { hash: item.hash, mesh, base });
+      const hash = item.hash * 31 + Math.round(span * 1000);
+      if (it.hash !== hash) {
+        dynamic.pool.put(`i:${item.id}`, hash, propOutput(item, category, span).mesh, it.slot);
+        it.hash = hash;
+      }
+      it.base = base;
+      slots.setMatrix(it.slot, base);
+      // An anchored item whose anchor is gone has nowhere to be; free-roaming actors start at the origin
+      // and are shown: their behaviour places them.
+      slots.setVisible(it.slot, placed !== null || item.at === null);
     };
     for (const p of next.props) visit(p, 'prop');
     for (const a of next.actors) visit(a, 'actor');
     for (const [id, it] of items) {
       if (seen.has(id)) continue;
-      drop(it.mesh);
+      dynamic.pool.remove(`i:${id}`);
+      slots.release(it.slot);
       items.delete(id);
     }
+    for (const k of partOutputs.keys()) if (!live.has(k)) partOutputs.delete(k);
   };
 
-  const handleFor = (mesh: THREE.Mesh, base: Mat4Like, onRelease: () => void): InstanceHandle => ({
-    base,
-    setMatrix(m) {
-      mesh.matrix.fromArray(m as number[]);
-    },
-    setVisible(v) {
-      mesh.visible = v;
-    },
-    setParams() {},
-    release: onRelease,
-  });
+  // ── the stage: how life moves things ─────────────────────────────────────
   const spawnMesh = (data: MeshData, at: Mat4Like): InstanceHandle => {
-    const mesh = addMesh(data);
-    mesh.matrix.fromArray(at as number[]);
-    extras.add(mesh);
-    return handleFor(mesh, at, () => {
-      extras.delete(mesh);
-      drop(mesh);
-    });
+    const key = `x:${spawnCounter++}`;
+    let slot = slots.alloc();
+    slots.setMatrix(slot, at);
+    dynamic.pool.put(key, 0, data, slot);
+    return makeHandle(
+      () => slot,
+      () => at,
+      () => {
+        if (slot === 0) return;
+        dynamic.pool.remove(key);
+        slots.release(slot);
+        slot = 0;
+      },
+    );
   };
 
   const stage: LifeStage = {
     instance(itemId) {
-      const it = items.get(itemId);
-      return it ? handleFor(it.mesh, it.base, () => {}) : null;
+      return items.get(itemId)?.handle ?? null;
     },
     spawn(part: SpawnSpec, at) {
-      if (!shape) throw new Error('stage.spawn: no town yet');
-      const fake = { id: `spawn:${extras.size}`, at: null, rule: 'spawn', hash: 0, variant: part.variant, params: part.params };
-      const out =
-        'prop' in part
-          ? allParts().prop({ ...fake, type: part.prop, at: { cell: 0, pos: 'c' } } as Prop, { plan: shape })
-          : allParts().actor({ ...fake, type: part.actor } as Actor, { plan: shape });
+      if (!shape || !registries) throw new Error('stage.spawn: no town yet');
+      const k = JSON.stringify(part);
+      let out = spawnOutputs.get(k);
+      if (!out) {
+        const fake = { id: `spawn:${k}`, at: null, rule: 'spawn', hash: 0, variant: part.variant, params: part.params };
+        out =
+          'prop' in part
+            ? registries.parts.prop({ ...fake, type: part.prop, at: { cell: 0, pos: 'c' } } as Prop, { plan: shape })
+            : registries.parts.actor({ ...fake, type: part.actor } as Actor, { plan: shape });
+        spawnOutputs.set(k, out);
+      }
       return spawnMesh(out.mesh, at);
     },
     spawnMesh,
     liftStructure(id) {
       const d = structures.get(id);
       if (!d) return null;
-      return handleFor(d.mesh, identity(), () => {
-        d.mesh.matrix.identity();
-      });
+      const entryOf = () => chunkPools.get(d.chunk)!.pool.entries.get(`s:${id}`);
+      if (d.slot === 0) {
+        d.slot = slots.alloc();
+        const e = entryOf();
+        if (e) chunkPools.get(d.chunk)!.pool.setSlot(e, d.slot);
+      }
+      d.lifts++;
+      let held = true;
+      const base = identity();
+      return makeHandle(
+        () => (held && d.alive ? d.slot : 0),
+        () => base,
+        () => {
+          if (!held) return;
+          held = false;
+          if (!d.alive || --d.lifts > 0) return;
+          // Bake it back: its vertices point at the fixed slot again.
+          const e = entryOf();
+          if (e) chunkPools.get(d.chunk)!.pool.setSlot(e, 0);
+          slots.release(d.slot);
+          d.slot = 0;
+        },
+      );
     },
     socket(id) {
       return layout?.socket(id) ?? null;
     },
   };
 
-  updateCamera();
+  // ── the ghost preview ────────────────────────────────────────────────────
+  const clearGhost = (): void => {
+    for (const k of ghostKeys) dynamic.pool.remove(k);
+    for (const s of ghostSlots) slots.release(s);
+    ghostKeys = [];
+    ghostSlots = [];
+    dynamic.wantOverlay = false;
+  };
+  const ghostSlot = (kind: number): number => {
+    const s = slots.alloc();
+    slots.setParams(s, -1, 0, kind, 0); // a negative glow sends it to the overlay pass; c says how to draw it
+    ghostSlots.push(s);
+    return s;
+  };
+  const cellBox = (b: MeshBuilder, c: number, grow: number): void => {
+    const x = keyX(c), y = keyY(c) * CELL_H, z = keyZ(c);
+    b.box([x - grow, y - grow, z - grow], [x + 1 + grow, y + CELL_H + grow, z + 1 + grow]);
+  };
+
+  // ── per-frame uniforms ───────────────────────────────────────────────────
+  const refreshColors = (): void => {
+    const u = surfaceUniforms;
+    setLinear(u.uInk.value, PALETTE.ink);
+    setLinear(u.uSand.value, PALETTE.sand);
+    setLinear(u.uSea.value, PALETTE.sea);
+    setLinear(u.uSeaDeep.value, PALETTE.seaDeep);
+    setLinear(u.uShallow.value, PALETTE.shallow);
+    setLinear(u.uFoam.value, PALETTE.foam);
+    setLinear(u.uWhite.value, PALETTE.white);
+    setLinear(u.uTimber.value, PALETTE.trunk);
+    setLinear(u.uLamp.value, GRADE.lamp);
+    setLinear(u.uFlowerA.value, PALETTE.white);
+    setLinear(u.uFlowerB.value, PALETTE.yellow);
+    setLinear(u.uFlowerC.value, PALETTE.pink);
+    setSrgb(u.uStar.value, GRADE.star);
+    setSrgb(u.uMagic.value, PALETTE.magic);
+    setSrgb(u.uRed.value, PALETTE.red);
+    setSrgb(paperUniforms.uPaper.value, PALETTE.paper);
+    setSrgb(compositeUniforms.uLampWarm.value, GRADE.lampWarm);
+    setSrgb(compositeUniforms.uStar.value, GRADE.star);
+  };
+  let colorsAt = -1;
+
+  const updateWind = (signals: Signals): void => {
+    const size = SIZE_X + WIND_MARGIN * 2;
+    for (let j = 0; j < WIND_TEXELS; j++) {
+      for (let i = 0; i < WIND_TEXELS; i++) {
+        const w = signals.wind(((i + 0.5) / WIND_TEXELS) * size - WIND_MARGIN, ((j + 0.5) / WIND_TEXELS) * size - WIND_MARGIN);
+        const k = (j * WIND_TEXELS + i) * 4;
+        windData[k] = Math.round(Math.min(1, Math.max(0, (w.dirX * w.strength) / 2.5 + 0.5)) * 255);
+        windData[k + 1] = Math.round(Math.min(1, Math.max(0, (w.dirZ * w.strength) / 2.5 + 0.5)) * 255);
+        windData[k + 3] = 255;
+      }
+    }
+    windTex.needsUpdate = true;
+  };
+
+  applyCamera();
+  resizeTargets();
+  renderer.setSize(width, height, false);
+
+  let drawCalls = 0;
+  let triangles = 0;
 
   const view: TownView = {
     canvas,
@@ -258,77 +669,210 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       rebuildMs = performance.now() - t0;
     },
     setGhost(ghost: Ghost | null) {
-      for (const child of [...ghostGroup.children]) drop(child as THREE.Mesh);
+      clearGhost();
       if (!ghost) return;
-      for (const id of ghost.show) {
-        const s = ghost.plan.structures.get(id);
-        if (!s) continue;
-        const mesh = new THREE.Mesh(toGeometry(allGenerators().build(s, ghost.plan, allParts()).mesh), ghostMaterial);
-        ghostGroup.add(mesh);
+      const reg = registriesFor(ghost.plan);
+      let n = 0;
+      const add = (mesh: MeshData, slot: number): void => {
+        if (mesh.position.length === 0) return;
+        const k = `g:${n++}`;
+        dynamic.pool.put(k, 0, mesh, slot);
+        ghostKeys.push(k);
+      };
+      if (ghost.show.length > 0) {
+        const slot = ghostSlot(0);
+        for (const id of ghost.show) {
+          const s = ghost.plan.structures.get(id);
+          if (s) add(reg.generators.build(s, ghost.plan, reg.parts).mesh, slot);
+        }
+      }
+      if (ghost.shimmer && ghost.shimmer.length > 0) {
+        const b = new MeshBuilder({ ink: 'ghost' });
+        for (const c of ghost.shimmer) cellBox(b, c, 0.03);
+        add(b.build(), ghostSlot(1));
       }
       if (ghost.refuse !== undefined) {
-        const c: CellKey = ghost.refuse;
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1, CELL_H, 1), refuseMaterial);
-        box.position.set((c & 63) + 0.5, ((c >> 12) + 0.5) * CELL_H, ((c >> 6) & 63) + 0.5);
-        ghostGroup.add(box);
+        // A red frame: twelve bars along the cell's edges.
+        const b = new MeshBuilder({ ink: 'ghost' });
+        const c = ghost.refuse;
+        const x = keyX(c), y = keyY(c) * CELL_H, z = keyZ(c), t = 0.035;
+        for (const [dx, dz] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) b.box([x + dx - t, y, z + dz - t], [x + dx + t, y + CELL_H, z + dz + t]);
+        for (const dy of [0, CELL_H]) {
+          for (const d of [0, 1]) {
+            b.box([x, y + dy - t, z + d - t], [x + 1, y + dy + t, z + d + t]);
+            b.box([x + d - t, y + dy - t, z], [x + d + t, y + dy + t, z + 1]);
+          }
+        }
+        add(b.build(), ghostSlot(2));
       }
+      dynamic.wantOverlay = ghostKeys.length > 0;
     },
 
-    getCamera: () => ({ ...pose, target: [...pose.target] as [number, number, number] }),
+    getCamera: () => ({ ...goal, target: [...goal.target] as [number, number, number] }),
     setCamera(p) {
-      pose = {
-        yaw: p.yaw ?? pose.yaw,
-        pitch: clamp(p.pitch ?? pose.pitch, 10, 85),
-        zoom: clamp(p.zoom ?? pose.zoom, 0.6, 12),
-        target: p.target ? [p.target[0], p.target[1], p.target[2]] : pose.target,
-      };
-      updateCamera();
+      goal = clampPose(
+        {
+          yaw: p.yaw ?? goal.yaw,
+          pitch: p.pitch ?? goal.pitch,
+          zoom: p.zoom ?? goal.zoom,
+          target: p.target ? [p.target[0], p.target[1], p.target[2]] : goal.target,
+        },
+        aspect(),
+      );
+      // Setting a pose is a cut, not a glide: screenshots and "reset view" land at once.
+      shown = goal;
+      applyCamera();
     },
     orbit(dYaw, dPitch) {
-      view.setCamera({ yaw: pose.yaw + dYaw, pitch: pose.pitch + dPitch });
+      goal = clampPose({ ...goal, yaw: goal.yaw + dYaw, pitch: goal.pitch + dPitch }, aspect());
     },
     pan(dx, dy) {
-      const perPixel = SIZE_Z / pose.zoom / height;
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
-      // Slide along the ground: project the camera's up onto the horizontal plane.
-      const fwd = new THREE.Vector3(up.x, 0, up.z).normalize().multiplyScalar(1 / Math.max(0.2, Math.sin(pose.pitch * DEG)));
-      const move = right.multiplyScalar(-dx * perPixel).add(fwd.multiplyScalar(dy * perPixel));
-      view.setCamera({ target: [pose.target[0] + move.x, pose.target[1], pose.target[2] + move.z] });
+      goal = panPose(goal, dx, dy, width, height);
     },
-    zoomBy(factor) {
-      view.setCamera({ zoom: pose.zoom * factor });
+    zoomBy(factor, x, y) {
+      goal = zoomPose(goal, factor, width, height, x, y);
     },
     screenToRay(x, y): Ray {
-      const ndc = new THREE.Vector3((x / width) * 2 - 1, -(y / height) * 2 + 1, -1).unproject(camera);
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      return { origin: [ndc.x, ndc.y, ndc.z], dir: [dir.x, dir.y, dir.z] };
+      return rayAt(frame, x, y, width, height);
     },
     worldToScreen(p: Vec3) {
-      const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera);
-      return [((v.x + 1) / 2) * width, ((1 - v.y) / 2) * height];
+      return project(frame, p, width, height);
     },
 
     resize(w, h) {
       width = Math.max(1, w);
       height = Math.max(1, h);
       renderer.setSize(width, height, false);
-      updateCamera();
+      resizeTargets();
+      goal = clampPose(goal, aspect());
+      shown = clampPose(shown, aspect());
+      applyCamera();
     },
+
     render(signals: Signals) {
-      // The only dusk grading the stub does: dim the lights at night.
-      sun.intensity = 0.5 + 1.2 * signals.time.light;
+      // Camera damping runs on life time, which is already clamped to 100 ms a step.
+      const seconds = signals.time.seconds;
+      const dt = lastSeconds === null ? 0 : seconds - lastSeconds;
+      lastSeconds = seconds;
+      if (!samePose(shown, goal)) {
+        shown = easePose(shown, goal, dt);
+        applyCamera();
+      }
+
+      if (colorsAt !== styleVersion()) {
+        colorsAt = styleVersion();
+        refreshColors();
+      }
+      const grade = gradeAt(signals.time);
+      const css = pixelsPerUnit(shown, height);
+      const targetPR = pixelRatio * superSample;
+      const su = surfaceUniforms;
+      su.uTime.value = seconds;
+      su.uSway.value = LOOK.sway;
+      su.uPx.value = css * targetPR;
+      su.uCss.value = css;
+      su.uCamRight.value.set(...frame.right);
+      su.uCamUp.value.set(...frame.up);
+      su.uPencil.value = LOOK.pencil;
+      su.uHatch.value = LOOK.hatch;
+      su.uHatchSpacing.value = LOOK.hatchSpacing;
+      su.uGlow.value = grade.glow;
+      su.uCanvas.value.set(Math.round(width * pixelRatio), Math.round(height * pixelRatio));
+      su.uTint.value.set(...grade.tint);
+      su.uLift.value.set(...grade.lift);
+
+      const pu = paperUniforms;
+      pu.uInk.value.set(...grade.ink);
+      pu.uEye.value.set(...frame.eye);
+      pu.uRight.value.set(frame.right[0] * frame.halfW, frame.right[1] * frame.halfW, frame.right[2] * frame.halfW);
+      pu.uUp.value.set(frame.up[0] * frame.halfH, frame.up[1] * frame.halfH, frame.up[2] * frame.halfH);
+      pu.uForward.value.set(...frame.forward);
+      pu.uShadow.value = LOOK.slabShadow;
+
+      const near = Math.max(LOOK.inkFarPx + 1, LOOK.inkNearPx);
+      const closeness = Math.min(1, Math.max(0, (css - LOOK.inkFarPx) / (near - LOOK.inkFarPx)));
+      // Farther out than the "far" zoom (a phone showing the whole island), lines keep thinning and
+      // interior detail keeps fading, so a house six pixels wide is a shape, not a blot.
+      const beyond = Math.min(1, Math.max(0.3, css / Math.max(1, LOOK.inkFarPx)));
+      const detail = (LOOK.inkDetailFar + (1 - LOOK.inkDetailFar) * closeness) * beyond;
+      const cu = compositeUniforms;
+      cu.uOut.value.set(Math.round(width * pixelRatio), Math.round(height * pixelRatio));
+      cu.uPR.value = pixelRatio;
+      const origin = project(frame, [0, 0, 0], width, height);
+      cu.uOrigin.value.set(origin[0], height - origin[1]);
+      cu.uTime.value = seconds;
+      cu.uThick.value = (LOOK.inkWidthFar + (LOOK.inkWidth - LOOK.inkWidthFar) * closeness) * Math.max(0.7, beyond);
+      cu.uDepthT.value = LOOK.inkDepth;
+      cu.uWeights.value.set(LOOK.inkSilhouette, LOOK.inkSeam * detail, LOOK.inkCrease * detail);
+      cu.uWobble.value = LOOK.wobble;
+      cu.uBoil.value = LOOK.boil;
+      cu.uPaperAmt.value = LOOK.paper;
+      cu.uInk.value.set(...grade.ink);
+      cu.uTint.value.set(...grade.tint);
+      cu.uLift.value.set(...grade.lift);
+      cu.uSat.value = grade.sat;
+      cu.uGlow.value = grade.glow;
+      cu.uStars.value = grade.stars;
+      cu.uHalo.value = LOOK.halo;
+      if (inkRT) {
+        inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
+        inkUniforms.uPR.value = pixelRatio / 2;
+      }
+
+      updateWind(signals);
+      if (slots.generation !== slotGeneration) {
+        slotGeneration = slots.generation;
+        slotTex.dispose();
+        slotTex = new THREE.DataTexture(slots.data, SLOT_WIDTH, slots.rows, THREE.RGBAFormat, THREE.FloatType);
+        surfaceUniforms.uSlots.value = slotTex;
+        slots.dirty = true;
+      }
+      if (slots.dirty) {
+        slots.dirty = false;
+        slotTex.needsUpdate = true;
+      }
+      let overlay = false;
+      for (const p of allPools) {
+        p.sync();
+        overlay ||= p.overlay.visible;
+      }
+
+      renderer.info.reset();
+      renderer.setRenderTarget(sceneRT);
+      renderer.clear(true, true, false);
       renderer.render(scene, camera);
+      if (inkRT && inkScene) {
+        renderer.setRenderTarget(inkRT);
+        renderer.render(inkScene, postCamera);
+      }
+      renderer.setRenderTarget(null);
+      renderer.render(postScene, postCamera);
+      if (overlay) {
+        renderer.clear(false, true, false);
+        renderer.render(overlayScene, camera);
+      }
+      drawCalls = renderer.info.render.calls;
+      triangles = renderer.info.render.triangles;
     },
+
     stats(): ViewStats {
-      return { drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rebuildMs };
+      return { drawCalls, triangles, rebuildMs };
     },
+
     dispose() {
-      for (const d of structures.values()) drop(d.mesh);
-      for (const d of layers.values()) drop(d.mesh);
-      for (const it of items.values()) drop(it.mesh);
-      for (const m of extras) drop(m);
+      clearGhost();
+      for (const p of allPools) p.dispose();
+      for (const d of structures.values()) d.alive = false;
+      structures.clear();
+      layers.clear();
+      items.clear();
+      sceneRT.depthTexture?.dispose();
+      sceneRT.dispose();
+      inkRT?.dispose();
+      slotTex.dispose();
+      windTex.dispose();
+      screenGeometry.dispose();
+      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial]) m?.dispose();
       renderer.dispose();
     },
   };

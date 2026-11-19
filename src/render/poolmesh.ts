@@ -1,0 +1,81 @@
+// A VertexPool on the GPU (Look, Stage 1): one BufferGeometry and one Mesh
+// per pool (plus a second Mesh on the same geometry for the overlay pass).
+// `sync()` uploads only the spans the pool says changed.
+
+import * as THREE from 'three';
+import { VertexPool, type Span } from './pool';
+
+export class PoolMesh {
+  readonly pool = new VertexPool();
+  readonly mesh: THREE.Mesh;
+  /** The same geometry, drawn by the overlay pass (light beams, ghosts). */
+  readonly overlay: THREE.Mesh;
+  /** Force the overlay mesh on (the dynamic pool, while a ghost is shown). */
+  wantOverlay = false;
+  private geometry = new THREE.BufferGeometry();
+  private generation = -1;
+
+  constructor(material: THREE.Material, overlayMaterial: THREE.Material, private readonly cull: boolean) {
+    this.mesh = new THREE.Mesh(this.geometry, material);
+    this.overlay = new THREE.Mesh(this.geometry, overlayMaterial);
+    for (const m of [this.mesh, this.overlay]) {
+      m.matrixAutoUpdate = false;
+      m.frustumCulled = cull;
+      m.visible = false;
+    }
+  }
+
+  /** Brings the GPU buffers up to date with the pool. Call once per frame, before drawing. */
+  sync(): void {
+    const pool = this.pool;
+    if (pool.generation !== this.generation) {
+      this.generation = pool.generation;
+      this.geometry.dispose();
+      const g = new THREE.BufferGeometry();
+      const attr = (array: THREE.TypedArray, size: number, normalized: boolean): THREE.BufferAttribute => {
+        const a = new THREE.BufferAttribute(array, size, normalized);
+        a.setUsage(THREE.DynamicDrawUsage);
+        return a;
+      };
+      g.setAttribute('position', attr(pool.position, 3, false));
+      g.setAttribute('normal', attr(pool.normal, 4, true));
+      g.setAttribute('color', attr(pool.color, 4, true));
+      g.setAttribute('ink', attr(pool.ink, 2, false));
+      g.setAttribute('slot', attr(pool.slot, 1, false));
+      this.geometry = g;
+      this.mesh.geometry = g;
+      this.overlay.geometry = g;
+      pool.takeDirty();
+    } else {
+      const { data, slots } = pool.takeDirty();
+      const mark = (name: string, size: number, spans: Span[]): void => {
+        if (spans.length === 0) return;
+        const a = this.geometry.getAttribute(name) as THREE.BufferAttribute;
+        for (const [start, end] of spans) a.addUpdateRange(start * size, (end - start) * size);
+        a.needsUpdate = true;
+      };
+      mark('position', 3, data);
+      mark('normal', 4, data);
+      mark('color', 4, data);
+      mark('ink', 2, data);
+      mark('slot', 1, slots);
+    }
+    this.geometry.setDrawRange(0, pool.count);
+    const live = pool.count - pool.garbage > 0;
+    this.mesh.visible = live;
+    this.overlay.visible = live && (pool.beamEntries > 0 || this.wantOverlay);
+    if (this.cull && live) {
+      // Generous: lifted structures bounce and trees sway a little outside their rest bounds.
+      const { min, max } = pool;
+      const sphere = (this.geometry.boundingSphere ??= new THREE.Sphere());
+      sphere.center.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
+      sphere.radius = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 + 2;
+    }
+  }
+
+  dispose(): void {
+    this.mesh.removeFromParent();
+    this.overlay.removeFromParent();
+    this.geometry.dispose();
+  }
+}

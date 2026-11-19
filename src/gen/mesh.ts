@@ -72,6 +72,10 @@ export const PATTERN = {
   metal: 22,
   dirt: 23, //     worn trails
   foam: 24,
+  // Added by Look (Stage 1); see docs/swarm/requests/look.md.
+  glow: 25, //         a self-lit surface (lamp glass, lantern): unshaded by day, radiant at dusk and night
+  planksAcross: 26, // wood boards running along z (`planks` run along x)
+  beam: 27, //         a shaft of light: translucent, never inked, fading along `edge` (0 at the source)
 } as const;
 export type PatternId = (typeof PATTERN)[keyof typeof PATTERN];
 
