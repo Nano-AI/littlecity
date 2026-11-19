@@ -138,6 +138,8 @@ export default defineSystem<State>({
       },
     });
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
+    // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
+    (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
     return { crowd, drawn, standIns: [], unsubscribe };
   },
   sync(state, next, _prev, ctx) {

@@ -78,13 +78,19 @@ export default scenario({
     b.house(27, 31, { floors: 2, w: 2, color: 7 });
     b.house(30, 31, { floors: 2, w: 3, color: 4 });
     b.garden(34, 31, 35, 32);
-    b.block('stairs', 25, 1, 16, { rot: E });
+    // An open viaduct: a second way up the hill, over three arches people can also walk under.
+    b.block('stairs', 21, 1, 16, { rot: E });
+    b.block('marble', 22, 1, 16);
+    for (let x = 23; x <= 25; x++) b.block('arch', x, 1, 16);
+    b.path(20, 16, 20, 16);
+    b.path(22, 16, 32, 16);
   },
   cameras: [
     { name: 'town', yaw: 45, pitch: 35, zoom: 1.9, target: [22, 1, 22] },
     { name: 'square', yaw: 45, pitch: 32, zoom: 4.6, target: [16, 1, 22] },
     { name: 'stairs', yaw: 20, pitch: 30, zoom: 5.2, target: [11.5, 1.5, 17] },
     { name: 'bridge', yaw: 15, pitch: 26, zoom: 4.6, target: [22, 2.5, 13] },
+    { name: 'viaduct', yaw: 20, pitch: 28, zoom: 4.6, target: [24, 1.5, 16.5] },
     { name: 'hill', yaw: 300, pitch: 32, zoom: 3.6, target: [31, 2, 18] },
     { name: 'pier', yaw: 60, pitch: 30, zoom: 4.4, target: [17, 1, 33] },
     { name: 'dusk', yaw: 45, pitch: 35, zoom: 2.4, target: [20, 1, 22], time: 'dusk' },

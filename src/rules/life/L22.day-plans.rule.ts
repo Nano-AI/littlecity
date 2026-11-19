@@ -14,7 +14,7 @@
 //   haunt-pier       a pier end or fishing spot, facing the sea
 //   haunt-garden     garden cells, up to 4 a garden
 //   haunt-fountain   beside a fountain, facing it
-//   haunt-viewpoint  the highest cells with a drop in front of them
+//   haunt-viewpoint  the highest cells with a drop in front of them, and the middle of every bridge
 //   haunt-visit      another house's front door
 //
 // `dir` is the way the person faces; `structure` the building it belongs to.
@@ -183,7 +183,28 @@ function computeHaunts(ctx: RuleContext, nav: NavGraph): Candidate<HauntData>[] 
     add(cell, 'dock', { type: 'haunt-pier', dir: out, structure: dock });
   }
 
-  for (const v of viewpoints(ctx, nav)) add(v.cell, 'view', { type: 'haunt-viewpoint', dir: v.dir });
+  const views = viewpoints(ctx, nav);
+  for (const v of views) add(v.cell, 'view', { type: 'haunt-viewpoint', dir: v.dir });
+  // A bridge is for leaning on: the middle of every arch deck two levels or more above what is under
+  // it, looking out over the side with the longer drop.
+  const air = (c: CellKey): boolean => c !== NO_CELL && !facts.kinds.has(c) && keyY(c) >= facts.terrain.height[columnIndex(keyX(c), keyZ(c))]!;
+  for (const s of [...facts.structures.values()].filter((k) => k.kind === 'arch').sort((a, b) => a.id - b.id)) {
+    if (plan.tags.get(s.id)?.has('deck:covered')) continue; // a sky bridge's gallery: nobody would see them
+
+    const decks = s.cells
+      .map((c) => above(c))
+      .filter((c) => c !== NO_CELL && nav.nodeAt.has(c) && nav.nodes[nav.nodeAt.get(c)!]!.passage === undefined && !views.some((v) => v.cell === c));
+    const spots: { cell: CellKey; dir: Dir4 }[] = [];
+    for (const c of decks) {
+      const dir = ([0, 1, 2, 3] as Dir4[]).find((d) => {
+        const o = neighbor(c, d);
+        return air(o) && air(o - (1 << 12)) && air(o - (2 << 12)) && !nav.nodeAt.has(o - (1 << 12));
+      });
+      if (dir !== undefined) spots.push({ cell: c, dir });
+    }
+    const mid = spots[Math.floor(spots.length / 2)];
+    if (mid) add(mid.cell, `bridge${s.id}`, { type: 'haunt-viewpoint', dir: mid.dir, structure: s.id });
+  }
   return out;
 }
 
