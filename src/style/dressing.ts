@@ -21,6 +21,21 @@ export const DRESSING = defineStyle(
     lampSquare: 5,
     /** Corner lamps of a square stand at least this many cells apart. */
     lampCornerGap: 3,
+    // ── D03 benches ──
+    /** Share of street ends over water or a drop that get a bench facing the view. */
+    benchView: 0.7,
+    // ── D04 bunting, D06 lanterns ──
+    bunting: 0.5,
+    alleyLantern: 0.4,
+    // ── D10 creepers, D11 doorsteps ──
+    creeper: 0.4,
+    doorPots: 0.4,
+    doorBarrel: 0.2,
+    doorBicycle: 0.1,
+    // ── D15 dock goods ──
+    dockRope: 0.3,
+    dockPots: 0.2,
+    dockCrates: 0.25,
     // ── D05 laundry ──
     laundry: 0.6,
     laundryGapMax: 3,
@@ -79,6 +94,16 @@ export const DRESSING = defineStyle(
     lampGap: [0, 4, 1],
     lampSquare: [3, 9, 1],
     lampCornerGap: [1, 8, 1],
+    benchView: [0, 1, 0.05],
+    bunting: [0, 1, 0.05],
+    alleyLantern: [0, 1, 0.05],
+    creeper: [0, 1, 0.05],
+    doorPots: [0, 1, 0.05],
+    doorBarrel: [0, 1, 0.05],
+    doorBicycle: [0, 1, 0.05],
+    dockRope: [0, 1, 0.05],
+    dockPots: [0, 1, 0.05],
+    dockCrates: [0, 1, 0.05],
     laundry: [0, 1, 0.05],
     laundryGapMax: [1, 3, 1],
     laundryPerThree: [1, 3, 1],

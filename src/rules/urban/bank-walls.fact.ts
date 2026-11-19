@@ -109,8 +109,14 @@ export const bankWalls = defineFact<BankWalls>('bankWalls', (f) => {
     if (rise < 1 || rise > maxRise) return 0;
     if (f.terrain.material[columnIndex(hx, hz)] === MAT.sand) return 0;
     if (f.kinds.has(low) || steps.has(low * 4 + dir)) return 0;
-    if (!paved(low) && !paved(key(hx, yh, hz))) return 0;
-    return rise;
+    if (paved(low)) return rise;
+    // Paved only along the top: the street must run ALONG the bank there (or be a square). A street
+    // that merely ends at the edge would get a one-cell stub of wall under it.
+    const top = key(hx, yh, hz);
+    if (!paved(top)) return 0;
+    if (floors.get(top) === 'plaza') return rise;
+    const [ax, az] = DIR4[((dir + 1) % 4) as Dir4]!;
+    return paved(key(hx + ax, yh, hz + az)) || paved(key(hx - ax, yh, hz - az)) ? rise : 0;
   };
 
   const lows = new Set<CellKey>();

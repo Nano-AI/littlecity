@@ -23,6 +23,7 @@ import { DRESSING } from '@/style/dressing';
 import { clearways, cornerPos, edgePos, type Clearways } from './clearways.fact';
 import { townEdge } from '../urban/town-edge.fact';
 import { onGround } from './lib';
+import { streetEnds } from './street-ends.fact';
 
 type Spot = 'junction' | 'end' | 'run';
 
@@ -115,6 +116,7 @@ export default defineRule<{ pos: CellPos }>({
   find({ facts }) {
     const clear = clearways(facts);
     const edge = townEdge(facts);
+    const views = streetEnds(facts).views;
     const out: Candidate<{ pos: CellPos }>[] = [];
     for (const street of streets(facts).list) {
       if (street.length < DRESSING.lampStreet) continue;
@@ -124,8 +126,9 @@ export default defineRule<{ pos: CellPos }>({
         // One candidate per slot it could take, best first; the first whose slot is free wins the cell.
         // A slot out in the open beats one tucked under a house's eaves.
         // Where the street frays into a trail (U06) the lamp keeps to the side: the way ahead stays open.
-        const fray = edge.byEnd.get(cell);
-        const slots = lampSlots(street, cell, spot).filter((pos) => clear.free(cell, pos) && clear.headroom(cell, pos) && !(fray && pos.includes('nesw'[fray.dir]!)));
+        // The same where a bench will look out from the end of the street (D03).
+        const ahead = edge.byEnd.get(cell)?.dir ?? views.get(cell);
+        const slots = lampSlots(street, cell, spot).filter((pos) => clear.free(cell, pos) && clear.headroom(cell, pos) && !(ahead !== undefined && pos.includes('nesw'[ahead]!)));
         for (const pos of [...slots.filter((p) => !clear.againstWall(cell, p)), ...slots.filter((p) => clear.againstWall(cell, p))]) {
           out.push({ anchor: cell, key: pos, data: { pos } });
         }
