@@ -29,15 +29,31 @@ function quietAround(g: Grower, x: number, z: number, levels: number): boolean {
 }
 
 function buildable(g: Grower, x: number, z: number): boolean {
-  if (!g.free(x, z) || g.h(x, z) === 0 || g.groundTaken(x, z)) return false;
+  // Ground left over, or a district's open margin (the streets are laid by now, so margins may fill).
+  if (!g.inMap(x, z) || g.h(x, z) === 0 || g.groundTaken(x, z)) return false;
+  if (g.claimed(x, z, CLAIM.street | CLAIM.built | CLAIM.keep)) return false;
   return !g.world.floors.has(key(x, g.h(x, z), z));
 }
 
+/** Streets beside a column, as a bit per side. */
+function streetSides(g: Grower, x: number, z: number): number {
+  let bits = 0;
+  D4.forEach(([dx, dz], i) => {
+    if (g.claimed(x + dx, z + dz, CLAIM.street) && g.h(x + dx, z + dz) === g.h(x, z)) bits |= 1 << i;
+  });
+  return bits;
+}
+
+/**
+ * Infill for one ring of distance from the square (ring 0 = the heart). The
+ * heart is dense: two-storey houses right on the street (they open as small
+ * shops), corner houses at junctions; farther out houses get one storey on
+ * the street or two set back behind a front garden, and more gaps.
+ */
 export function buildInfill(town: Town, ring: number): void {
   const { g, site } = town;
   const d = startDistrict(town, `infill${ring}`, town.square?.x ?? 24, town.square?.z ?? 24);
-  const lo = ring * 7, hi = lo + 7;
-  // Street cells in this ring, by seeded order.
+  const lo = ring * 7, hi = ring >= 3 ? 999 : lo + 7;
   const streets: [number, number, number][] = [];
   for (let z = 0; z < 48; z++) {
     for (let x = 0; x < 48; x++) {
@@ -48,27 +64,39 @@ export function buildInfill(town: Town, ring: number): void {
     }
   }
   streets.sort((a, b) => a[2] - b[2]);
-  const density = Math.max(0.15, 0.85 - ring * 0.2);
+  const density = [0.95, 0.8, 0.55, 0.3][Math.min(ring, 3)]!;
+  const heart = ring <= 1;
   let n = 0;
+  const build = (hx: number, hz: number, floors: number): boolean => {
+    const h = g.h(hx, hz);
+    if (!quietAround(g, hx, hz, floors)) return false;
+    const color = g.colorFor('house', [[hx, h, hz], [hx, h + floors - 1, hz]], `infill${ring}-${n}`);
+    let ok = true;
+    for (let f = 0; f < floors; f++) ok = g.put('house', hx, h + f, hz, color) && ok;
+    if (!ok) return false;
+    g.mark(hx, hz, CLAIM.built);
+    n++;
+    return true;
+  };
   for (const [sx, sz] of streets) {
     for (const [dx, dz] of D4) {
       if (!g.chance(density, 'infill-try', sx, sz, dx, dz)) continue;
       const x = sx + dx, z = sz + dz;
       const h = g.h(x, z);
       if (h !== g.h(sx, sz) || !buildable(g, x, z) || site.waterDist[columnIndex(x, z)]! < 2) continue;
+      const sides = streetSides(g, x, z);
+      const corner = (sides & 0b0011) === 0b0011 || (sides & 0b0110) === 0b0110 || (sides & 0b1100) === 0b1100 || (sides & 0b1001) === 0b1001;
+      if (heart || corner) {
+        // On the street, two or three storeys: a shop in the heart, a corner house at a junction.
+        build(x, z, 2 + (heart && g.chance(0.3, 'tall', x, z) ? 1 : 0));
+        continue;
+      }
       // Set back by one, two storeys, when the cell behind is free too.
       const bx = x + dx, bz = z + dz;
-      const back = buildable(g, bx, bz) && g.h(bx, bz) === h && g.chance(0.45, 'setback', x, z) && !g.claimed(bx + dx, bz + dz, CLAIM.street);
-      const [hx, hz, floors] = back ? [bx, bz, 2] : [x, z, 1];
-      if (!quietAround(g, hx, hz, floors)) continue;
-      // Leave a gap now and then between neighbours.
-      const color = g.colorFor('house', [[hx, h, hz], [hx, h + floors - 1, hz]], `infill${n}`);
-      let ok = true;
-      for (let f = 0; f < floors; f++) ok = g.put('house', hx, h + f, hz, color) && ok;
-      if (!ok) continue;
-      g.mark(hx, hz, CLAIM.built);
-      if (back) g.mark(x, z, CLAIM.keep);
-      n++;
+      const back = buildable(g, bx, bz) && g.h(bx, bz) === h && g.chance(0.5, 'setback', x, z) && !g.claimed(bx + dx, bz + dz, CLAIM.street);
+      if (back) {
+        if (build(bx, bz, 2)) g.mark(x, z, CLAIM.keep);
+      } else build(x, z, 1);
     }
   }
   d.ways.length = 0;

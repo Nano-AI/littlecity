@@ -62,7 +62,6 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
 
   buildSquare(town);
-  reserveFarmstead(town);
   buildWillow(town);
   buildHilltop(town);
   buildCliffHouse(town);
@@ -73,6 +72,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildLighthouse(town);
   buildHousing(town, 0, 9);
   buildCourtyard(town, 0, 8);
+  reserveFarmstead(town);
   buildManor(town);
   buildHousing(town, 1, 11);
   buildChapel(town);

@@ -8,38 +8,70 @@ import { DEPTH } from '@/style/depth';
 import { CLAIM } from '../grower';
 import { fromSquare, startDistrict, type Town } from '../town';
 
+/** Column steps from every floor laid so far (4-connected, over land and sea). */
+function floorDistance(town: Town): Int32Array {
+  const { g } = town;
+  const dist = new Int32Array(48 * 48).fill(-1);
+  const queue: number[] = [];
+  for (const c of g.world.floors.keys()) {
+    const i = columnIndex(keyX(c), keyZ(c));
+    if (dist[i] === -1) {
+      dist[i] = 0;
+      queue.push(i);
+    }
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const i = queue[q]!;
+    const x = i % 48, z = Math.floor(i / 48);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = x + dx, nz = z + dz;
+      if (nx < 0 || nz < 0 || nx >= 48 || nz >= 48) continue;
+      const j = columnIndex(nx, nz);
+      if (dist[j] === -1) {
+        dist[j] = dist[i]! + 1;
+        queue.push(j);
+      }
+    }
+  }
+  return dist;
+}
+
 /**
- * Keeps the far end of the island clear for the farmstead: the land column
- * with the least land within the rustic reach (a tip of the island, mostly
- * sea round it), if that costs little land. Nothing else is built or laid
- * there; buildFarmstead puts the farm in the middle at the end.
+ * Keeps ground for the farmstead once the main districts are down: the free
+ * column farthest from every floor, if it is beyond the rustic reach. No
+ * street or garden may come within the reach of it afterwards (kept ground);
+ * buildFarmstead puts the farm there at the end.
  */
 export function reserveFarmstead(town: Town): void {
   const { g, site } = town;
   const reach = Math.round(DEPTH.edgeReach) + 1;
-  let best: { x: number; z: number; land: number } | null = null;
+  const dist = floorDistance(town);
+  // The spot costing the town least ground: the fewest free land columns within the reach (a tip of the island).
+  let best: [number, number] | null = null;
+  let bestCost = Infinity;
   for (let z = 0; z < 48; z++) {
     for (let x = 0; x < 48; x++) {
       const i = columnIndex(x, z);
-      if (g.h(x, z) === 0 || !g.free(x, z) || site.waterDist[i]! < 3) continue;
+      if (g.h(x, z) === 0 || !g.free(x, z) || site.waterDist[i]! < 2 || dist[i]! < reach) continue;
       if (fromSquare(town, x, z) < 14) continue;
-      // Both cottage and barn on one level.
-      if (g.h(x + 2, z) !== g.h(x, z)) continue;
-      let land = 0;
+      let cost = 0;
       for (let dz = -reach; dz <= reach; dz++) {
-        for (let dx = -reach + Math.abs(dz); dx <= reach - Math.abs(dz); dx++) {
-          if (g.h(x + dx, z + dz) > 0) land++;
-          if (g.claimed(x + dx, z + dz, 0xff)) land += 1000;
-        }
+        for (let dx = -reach + Math.abs(dz); dx <= reach - Math.abs(dz); dx++) if (g.h(x + dx, z + dz) > 0 && g.free(x + dx, z + dz)) cost++;
       }
-      if (!best || land < best.land) best = { x, z, land };
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = [x, z];
+      }
     }
   }
-  if (!best || best.land > 140) return;
+  if (!best || bestCost > 100) return;
+  const [bx, bz] = best;
   for (let dz = -reach; dz <= reach; dz++) {
-    for (let dx = -reach + Math.abs(dz); dx <= reach - Math.abs(dz); dx++) g.mark(best.x + dx, best.z + dz, CLAIM.keep);
+    for (let dx = -reach + Math.abs(dz); dx <= reach - Math.abs(dz); dx++) {
+      if (!g.claimed(bx + dx, bz + dz, CLAIM.built)) g.mark(bx + dx, bz + dz, CLAIM.keep);
+    }
   }
-  town.farm = [best.x, best.z];
+  town.farm = best;
 }
 
 export function buildFarmstead(town: Town): boolean {
