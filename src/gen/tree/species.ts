@@ -14,7 +14,7 @@
 
 import type { Vec3 } from '@/core/mat4';
 import { PATTERN, type MeshBuilder, type SwayInput } from '@/gen/mesh';
-import { dab, lump, mixColor, mound, SHADE_SIDE, SUN, TONE, tube, tuft, vary, type Rgb, type Rng } from '@/parts/ground/kit';
+import { dab, lump, mixColor, mound, SHADE_SIDE, SUN, TONE, toneAt, tube, tuft, vary, type Rgb, type Rng } from '@/parts/ground/kit';
 import { TREE } from '@/style/ground';
 import { PALETTE } from '@/style/palette';
 
@@ -42,50 +42,57 @@ interface CloudOptions {
   squash: number;
   color: Rgb;
   sway: SwayInput;
-  /** Scallop lumps on the lit side. */
+  /** Small lumps round the rim (the scalloped outline). */
   lumps?: number;
+  /** Larger lumps on top (the cloud shape). Default one or two, by seed. */
+  tops?: number;
   ink?: string;
 }
 
 /**
- * A crown: a light mass with a scalloped outline, a hatched shadow under it,
- * and darker scallops round its lower flanks (half tone to the south, shade
- * to the east, north and west), so every quarter of the orbit sees some.
+ * A crown, drawn in exactly two tones. The light mass is a round core with
+ * one or two bigger lumps on top and five to seven small ones round its rim,
+ * which give it a scalloped outline; it is left plain. The shade is a belly
+ * under the core and the rim lumps on the far side, darker and marked with
+ * leaves. Everything is finely enough divided that outlines are curves, and
+ * light meets shade where two round surfaces cross, so that line is a curve
+ * too and wanders with the lumps.
  */
 function cloud(b: MeshBuilder, r: Rng, o: CloudOptions): void {
   const { x, y, z, R } = o;
   const ry = R * o.squash;
-  const n = o.lumps ?? TREE.lumps;
   const ink = o.ink ?? 'crown';
-  const shadeColor = mixColor(o.color, PALETTE.leafDark, TREE.shadeMix);
-  const twist = r('tw') * 6;
-  const scallop = (a: number, d: number, cy: number, rr: number, tone: Vec3, key: string): void => {
+  const lit = { color: o.color, pattern: PATTERN.none, ink, sway: o.sway };
+  const dark = { color: mixColor(o.color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway: o.sway };
+  b.with(lit, () => lump(b, x, y, z, R, ry, R, { seg: 16, rings: 6, normal: TONE.lit, twist: r('tw') * 6 }));
+  b.with(dark, () =>
+    lump(b, x + SHADE_SIDE[0] * R * 0.2, y - ry * 0.36, z + SHADE_SIDE[1] * R * 0.2, R * 0.93, ry * 0.74, R * 0.93, { seg: 12, rings: 5, normal: TONE.shade, twist: 0.3, facing: [0, -1, 0], cut: -0.35 }),
+  );
+  // On top: the cloud shape.
+  const tops = o.tops ?? 1 + (r('tops') < 0.55 ? 1 : 0);
+  const t0 = r('t0') * 6.28;
+  b.with(lit, () => {
+    for (let j = 0; j < tops; j++) {
+      const a = t0 + j * 2.6 + (r('ta', j) - 0.5) * 0.8;
+      const d = R * (0.36 + r('td', j) * 0.14), rr = R * (0.46 + r('tr', j) * 0.1), cy = y + ry * (0.42 + r('ty', j) * 0.12);
+      const len = Math.hypot(d, cy - y);
+      lump(b, x + Math.cos(a) * d, cy, z + Math.sin(a) * d, rr, rr * 0.9, rr, { seg: 10, rings: 4, normal: TONE.lit, twist: a, facing: [(Math.cos(a) * d) / len, (cy - y) / len, (Math.sin(a) * d) / len], cut: -0.1 });
+    }
+  });
+  // Round the rim: the scalloped outline. Those on the far side are in shade.
+  const n = Math.max(3, Math.round(o.lumps ?? TREE.lumps + (r('n') < 0.5 ? 0 : 1)));
+  const a0 = r('a0') * 6.28;
+  for (let j = 0; j < n; j++) {
+    const a = a0 + (j * 6.28) / n + (r('ja', j) - 0.5) * 0.5;
     const dx = Math.cos(a), dz = Math.sin(a);
-    const out = Math.hypot(d, cy - y) || 1;
-    lump(b, x + dx * d, cy, z + dz * d, rr, rr * 0.85, rr, { seg: 8, rings: 4, normal: tone, twist: r(key) * 6, facing: [(dx * d) / out, (cy - y) / out, (dz * d) / out], cut: -0.3 });
-  };
-  b.with({ color: o.color, pattern: PATTERN.leaves, ink, sway: o.sway }, () => {
-    lump(b, x, y, z, R, ry, R, { seg: 12, rings: 6, normal: TONE.lit, twist, facing: [0, 1, 0], cut: -0.62 });
-    const a0 = r('a0') * 6.28;
-    for (let j = 0; j < n; j++) {
-      const a = a0 + (j * 6.28) / n + (r('ja', j) - 0.5) * 0.9;
-      scallop(a, R * (0.5 + r('jd', j) * 0.25), y + ry * (0.25 + r('jy', j) * 0.45), R * (0.48 + r('jr', j) * 0.2), TONE.lit, `jt${j}`);
-    }
-    // The south flank: a half-tone scallop, low.
-    scallop(1.7 + (r('ma') - 0.5) * 0.9, R * 0.62, y - ry * (0.2 + r('my') * 0.2), R * (0.44 + r('mr') * 0.12), TONE.mid, 'mt');
-  });
-  b.with({ color: shadeColor, pattern: PATTERN.leaves, ink, sway: o.sway }, () => {
-    // The shadow under the crown: a belly that swells out of the core's lower half, a little toward the
-    // shade side, so it shows as a dark rim below and a crescent on the far flank. It meets the core at
-    // a steep angle and shares its facets, which keeps the line between light and shade an even curve.
-    lump(b, x + SHADE_SIDE[0] * R * 0.12, y - ry * 0.5, z + SHADE_SIDE[1] * R * 0.12, R * 0.84, ry * 0.62, R * 0.84, { seg: 12, rings: 5, normal: TONE.shade, twist, facing: [0, -1, 0], cut: -0.2 });
-    // East, north and west flanks.
-    const flanks = [-0.15, -1.75, 3.2];
-    for (let k = 0; k < flanks.length; k++) {
-      if (k === 2 && r('west') < 0.35) continue;
-      scallop(flanks[k]! + (r('sa', k) - 0.5) * 0.8, R * (0.58 + r('sd', k) * 0.16), y - ry * (0.18 + r('sy', k) * 0.3), R * (0.42 + r('sr', k) * 0.14), TONE.shade, `st${k}`);
-    }
-  });
+    const shady = dx * SHADE_SIDE[0] + dz * SHADE_SIDE[1] > 0.3;
+    const cy = y + ry * (shady ? -0.35 + r('jy', j) * 0.3 : -0.28 + r('jy', j) * 0.36);
+    const d = R * (0.78 + r('jd', j) * 0.1), rr = R * (0.3 + r('jr', j) * 0.12);
+    const len = Math.hypot(d, cy - y);
+    b.with(shady ? dark : lit, () =>
+      lump(b, x + dx * d, cy, z + dz * d, rr, rr * 0.9, rr, { seg: 8, rings: 4, normal: shady ? TONE.shade : TONE.lit, twist: a, facing: [(dx * d) / len, (cy - y) / len, (dz * d) / len], cut: -0.2 }),
+    );
+  }
 }
 
 /** Fruit, blossom or flowers scattered on the sunny side of a crown: dabs of colour with no outline. */
@@ -96,7 +103,7 @@ function speckle(b: MeshBuilder, r: Rng, x: number, y: number, z: number, R: num
       const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.4;
       const up = -0.25 + r('fu', i) * 1.05;
       const s = Math.sqrt(Math.max(0, 1 - up * up));
-      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 6, rings: 2, normal: TONE.lit });
+      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 5, rings: 2, normal: TONE.lit });
     }
   });
 }
@@ -138,38 +145,40 @@ export function cypress(b: MeshBuilder, r: Rng): number {
   trunk(b, r, [[0, 0, 0], [0, 0.22, 0]], 0.045, sway);
   const color = vary(PALETTE.leafDark, r('leaf'));
   const twist = r('tw') * 6;
-  b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => {
-    lump(b, 0, y0 + h * 0.46, 0, rad, h * 0.46, rad, { seg: 8, rings: 6, normal: TONE.lit, twist });
+  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
+    lump(b, 0, y0 + h * 0.46, 0, rad, h * 0.46, rad, { seg: 12, rings: 7, normal: TONE.lit, twist });
     // The tip, a little off the axis, and a shoulder or two so the outline is not an ellipse.
-    lump(b, (r('tx') - 0.5) * 0.05, y0 + h * 0.82, (r('tz') - 0.5) * 0.05, rad * 0.6, h * 0.2, rad * 0.6, { seg: 6, rings: 4, normal: TONE.lit });
+    lump(b, (r('tx') - 0.5) * 0.05, y0 + h * 0.82, (r('tz') - 0.5) * 0.05, rad * 0.6, h * 0.2, rad * 0.6, { seg: 8, rings: 5, normal: TONE.lit, facing: [0, 1, 0], cut: -0.2 });
     for (let j = 0; j < 2; j++) {
       const a = r('ba', j) * 6.28;
-      lump(b, Math.cos(a) * rad * 0.42, y0 + h * (0.22 + r('by', j) * 0.3), Math.sin(a) * rad * 0.42, rad * 0.78, h * 0.2, rad * 0.78, { seg: 6, rings: 4, normal: TONE.lit });
+      lump(b, Math.cos(a) * rad * 0.42, y0 + h * (0.22 + r('by', j) * 0.3), Math.sin(a) * rad * 0.42, rad * 0.78, h * 0.2, rad * 0.78, { seg: 8, rings: 5, normal: TONE.lit, facing: [Math.cos(a), 0, Math.sin(a)], cut: -0.2 });
     }
   });
   b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
-    lump(b, SHADE_SIDE[0] * rad * 0.4, y0 + h * 0.42, SHADE_SIDE[1] * rad * 0.4, rad * 0.96, h * 0.42, rad * 0.96, { seg: 8, rings: 6, normal: TONE.shade, twist }),
+    lump(b, SHADE_SIDE[0] * rad * 0.4, y0 + h * 0.42, SHADE_SIDE[1] * rad * 0.4, rad * 0.96, h * 0.42, rad * 0.96, { seg: 12, rings: 7, normal: TONE.shade, twist, facing: [SHADE_SIDE[0], 0, SHADE_SIDE[1]], cut: -0.1 }),
   );
   return top;
 }
 
 const FLOWERS = [PALETTE.red, PALETTE.pink, PALETTE.yellow, PALETTE.white] as const;
 
-/** A shrub: a low heap of leaf, lit on top and shaded under, sometimes in flower. `size` 1 is about 0.4 across. */
+/** A shrub: a low round heap of leaf, plain where the light falls and marked in the shade under it, sometimes in flower. `size` 1 is about 0.4 across. */
 export function bush(b: MeshBuilder, r: Rng, size = 1, x = 0, z = 0, ink = 'bush', flowers: boolean | string = r('flower') < 0.5): void {
   const color = vary(PALETTE.bush, r('bc'), 0.8);
   const R = 0.15 * size;
+  const fine = size > 1.2;
   // A bush is rooted along its whole foot: it only stirs toward the top.
   const sway: SwayInput = (_x, y) => Math.max(0, Math.min(1, y / (R * 1.8))) * TREE.sway * 0.3;
   b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway }, () =>
-    mound(b, x + SHADE_SIDE[0] * R * 0.3, 0, z + SHADE_SIDE[1] * R * 0.3, R * 1.25, R * 0.95, R * 1.25, { seg: 7, rings: 2, normal: TONE.shade }),
+    mound(b, x + SHADE_SIDE[0] * R * 0.3, 0, z + SHADE_SIDE[1] * R * 0.3, R * 1.25, R * 0.95, R * 1.25, { seg: fine ? 12 : 8, rings: fine ? 3 : 2, normal: TONE.shade }),
   );
-  b.with({ color, pattern: PATTERN.leaves, ink, sway }, () => {
-    lump(b, x, R * 0.75, z, R, R * 0.85, R, { seg: 7, rings: 4, normal: TONE.lit, twist: r('bt') * 6 });
-    const n = 1 + Math.floor(r('bn') * 2);
+  b.with({ color, pattern: PATTERN.none, ink, sway }, () => {
+    lump(b, x, R * 0.75, z, R, R * 0.85, R, { seg: fine ? 12 : 9, rings: fine ? 5 : 4, normal: TONE.lit, twist: r('bt') * 6, facing: [0, 1, 0], cut: -0.7 });
+    const n = fine ? 2 + Math.floor(r('bn') * 2) : 2;
+    const a0 = r('ba') * 6.28;
     for (let j = 0; j < n; j++) {
-      const a = r('ba', j) * 6.28, d = R * (0.7 + r('bd', j) * 0.3), rr = R * (0.6 + r('br', j) * 0.2);
-      lump(b, x + Math.cos(a) * d, rr * 0.8, z + Math.sin(a) * d, rr, rr * 0.85, rr, { seg: 6, rings: 3, normal: TONE.lit, twist: r('bw', j) * 6 });
+      const a = a0 + j * (6.28 / n) + (r('bj', j) - 0.5) * 0.6, d = R * (0.62 + r('bd', j) * 0.2), rr = R * (0.45 + r('br', j) * 0.18);
+      lump(b, x + Math.cos(a) * d, rr * 0.85, z + Math.sin(a) * d, rr, rr * 0.9, rr, { seg: fine ? 8 : 7, rings: fine ? 4 : 3, normal: TONE.lit, twist: a, facing: [Math.cos(a) * 0.8, 0.6, Math.sin(a) * 0.8], cut: -0.3 });
     }
   });
   if (flowers) {
@@ -248,76 +257,116 @@ export function palm(b: MeshBuilder, r: Rng): number {
   return top;
 }
 
-/** A willow: a stout trunk under a wide dome whose rim hangs in a ragged curtain nearly to the ground. */
+/**
+ * A willow: a low round crown on a leaning trunk, and ten or so separate
+ * strands of leaf hanging from its rim, each its own length, with air
+ * between them. The strands swing freely; their tips move most.
+ */
 export function willow(b: MeshBuilder, r: Rng): number {
-  const th = 0.4 + r('th') * 0.1;
-  const R = 0.4 + r('R') * 0.05;
-  const cy = th + 0.24, top = cy + R * 0.6;
-  const lean = (r('lean') - 0.5) * 0.1;
+  const th = 0.6 + r('th') * 0.1;
+  const R = 0.3 + r('R') * 0.03;
+  const squash = 0.68;
+  const la = r('la') * 6.28, lean = 0.1 + r('lean') * 0.08;
+  const cx = Math.cos(la) * lean, cz = Math.sin(la) * lean;
+  const cy = th + R * squash * 0.55, top = cy + R * squash * 1.3;
   const sway = swayTo(top);
-  trunk(b, r, [[0, 0, 0], [lean * 0.5, th * 0.6, 0], [lean, cy, 0]], 0.075, sway);
+  trunk(b, r, [[0, 0, 0], [cx * 0.25, th * 0.5, cz * 0.25], [cx, cy, cz]], 0.07, sway);
   const color = vary(mixColor(PALETTE.leaf, PALETTE.yellow, 0.14), r('leaf'), 0.7);
   const shade = mixColor(color, PALETTE.leafDark, TREE.shadeMix + 0.08);
-  b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
-    lump(b, lean, cy, 0, R, R * 0.6, R, { seg: 12, rings: 6, normal: TONE.lit, twist: r('tw') * 6, facing: [0, 1, 0], cut: -0.3 }),
+  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
+    lump(b, cx, cy, cz, R, R * squash, R, { seg: 16, rings: 6, normal: TONE.lit, twist: r('tw') * 6 });
+    const a = r('ta') * 6.28;
+    lump(b, cx + Math.cos(a) * R * 0.3, cy + R * squash * 0.45, cz + Math.sin(a) * R * 0.3, R * 0.5, R * 0.4, R * 0.5, { seg: 10, rings: 5, normal: TONE.lit, facing: [0, 1, 0], cut: -0.1 });
+  });
+  b.with({ color: shade, pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
+    lump(b, cx + SHADE_SIDE[0] * R * 0.16, cy - R * squash * 0.3, cz + SHADE_SIDE[1] * R * 0.16, R * 0.92, R * squash * 0.8, R * 0.92, { seg: 12, rings: 5, normal: TONE.shade, facing: [0, -1, 0], cut: -0.3 }),
   );
-  // The curtain: long tongues of leaf hanging from the rim, close enough to overlap, each its own length.
-  // On the sunny side they alternate light and half tone (a change of tone with no line: hanging fronds);
-  // on the far side they are in shade. Their tips swing more than the dome does.
-  const strands = 11;
+  const strands = 9 + Math.floor(r('strands') * 4);
   const a0 = r('a0') * 6.28;
   for (let k = 0; k < strands; k++) {
-    const a = a0 + (k / strands) * 6.28 + (r('sa', k) - 0.5) * 0.25;
+    const a = a0 + (k / strands) * 6.28 + (r('sa', k) - 0.5) * 0.3;
     const dx = Math.cos(a), dz = Math.sin(a);
-    const facing = dx * SUN[0] + dz * SUN[1];
-    const shadeSide = dx * SHADE_SIDE[0] + dz * SHADE_SIDE[1] > 0.35;
-    const tone = shadeSide ? TONE.shade : k % 2 === 0 && facing > -0.3 ? TONE.lit : TONE.mid;
-    const len = 0.42 + r('sl', k) * 0.26;
-    const d = R * (0.8 + r('sd', k) * 0.1);
-    const yTop = cy + 0.05, yMid = yTop - len / 2, w = 0.11 + r('sw', k) * 0.035;
-    const hang: SwayInput = (_x, y) => Math.min(1, TREE.sway * (0.3 + 0.7 * Math.max(0, Math.min(1, (yTop - y) / len))));
-    b.with({ color: shadeSide ? shade : color, pattern: PATTERN.leaves, ink: 'crown', sway: hang }, () =>
-      lump(b, lean + dx * d, yMid, dz * d, w, len / 2, w, { seg: 6, rings: 4, normal: tone, twist: a, facing: [dx, -0.25, dz], cut: -0.35 }),
-    );
+    const shady = dx * SHADE_SIDE[0] + dz * SHADE_SIDE[1] > 0.3;
+    const y0 = cy - R * squash * 0.1;
+    const len = Math.min(y0 - 0.07, 0.3 + r('sl', k) * 0.36);
+    const out = R * (0.9 + r('so', k) * 0.12);
+    const w = 0.058 + r('sw', k) * 0.018;
+    const pts: Vec3[] = [
+      [cx + dx * R * 0.7, y0 + 0.04, cz + dz * R * 0.7],
+      [cx + dx * out, y0 - len * 0.45, cz + dz * out],
+      [cx + dx * (out - 0.015), y0 - len, cz + dz * (out - 0.015)],
+    ];
+    const hang: SwayInput = (_x, y) => Math.min(1, TREE.sway * (0.35 + 0.75 * Math.max(0, Math.min(1, (y0 - y) / len))));
+    // One flat tone to a strand, so each reads as a single stroke of leaf.
+    b.with({ color: shady ? shade : color, pattern: PATTERN.none, ink: 'crown', sway: hang }, () => tube(b, pts, [w * 0.85, w, 0.008], { seg: 4, normal: shady ? TONE.shade : k % 3 === 1 ? TONE.mid : TONE.lit }));
   }
   return top;
 }
 
-/** A pine: three or four skirts of dark needles on a straight trunk, each shading the one below. */
+/**
+ * A pine: three or four drooping skirts of needles on a straight trunk, each
+ * a smooth bell with a scalloped lower edge that hangs over the one below
+ * by a third, and a tip that bends a little. Darker and bluer than the
+ * broadleaves. Each skirt is one smooth surface: its far side falls into
+ * shade along a soft line, with no folds.
+ */
 export function pine(b: MeshBuilder, r: Rng): number {
-  const tiers = 3 + (r('tiers') < 0.4 ? 1 : 0);
-  const h = 1.05 + r('h') * 0.35;
-  const y0 = 0.2 + r('y0') * 0.06;
+  const tiers = 3 + (r('tiers') < 0.45 ? 1 : 0);
+  const h = 0.95 + r('h') * 0.3;
+  const y0 = 0.25 + r('y0') * 0.05;
   const top = y0 + h;
   const sway = swayTo(top);
-  trunk(b, r, [[0, 0, 0], [0, y0 + 0.1, 0]], 0.05, sway);
-  const color = vary(mixColor(PALETTE.leafDark, PALETTE.glass, 0.1), r('leaf'), 0.7);
-  const seg = 11;
-  const step = h / (tiers + 0.6);
-  b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => {
-    for (let t = 0; t < tiers; t++) {
-      const yb = y0 + t * step, yt = yb + step * 1.6;
-      const R = (0.36 - t * (0.24 / tiers)) * (0.94 + r('R', t) * 0.12);
-      const ring: Vec3[] = [];
-      const tw = r('tw', t) * 6.28;
-      for (let j = 0; j < seg; j++) {
-        const a = tw + (j / seg) * 6.28;
-        const rr = R * (j % 2 === 0 ? 1 : 0.84) * (0.93 + r('j', t, j) * 0.14);
-        ring.push([Math.cos(a) * rr, yb + (j % 2 === 0 ? -0.03 : 0.03), Math.sin(a) * rr]);
-      }
-      const apex: Vec3 = [0, Math.min(yt, top), 0];
-      for (let j = 0; j < seg; j++) {
-        const p = ring[j]!, q = ring[(j + 1) % seg]!;
-        // Sunny facets take the light tone, the rest the half tone: one clean change, no line.
-        const mx = p[0] + q[0], mz = p[2] + q[2];
-        const sun = (mx * SUN[0] + mz * SUN[1]) / (Math.hypot(mx, mz) || 1);
-        const n = sun > 0.2 ? TONE.lit : sun > -0.55 ? TONE.mid : TONE.shade;
-        b.tri(apex, q, p, { normals: [n, n, n] });
-        // The underside of the skirt is in shade.
-        b.tri([0, yb + 0.08, 0], p, q, { normals: [TONE.shade, TONE.shade, TONE.shade] });
-      }
+  trunk(b, r, [[0, 0, 0], [0, y0 + 0.14, 0]], 0.055, sway);
+  const color = vary(mixColor(mixColor(PALETTE.leafDark, PALETTE.glass, 0.24), PALETTE.metal, 0.1), r('leaf'), 0.5);
+  const under = mixColor(color, PALETTE.metal, 0.22);
+  const bx = (r('bx') - 0.5) * 0.12, bz = (r('bz') - 0.5) * 0.12;
+  // The axis bends toward the tip.
+  const axis = (y: number): [number, number] => {
+    const t = Math.max(0, (y - y0) / h);
+    return [bx * t * t, bz * t * t];
+  };
+  // Skirt heights shrink upward; each begins two thirds of the way up the one below.
+  const shrink = 0.86;
+  let unit = 0;
+  for (let k = 0; k < tiers; k++) unit += Math.pow(shrink, k) * (k === tiers - 1 ? 1 : 2 / 3);
+  const H0 = h / unit;
+  let yb = y0;
+  for (let k = 0; k < tiers; k++) {
+    const H = H0 * Math.pow(shrink, k);
+    const Rk = (0.37 - (k / tiers) * 0.25) * (0.95 + r('R', k) * 0.1);
+    const lobes = 7 + Math.floor(r('lobes', k) * 3);
+    const N = lobes * 3;
+    const tw = r('tw', k) * 6.28;
+    const rim: Vec3[] = [], mid: Vec3[] = [], nor: Vec3[] = [];
+    for (let i = 0; i < N; i++) {
+      const a = tw + (i / N) * 6.28;
+      const lobe = Math.floor(i / 3), notch = i % 3 === 0;
+      const reach = notch ? 0.83 : 0.96 + r('lr', k, lobe) * 0.08;
+      const y = notch ? yb + 0.04 : yb - 0.015 - r('ld', k, lobe) * 0.04;
+      const [ax, az] = axis(y), [mx, mz] = axis(yb + H * 0.5);
+      rim.push([ax + Math.cos(a) * Rk * reach, y, az + Math.sin(a) * Rk * reach]);
+      mid.push([mx + Math.cos(a) * Rk * 0.6, yb + H * 0.5, mz + Math.sin(a) * Rk * 0.6]);
+      const g = Math.cos(a) * SHADE_SIDE[0] + Math.sin(a) * SHADE_SIDE[1];
+      const t = Math.max(0, Math.min(1, (g - 0.05) / 0.5));
+      nor.push(toneAt(t * t * (3 - 2 * t)));
     }
-  });
+    const [tx, tz] = axis(yb + H);
+    const apex: Vec3 = [tx, yb + H, tz];
+    b.with({ color, pattern: PATTERN.leaves, ink: `skirt${k}`, sway }, () => {
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N;
+        b.tri(apex, mid[j]!, mid[i]!, { normals: [nor[i]!, nor[j]!, nor[i]!] });
+        b.quad(mid[i]!, mid[j]!, rim[j]!, rim[i]!, { normals: [nor[i]!, nor[j]!, nor[j]!, nor[i]!] });
+      }
+    });
+    // Underneath: in shade, and closed, so no skirt is hollow from a low view.
+    const [ux, uz] = axis(yb + 0.1);
+    const hub: Vec3 = [ux, yb + 0.1, uz];
+    b.with({ color: under, pattern: PATTERN.none, ink: `skirt${k}`, sway }, () => {
+      for (let i = 0; i < N; i++) b.tri(hub, rim[i]!, rim[(i + 1) % N]!, { normals: [TONE.shade, TONE.shade, TONE.shade] });
+    });
+    yb += (H * 2) / 3;
+  }
   return top;
 }
 
@@ -339,9 +388,9 @@ export function planterTree(b: MeshBuilder, r: Rng): number {
   trunk(b, r, [[0, bh, 0], [0, cy, 0]], 0.04, sway);
   const color = vary(PALETTE.leafDark, r('leaf'), 0.6);
   const ball = (y: number, rad: number): void => {
-    b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => lump(b, 0, y, 0, rad, rad * 0.94, rad, { seg: 12, rings: 6, normal: TONE.lit }));
+    b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => lump(b, 0, y, 0, rad, rad * 0.94, rad, { seg: rad > 0.2 ? 16 : 12, rings: rad > 0.2 ? 8 : 6, normal: TONE.lit, facing: [0, 1, 0], cut: -0.8 }));
     b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
-      lump(b, SHADE_SIDE[0] * rad * 0.14, y - rad * 0.48, SHADE_SIDE[1] * rad * 0.14, rad * 0.84, rad * 0.6, rad * 0.84, { seg: 12, rings: 5, normal: TONE.shade, facing: [0, -1, 0], cut: -0.2 }),
+      lump(b, SHADE_SIDE[0] * rad * 0.14, y - rad * 0.48, SHADE_SIDE[1] * rad * 0.14, rad * 0.88, rad * 0.64, rad * 0.88, { seg: 14, rings: 6, normal: TONE.shade, facing: [0, -1, 0], cut: -0.25 }),
     );
   };
   ball(cy, R);

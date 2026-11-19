@@ -79,15 +79,19 @@ export default definePart({
         slab(b, 0.14, 0.265, y0 + 0.005 + droop, y0 + 0.365 + droop, 0, 0.026);
       });
     } else if (variant === 'pointed') {
-      const y0 = 0.17 + y;
-      framed(pointedPts(0.22, 0.3, 0.2, y0), 0.038, (x0, x1, a) => bar(b, x0, a + 0.26, x1, a + 0.26, 0.02, zb));
-      sillAt(0.28, y0, 0.06);
+      // A lancet: narrow, and tall enough to reach nearly to the eave.
+      const y0 = 0.11 + y * 0.5;
+      framed(pointedPts(0.21, 0.4, 0.19, y0), 0.036, (x0, x1, a, c) => {
+        bar(b, 0, a, 0, c - 0.03, 0.018, zb);
+        bar(b, x0, a + 0.36, x1, a + 0.36, 0.018, zb);
+      });
+      sillAt(0.27, y0, 0.055);
     } else if (variant === 'rose' || variant === 'round') {
       // Centred half-way up the storey; the generator moves that point into the gable.
-      const r = variant === 'rose' ? 0.135 : 0.105;
+      const r = variant === 'rose' ? 0.15 : 0.105;
       const cy = CELL_H / 2;
       plate(b, circlePts(r, 0, cy, 16), 0, DEPTH);
-      const rp = r - (variant === 'rose' ? 0.035 : 0.034);
+      const rp = r - (variant === 'rose' ? 0.038 : 0.034);
       glass(b, circlePts(rp, 0, cy, 16), zp);
       const spokes = variant === 'rose' ? 4 : 2;
       for (let i = 0; i < spokes; i++) {

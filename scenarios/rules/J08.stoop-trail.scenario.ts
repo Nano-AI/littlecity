@@ -30,6 +30,7 @@ export default scenario({
     { name: 'front', yaw: 45, pitch: 36, zoom: 5, target: [20, 1.5, 12] },
     { name: 'back', yaw: 225, pitch: 36, zoom: 5, target: [20, 1.5, 12] },
     { name: 'close', yaw: 45, pitch: 40, zoom: 9, target: [18.5, 1.2, 12.5] },
+    { name: 'end', yaw: 45, pitch: 40, zoom: 30, target: [18.5, 1.1, 14] },
   ],
   expect(_plan, _dressing, check) {
     check.noFeature({ type: 'trail', on: [10, 1, 13] });

@@ -42,6 +42,11 @@ export const HOUSE = defineStyle(
     parapetH: 0.14,
     /** Stone foundation: how far it stands out past the cell edge. */
     foundationOut: 0.035,
+    /** Ridge and hip caps: width across and height proud of the roof. */
+    capWidth: 0.06,
+    capProud: 0.03,
+    /** How far the tile tone of a long roof wanders between bands (0.06 = ±6%). */
+    tileTone: 0.06,
     /** Chance of a small round window in a gable end. */
     gableWindow: 0.6,
   },

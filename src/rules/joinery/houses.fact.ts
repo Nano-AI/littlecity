@@ -29,6 +29,12 @@ export interface HouseFacts {
   dropOutside(cell: CellKey, dir: Dir4): number;
   /** Levels a solid wall rises beside a roof cell on side `dir`, counted from the roof's own level (0 = none). */
   wallBeside(cell: CellKey, dir: Dir4): number;
+  /**
+   * For a house cell with nothing on it: the side on which an open arch deck (a bridge, a
+   * loggia) meets the house at roof level, if any. J26 puts a door there, standing in the
+   * roof; other roof furniture keeps off the cell.
+   */
+  roofDoorAt(cell: CellKey): Dir4 | undefined;
 }
 
 export const houseFacts = defineFact<HouseFacts>('houseFacts', (f) => {
@@ -59,5 +65,17 @@ export const houseFacts = defineFact<HouseFacts>('houseFacts', (f) => {
     for (c = above(c); c !== NO_CELL && solid(f, c); c = above(c)) n++;
     return n;
   };
-  return { outside, dropOutside, wallBeside };
+  const roofDoorAt = (cell: CellKey): Dir4 | undefined => {
+    if (f.kinds.get(cell) !== 'house') return undefined;
+    const up = above(cell);
+    if (up === NO_CELL || f.kinds.has(up)) return undefined;
+    for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+      const n = neighbor(cell, d);
+      if (n === NO_CELL || f.kinds.get(n) !== 'arch') continue;
+      const deck = above(n);
+      if (deck !== NO_CELL && !f.kinds.has(deck)) return d;
+    }
+    return undefined;
+  };
+  return { outside, dropOutside, wallBeside, roofDoorAt };
 });

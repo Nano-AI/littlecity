@@ -96,3 +96,30 @@ tops, turret battlements, dovecotes and galleries.
 for 2 s alone but passed the default 5 s timeout twice during full
 `npm run check` runs while other worktrees were busy. It needs an explicit
 timeout. Nothing in Monuments touches it.
+
+## 10. Fix pass after art review 1: seams that need the other side
+
+- **Castle stone (Ground, G3).** Castle roles (keep, gatehouse, quay wall) are
+  now drawn in `PATTERN.stone` with `rampColor('marble', color)` (the stone
+  ramp), trim and quoins in `PALETTE.stoneShade`, string courses 0.05 high and
+  0.03 proud, and a corbel table under an oversailing parapet (0.06 out, a
+  0.11 kerb, merlons 0.24 wide and 0.15 high centred on the cell lines and
+  cell middles, so the solid is as wide as the gap). A castle turret takes the
+  palette index of the marble or wall block it touches (index 0 beside a wall
+  on a cell edge). The curtain wall already uses `rampColor('wall', color)` on
+  the same ramp with `PATTERN.stone`; if G3 gives it merlons 0.24 wide on a
+  0.11 kerb the three will match. The values are in `src/style/monuments.ts`.
+- **Stilt houses (Houses, H7; Ground).** The supports layer draws four timber
+  piles under a house tagged `plank-walls`, or under any house with a dock in
+  its own or a side column. To match the pier it reads `dockColors` from
+  `src/gen/dock/wood.ts`, `tube` from `src/parts/ground/kit.ts` and `DOCK`
+  from `src/style/dock.ts` (read only). If those move, the import in
+  `src/gen/support/supports.gen.ts` moves with them.
+- **Doors (Houses, H6, J26).** A loggia or sky-bridge deck still needs its
+  door from the house side. The arch deck, its balustrade and the covered
+  gallery now run 0.1 past the cell line into the house wall, so a door at
+  deck level in that wall will meet them.
+- **Keep windows and the stair door.** R-M03 emits `window/arched` features
+  and R-M04 a `door/plain` on marble; the marble generator draws those itself
+  (rules whose id starts `R-M`), and passes any other owner's window or door
+  on marble to the part registry as before.

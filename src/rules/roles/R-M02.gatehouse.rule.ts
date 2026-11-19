@@ -3,15 +3,19 @@
 // with a lantern either side of it (one 'portcullis' feature on the arch,
 // drawn by the arch generator), and the marble takes the role.
 
-import { edgeOf, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { above, edgeOf, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { archRuns, type ArchRun } from '../joinery/J15.arch-runs.fact';
+import { battlements, exposedSides } from './R-M03.castle';
 
 interface Gate {
   marble: StructureId;
   arch: StructureId;
   cells: readonly CellKey[];
+  /** The marble cell that touches the arch, and the two directions the gate is passed through in. */
+  touch: CellKey;
+  through: readonly [Dir4, Dir4];
 }
 
 function closes(plan: ShapePlan, from: CellKey, d: Dir4): 'marble' | 'wall' | null {
@@ -32,7 +36,9 @@ function gatesOf(plan: ShapePlan, run: ArchRun): Gate[] {
   const out: Gate[] = [];
   const add = (cell: CellKey, d: Dir4): void => {
     const id = plan.structureAt.get(neighbor(cell, d));
-    if (id !== undefined && !out.some((g) => g.marble === id)) out.push({ marble: id, arch: run.structure, cells: run.cells });
+    if (id !== undefined && !out.some((g) => g.marble === id)) {
+      out.push({ marble: id, arch: run.structure, cells: run.cells, touch: neighbor(cell, d), through: run.axis === 'x' ? [0, 2] : [1, 3] });
+    }
   };
   if (lo === 'marble') add(first, lowDir);
   if (hi === 'marble') add(last, highDir);
@@ -46,7 +52,7 @@ export default defineRule<Gate>({
   priority: 5980,
   about:
     'Reads: gateway arches (role from R-A04) and what closes each end of their span: marble, wall pieces or wall edges. ' +
-    'Emits: role gatehouse on the marble; one portcullis on each cell of the arch.',
+    'Emits: role gatehouse on the marble, with battlements on its top edges and an arrow-slit each way; one portcullis on each cell of the arch.',
   find({ plan, facts }) {
     const out = [];
     for (const run of archRuns(facts).runs) {
@@ -56,6 +62,14 @@ export default defineRule<Gate>({
   },
   apply(c, out, { plan }) {
     out.role(c.data.marble, 'gatehouse');
+    // The flanking block is part of the castle: battlements, and a slit looking each way along the road.
+    const block = plan.structures.get(c.data.marble)!;
+    battlements(block, plan, out);
+    const mine = new Set(block.cells);
+    let top = c.data.touch;
+    while (mine.has(above(top))) top = above(top);
+    const exposed = exposedSides(block, plan);
+    for (const d of c.data.through) if (exposed(top, d)) out.feature({ type: 'arrow-slit', structure: block.id, cell: top, dir: d });
     for (const cell of c.data.cells) {
       if (plan.features.some((f) => f.type === 'portcullis' && f.cell === cell)) continue;
       out.feature({ type: 'portcullis', structure: c.data.arch, cell });

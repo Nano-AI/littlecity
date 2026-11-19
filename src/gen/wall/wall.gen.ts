@@ -5,8 +5,12 @@
 //                 top and taller piers at corners and ends
 //   garden-wall   a plain coped wall with pointed piers; with the tag
 //                 'creepers' leaf hangs over it in places
-//   curtain-wall  one storey tall: a wall-walk between two rows of merlons,
-//                 square turrets at corners and ends
+//   curtain-wall  one storey tall, in the stone of the tower or keep it
+//                 touches: a battered foot, a corbel course carrying a
+//                 continuous parapet band that oversails the wall, merlons
+//                 standing on the band (wider than the gaps between them),
+//                 an arrow slit every third cell, square turrets with the
+//                 same top at corners and ends
 //
 // Where J20 found a path crossing, the wall has an arched opening: in the
 // low walls a stone arch standing over the path, in a curtain wall a gateway
@@ -30,11 +34,23 @@ import { PALETTE, rampColor } from '@/style/palette';
 type WallStyle = 'low-wall' | 'garden-wall' | 'curtain-wall';
 const STYLES: readonly WallStyle[] = ['low-wall', 'garden-wall', 'curtain-wall'];
 
-/** Thickness of the wall-walk slab on a curtain wall. */
-const WALK = 0.045;
-/** Length along the wall of a block on a low wall and of a merlon on a curtain wall; two to a cell. */
-const BLOCK = 0.24;
-const MERLON = 0.29;
+/** Length along the wall of a block on a low wall; two to a cell, so the blocks are wider than the gaps. */
+const BLOCK = 0.3;
+/** Thickness of one row of merlons. */
+const MERLON_T = 0.1;
+
+/** Merlons along a stretch, at fixed places in the world, keeping clear of what stands at `keepClear`. */
+function eachMerlon(seg: RunSegment, x0: number, x1: number, keepClear: readonly number[], clearance: number, fn: (x: number) => void): void {
+  const period = WALL.merlon + WALL.crenel;
+  const phase = along(seg.from, seg.axis);
+  for (let i = Math.floor((phase + x0) / period) - 1; ; i++) {
+    const x = (i + 0.5) * period - phase;
+    if (x - WALL.merlon / 2 > x1) break;
+    if (x + WALL.merlon / 2 < x0) continue;
+    if (keepClear.some((p) => Math.abs(p - x) < clearance + WALL.merlon / 2)) continue;
+    fn(x);
+  }
+}
 
 const pierHalf = (style: WallStyle): number => (style === 'curtain-wall' ? WALL.turret : WALL.pier) / 2;
 const standsAt = (n: RunNode): boolean => n.kind === 'joint' || n.kind === 'post';
@@ -96,12 +112,18 @@ export default defineGenerator({
     const b = new MeshBuilder({ ink: s.id });
     const role = plan.roles.get(s.id)?.role;
     const style: WallStyle = STYLES.includes(role as WallStyle) ? (role as WallStyle) : 'low-wall';
-    const stone: ColorInput = rampColor('wall', s.color);
+    const curtain = style === 'curtain-wall';
+    // A curtain wall is built of the stone of the tower or keep it touches (R-E02 pins the tint).
+    let tint = -1;
+    for (const t of plan.tags.get(s.id) ?? []) if (t.startsWith('stone:')) tint = Number(t.slice(6));
+    const stone: ColorInput = curtain && tint >= 0 ? rampColor('tower', tint) : rampColor('wall', s.color);
     const shade: ColorInput = PALETTE.stoneShade;
     const run = buildRun(s, plan);
-    const curtain = style === 'curtain-wall';
     const T = curtain ? WALL.curtainThick : WALL.thick;
-    const H = curtain ? CELL_H - WALL.parapet - WALK : style === 'garden-wall' ? WALL.gardenHeight : WALL.height;
+    // A curtain wall, bottom to top: body, corbel course, parapet band, merlons. One storey in all.
+    const H = curtain ? CELL_H - WALL.merlonHeight - WALL.band - WALL.corbel : style === 'garden-wall' ? WALL.gardenHeight : WALL.height;
+    const yBand = H + WALL.corbel, yWalk = yBand + WALL.band;
+    const halfBand = T / 2 + WALL.oversail;
 
     for (const seg of run.segments) {
       const L = seg.length;
@@ -112,14 +134,44 @@ export default defineGenerator({
           b.with({ color: stone, pattern: PATTERN.stone, ink: 'body' }, () => b.box([a, 0, -T / 2], [c, H, T / 2], { only: ['n', 's'] }));
         }
         if (curtain) {
-          // The wall-walk and its merlons run on over a gateway.
-          const w = WALL.curtainWalk / 2;
-          b.with({ color: shade, pattern: PATTERN.none, ink: 'cap' }, () => b.box([0, H, -w], [L, H + WALK, w], { only: ['top', 'n', 's'] }));
-          b.with({ color: stone, pattern: PATTERN.stone, ink: 'blocks' }, () =>
-            eachBlock(seg, 0, L, pierHalf(style), MERLON, (x) => {
-              for (const side of [-1, 1]) b.boxAt([x, H + WALK, side * (w - 0.055)], [MERLON, WALL.parapet, 0.11], { skip: ['bottom'] });
-            }),
-          );
+          // The batter: the foot of the wall leans out.
+          if (c - a > 0.01 && WALL.batter > 0) {
+            const o = T / 2 + WALL.batterOut, i = T / 2 + 0.012, h = WALL.batter;
+            b.with({ color: shade, pattern: PATTERN.stone, ink: 'batter' }, () => {
+              b.quad([a, 0, o], [c, 0, o], [c, h, i], [a, h, i]);
+              b.quad([c, 0, -o], [a, 0, -o], [a, h, -i], [c, h, -i]);
+              b.quad([a, h, i], [c, h, i], [c, h, T / 2], [a, h, T / 2]);
+              b.quad([c, h, -i], [a, h, -i], [a, h, -T / 2], [c, h, -T / 2]);
+            });
+          }
+          // The corbel course and the parapet band run on over a gateway and into the turrets.
+          const k = T / 2 + WALL.oversail * 0.5;
+          b.with({ color: shade, pattern: PATTERN.none, ink: 'corbel' }, () => b.box([0, H, -k], [L, yBand, k], { only: ['n', 's'] }));
+          b.with({ color: stone, pattern: PATTERN.stone, ink: 'parapet' }, () => {
+            b.box([0, yBand, -halfBand], [L, yWalk, halfBand], { only: ['n', 's'] });
+            // The underside of the oversail shows from below the wall's own level only; the walk on top always.
+            b.box([0, yBand, -halfBand], [L, yWalk, halfBand], { only: ['top'] });
+            const clear: number[] = [];
+            if (standsAt(seg.from)) clear.push(0);
+            if (standsAt(seg.to)) clear.push(L);
+            eachMerlon(seg, 0, L, clear, WALL.turret / 2 + WALL.oversail + 0.02, (x) => {
+              const r = placeRng(s, seg.from.x + (seg.axis === 'x' ? x : 0), seg.from.z + (seg.axis === 'z' ? x : 0));
+              // No two merlons are quite the same height or width: laid by hand.
+              const mh = WALL.merlonHeight * (0.88 + r('mh') * 0.12), mw = WALL.merlon * (0.94 + r('mw') * 0.1);
+              for (const side of [-1, 1]) b.boxAt([x, yWalk, side * (halfBand - MERLON_T / 2)], [mw, mh, MERLON_T], { skip: ['bottom'] });
+            });
+          });
+          // Arrow slits: a dark loop in the face of every third cell, on both sides.
+          b.with({ color: mixColor(PALETTE.metal, stone, 0.25), pattern: PATTERN.none, ink: 'slits' }, () => {
+            const phase = along(seg.from, seg.axis);
+            for (let cell = Math.floor(phase + a); cell + 0.5 - phase < c; cell++) {
+              const x = cell + 0.5 - phase;
+              if (x - a < 0.3 || c - x < 0.3) continue;
+              if (((cell % WALL.slitEvery) + WALL.slitEvery) % WALL.slitEvery !== 0) continue;
+              const y0 = WALL.batter + 0.08, y1 = Math.min(H - 0.06, y0 + 0.2);
+              for (const side of [-1, 1]) b.box([x - 0.022, y0, side * (T / 2) - 0.006], [x + 0.022, y1, side * (T / 2) + 0.006], { only: [side > 0 ? 's' : 'n'] });
+            }
+          });
         } else if (c - a > 0.01) {
           const w = T / 2 + 0.03;
           b.with({ color: shade, pattern: PATTERN.none, ink: 'cap' }, () => {
@@ -145,13 +197,25 @@ export default defineGenerator({
     for (const n of run.nodes) {
       if (standsAt(n)) {
         if (curtain) {
-          const w = WALL.turret, h = CELL_H + WALL.turretRise;
-          b.with({ color: stone, pattern: PATTERN.stone, ink: 'pier' }, () => b.boxAt([n.x, run.y, n.z], [w, h, w], { skip: ['bottom', 'top'] }));
-          b.with({ color: shade, pattern: PATTERN.none, ink: 'piercap' }, () => b.boxAt([n.x, run.y + h, n.z], [w + 0.08, 0.05, w + 0.08], { skip: ['bottom'] }));
-          b.with({ color: stone, pattern: PATTERN.none, ink: 'blocks' }, () => {
-            const o = w / 2 - 0.05;
+          // A square turret with the wall's own top, a little higher: batter, shaft, corbel course, band, merlons.
+          const w = WALL.turret, yc = run.y + H + WALL.turretRise, yb = yc + WALL.corbel, yw = yb + WALL.band;
+          const wo = w + WALL.oversail * 2;
+          if (WALL.batter > 0) {
+            const o = w / 2 + WALL.batterOut, i = w / 2, h = WALL.batter;
+            b.with({ color: shade, pattern: PATTERN.stone, ink: 'batter' }, () => {
+              const lo: Vec3[] = [[n.x - o, run.y, n.z + o], [n.x + o, run.y, n.z + o], [n.x + o, run.y, n.z - o], [n.x - o, run.y, n.z - o]];
+              const hi: Vec3[] = [[n.x - i, run.y + h, n.z + i], [n.x + i, run.y + h, n.z + i], [n.x + i, run.y + h, n.z - i], [n.x - i, run.y + h, n.z - i]];
+              for (let q = 0; q < 4; q++) b.quad(lo[q]!, lo[(q + 1) % 4]!, hi[(q + 1) % 4]!, hi[q]!);
+            });
+          }
+          b.with({ color: stone, pattern: PATTERN.stone, ink: 'pier' }, () => b.boxAt([n.x, run.y, n.z], [w, yc - run.y, w], { skip: ['bottom', 'top'] }));
+          b.with({ color: shade, pattern: PATTERN.none, ink: 'corbel' }, () => b.boxAt([n.x, yc, n.z], [w + WALL.oversail, WALL.corbel, w + WALL.oversail], { skip: ['bottom', 'top'] }));
+          b.with({ color: stone, pattern: PATTERN.stone, ink: 'parapet' }, () => {
+            b.boxAt([n.x, yb, n.z], [wo, WALL.band, wo], { skip: ['bottom'] });
+            // Corner merlons, each wider than the gap between them.
+            const m = wo * 0.36, o = wo / 2 - m / 2;
             for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-              b.boxAt([n.x + sx * o, run.y + h + 0.05, n.z + sz * o], [0.17, 0.13, 0.17], { skip: ['bottom'] });
+              b.boxAt([n.x + sx * o, yw, n.z + sz * o], [m, WALL.merlonHeight, m], { skip: ['bottom'] });
             }
           });
         } else if (style === 'garden-wall') {
@@ -173,7 +237,7 @@ export default defineGenerator({
         b.at(runFrame(gateAxis(n), n.x, run.y, n.z), () => {
           if (curtain) {
             const half = Math.min(WALL.archHalf, FENCE.gateHalf - 0.1);
-            b.with({ color: stone, pattern: PATTERN.stone, ink: 'gate' }, () => archSlab(b, FENCE.gateHalf, T + 0.06, half, WALL.curtainSpring, H, false));
+            b.with({ color: stone, pattern: PATTERN.stone, ink: 'gate' }, () => archSlab(b, FENCE.gateHalf, T + 0.04, half, WALL.curtainSpring, H, false));
             b.with({ color: shade, pattern: PATTERN.none, ink: 'keystone' }, () =>
               b.boxAt([0, WALL.curtainSpring + half - 0.03, 0], [0.1, Math.min(0.13, H - WALL.curtainSpring - half + 0.02), T + 0.1], { skip: ['bottom', 'top'] }),
             );
@@ -239,7 +303,7 @@ export default defineGenerator({
       }
     }
 
-    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' ? null : undefined));
+    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' ? null : undefined));
     return { mesh: b.build(), anchors };
   },
 });

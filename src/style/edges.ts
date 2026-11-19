@@ -34,6 +34,13 @@ export const FENCE = defineStyle(
     drop: 2,
     /** How far a rope sags between two posts. */
     sag: 0.07,
+    /** Iron railing: bars to a cell, their width, the width of a post, and how much lighter than `metal` the iron is drawn. */
+    ironBars: 6,
+    ironBar: 0.015,
+    ironPost: 0.03,
+    ironLight: 0.3,
+    /** A fence edge piece on a house roof stands on the wall head: this far inside the cell line (the house's wall inset). */
+    roofInset: 0.07,
   },
   {
     height: [0.2, 0.6, 0.01],
@@ -71,13 +78,25 @@ export const WALL = defineStyle(
     curtainThick: 0.3,
     curtainWalk: 0.44,
     parapet: 0.17,
+    /** Its top: the corbel course under the parapet band, the band (which oversails the wall by `oversail`), and the merlons on it. */
+    corbel: 0.045,
+    band: 0.12,
+    oversail: 0.03,
+    merlon: 0.24,
+    crenel: 0.14,
+    merlonHeight: 0.12,
+    /** The batter at its foot: height, and how far it stands out at the ground. */
+    batter: 0.15,
+    batterOut: 0.05,
+    /** An arrow slit every this many cells. */
+    slitEvery: 3,
     /** Its corner turrets: width, and how far they rise above the wall. */
     turret: 0.52,
     turretRise: 0.2,
     /** The arched opening: half its width, and the height its arch springs from, in a low wall and in a curtain wall. */
     archHalf: 0.3,
     archSpring: 0.36,
-    curtainSpring: 0.26,
+    curtainSpring: 0.23,
     /** R-E02: the chance that a garden wall carries creepers. */
     creepers: 0.4,
   },
@@ -91,6 +110,15 @@ export const WALL = defineStyle(
     curtainThick: [0.2, 0.45, 0.01],
     curtainWalk: [0.3, 0.6, 0.01],
     parapet: [0.08, 0.3, 0.01],
+    corbel: [0.02, 0.1, 0.005],
+    band: [0.06, 0.2, 0.01],
+    oversail: [0, 0.08, 0.005],
+    merlon: [0.14, 0.4, 0.01],
+    crenel: [0.08, 0.3, 0.01],
+    merlonHeight: [0.06, 0.24, 0.01],
+    batter: [0, 0.3, 0.01],
+    batterOut: [0, 0.12, 0.005],
+    slitEvery: [1, 6, 1],
     turret: [0.4, 0.7, 0.01],
     turretRise: [0, 0.5, 0.01],
     archHalf: [0.2, 0.36, 0.01],
@@ -113,7 +141,12 @@ export const STAIRS = defineStyle(
     cheekRise: 0.06,
     /** The tread slab: thickness and how far it stands proud of the riser. */
     nosing: 0.03,
-    proud: 0.012,
+    proud: 0.02,
+    /** How far the treads run into a wall or a bank beside the flight (a house wall stands 0.07 inside its cell). */
+    into: 0.075,
+    /** Treads differ in height by up to this much either way, and this share of them is worn a tone darker. */
+    uneven: 0.01,
+    worn: 0.17,
     /** A landing every this many cells of a flight, and its depth. */
     landingEvery: 3,
     landing: 0.4,
@@ -130,6 +163,9 @@ export const STAIRS = defineStyle(
     cheekRise: [0, 0.2, 0.01],
     nosing: [0.01, 0.06, 0.005],
     proud: [0, 0.03, 0.002],
+    into: [0, 0.12, 0.005],
+    uneven: [0, 0.03, 0.002],
+    worn: [0, 0.5, 0.01],
     landingEvery: [2, 6, 1],
     landing: [0.25, 0.55, 0.01],
     newel: [0.08, 0.2, 0.01],

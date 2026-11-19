@@ -56,7 +56,9 @@ export default scenario({
     check.noFeature({ type: 'battlement', at: [24, 3, 11] }); // the middle of the roof
     check.hasFeature({ type: 'battlement', at: [23, 5, 10] }, 4); // the corner turret: all four
     check.hasFeature({ type: 'arrow-slit', on: [24, 1, 11] });
-    check.noFeature({ type: 'arrow-slit', at: [25, 1, 12] }); // none on the ground storey
+    check.hasFeature({ type: 'window', on: [24, 1, 11] }, 4); // glazed windows on the top storeys
+    check.hasFeature({ type: 'battlement', on: [18, 1, 12] }, 3); // the gatehouse blocks are embattled too
+    check.hasFeature({ type: 'arrow-slit', on: [18, 1, 12] });
     check.role(12, 1, 18, 'quay-wall');
     check.hasFeature({ type: 'bollard', on: [12, 1, 18] }, 2);
     check.hasSocket({ type: 'mooring', at: [10, 1, 18] });

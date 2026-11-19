@@ -1,7 +1,7 @@
 // J19: railings on walkable edges with a drop of two levels or more, beside
 // a floor or a stair head. A plaza on a marble block two high (balustrade);
 // an L-shaped path on a terrace (pickets, with an inner corner); a roof
-// garden (iron); a bridge deck (rope); a low platform (no railing: the drop
+// garden (none: the house draws a parapet round its own flat roof); a bridge deck (rope); a low platform (no railing: the drop
 // is one); a platform whose player-built wall replaces the railing on one
 // side; and a stair head with no floor at all.
 
@@ -63,7 +63,8 @@ export default scenario({
     check.equal(ends(9, 3, 16, 1), '0/4', 'east side of the L’s leg: an inner corner with the post');
     check.equal(ends(10, 3, 15, 2), '5/6', 'south side of the L’s arm: the inner corner, no post');
     // Styles.
-    check.hasFeature({ type: 'railing', variant: 'iron', at: [20, 3, 14] });
+    // A house draws a parapet round its own flat roof (Houses, J05): no derived railing there as well.
+    check.noFeature({ type: 'railing', at: [20, 3, 14] });
     check.hasFeature({ type: 'railing', variant: 'rope', at: [27, 3, 14], dir: 0 });
     check.hasFeature({ type: 'railing', variant: 'rope', at: [27, 3, 14], dir: 2 });
     check.noFeature({ type: 'railing', at: [27, 3, 14], dir: 1 }); // the deck carries on

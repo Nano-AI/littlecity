@@ -4,7 +4,7 @@
 // watchtower, turret, observatory and dovecote; square ones for the steeple,
 // clock tower and campanile, whose top storey may be an open belfry.
 
-import { above, CELL_H, columnIndex, keyX, keyY, keyZ, SEA_Y, type Dir4 } from '@/core/grid';
+import { above, CELL_H, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, SEA_Y, type Dir4 } from '@/core/grid';
 import { compose, rotationX, rotationY, rotationZ, translation, type Mat4, type Mat4Like } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { defineGenerator, placeFeature } from '@/gen/api';
@@ -74,7 +74,22 @@ export default defineGenerator({
     const shape = towerShape(s, plan);
     const { storeys: n, round, foot, belfry, world } = shape;
     const bottomY = keyY(s.cells[0]!);
-    const stone = rampColor('tower', s.color);
+    // A castle turret is built of the same stone as the keep or curtain wall it stands against.
+    let tint = s.color;
+    if (plan.roles.get(s.id)?.role === 'castle-turret') {
+      tint = 0; // a wall on a cell edge has no colour of its own: the first of the ramp
+      find: for (const cell of s.cells) {
+        for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+          const n = neighbor(cell, d);
+          const kind = n === NO_CELL ? undefined : plan.kinds.get(n);
+          if (kind === 'marble' || kind === 'wall') {
+            tint = plan.world.blocks.get(n)?.color ?? 0;
+            break find;
+          }
+        }
+      }
+    }
+    const stone = rampColor('tower', tint);
     const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
     const look: CapLook = { stone, roof, vary: rand(s.seed, 'cap') };
     const top = n * CELL_H;

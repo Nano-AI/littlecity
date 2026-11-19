@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { edgeKey } from '@/core/grid';
 import { findDuplicateFaces, inkGroups, triangleCount, validateMesh } from '@/gen/checks';
+import { meshBounds } from '@/gen/mesh';
 import { buildRun } from '@/parts/ground/runs';
+import { FENCE } from '@/style/edges';
 import fence from './fence.gen';
 import { blockStructure, edgeParts, edgeStructure, town } from './testing';
 
 /** Triangle budgets per cell of run, by style. */
-const BUDGET = { 'picket-fence': 160, 'rope-fence': 160, 'iron-railing': 220, 'stone-balustrade': 320 } as const;
+const BUDGET = { 'picket-fence': 160, 'rope-fence': 160, 'iron-railing': 200, 'stone-balustrade': 320 } as const;
 
 describe('the shape of a run (J20)', () => {
   test('a straight run of cell pieces is one stretch between two end posts, and spans its cells', () => {
@@ -153,5 +155,46 @@ describe('the railing part (J19)', () => {
       return n + [p.from, p.to].filter((c) => c === 1 || c === 2 || c === 4 || c === 6).length;
     }, 0);
     expect(posts).toBe(8);
+  });
+});
+
+describe('an iron railing on a house roof (art review 1, G4)', () => {
+  test('edge pieces round a roof stand on the wall head: inset on every side, corners still meeting', () => {
+    const plan = town((b) => {
+      b.house(10, 10, { w: 2, d: 2 });
+      for (const x of [10, 11]) b.fenceEdge(x, 10, 'N', 'fence', 2).fenceEdge(x, 11, 'S', 'fence', 2);
+      for (const z of [10, 11]) b.fenceEdge(10, z, 'W', 'fence', 2).fenceEdge(11, z, 'E', 'fence', 2);
+    });
+    const s = edgeStructure(plan, edgeKey(10, 2, 11, 'S'));
+    expect(plan.roles.get(s.id)?.role).toBe('iron-railing');
+    expect(plan.features.filter((f) => f.type === 'run-inset' && f.structure === s.id)).toHaveLength(8);
+    const run = buildRun(s, plan);
+    // Four corners, four sides, each FENCE.roofInset inside the cell line.
+    expect(run.nodes.filter((n) => n.kind === 'joint')).toHaveLength(4);
+    expect(run.segments).toHaveLength(4);
+    for (const n of run.nodes) {
+      expect(Math.min(Math.abs(n.x - (10 + FENCE.roofInset)), Math.abs(n.x - (12 - FENCE.roofInset)))).toBeLessThan(1e-6);
+      expect(Math.min(Math.abs(n.z - (10 + FENCE.roofInset)), Math.abs(n.z - (12 - FENCE.roofInset)))).toBeLessThan(1e-6);
+    }
+    const { mesh } = fence.build(s, plan, edgeParts);
+    expect(validateMesh(mesh)).toEqual([]);
+    expect(findDuplicateFaces(mesh)).toBe(0);
+    expect(inkGroups(mesh).size).toBe(1);
+    expect(triangleCount(mesh)).toBeLessThan(8 * BUDGET['iron-railing']);
+    const { min, max } = meshBounds(mesh);
+    expect(min[0]).toBeGreaterThan(10);
+    expect(max[0]).toBeLessThan(12);
+  });
+
+  test('on the ground the same edge pieces stay on the cell line', () => {
+    const plan = town((b) => b.fenceAround(20, 20, 21, 21));
+    const s = edgeStructure(plan, edgeKey(20, 1, 21, 'S'));
+    expect(plan.features.filter((f) => f.type === 'run-inset' && f.structure === s.id)).toHaveLength(0);
+  });
+
+  test('iron is light: thin bars, six to a cell', () => {
+    expect(FENCE.ironBar).toBeLessThanOrEqual(0.02);
+    expect(FENCE.ironPost).toBeLessThanOrEqual(0.035);
+    expect(FENCE.ironBars).toBe(6);
   });
 });

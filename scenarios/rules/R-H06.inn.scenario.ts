@@ -35,5 +35,6 @@ export default scenario({
     check.hasSocket({ type: 'sign-bracket', at: [door.cell! & 63, 1, 12] });
     check.ok(dressing.props.filter((p) => p.type === 'hanging-sign').length === 2, 'two inn signs');
     check.ok(dressing.props.every((p) => p.type !== 'awning'), 'an inn has no shop awning');
+    check.hasProp({ type: 'role-prop', variant: 'lantern' }, 2);
   },
 });

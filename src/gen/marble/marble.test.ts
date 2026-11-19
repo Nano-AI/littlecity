@@ -15,7 +15,7 @@ describe('marble (J16, R-M07)', () => {
     expect(findDuplicateFaces(mesh)).toBe(0);
     const mass = new MeshBuilder({ ink: s.id }).inkOf('mass');
     const groups = inkGroups(mesh);
-    expect(groups.size).toBe(3); // the mass, its base course and its cornice
+    expect(groups.size).toBe(4); // the mass, its base course, the string course at the storey line and its cornice
     // 20 side quads, and a paved top of 6 cells each split into a field and its coping strips.
     expect(groups.get(mass)).toBeGreaterThanOrEqual(20 * 2 + 6 * 2);
     expect(triangleCount(mesh)).toBeLessThan(12 * 40);

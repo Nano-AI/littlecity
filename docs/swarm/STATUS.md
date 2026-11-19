@@ -117,3 +117,27 @@ runs on Opus 5.5 ("fable is too slow"): Stage 4 polish, discovery rounds,
 final art pass, and any replacement for an agent that dies. The seven
 already running stay on Fable to keep their memory; each keeps a handoff
 note in `docs/swarm/handoff/<owner>.md`.
+
+**Published (11:10):** https://yaoderek.github.io/littlecity/ serves the
+built game from the `gh-pages` branch (built files only; the working branch
+is not pushed beyond what was already on the remote). Pages source was
+changed from the working branch to `gh-pages`. Redeploy after each gate
+with `./tools/deploy-pages.sh`.
+
+**11:45** Merged fix passes: Monuments `cb686d2` (M1–M7 all done) and
+Houses `21c4909` (H1–H6 plus role props; adds `J05.terrace-edges`,
+`R-H99.role-props`). Typecheck, lint and 853 unit tests green. Browser
+tests in `tests/e2e/interface.e2e.test.ts` time out under machine load
+(load average 16 with eight agents); rerun `npm run check` when the machine
+is quieter before the next Pages deploy. Still open from these passes:
+Ground's half of the terrace railing (G4), bench not re-measured after
+Houses' heavier J10. Held-length feature in progress on `swarm/held-length`
+(Opus 5.5).
+
+**12:15** Merged Ground fix pass `8419265` (G1–G5). Orchestrator rewrote the
+end of `scenarios/rules/J05.terrace-edges.scenario.ts`: Ground no longer
+adds J19 railings on house roofs, so the house parapet stands there.
+856 unit tests green. Open seams: fence edge pieces round a pitched-roof
+house float at eaves level (needs a decision: skip drawing them); stall and
+fountain triangle trims not done. Still running: Animation, Dressing, Look
+fix pass, held-length; People finishing.
