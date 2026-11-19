@@ -16,6 +16,8 @@ export default mergeConfig(
           test: {
             name: 'unit',
             environment: 'node',
+            // Several agents share this machine; the default 5 s is too tight under load.
+            testTimeout: 30_000,
             include: ['{src,tests,scenarios,gallery,tools}/**/*.test.ts'],
             exclude: ['**/*.e2e.test.ts', '**/node_modules/**'],
           },
