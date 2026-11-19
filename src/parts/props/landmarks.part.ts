@@ -103,6 +103,9 @@ export const statue = definePart({
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 733));
     const turn = Math.floor(r('turn') * 4) * (Math.PI / 2) + (r('t') - 0.5) * 0.2;
     b.rotateY(turn);
+    // A plinth is a whole block: what stands on it is drawn large enough to read from the street.
+    const big = 1.55;
+    b.scale(big);
     const stone = PALETTE.marble;
     if (item.variant === 'sundial') {
       b.with({ color: stone, pattern: PATTERN.marble, ink: 'dial-post' }, () => b.lathe([[0.09, 0], [0.09, 0.03], [0.05, 0.05], [0.045, 0.24], [0.11, 0.28], [0.11, 0.3]], { segments: 10, capTop: true }));
@@ -116,20 +119,20 @@ export const statue = definePart({
       b.with({ color: [PALETTE.red, PALETTE.pink, PALETTE.yellow][Math.floor(r('f') * 3)]!, pattern: PATTERN.none, ink: 'urn-green' }, () => {
         for (let i = 0; i < 5; i++) {
           const a = (i / 5) * Math.PI * 2 + r('fa', i);
-          dab(b, Math.cos(a) * 0.07, 0.37, Math.sin(a) * 0.07, 0.03, TONE.lit, 5, 0.02);
+          dab(b, Math.cos(a) * 0.075, 0.385, Math.sin(a) * 0.075, 0.042, TONE.lit, 5, 0.025);
         }
       });
     } else {
       // A figure: a block base, a robed body, a raised arm, a head. One stone, one outline.
       b.with({ color: stone, pattern: PATTERN.marble, ink: 'figure' }, () => {
         b.boxAt([0, 0, 0], [0.2, 0.08, 0.2], { skip: ['bottom'] });
-        b.at(translation(0, 0.08, 0), () => b.lathe([[0.075, 0], [0.07, 0.12], [0.05, 0.26], [0.035, 0.3]], { segments: 8, capTop: true }));
+        b.at(translation(0, 0.08, 0), () => b.lathe([[0.08, 0], [0.068, 0.12], [0.05, 0.22], [0.062, 0.27], [0.03, 0.3]], { segments: 8, capTop: true }));
         ball(b, 0, 0.42, 0, 0.045);
         tube(b, [[0.04, 0.34, 0], [0.09, 0.42, 0.02], [0.1, 0.5, 0.04]], [0.018, 0.016, 0.014], { seg: 4 });
         ball(b, 0.1, 0.51, 0.04, 0.02);
       });
     }
-    return { mesh: b.build(), anchors: { perch: translation(0, item.variant === 'figure' || !item.variant ? 0.47 : 0.32, 0) } };
+    return { mesh: b.build(), anchors: { perch: translation(0, (item.variant === 'figure' || !item.variant ? 0.47 : 0.32) * big, 0) } };
   },
 });
 
