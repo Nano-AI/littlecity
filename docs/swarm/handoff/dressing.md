@@ -7,10 +7,10 @@ Commit after every rule. No sub-agents. Before the final report: merge
 `scenarios/core/everything.scenario.ts` (keep the L03 sails one), `npm run check` green.
 
 ## Done (rule + fixture in `scenarios/rules/` + part)
-D01 D02 D05 D07 D09 D13 D13-T D20 D24 U03 U07 (tier 1, commit fc4e17b). U01 pocket park. U02 fenced field.
+D01 D02 D05 D07 D09 D13 D13-T D20 D24 U03 U07 (tier 1, commit fc4e17b). U01 pocket park. U02 fenced field. U08 nooks.
 
 ## In progress / next
-- Then U08 nooks, U04 back yards (`landUse.backYards` exists), U05, U06, U12; then the D list.
+- Next: U04 back yards (`landUse.backYards` exists), U05, U06, U12; then the D list.
 - Vocabulary for ALL of these is already declared in `src/vocab/dressing.vocab.ts`; parts for
   goods-stack, wall-fountain, cart, kiosk, shed, veg-patch, washing-pole, woodpile, street-tree,
   signpost, dirt-trail, bunting, cafe-table, creeper, doorstep, rope-coil, lobster-pot, net-rack

@@ -64,7 +64,7 @@ export const DRESSING = defineStyle(
     /** U06: chance that an outward-facing rear wall at the town's edge has a woodpile or a vegetable plot. */
     edgeYard: 0.4,
     /** U08: chance that a nook beside a stair or under a deck is furnished. */
-    nook: 0.85,
+    nook: 1,
     // ── U07 retaining walls ──
     /** The tallest bank a retaining wall will face, in levels. */
     wallMaxRise: 3,
