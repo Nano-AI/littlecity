@@ -30,7 +30,7 @@ import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
 import { buildSquare } from './districts/square';
-import { buildBoardwalk, buildBridge, buildJetty } from './districts/water';
+import { buildBoardwalk, buildBridge, buildJetty, buildViaduct } from './districts/water';
 import { Grower, type Made } from './grower';
 import { joinedStreets, route } from './route';
 import { readSite } from './site';
@@ -85,6 +85,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildWatchtower(town);
   buildPaddock(town);
   buildStairs(town);
+  buildViaduct(town);
   for (let n = 2; n < 6; n++) buildHousing(town, n, 8 + n * 2);
   const unjoined = joinStreets(town);
   buildFlowerBed(town, 0);

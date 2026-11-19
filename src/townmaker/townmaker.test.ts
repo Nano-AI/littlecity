@@ -96,13 +96,17 @@ describe('grow a town', () => {
   });
 
   test('the watching order is the one used (never the fallback), and every district joins the streets', () => {
+    let viaducts = 0;
     for (let seed = 1; seed <= 10; seed++) {
       const plan = planTown(generateTerrain(seed), seed);
       expect(plan.fellBack, `seed ${seed}`).toBe(false);
       expect(plan.unjoined.length, `seed ${seed}: ${plan.unjoined.join(', ')}`).toBeLessThanOrEqual(2);
+      if (seed <= 5 && plan.districts.some((d) => d.name === 'viaduct')) viaducts++;
       // The summits too: up cliffs of two levels by a marble landing and stairs.
       expect(plan.unjoined.filter((n) => n === 'lookout' || n === 'observatory'), `seed ${seed}`).toEqual([]);
     }
+    // A viaduct of its own (not the folly's) across a dip between two terraces, where an island has one.
+    expect(viaducts).toBeGreaterThanOrEqual(3);
   });
 
   test('coverage: across seeds 1 to 5 every role appears; every town shows 30 or more', () => {
