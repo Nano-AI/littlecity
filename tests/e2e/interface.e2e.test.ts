@@ -391,10 +391,12 @@ describe('desktop: mouse and keys', () => {
     await page.click('[data-ui="menu-button"]');
     expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['new', 'share', 'postcard', 'download', 'open', 'sound', 'tuning']);
 
-    await page.click('[data-menu="sound"]');
+    // Sound is off until the player turns it on.
     expect(await debug(page, 'sound')).toBe(false);
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(true);
+    await page.click('[data-menu="sound"]');
+    expect(await debug(page, 'sound')).toBe(false);
 
     // Tuning: sliders bound to the style files; a change is live.
     await page.click('[data-menu="tuning"]');
