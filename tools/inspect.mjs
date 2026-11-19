@@ -19,4 +19,6 @@ try {
 } finally {
   await close();
 }
-process.exit(code);
+// Exit only once stdout has drained: on macOS a piped stdout is asynchronous, and process.exit()
+// cut any output longer than the 64 KB pipe buffer (a dressed town's --json is longer than that).
+process.stdout.write('', () => process.exit(code));
