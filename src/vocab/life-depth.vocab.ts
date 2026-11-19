@@ -32,6 +32,15 @@ declare module '@/core/vocab' {
     'chicken': true;
     'chicken.look': number;
 
+    // L31. Clouds drifting with the wind (at = null), each a few lobes and a shadow, spawned by the behaviour.
+    'cloud': true;
+    'cloud/shadow': true;
+    'cloud.look': number;
+    'cloud.index': number;
+    // L30. Rarely, a hot-air balloon drifting across far behind the island (at = null).
+    'balloon': true;
+    'balloon.look': number;
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand

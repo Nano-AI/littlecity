@@ -270,9 +270,18 @@ void main(){
     // Graded like the page (it is drawn after the grade). Param a is its opacity.
     vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
     float face = smoothstep(0.0, 0.5, abs(vn.z));
+    // Param d > 0: a soft round patch lying flat (a cloud's shadow), d its radius in world units.
+    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.35, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
     float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
     float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
     vec3 c = toSrgb(base) * uTint + uLift;
+    // Param c > 0.5: a cloud, whose wash is edged with a soft graphite line where it thins.
+    if (vParams.z > 0.5 && vParams.w <= 0.0) {
+      float rim = smoothstep(0.04, 0.16, face) * (1.0 - smoothstep(0.18, 0.42, face));
+      float line = rim * (0.55 + 0.45 * n2(spx * 0.05 + 3.0));
+      c = mix(c, toSrgb(uInk) * uTint, line * 0.55);
+      a = max(a, line * 0.5 * max(vParams.x, 0.0) * 1.6);
+    }
     oColor = vec4(c * a, a);
   } else {
     // A shaft of light. Seen end on (pointing at you) its walls are edge-on: it fades away there,
