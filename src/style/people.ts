@@ -156,12 +156,14 @@ export const GARRISON = defineStyle(
     /** Between ranks along the line of march, and from the line to each file. */
     spacing: 0.44,
     file: 0.12,
+    /** How far the right-hand file marches behind the left. */
+    stagger: 0.16,
     /** Halted at the gate each lap; at the change of the guard (dawn, dusk); at either end of a there-and-back. */
     halt: 4,
     changeHalt: 10,
     endHalt: 2,
   },
-  { speed: [0.2, 1.2, 0.02], spacing: [0.25, 0.6, 0.01], file: [0.06, 0.2, 0.01], halt: [0, 20, 0.5], changeHalt: [0, 30, 0.5], endHalt: [0, 10, 0.5] },
+  { speed: [0.2, 1.2, 0.02], spacing: [0.25, 0.6, 0.01], file: [0.06, 0.2, 0.01], stagger: [0, 0.3, 0.01], halt: [0, 20, 0.5], changeHalt: [0, 30, 0.5], endHalt: [0, 10, 0.5] },
 );
 
 /** L37: the rider. */

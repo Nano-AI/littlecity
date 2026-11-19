@@ -82,6 +82,23 @@ function place(n: number, x: number, y: number, z: number, heading: number, scal
   }
 }
 
+/**
+ * A rider's legs astride the horse: each leg (pieces 1 and 2) turned out about its hip by `angle`, so the
+ * legs come down the horse's flanks instead of into its barrel (a person's legs otherwise only swing fore
+ * and aft). The leg's translation is its hip, which stays put.
+ */
+export function straddle(mats: Float32Array, angle: number): void {
+  for (const [i, a] of [[1, -angle], [2, angle]] as const) {
+    const c = Math.cos(a), s = Math.sin(a), k = i * 16;
+    // Rz(a) · R for each of the three axis columns.
+    for (let col = 0; col < 3; col++) {
+      const x = mats[k + col * 4]!, y = mats[k + col * 4 + 1]!;
+      mats[k + col * 4] = c * x - s * y;
+      mats[k + col * 4 + 1] = s * x + c * y;
+    }
+  }
+}
+
 /** Sends a person's five pieces (and their tool) to the stage, if the drawing changed. */
 function drawFigure(stage: LifeStage, f: Figure, mats: Float32Array, tool: Tool | null, colour: string): void {
   if (f.tool && f.tool.kind !== tool) {
@@ -226,6 +243,7 @@ export default defineSystem<State>({
         if (r.riding) {
           const drop = sitDrop(g.rider.rig, 0);
           rigMatrices(g.rider.look, { ...RIDE_POSE, lean: r.gait === 'trot' ? 0.1 : 0.04 }, local, drop, g.rider.rig);
+          straddle(local, 0.55);
           // Origin on the saddle: the seat moves with the horse's spring.
           const sx = r.x + Math.sin(r.heading) * SADDLE.z, sz = r.z + Math.cos(r.heading) * SADDLE.z;
           place(5, sx, r.y + SADDLE.y + hp.lift, sz, r.heading, g.rider.look.scale, local, world);
