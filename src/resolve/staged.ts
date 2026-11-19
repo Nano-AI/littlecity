@@ -76,7 +76,7 @@ export function sameWorld(a: World, b: World): boolean {
   if (a.blocks.size !== b.blocks.size || a.floors.size !== b.floors.size || a.edges.size !== b.edges.size) return false;
   for (const [c, x] of a.blocks) {
     const y = b.blocks.get(c);
-    if (!y || y.kind !== x.kind || y.color !== x.color || y.rot !== x.rot || y.seq !== x.seq) return false;
+    if (!y || y.kind !== x.kind || y.color !== x.color || y.rot !== x.rot || y.seq !== x.seq || (y.style ?? 0) !== (x.style ?? 0)) return false;
   }
   for (const [c, k] of a.floors) if (b.floors.get(c) !== k) return false;
   for (const [e, k] of a.edges) if (b.edges.get(e) !== k) return false;

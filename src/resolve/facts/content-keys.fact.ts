@@ -4,7 +4,7 @@
 //
 // A column key is a 64-bit hash (two independent 32-bit lanes) of everything
 // the shape-stage base holds in one column: its terrain height and material,
-// every block in it (placed kind, colour, rot, resolved kind, block
+// every block in it (placed kind, colour, rot, house style, resolved kind, block
 // structure id), every floor (kind, floor structure id) and every edge piece
 // whose canonical (west or north) cell lies in it (kind, run id). Per-item
 // hashes are summed, so the key does not depend on map order. The world seed
@@ -93,7 +93,7 @@ function buildContentKeys(f: Facts): ContentKeys {
   const { world, kinds, structureAt, floorAt, edgeAt } = f;
   for (const [c, block] of world.blocks) {
     const sid = structureAt.get(c);
-    add(columnIndex(keyX(c), keyZ(c)), 1, c, code(block.kind) * 64 + block.color, block.rot, code(kinds.get(c)), sid === undefined ? -1 : sid);
+    add(columnIndex(keyX(c), keyZ(c)), 1, c, code(block.kind) * 64 + block.color, block.rot + (block.style ?? 0) * 8, code(kinds.get(c)), sid === undefined ? -1 : sid);
   }
   // Resolved kinds of cells with no placed block (none today; cheap insurance).
   if (kinds.size !== world.blocks.size) {
