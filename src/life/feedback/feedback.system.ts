@@ -74,6 +74,9 @@ interface State {
   /** Counts effects, so each gets its own seeded scatter. */
   n: number;
   scratch: Mat4;
+  /** Seconds since the system started, and when the last landing threw its dust (a quick run of edits throws less). */
+  clock: number;
+  lastDust: number;
 }
 
 const RING: SpawnSpec = { actor: 'dust-ring' };
@@ -130,7 +133,7 @@ function poseAct(a: Act): void {
     const { drop, tall } = landingAt(t);
     const h = 1 + (tall - 1) * a.amp;
     const w = bulge(h);
-    squash(a.px, a.py, a.pz, w, h, w, drop * CELL_H * Math.max(a.amp, 0.45), 0, 0, a.m);
+    squash(a.px, a.py, a.pz, w, h, w, drop * CELL_H * Math.max(a.amp, 0.22), 0, 0, a.m);
   } else if (a.kind === 'wobble') {
     const lean = wobbleAt(t) * a.amp;
     squash(a.px, a.py, a.pz, 1, 1, 1, 0, lean * a.dz, -lean * a.dx, a.m);
@@ -178,6 +181,9 @@ function propsOn(state: State, stage: LifeStage, shape: ShapePlan, id: Structure
 
 function start(state: State, ctx: SystemContext, shape: ShapePlan, kind: ActKind, s: Structure, pivot: readonly [number, number, number], time: number, lean?: readonly [number, number]): Act | null {
   const old = state.byStructure.get(s.id);
+  // A mass already landing that is landed on again (a run of edits, Grow a town) carries on with its bounce
+  // rather than jumping back to the top of it every few frames.
+  if (old && old.kind === 'land' && kind !== 'vanish' && old.age < old.time * 0.7) return old;
   if (old) {
     finish(state, ctx.stage, old);
     state.acts = state.acts.filter((a) => a !== old);
@@ -216,13 +222,20 @@ function start(state: State, ctx: SystemContext, shape: ShapePlan, kind: ActKind
 function dust(state: State, ctx: SystemContext, x: number, y: number, z: number, size: number): void {
   const fx = fxOf(ctx.stage);
   const k = state.n++;
+  // In a quick run of landings (a held-length run, Grow a town) each throws a smaller puff and no ring, so
+  // the dust reads as one busy patch of work, not a field of rings.
+  const busy = state.clock - state.lastDust < FEEDBACK.dustTime * 0.5;
+  state.lastDust = state.clock;
+  if (busy) size *= 0.65;
   const turn = rand(ctx.seed, 'dust', k) * TAU;
   const reach = FEEDBACK.dustReach * size;
-  fx.play(RING, FEEDBACK.dustTime * 0.62, (t, m) => {
-    const r = lerp(0.5 * size, reach * 1.08, easeOut(t));
-    place(x, y, z, turn, r, 1, r, m);
-  }, { smooth: true });
-  const count = Math.round(FEEDBACK.dustPuffs * (size < 1 ? 0.6 : 1));
+  if (!busy) {
+    fx.play(RING, FEEDBACK.dustTime * 0.62, (t, m) => {
+      const r = lerp(0.5 * size, reach * 1.08, easeOut(t));
+      place(x, y, z, turn, r, 1, r, m);
+    }, { smooth: true });
+  }
+  const count = Math.round(FEEDBACK.dustPuffs * (size < 1 ? 0.6 : 1) * (busy ? 0.5 : 1));
   for (let i = 0; i < count; i++) {
     const a = turn + ((i + rand(ctx.seed, 'dust', k, i, 'a') * 0.7) / count) * TAU;
     const far = reach * (0.8 + 0.4 * rand(ctx.seed, 'dust', k, i, 'r'));
@@ -444,7 +457,7 @@ function dressingChanged(state: State, ctx: SystemContext, next: DressingPlan): 
 export default defineSystem<State>({
   id: 'feedback',
   order: 10,
-  create: () => ({ acts: [], byStructure: new Map(), pops: [], dressing: null, where: new Map(), editAt: null, n: 0, scratch: identity() }),
+  create: () => ({ acts: [], byStructure: new Map(), pops: [], dressing: null, where: new Map(), editAt: null, n: 0, scratch: identity(), clock: 0, lastDust: -1 }),
 
   sync(state, next, prev, ctx) {
     if (prev && next.shape !== prev.shape) shapeChanged(state, ctx, prev.shape, next.shape);
@@ -452,6 +465,7 @@ export default defineSystem<State>({
   },
 
   update(state, dt, _signals, ctx) {
+    state.clock += dt;
     if (state.acts.length > 0) {
       let kept = 0;
       for (const a of state.acts) {

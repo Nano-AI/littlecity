@@ -168,7 +168,35 @@ function gateOf(plan: ShapePlan, nav: NavGraph, c: Castle): Castle['gate'] {
       return { node: door.node, dx, dz };
     }
   }
-  return null;
+  // No gate and no door (a keep on its own): the troop halts at the foot of the side that faces the nearest
+  // street, or else the most open side.
+  const streets: number[] = [];
+  for (let i = 0; i < nav.nodes.length; i++) if (nav.nodes[i]!.surface === 'path' || nav.nodes[i]!.surface === 'plaza') streets.push(i);
+  let best: Castle['gate'] = null;
+  let bestScore = -Infinity;
+  for (let i = 0; i < nav.nodes.length; i++) {
+    const n = nav.nodes[i]!;
+    if (n.rot !== undefined || n.passage !== undefined) continue;
+    const x = keyX(n.cell), z = keyZ(n.cell);
+    if (c.columns.has(columnIndex(x, z))) continue;
+    for (const [dx, dz] of DIR4) {
+      // Right at the foot of the castle: the castle is one step behind it.
+      if (!inColumnBounds(x - dx, z - dz) || !c.columns.has(columnIndex(x - dx, z - dz))) continue;
+      let street = Infinity;
+      for (const s of streets) {
+        if (nav.part[s] !== nav.part[i]) continue;
+        street = Math.min(street, Math.abs(keyX(nav.nodes[s]!.cell) - x) + Math.abs(keyZ(nav.nodes[s]!.cell) - z));
+      }
+      let open = 0;
+      for (let ox = -2; ox <= 2; ox++) for (let oz = -2; oz <= 2; oz++) if (inColumnBounds(x + ox, z + oz) && nav.nodeAt.has(key(x + ox, keyY(n.cell), z + oz))) open++;
+      const score = (Number.isFinite(street) ? 100 - street : 0) * 30 + open;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { node: i, dx, dz };
+      }
+    }
+  }
+  return best;
 }
 
 function cellBeside(cell: CellKey, dx: number, dz: number): CellKey {

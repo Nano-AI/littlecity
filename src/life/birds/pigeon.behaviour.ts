@@ -433,6 +433,13 @@ export function updatePigeon(s: PigeonState, dt: number, signals: Signals, ctx: 
 }
 
 function land(s: PigeonState, ctx: Ctx, x: number, z: number): void {
+  // Touch down where the body is (it steers after its target and trails it a little), so it does not
+  // jump the last few centimetres in one frame.
+  const bx = s.body.x, bz = s.body.z;
+  if (Math.hypot(bx - x, bz - z) < 0.25) {
+    x = bx;
+    z = bz;
+  }
   s.mode = 'ground';
   s.modeT = 0;
   s.x = s.fromX = s.toX = x;

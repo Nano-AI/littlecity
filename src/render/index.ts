@@ -90,7 +90,8 @@ function geometryStyleKey(): string {
 
 /** The wind texture covers the map plus this margin, at this many texels a side. */
 const WIND_MARGIN = 8;
-const WIND_TEXELS = 16;
+// Two columns a texel: a gust front's leading edge is about two columns, and coarser texels blurred it away.
+const WIND_TEXELS = 32;
 /** How far under the sea the sheet of paper lies (where the slab's shadow falls). */
 const PAPER_Y = -3.2;
 

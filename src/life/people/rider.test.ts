@@ -3,11 +3,12 @@
 // and into sharp turns, home to the same tether every time.
 
 import { describe, expect, test } from 'vitest';
-import { keyX, keyZ } from '@/core/grid';
+import { columnIndex, keyX, keyZ } from '@/core/grid';
 import { findCastles } from '@/rules/life/castle.lib';
 import { RIDER } from '@/style/people';
 import everything from '../../../scenarios/core/everything.scenario';
-import { createRide, rideOf } from './rider';
+import riderTown from '../../../scenarios/rules/L37.rider.scenario';
+import { createRide, rideOf, tetherOf } from './rider';
 import { createRouter } from './route';
 import { clock, scenarioTown } from './testing';
 
@@ -67,5 +68,41 @@ describe('the rider (L37)', () => {
     expect(walk).toBeGreaterThan(0);
     expect(maxTurn).toBeLessThanOrEqual(2.7);
     expect(crowdFrames).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('a rider for every castle (L37 fixture)', () => {
+  const t = scenarioTown(riderTown);
+  const router = createRouter(t.nav);
+  const sq = t.dressing.sockets.filter((s) => s.type === 'haunt-square').map((s) => t.nav.nodeAt.get(s.cell)!).filter((n) => n !== undefined);
+  const castles = findCastles(t.shape, t.nav);
+  const at = (x: number, z: number) => castles.find((c) => c.columns.has(columnIndex(x, z)))!;
+
+  test('with a square: to the square and back', () => {
+    const track = rideOf(t.nav, router, at(10, 8), sq)!;
+    const squares = new Set(sq);
+    expect(track.node.some((n) => squares.has(n))).toBe(true);
+  });
+
+  test('a street but no square: along the street and back to where it started', () => {
+    const track = rideOf(t.nav, router, at(30, 6), sq)!;
+    expect(track).not.toBeNull();
+    expect(track.length).toBeGreaterThan(5);
+    expect(track.node.every((n) => t.nav.nodes[n]!.surface === 'path' || t.nav.nodes[n]!.surface === 'plaza' || keyZ(t.nav.nodes[n]!.cell) >= 12)).toBe(true);
+    expect(track.x[0]).toBeCloseTo(track.x[track.x.length - 1]!, 6);
+    expect(track.z[0]).toBeCloseTo(track.z[track.z.length - 1]!, 6);
+  });
+
+  test('no street: the horse stands tethered by the lone keep all day', () => {
+    const keep = at(37, 35);
+    expect(keep.keep).not.toBeNull();
+    expect(keep.gate).not.toBeNull();
+    expect(rideOf(t.nav, router, keep, sq)).toBeNull();
+    const tether = tetherOf(t.nav, keep)!;
+    const c = clock(t.world.seed, 'day');
+    const ride = createRide(keep, null, 3, c.time, tether);
+    for (let i = 0; i < 30 * 120; i++) ride.step(1 / 30, c.time, () => false);
+    expect(ride.riding).toBe(false);
+    expect([ride.x, ride.z]).toEqual([tether.x, tether.z]);
   });
 });

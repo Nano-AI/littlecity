@@ -58,33 +58,99 @@ node src/life/testing/sequence.mjs dressing-town --gust --zoom 3 --frames 12 --e
 8. (Added by request) **Castle life**: L36 garrison and L37 rider, see the
    handoff.
 
+## Second pass (watching the rest)
+
+Sequences: `seed:3 --grow` (Grow a town at 25 pieces a second, close on its
+square), `fx-feedback` with eight houses and a block on a roof placed at
+once, `people-town` row landing, `everything` lamplighter at dusk
+(followed), a sitter on a garden bench, `L18.fishing-boat` at dawn,
+`L36.garrison` marching from several quarters, the rider trotting close up,
+`L05.leaves --gust`.
+
+### Watched and fixed
+- **Grow a town turned to noise.** A merged building took a new cell every
+  few frames and jumped back to the top of its drop each time; every landing
+  threw a full dust ring. Now a landing already under way carries on (a
+  wobble or another landing joins it), and landings within a quarter second
+  of the last throw a smaller puff and no ring. Test: feedback.test.ts, "a
+  run of cells landing on one mass every 40 ms".
+- **A whole terrace jumped when one cell was added.** A 19-cell mass dropped
+  0.14 (45% of a block's drop, the old floor); it now drops 0.07, a hand's
+  breadth. Test updated to say so.
+- **Door glass lit with the clock, not with who is home.** The window
+  behaviour publishes each house's light level; door leaves give it to their
+  glass. Test: src/life/doors/door-leaf.test.ts.
+- **Pigeons touched down where they were aiming, not where they were** (a
+  last-frame jump of the trailing body). Test: birds.test.ts, "a pigeon comes
+  down without a jump". The take-off is a burst on purpose and left as is.
+- **The fishing boat crabbed sideways off the dock**: it gathered way along a
+  leg while its bow was still swinging round. Its pace now follows how well
+  it faces the leg, and it leans a little into turns. Test: fishing.test.ts,
+  "it goes bow first".
+- **The troop read as a clump** marching toward or away from the camera: the
+  right-hand file now marches GARRISON.stagger (0.16) behind the left, so the
+  two files separate from every quarter (watched: it reads as two files).
+- **The rider's legs were inside the horse**: they are turned out about the
+  hips and come down the flanks. Test: garrison.test.ts.
+- **Gust texture**: the wind texture is 32 × 32 (two columns a texel), so the
+  front's 2-column leading edge is no longer blurred away.
+
+- **A keep on its own had no garrison** (no door or passage made a gate).
+  Now a castle with no gate halts its troop at the foot of the side facing
+  the nearest street, or else the most open side; the troop marches round
+  the keep. A lone keep keeps its L23 guard on top too; a walled castle's
+  keep does not. Tests: troop.test.ts, "a keep on its own"; L37 fixture.
+- **The rider was drawn only where there was a plaza.** Every garrisoned
+  castle now keeps a rider (L37). With a street from the gate and a square
+  it can reach, it rides to the square and back; with a street and no
+  square, along the street to its far end or the first crossing four or more
+  cells on, and back; with no street, the horse stands tethered by the gate.
+  Tests: rider.test.ts, "a rider for every castle"; the L37 fixture has all
+  three. Guide entries `garrison` and `rider` say so, with recipes for each
+  case, and their pictures are re-rendered.
+
+### Watched and fine
+- Eight separate houses landing in one go, and a block landing on a roof
+  (the building under it bounces as one; its props are carried).
+- A single house landing beside a row; the neighbour's wobble.
+- The lamplighter at dusk walks his round with his pole; lamps on his round
+  wait for him, the rest light street by street a few seconds apart (by
+  design, lamps.system.ts).
+- A resident sitting on a garden bench sits on it, facing out.
+- Shop doors standing open by day, with dark doorways; house doors opening
+  for people going in.
+- Moored rowboats and their lines at the L18 quay at dawn.
+
+### Checked in the code and its tests, not re-watched
+- Smoke: puffs fade in at the pot and out at the end, and join or leave the
+  plume only at the pot (wind.test.ts).
+- Sails turn faster in more wind and face-on; the cap comes round slowly to
+  the wind (wind.test.ts, mechanisms.test.ts).
+- Clock hands: continuous through every part of the day (gameHour meets
+  itself at each boundary); they only jump when the player jumps the time.
+- Lighthouse beam: comes up over DUSKY.beamFade seconds at night, down at
+  dawn.
+- Flags, laundry, bunting: swayed in the shader, phased by place and per
+  item, so neighbours are not in step.
+- Sailboats heel to the wind already; rowboats tug their lines (taut).
+
 ## Found and still open
 
-- **Gust front by eye.** With the fixes above it is a cleaner lean that
-  sweeps across, but in contact sheets at playing zoom a tree's sway is a few
-  pixels; I could not prove by eye that one front reads across trees,
-  laundry, flags, smoke and sails together. It is one field numerically
-  (`signals.test.ts`). Next step if wanted: a 32 × 32 wind texture (it is 16
-  × 16, 4 columns a texel, which blurs a 2-column leading edge) in
-  `src/render/index.ts`.
-- **Glass in a door leaf** lights with the time of day, not with whether
-  anyone is home (the leaf is an actor; its glow param is the default).
-- **The rider's legs** are hidden in the horse's barrel (people's legs only
-  swing fore and aft; there is no straddle).
-- **The troop reads as a clump** when it marches straight toward or away
-  from the camera at playing zoom; side-on it reads as a column of twos.
-- **The everything town's castle** has no walkable loop round its walls (the
-  cottage on the north-west point and its trees close it), so its troop
-  marches there and back along the longest side. The L36 fixture has a loop.
-- **Not looked at closely in this pass** (no time left after doors,
-  thresholds and the castle): sitting poses against benches, bird landings
-  and perches, pigeons and walkers, boat banking and piers, mooring lines,
-  smoke birth and death, the lighthouse beam's start, sails and cap against
-  wind, flags and laundry in phase, clock hands, lamps lighting together,
-  windows against people arriving home, the landing bounce on merged rows,
-  neighbour wobble, pop-in of decorations, people on the covered sky bridge
-  (still hidden, by design). These are the next watching pass, in that
-  order of how often they are on screen.
+- **Gust front by eye.** Even with the fixes (no shiver, slower and sharper
+  front, finer texture) I cannot see the front cross in still contact sheets:
+  a tree's sway is a pixel or two at any zoom the camera allows, and smoke is
+  the only thing that visibly leans. It is one field numerically
+  (signals.test.ts). Left as it is; it would take a much stronger sway, which
+  would be busier than the style wants.
+- **The everything town's castle** has no walkable loop round its walls: the
+  cottage on the north-west point closes one corner, and the south side
+  changes level with no steps. A wider search (5 cells out) found no loop
+  either, so its troop still marches there and back along the longest side.
+  The L36 fixture has a loop.
+- **The bell** is small in its belfry; not changed.
+- **Not watched**: pigeons scattering for walkers (tested in birds.test.ts),
+  perching gulls and the smaller characters, sailboats near piers, the
+  rower's route, the sky bridge (people on it stay hidden, by design).
 - **Small creatures** (cats, sparrows, bees, leaves): left as they are, as
   rewards for zooming in. Making them read at the default zoom would mean
   more contrast or bigger, busier motion; fewer, calmer motions won.

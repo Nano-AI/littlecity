@@ -239,7 +239,10 @@ export function createTroop(nav: NavGraph, castle: Castle, track: Track, time: T
         continue;
       }
       // Front row leads: with sense 1 the front is at s + span.
-      const at = sense === 1 ? s + span - row * GARRISON.spacing : s + row * GARRISON.spacing;
+      // The right-hand file marches a little behind the left, so from any quarter the two files read as
+      // separate figures (dead behind a column of twos, each pair would be one blot).
+      const behind = file === 1 ? GARRISON.stagger : 0;
+      const at = (sense === 1 ? s + span - row * GARRISON.spacing : s + row * GARRISON.spacing) - sense * behind;
       trackAt(track, at, pt);
       // Right of the line of march is (−dz, dx) when facing (dx, dz); the files sit either side.
       const rx = -pt.dz * sense, rz = pt.dx * sense;
