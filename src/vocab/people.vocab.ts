@@ -8,6 +8,9 @@ declare module '@/core/vocab' {
     // L21 (already in the core vocabulary): 'resident', '.index', '.look'.
     // A child (L28): smaller, and runs.
     'resident/child': true;
+    // A resident of a house whose door opens onto nothing walkable: at home for good, never drawn,
+    // not counted toward the cap. They still light the windows.
+    'resident/indoors': true;
     // L23: the job this resident does (they are still a resident of `home`), and the structure they work at.
     'resident.job': string;
     'resident.work': number;

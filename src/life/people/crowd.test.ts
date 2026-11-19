@@ -8,6 +8,7 @@ import { usableDoors } from '@/resolve/nav';
 import { flatTerrain, TerrainBuilder, TownBuilder } from '@/scenario';
 import { PEOPLE } from '@/style/people';
 import { emptyWorld } from '@/world/world';
+import bench from '../../../scenarios/bench/bench-2000.scenario';
 import peopleTown from '../../../scenarios/people/people-town.scenario';
 import { createCrowd } from './crowd';
 import { clock, resolved, run, scenarioTown, townOf, watch } from './testing';
@@ -93,6 +94,41 @@ describe('a day in the town', () => {
     const phone = createCrowd({ cap: 30 });
     phone.sync(big.shape, big.dressing, clock().time);
     expect(phone.people.map((p) => p.id)).toEqual(residents.slice(0, 30).map((a) => a.id));
+  });
+});
+
+describe('the big town', () => {
+  test('sixty people on the 2,000-block town: nobody leaves the graph, and a step costs a fraction of a millisecond', () => {
+    const town = scenarioTown(bench);
+    // The first houses of this town stand at the water's edge with their doors over the sea: their people
+    // are indoors for good and do not count toward the cap.
+    const residents = town.dressing.actors.filter((a) => a.type === 'resident');
+    expect(residents.filter((a) => a.variant !== 'indoors')).toHaveLength(PEOPLE.cap);
+    expect(residents.filter((a) => a.variant === 'indoors').length).toBeGreaterThan(10);
+    const c = clock(town.world.seed);
+    const crowd = createCrowd();
+    crowd.sync(town.shape, town.dressing, c.time);
+    const w = watch(crowd);
+    for (let i = 0; i < 300; i++) crowd.step(c.tick(1 / 30), c.time); // warm up
+    let worst = 0;
+    const t0 = performance.now();
+    const steps = 30 * 120;
+    for (let i = 0; i < steps; i++) {
+      const a = performance.now();
+      crowd.step(c.tick(1 / 30), c.time);
+      worst = Math.max(worst, performance.now() - a);
+      w.check();
+    }
+    const mean = (performance.now() - t0) / steps; // includes the watcher
+    expect(w.problems).toEqual([]);
+    expect(w.arrivals).toBeGreaterThan(100);
+    expect(w.mostOut).toBeGreaterThan(30);
+    expect(crowd.people.filter((p) => p.shutIn).every((p) => p.mode === 'home' && !p.visible)).toBe(true);
+    // About 0.03 ms a step and 1 ms at worst on the machine this was written on; the bounds are loose
+    // because test machines are busy. A frame is 16.7 ms.
+    expect(mean).toBeLessThan(1.5);
+    expect(worst).toBeLessThan(12);
+    console.info(`crowd on bench-2000: ${crowd.people.length} people, mean ${mean.toFixed(3)} ms a step, worst ${worst.toFixed(2)} ms, ${crowd.router!.stats.searches} searches, ${crowd.router!.stats.hits} cache hits`);
   });
 });
 
@@ -210,6 +246,9 @@ describe('routes people take', () => {
     const town = resolved(b.world, b.terrain);
     const { crowd, watch: w } = run(town, 60);
     expect(crowd.people).toHaveLength(1);
+    expect(town.dressing.actors[0]!.variant).toBe('indoors');
+    expect(crowd.people[0]!.shutIn).toBe(true);
+    expect(crowd.atHome.get(crowd.people[0]!.home)).toBe(1);
     expect(crowd.people[0]!.mode).toBe('home');
     expect(crowd.people[0]!.visible).toBe(false);
     expect(w.mostOut).toBe(0);

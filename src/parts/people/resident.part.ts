@@ -5,12 +5,14 @@
 
 import { scaling } from '@/core/mat4';
 import { definePart } from '@/gen/api';
+import { emptyMesh } from '@/gen/mesh';
 import { assemblePerson, buildPerson, lookOf } from './person';
 import { poseOf, rigMatrices } from './pose';
 
 export default definePart({
   actor: 'resident',
   build(item, ctx) {
+    if (item.variant === 'indoors') return { mesh: emptyMesh() }; // never comes out
     const look = lookOf(item.params?.look ?? ctx.seed, item.variant === 'child');
     const m = rigMatrices(look, poseOf('stand', 0));
     const b = ctx.mesh();

@@ -75,6 +75,8 @@ export interface Person {
   readonly speed: number;
   /** Among the few allowed out at night (L25). */
   owl: boolean;
+  /** Their house has no door they can use: at home for good (resident/indoors). */
+  shutIn: boolean;
 
   mode: Mode;
   visible: boolean;
@@ -812,6 +814,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       rank: rand(s, 'rank'),
       speed: PEOPLE.speed * (1 + (rand(s, 'speed') * 2 - 1) * PEOPLE.speedVary) * (child ? PEOPLE.childSpeed : 1),
       owl: false,
+      shutIn: false,
       mode: 'home', visible: false, fade: 1,
       x: 0, y: 0, z: 0, heading: rand(s, 'heading') * 6.28,
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
@@ -847,12 +850,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
 
       // Who lives here now (L21): the plan's residents in order, up to the cap.
       const cap = opts.cap ?? PEOPLE.cap;
-      const wanted = new Map<string, { home: StructureId; index: number; look: number; child: boolean }>();
+      // Those who can never leave their house (resident/indoors) are kept, at home, and are not counted.
+      const wanted = new Map<string, { home: StructureId; index: number; look: number; child: boolean; indoors: boolean }>();
+      let walkers = 0;
       for (const a of dressing.actors) {
         if (a.type !== 'resident' || a.home === undefined) continue;
-        if (wanted.size >= cap) break;
+        if (a.variant !== 'indoors' && walkers++ >= cap) continue;
         const params = (a.params ?? {}) as { index?: number; look?: number };
-        wanted.set(a.id, { home: a.home, index: params.index ?? 0, look: params.look ?? 0, child: a.variant === 'child' });
+        wanted.set(a.id, { home: a.home, index: params.index ?? 0, look: params.look ?? 0, child: a.variant === 'child', indoors: a.variant === 'indoors' });
       }
 
       // Those already here: keep them where they are if the ground under them is still ground.
@@ -927,17 +932,20 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const had = byId.get(id);
         if (had && had.mode !== 'gone') {
           had.home = w.home;
+          had.shutIn = w.indoors;
           continue;
         }
         const p = makePerson(id, w.home, w.index, w.look, w.child);
+        p.shutIn = w.indoors;
         people.push(p);
         byId.set(id, p);
         fresh.push(p);
         events.added?.(p);
       }
       // The night owls (L25): the lowest ranks, never more than a tenth of the town.
-      const owls = Math.floor(wanted.size * PEOPLE.nightOut);
-      const ranked = people.filter((p) => p.mode !== 'gone' && !p.leaving).sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : 1));
+      const owls = Math.floor(Math.min(walkers, cap) * PEOPLE.nightOut);
+      const ranked = people.filter((p) => p.mode !== 'gone' && !p.leaving && !p.shutIn).sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : 1));
+      for (const p of people) p.owl = false;
       ranked.forEach((p, i) => (p.owl = i < owls));
       for (const p of fresh) {
         if (first) warmStart(p, time);
