@@ -407,6 +407,42 @@ player that a house beside a tower becomes a chapel. The guide does.
   when (dock on water; arch across a gap; tower when three stacked; a
   lighthouse when four stacked near the sea; otherwise a house).
 
+**Walk mode** (Derek's request, 2026-11-19). Drop yourself into the town
+and walk through it as one of its people.
+
+- **Getting in.** A small figure sits in the top bar. Drag it onto the town
+  (on touch: drag it, or tap it and then tap a spot). While dragging, the
+  ground under the pointer shows a footprint marker where you can stand
+  (any place a resident can walk) and nothing where you cannot. On release
+  the camera glides down from the builder's view to your eyes, in about a
+  second. Tapping the figure without dragging drops you at the main square,
+  or by the nearest door if there is no square.
+- **The view.** First person, at a little person's eye height, with
+  perspective, drawn in the same ink and paper. Looking up shows a paper sky
+  with the day's colour, clouds, the moon and stars at night. Your own body
+  is not drawn. A third-person toggle (V) pulls the camera back behind a
+  drawn figure of you.
+- **Moving.** Desktop: W A S D or the arrow keys to walk, Shift to run, drag
+  or pointer-lock mouse to look; click the view to capture the mouse, Escape
+  to release it. Touch: a thumb pad at lower left to walk, drag anywhere
+  else to look. You walk where residents can: paths, grass, stairs and
+  carved steps, bridges and decks, docks, roof terraces. You cannot pass
+  through walls, fences without a gate, or off a drop of two levels or more;
+  a one-level step down is a hop. Movement is smooth (you slide along what
+  blocks you) and never snaps between cells.
+- **Doors and insides.** Doors open for you as they do for residents.
+  Walking into a house takes you through it: the view fades for a moment
+  and you step out of its other door or onto its roof terrace if it has
+  one; a house with one door turns you back out. Interiors are not drawn.
+- **The town carries on.** Residents, the troop, birds, boats, smoke, the
+  dusk cycle and sound all continue around you; people step round you; a
+  resident you stand beside turns and shows a chat bubble.
+- **Getting out.** An Exit button (and Escape when the mouse is free, or B)
+  lifts the camera back to the builder's view where it was. Building tools
+  are hidden while walking; the time-of-day button stays.
+- **Limits.** Walk mode never changes the town or the save. On phones it
+  uses the same performance fallbacks as the builder.
+
 **Placement rules**
 
 - The target cell must be inside the grid and hold no block. Because the

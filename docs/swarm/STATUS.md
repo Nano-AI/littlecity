@@ -358,3 +358,13 @@ storeys counted on the tallest column; R-H05 boathouse limited to footprint
 houses draw with a separate roof and door per level (stepped look); a
 continuous roof across a step is not built.
 Running: terrain2, coplanar.
+
+**Link previews added by the orchestrator:** Open Graph and Twitter card
+tags in `index.html`, `public/og.jpg` (1200 × 630, 240 KB, a render of the
+`everything` town with a title tag), favicon and touch icon. Verified live:
+tags and image served; a share link made on the public site reopens the
+same town in a fresh browser. Per-town preview pictures are not possible on
+GitHub Pages (crawlers run no scripts and never see the `#t=` part).
+**Walk mode requested by Derek** (design section 7 "Walk mode") → new Opus
+agent on `swarm/walk`.
+Running: terrain2, coplanar, walk.
