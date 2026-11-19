@@ -7,6 +7,7 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
+import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import type { DayPart, InstanceHandle, SignalsDriver } from '@/life/api';
 import { createSignals } from '@/life/signals';
 import { resolveDressing, resolveShape } from '@/resolve/index';
@@ -127,6 +128,11 @@ const api = {
   frameOnly(seconds = 0): void {
     for (let t = 0; t < seconds; t += 1 / 30) signals!.advance(Math.min(1 / 30, seconds));
     view!.render(signals!);
+  },
+  /** Changes one style value, as the tuning panel does. No arguments puts every value back. */
+  style(name?: string, key?: string, value?: StyleValue): void {
+    if (name === undefined || key === undefined || value === undefined) resetStyles();
+    else setStyle(name, key, value);
   },
   time(part: DayPart): void {
     signals!.hold(part);

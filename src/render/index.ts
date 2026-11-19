@@ -53,6 +53,7 @@ import { gradeAt } from './grade';
 import { PoolMesh } from './poolmesh';
 import { registriesFor, type Registries } from './registries';
 import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
+import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
 import { surfaceFragment, surfaceVertex } from './shaders/surface';
 import { SLOT_WIDTH, SlotTable } from './slots';
 
@@ -154,6 +155,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     ? new THREE.WebGLRenderTarget(4, 4, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace })
     : null;
 
+  // Grounding: the town's heights from straight above, and the shade baked from them (shaders/ground.ts).
+  const groundSize = halfInk ? 512 : 1024;
+  const heightRT = new THREE.WebGLRenderTarget(groundSize, groundSize, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: false, generateMipmaps: false });
+  heightRT.depthTexture = new THREE.DepthTexture(groundSize, groundSize, THREE.UnsignedIntType);
+  const shadeRT = new THREE.WebGLRenderTarget(groundSize, groundSize, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace });
+
   // ── data textures ────────────────────────────────────────────────────────
   const slots = new SlotTable();
   let slotGeneration = -1;
@@ -191,6 +198,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uFlowerA: v3(),
     uFlowerB: v3(),
     uFlowerC: v3(),
+    tHeight: { value: heightRT.depthTexture as THREE.Texture },
+    tShade: { value: shadeRT.texture as THREE.Texture },
+    uMap: { value: new THREE.Vector4(GROUND_MAP.x0, GROUND_MAP.z0, 1 / GROUND_MAP.size, GROUND_MAP.top) },
+    uMapRange: { value: GROUND_MAP.range },
+    uGround: { value: 0 },
+    uSlope: { value: 1.25 },
+    uCast: { value: 0.5 },
     // overlay only
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
     uCanvas: { value: new THREE.Vector2(1, 1) },
@@ -221,6 +235,28 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
     depthTest: true,
     depthWrite: true,
+  });
+  const heightMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    vertexShader: heightVertex,
+    fragmentShader: heightFragment,
+    uniforms: { uSlots: surfaceUniforms.uSlots, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange },
+    side: THREE.DoubleSide,
+    colorWrite: false,
+  });
+  const toLight = Math.hypot(LIGHT[0], LIGHT[2]);
+  const shadeMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    vertexShader: screenVertex,
+    fragmentShader: shadeFragment,
+    uniforms: {
+      tHeight: surfaceUniforms.tHeight,
+      uMap: surfaceUniforms.uMap,
+      uMapRange: surfaceUniforms.uMapRange,
+      uToLight: { value: new THREE.Vector2(LIGHT[0] / toLight, LIGHT[2] / toLight) },
+    },
+    depthTest: false,
+    depthWrite: false,
   });
   const paperUniforms = {
     uPaper: v3(),
@@ -309,6 +345,16 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const postScene = new THREE.Scene();
   postScene.add(screenMesh(compositeMaterial));
   const inkScene = inkMaterial ? new THREE.Scene().add(screenMesh(inkMaterial)) : null;
+  const shadeScene = new THREE.Scene().add(screenMesh(shadeMaterial));
+  // The height pass ignores this camera's matrices (its shader maps the map square itself), but
+  // Three.js still culls against it, so it looks straight down at the whole map from above.
+  const mapCamera = new THREE.OrthographicCamera(-40, 40, 40, -40, 1, 120);
+  mapCamera.position.set(SIZE_X / 2, 80, SIZE_Z / 2);
+  mapCamera.up.set(0, 0, -1);
+  mapCamera.lookAt(SIZE_X / 2, 0, SIZE_Z / 2);
+  mapCamera.updateMatrixWorld(true);
+  let groundStale = true;
+  let groundAge = 0;
   const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, CAMERA_NEAR, CAMERA_FAR);
   camera.matrixAutoUpdate = false;
@@ -832,12 +878,35 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         slotTex.needsUpdate = true;
       }
       let overlay = false;
+      let rebuilt = false;
       for (const p of allPools) {
-        p.sync();
+        rebuilt = p.sync() || rebuilt;
         overlay ||= p.overlay.visible;
       }
+      su.uGround.value = LOOK.ground;
+      su.uSlope.value = grade.slope;
+      su.uCast.value = grade.cast;
 
       renderer.info.reset();
+      // Grounding: redraw the height picture when geometry changed, and (at most every other frame)
+      // when something moved. A still town pays nothing for it.
+      groundAge++;
+      if (rebuilt) groundStale = true;
+      else if (slots.moved && groundAge >= 2) groundStale = true;
+      if (groundStale && LOOK.ground > 0) {
+        groundStale = false;
+        slots.moved = false;
+        groundAge = 0;
+        paperMesh.visible = false;
+        scene.overrideMaterial = heightMaterial;
+        renderer.setRenderTarget(heightRT);
+        renderer.clear(true, true, false);
+        renderer.render(scene, mapCamera);
+        scene.overrideMaterial = null;
+        paperMesh.visible = true;
+        renderer.setRenderTarget(shadeRT);
+        renderer.render(shadeScene, postCamera);
+      }
       renderer.setRenderTarget(sceneRT);
       renderer.clear(true, true, false);
       renderer.render(scene, camera);
@@ -866,13 +935,16 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       structures.clear();
       layers.clear();
       items.clear();
+      heightRT.depthTexture?.dispose();
+      heightRT.dispose();
+      shadeRT.dispose();
       sceneRT.depthTexture?.dispose();
       sceneRT.dispose();
       inkRT?.dispose();
       slotTex.dispose();
       windTex.dispose();
       screenGeometry.dispose();
-      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial]) m?.dispose();
+      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial]) m?.dispose();
       renderer.dispose();
     },
   };

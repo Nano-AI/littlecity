@@ -142,6 +142,14 @@ uniform vec3 uLamp;
 uniform vec3 uFlowerA;
 uniform vec3 uFlowerB;
 uniform vec3 uFlowerC;
+// Grounding (shaders/ground.ts): the town's heights seen from above, and the shade baked from them.
+uniform sampler2D tHeight;
+uniform sampler2D tShade;
+uniform vec4 uMap;        // x0, z0, 1 / size, top
+uniform float uMapRange;
+uniform float uGround;    // strength of the whole effect
+uniform float uSlope;     // how steeply the light falls: lower is a longer cast shadow
+uniform float uCast;      // strength of the cast shadow
 
 #ifdef OVERLAY
 uniform sampler2D tDepth;
@@ -159,6 +167,31 @@ layout(location = 1) out vec4 oId;
 
 ${NOISE}
 ${COLOR}
+
+float heightOver(vec2 xz){ return uMap.w - texture(tHeight, (xz - uMap.xy) * uMap.z).x * uMapRange; }
+
+// How much this point is grounded: 0 open, toward 1 in the deepest contact shade. The lookups are
+// nudged by a slow noise, so the edge of the shade wanders like a pencilled one instead of being ruled.
+float grounding(vec3 n){
+  if (uGround <= 0.0) return 0.0;
+  vec2 xz = vW.xz + (vec2(n2(vW.xz * 2.3), n2(vW.xz * 2.3 + 9.0)) - 0.5) * 0.09;
+  if (n.y > 0.5) {
+    vec4 sh = texture(tShade, (xz - uMap.xy) * uMap.z);
+    float contact = smoothstep(0.06, 0.45, sh.r) * 0.72;
+    float thrown = smoothstep(uSlope - 0.1, uSlope + 0.1, sh.g * 3.0) * uCast;
+    float cover = smoothstep(0.22, 0.5, heightOver(xz) - vW.y) * 0.8;       // under a crown, an arch, a deck
+    return max(max(contact, thrown), cover);
+  }
+  if (abs(n.y) < 0.5 && length(n.xz) > 0.1) {
+    vec2 away = normalize(n.xz);
+    float up = vW.y - heightOver(xz + away * 0.27);                          // height above the ground at the wall's foot
+    float foot = (1.0 - smoothstep(0.0, 0.26, up)) * step(-0.04, up) * 0.7;
+    float under = heightOver(vW.xz + away * 0.05) - vW.y;                    // just under an eave or a ledge
+    float eave = (1.0 - smoothstep(0.02, 0.2, under)) * step(0.025, under) * 0.7;
+    return max(foot, eave);
+  }
+  return 0.0;
+}
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
 float band(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
@@ -245,6 +278,8 @@ void main(){
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), 0.024);
     float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2));
     c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0) * fade(0.12));
+    // Things standing in the water (a dock, a hull) darken it a little where they meet it.
+    c *= mix(vec3(1.0), vec3(0.8, 0.84, 0.93), grounding(n) * uGround * smoothstep(0.15, 0.4, sd));
     col = c;
   } else {
     col = shade(base, s);
@@ -517,6 +552,10 @@ void main(){
     float stroke = 1.0 - smoothstep(0.14, 0.36, abs(fract(hv) - 0.5));
     float broken = smoothstep(0.3, 0.62, n2(vec2(floor(hv) * 7.3, ha * 0.04)));
     float depth = s > 0.95 ? 0.22 : (s > 0.85 ? 0.5 : (s > 0.75 ? 0.8 : 1.0));
+    // Grounding: a cooler, darker tone, and the pencil pressed harder there.
+    float gnd = hatchable > 0.5 ? grounding(n) * uGround : 0.0;
+    col *= mix(vec3(1.0), vec3(0.76, 0.77, 0.9), gnd);
+    depth = max(depth, gnd * 1.15);
     float amount = stroke * broken * depth;
     if (s < 0.75) {
       // the darkest faces get a second, crossing layer

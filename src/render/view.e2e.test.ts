@@ -23,6 +23,11 @@ afterAll(async () => {
 });
 
 const look = <T>(code: string): Promise<T> => page.evaluate(code) as Promise<T>;
+/** A frame of the town at rest: the frame after a change also redraws the grounding map, this one does not. */
+const settled = async (): Promise<FrameSummary> => {
+  await look(`window.__look.frame()`);
+  return look<FrameSummary>(`window.__look.frame()`);
+};
 const lum = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 /** Mean absolute difference between two frames' thumbnails, 0–255. */
 const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum, v, i) => sum + Math.abs(v - b.thumb[i]!), 0) / a.thumb.length;
@@ -43,11 +48,13 @@ describe('the view', () => {
     expect(f.dark).toBeLessThan(0.2);
     // The sea is blue and the picture is not blank.
     expect(f.mean[2]).toBeGreaterThan(f.mean[0]);
-    expect(f.drawCalls).toBeLessThanOrEqual(16);
+    // The first frame also draws the grounding map (the town from above); after that, a dozen calls.
+    expect(f.drawCalls).toBeLessThanOrEqual(28);
     expect(f.triangles).toBeGreaterThan(50_000);
     // The same moment drawn again is the same picture: the pen does not boil.
     const again = await look<FrameSummary>(`window.__look.frame()`);
     expect(again.thumb).toEqual(f.thumb);
+    expect(again.drawCalls).toBeLessThanOrEqual(16);
     expect(errors).toEqual([]);
   });
 
@@ -69,37 +76,37 @@ describe('the view', () => {
 
   test('a lifted structure moves without a rebuild and bakes back exactly', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full', camera: 5 })`);
-    const before = await look<FrameSummary>(`window.__look.frame()`);
+    const before = await settled();
     expect(await look<boolean>(`window.__look.lift(2.5)`)).toBe(true);
-    const up = await look<FrameSummary>(`window.__look.frame()`);
+    const up = await settled();
     expect(differ(up, before)).toBeGreaterThan(0.3);
     expect(up.drawCalls).toBe(before.drawCalls); // no extra mesh: its vertices were re-pointed at a slot
     await look(`window.__look.release()`);
-    const after = await look<FrameSummary>(`window.__look.frame()`);
+    const after = await settled();
     expect(after.thumb).toEqual(before.thumb);
     expect(await look<number>(`window.__look.rebuildMs()`)).toBeLessThan(8);
   });
 
   test('props are instances: hiding them changes the picture, showing them restores it', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full', camera: 4 })`);
-    const before = await look<FrameSummary>(`window.__look.frame()`);
+    const before = await settled();
     expect(await look<number>(`window.__look.props(false)`)).toBeGreaterThan(3);
-    const hidden = await look<FrameSummary>(`window.__look.frame()`);
+    const hidden = await settled();
     expect(differ(hidden, before)).toBeGreaterThan(0.02);
     await look(`window.__look.props(true)`);
-    expect((await look<FrameSummary>(`window.__look.frame()`)).thumb).toEqual(before.thumb);
+    expect((await settled()).thumb).toEqual(before.thumb);
   });
 
   test('the ghost preview is drawn over the page and clears without a trace', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full', camera: 5 })`);
-    const before = await look<FrameSummary>(`window.__look.frame()`);
+    const before = await settled();
     await look(`window.__look.ghost(true)`);
-    const ghost = await look<FrameSummary>(`window.__look.frame()`);
+    const ghost = await settled();
     expect(ghost.drawCalls).toBeGreaterThan(before.drawCalls);
     expect(ghost.drawCalls).toBeLessThanOrEqual(before.drawCalls + 2);
     expect(differ(ghost, before)).toBeGreaterThan(0.05);
     await look(`window.__look.ghost(false)`);
-    const after = await look<FrameSummary>(`window.__look.frame()`);
+    const after = await settled();
     expect(after.thumb).toEqual(before.thumb);
     expect(after.drawCalls).toBe(before.drawCalls);
     expect(errors).toEqual([]);
@@ -107,13 +114,39 @@ describe('the view', () => {
 
   test('half-resolution ink (the phone option) draws the same picture with softer lines', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full', pixelRatio: 2 })`);
-    const full = await look<FrameSummary>(`window.__look.frame()`);
+    const full = await settled();
     await look(`window.__look.open('look-primitives', { ink: 'half', pixelRatio: 2 })`);
-    const half = await look<FrameSummary>(`window.__look.frame()`);
+    const half = await settled();
     expect(half.width).toBe(1280);
     expect(differ(half, full)).toBeLessThan(6);
     expect(half.dark).toBeGreaterThan(full.dark * 0.25);
     expect(half.drawCalls).toBe(full.drawCalls + 1); // the ink mask pass
+    expect(errors).toEqual([]);
+  });
+
+  test('grounding: pieces sit in a soft shade of their own, at no cost once the town is still', async () => {
+    // From the north-west, the shadow side faces the viewer.
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    await look(`window.__look.camera({ yaw: 215, pitch: 30, zoom: 7.5, target: [21, 1.5, 24.5] })`);
+    const grounded = await settled();
+    await look(`window.__look.style('look', 'ground', 0)`);
+    const bare = await settled();
+    await look(`window.__look.style()`);
+    // The shade darkens the picture a little overall and changes it visibly where pieces stand ...
+    expect(differ(grounded, bare)).toBeGreaterThan(0.4);
+    expect(lum(grounded.mean)).toBeLessThan(lum(bare.mean) - 0.5);
+    // ... but gently: this is a pencilled tone, not a black shadow.
+    expect(lum(grounded.mean)).toBeGreaterThan(lum(bare.mean) - 12);
+    expect(grounded.dark).toBeLessThan(bare.dark * 1.25 + 0.002);
+    // It is baked only when something changes: a still town draws the same dozen calls with it or without.
+    expect(grounded.drawCalls).toBe(bare.drawCalls);
+    // At dusk the light is low and the cast shade reaches further.
+    await look(`window.__look.time('dusk')`);
+    const dusk = await settled();
+    await look(`window.__look.style('look', 'ground', 0)`);
+    const duskBare = await settled();
+    await look(`window.__look.style()`);
+    expect(lum(duskBare.mean) - lum(dusk.mean)).toBeGreaterThan(lum(bare.mean) - lum(grounded.mean));
     expect(errors).toEqual([]);
   });
 

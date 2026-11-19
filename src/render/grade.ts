@@ -22,6 +22,9 @@ export interface Grade {
   ink: Rgb;
   /** Colour saturation after the tint: 1 leaves it alone. */
   sat: number;
+  /** Cast shadows: how steeply the light falls (the tangent of its height), and how dark they are. */
+  slope: number;
+  cast: number;
   /** 0 by day to 1 at night: how lit the windows and lamps are. Leads the darkness a little. */
   glow: number;
   /** 0 by day to 1 in full night: stars. */
@@ -43,13 +46,15 @@ interface Key {
   lift: Rgb;
   ink: Rgb;
   sat: number;
+  slope: number;
+  cast: number;
 }
 function keys(): Record<'day' | 'dusk' | 'night' | 'dawn', Key> {
   return {
-    day: { tint: rgb(GRADE.dayTint), lift: rgb(GRADE.dayLift), ink: rgb(GRADE.dayInk), sat: GRADE.daySat },
-    dusk: { tint: rgb(GRADE.duskTint), lift: rgb(GRADE.duskLift), ink: rgb(GRADE.duskInk), sat: GRADE.duskSat },
-    night: { tint: rgb(GRADE.nightTint), lift: rgb(GRADE.nightLift), ink: rgb(GRADE.nightInk), sat: GRADE.nightSat },
-    dawn: { tint: rgb(GRADE.dawnTint), lift: rgb(GRADE.dawnLift), ink: rgb(GRADE.dawnInk), sat: GRADE.dawnSat },
+    day: { tint: rgb(GRADE.dayTint), lift: rgb(GRADE.dayLift), ink: rgb(GRADE.dayInk), sat: GRADE.daySat, slope: GRADE.daySlope, cast: GRADE.dayCast },
+    dusk: { tint: rgb(GRADE.duskTint), lift: rgb(GRADE.duskLift), ink: rgb(GRADE.duskInk), sat: GRADE.duskSat, slope: GRADE.duskSlope, cast: GRADE.duskCast },
+    night: { tint: rgb(GRADE.nightTint), lift: rgb(GRADE.nightLift), ink: rgb(GRADE.nightInk), sat: GRADE.nightSat, slope: GRADE.nightSlope, cast: GRADE.nightCast },
+    dawn: { tint: rgb(GRADE.dawnTint), lift: rgb(GRADE.dawnLift), ink: rgb(GRADE.dawnInk), sat: GRADE.dawnSat, slope: GRADE.dawnSlope, cast: GRADE.dawnCast },
   };
 }
 const blend = (a: Key, b: Key, t: number): Key => ({
@@ -57,6 +62,8 @@ const blend = (a: Key, b: Key, t: number): Key => ({
   lift: mix(a.lift, b.lift, t),
   ink: mix(a.ink, b.ink, t),
   sat: a.sat + (b.sat - a.sat) * t,
+  slope: a.slope + (b.slope - a.slope) * t,
+  cast: a.cast + (b.cast - a.cast) * t,
 });
 
 /** Where the peach of dusk and the pink of dawn peak inside their stretch (0–1). */

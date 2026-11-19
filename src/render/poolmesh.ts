@@ -25,9 +25,10 @@ export class PoolMesh {
     }
   }
 
-  /** Brings the GPU buffers up to date with the pool. Call once per frame, before drawing. */
-  sync(): void {
+  /** Brings the GPU buffers up to date with the pool. Call once per frame, before drawing. Returns whether anything changed. */
+  sync(): boolean {
     const pool = this.pool;
+    let changed = true;
     if (pool.generation !== this.generation) {
       this.generation = pool.generation;
       this.geometry.dispose();
@@ -48,6 +49,7 @@ export class PoolMesh {
       pool.takeDirty();
     } else {
       const { data, slots } = pool.takeDirty();
+      changed = data.length > 0 || slots.length > 0;
       const mark = (name: string, size: number, spans: Span[]): void => {
         if (spans.length === 0) return;
         const a = this.geometry.getAttribute(name) as THREE.BufferAttribute;
@@ -71,6 +73,7 @@ export class PoolMesh {
       sphere.center.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
       sphere.radius = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 + 2;
     }
+    return changed;
   }
 
   dispose(): void {
