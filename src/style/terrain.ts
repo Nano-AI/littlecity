@@ -29,6 +29,18 @@ export const TERRAIN = defineStyle(
     rockRun: 0.0,
     /** The same at the waterline, where every shore gets a foot. */
     shoreRun: 0.1,
+    /** A grass bank one level above the water (a river bank) slopes in this far. */
+    bankRun: 0.22,
+    /** Bare rock on a terrace top (summits, ridges, gorge rims): paler and cooler than a cliff face, so tops read as tops. */
+    rockTop: '#d9d0c0',
+    /** Rock turns this mossy green near grass, and grass this dry olive near rock: the soft border between them. */
+    rockMoss: '#c3c99e',
+    grassDry: '#c6d29a',
+    /** How far the rock border wanders off the grid, and how many tufts of grass hold on in the rock (0 for none). */
+    rockWander: 0.6,
+    rockTufts: 0.22,
+    /** Stones of scree at the foot of a rock face this many levels tall or more (where its top is rock). */
+    screeDrop: 3,
     /** The floating slab: corner radius, the sea's thickness, and the earth under it. */
     slabRadius: 3,
     seaDepth: 0.52,
@@ -47,6 +59,10 @@ export const TERRAIN = defineStyle(
     earthRun: [0, 0.2, 0.01],
     rockRun: [0, 0.2, 0.01],
     shoreRun: [0, 0.3, 0.01],
+    bankRun: [0, 0.45, 0.01],
+    rockWander: [0, 1.2, 0.02],
+    rockTufts: [0, 0.6, 0.01],
+    screeDrop: [2, 8, 1],
     slabRadius: [0.5, 4, 0.1],
     seaDepth: [0.1, 1.5, 0.02],
     earthDepth: [0.2, 2, 0.05],

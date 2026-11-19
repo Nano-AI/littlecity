@@ -16,7 +16,7 @@ const blocks = `window.__lc.world().blocks.size`;
 
 describe('the app', () => {
   test('shows the town; click places a block; right click erases it; undo restores', async () => {
-    const { page, errors } = await app.open('/?seed=1');
+    const { page, errors } = await app.open('/?seed=1&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     // A new island starts with its 6–14 starting trees.
     const start = (await page.evaluate(blocks)) as number;

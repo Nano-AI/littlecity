@@ -7,7 +7,7 @@
 
 import { keyY } from '@/core/grid';
 import type { Edit, Terrain, World } from '@/core/world';
-import { initialWorld } from '@/terrain/terrain';
+import { initialWorld, terrainGenOf } from '@/terrain/terrain';
 import type { Game } from '@/app/game';
 
 export interface Growth {
@@ -37,7 +37,7 @@ export interface GrowthOptions {
 /** True if the island holds nothing but its starting trees (no confirmation is needed to grow over it). */
 export function onlyStartingTrees(world: World, terrain: Terrain): boolean {
   if (world.floors.size > 0 || world.edges.size > 0) return false;
-  const start = initialWorld(world.seed, terrain);
+  const start = initialWorld(world.seed, terrain, terrainGenOf(world));
   for (const [cell, b] of world.blocks) if (b.kind !== 'tree' || start.blocks.get(cell)?.kind !== 'tree') return false;
   return true;
 }

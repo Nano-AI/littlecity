@@ -19,7 +19,7 @@ const growing = `window.__lc.ui.growth.active`;
 
 describe('grow a town', () => {
   test('the menu entry grows a town; dragging still orbits; a click skips; one undo empties it', async () => {
-    const { page, errors } = await app.open('/?seed=3');
+    const { page, errors } = await app.open('/?seed=3&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     const start = (await page.evaluate(blocks)) as number;
 
@@ -58,7 +58,7 @@ describe('grow a town', () => {
   });
 
   test('over a town it asks first; a key skips; the dice grows on a new island', async () => {
-    const { page, errors } = await app.open('/?seed=5');
+    const { page, errors } = await app.open('/?seed=5&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     // Put something down, so there is a town to lose.
     await page.mouse.click(640, 400);
@@ -86,7 +86,7 @@ describe('grow a town', () => {
   });
 
   test('on a phone: the entry is there, a tap skips', async () => {
-    const { page, errors } = await app.open('/?seed=2', { width: 390, height: 844, hasTouch: true, isMobile: true });
+    const { page, errors } = await app.open('/?seed=2&gen=1', { width: 390, height: 844, hasTouch: true, isMobile: true });
     await page.waitForFunction('window.__lc !== undefined');
     await page.tap('[data-ui="menu-button"]');
     await page.tap('[data-menu="grow"]');

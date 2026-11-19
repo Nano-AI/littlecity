@@ -45,6 +45,7 @@ export default scenario({
   seed: 151,
   about: 'The standard showcase: a whole town on a generated island, with every tray piece and nearly every role. Day, dusk and night cameras.',
   terrain: 'generated',
+  terrainGen: 1, // pinned: this island must not move when generator 2 is tuned
   build(b) {
     // A path through the given corners (x first, then z on each leg), skipping cells that already hold a floor.
     const road = (...points: (readonly [number, number])[]): void => {

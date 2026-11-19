@@ -6,7 +6,7 @@
 // Which town opens:
 //   #t=<code>          a share link: that town, as a copy (design section 15)
 //   ?scenario=<name>   a scenario (never saved)
-//   ?seed=<n>          a fresh island with that seed
+//   ?seed=<n>          a fresh island with that seed (&gen=1 for the first island generator)
 //   otherwise          the autosaved town, or a fresh island
 //
 // The phone fallbacks of design section 14 pick themselves on a small touch
@@ -25,7 +25,7 @@ import { createTownView } from '@/render/index';
 import type { ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
-import { generateTerrain, initialWorld } from '@/terrain/terrain';
+import { generateTerrain, initialWorld, NEW_ISLAND_GEN, terrainOf, type TerrainGen } from '@/terrain/terrain';
 import { townFromHash } from '@/ui/files';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
@@ -40,11 +40,14 @@ function storage(): Storage | null {
   }
 }
 
+/** A new island: the newest generator (design section 6), unless the URL asks for the first (tests pin it). */
 function freshIsland(seed: number): GameStart {
-  const terrain = generateTerrain(seed);
-  return { terrain, world: initialWorld(seed, terrain) };
+  const gen: TerrainGen = new URLSearchParams(location.search).get('gen') === '1' ? 1 : NEW_ISLAND_GEN;
+  const terrain = generateTerrain(seed, gen);
+  return { terrain, world: initialWorld(seed, terrain, gen) };
 }
-const townOf = (world: World): GameStart => ({ world, terrain: generateTerrain(world.seed) });
+/** A saved or shared town: on the island its own generator made (World.terrainGen; absent = 1). */
+const townOf = (world: World): GameStart => ({ world, terrain: terrainOf(world) });
 const newSeed = (): number => hash(Date.now() | 0, 'island', Math.floor(Math.random() * 0x7fffffff)) | 0;
 
 // ── which town ───────────────────────────────────────────────────────────

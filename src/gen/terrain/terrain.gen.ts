@@ -38,7 +38,7 @@ import type { ShapePlan } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
 import { terraceGrass, TERRAIN } from '@/style/terrain';
 import { defineLayer } from '../api';
-import { EDGE_FAR, MeshBuilder, PATTERN } from '../mesh';
+import { EDGE_FAR, MeshBuilder, parseColor, PATTERN } from '../mesh';
 
 /** Segments in a quarter-circle of outline. */
 const ARC = 6;
@@ -46,8 +46,8 @@ const ARC = 6;
 const SEA_GRID = 4;
 /** `edge` on open water: far beyond the reach of the shore marks. */
 const SEA_FAR = 4;
-/** Terrain never rises above this level (design section 6). */
-const MAX_LEVEL = 6;
+/** Terrain never rises above this level (design section 6: 6 on generator 1, 10 on a steep island of generator 2). */
+const MAX_LEVEL = 10;
 /** The shore's foot ends this far under the surface. */
 const UNDER_SEA = 0.12;
 
@@ -150,10 +150,14 @@ function edgeKind(g: Ground, hx: number, hz: number, lx: number, lz: number, lev
   const m = g.mat(hx, hz);
   const shore: Shore = hi - lo >= 2 || m === MAT.rock ? 'rock' : m === MAT.sand ? 'sand' : 'earth';
   const atWater = level === 1 && lo === 0;
-  const run = shore === 'sand' ? TERRAIN.beachRun : atWater ? TERRAIN.shoreRun : shore === 'earth' ? TERRAIN.earthRun : TERRAIN.rockRun;
+  // A grass bank one level above the water (a river bank; generator 1 always puts sand there) slopes in gently.
+  const grassBank = atWater && hi === 1 && m === MAT.grass;
+  const run = shore === 'sand' ? TERRAIN.beachRun : grassBank ? TERRAIN.bankRun : atWater ? TERRAIN.shoreRun : shore === 'earth' ? TERRAIN.earthRun : TERRAIN.rockRun;
   // A ledge partway up: only where the face carries on above this level, never at the waterline, and
   // never where something is built against the foot of the face.
-  const shelf = hi > level && !atWater && !g.built(lx, lz, lo, hi) ? 1 : 0;
+  // A tall face carries one ledge, partway up, not one at every level: it reads as one cliff, not a stack.
+  const ledgeLevel = lo + Math.max(1, Math.floor((hi - lo) / 2));
+  const shelf = hi > level && level === ledgeLevel && !atWater && !g.built(lx, lz, lo, hi) ? 1 : 0;
   return { shore, run, rock: shore === 'rock' ? 1 : 0, lip: shore !== 'sand' && m === MAT.grass && hi === level ? 1 : 0, shelf };
 }
 const harder = (a: EdgeKind, b: EdgeKind): Shore => (HARDNESS[b.shore] > HARDNESS[a.shore] ? b.shore : a.shore);
@@ -165,6 +169,85 @@ function upTri(b: MeshBuilder, p0: Vec3, p1: Vec3, p2: Vec3, e0: number, e1: num
   const cross = (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2]);
   if (cross >= 0) b.tri(p0, p1, p2, { edge: [e0, e1, e2] });
   else b.tri(p0, p2, p1, { edge: [e0, e2, e1] });
+}
+
+/** A point of a terrace top: where it is, its "distance from sand" (the grass pattern's `edge`), and how rocky the ground is there. */
+interface TopVert {
+  p: Vec3;
+  e: number;
+  r: number;
+}
+const mixRgb = (a: readonly number[], c: readonly number[], t: number): [number, number, number] => [
+  Math.round(a[0]! + (c[0]! - a[0]!) * t),
+  Math.round(a[1]! + (c[1]! - a[1]!) * t),
+  Math.round(a[2]! + (c[2]! - a[2]!) * t),
+];
+const lerpTop = (a: TopVert, c: TopVert, t: number): TopVert => ({
+  p: [a.p[0] + (c.p[0] - a.p[0]) * t, a.p[1], a.p[2] + (c.p[2] - a.p[2]) * t],
+  e: a.e + (c.e - a.e) * t,
+  r: a.r + (c.r - a.r) * t,
+});
+/** Deepest split of a top triangle on its way to the rock border (0.5 / 2^n of a cell). */
+const ROCK_DEPTH = 3;
+
+/**
+ * Rock or grass at a point of a terrace top: the rock field from the columns (0 to 1, smooth across
+ * cells) moved by a wandering noise, less where a tuft of grass holds on. Rock where this is 0.5 or more.
+ */
+function rockiness(g: Ground, v: TopVert): number {
+  const [x, , z] = v.p;
+  const wander = (vnoise(g.seed ^ 0x3c1, x * 1.6, z * 1.6) - 0.5) + (vnoise(g.seed ^ 0x77d, x * 4.3, z * 4.3) - 0.5) * 0.35;
+  const t = vnoise(g.seed ^ 0x5a9, x * 2.9, z * 2.9);
+  const tuft = t > 0.74 ? (t - 0.74) * 4 * TERRAIN.rockTufts * 4 : 0;
+  return v.r + wander * TERRAIN.rockWander - tuft;
+}
+
+/**
+ * One triangle of a terrace top where rock meets grass: split finer near the border (only there),
+ * then cut along it. Rock and grass are one ink group, so no line is drawn round a rock patch: the
+ * border is a change of surface, rock going mossy and grass going dry toward it.
+ */
+function splitTop(b: MeshBuilder, g: Ground, level: number, a: TopVert, c: TopVert, d: TopVert, depth: number): void {
+  const ra = rockiness(g, a), rc = rockiness(g, c), rd = rockiness(g, d);
+  const lo = Math.min(ra, rc, rd), hi = Math.max(ra, rc, rd);
+  // How much the noise can move inside a triangle this size.
+  const margin = 1.6 * TERRAIN.rockWander * (0.5 / (1 << depth)) + 0.04;
+  if (depth < ROCK_DEPTH && lo < 0.5 + margin && hi > 0.5 - margin) {
+    const ac = lerpTop(a, c, 0.5), cd = lerpTop(c, d, 0.5), da = lerpTop(d, a, 0.5);
+    splitTop(b, g, level, a, ac, da, depth + 1);
+    splitTop(b, g, level, ac, c, cd, depth + 1);
+    splitTop(b, g, level, da, cd, d, depth + 1);
+    splitTop(b, g, level, ac, cd, da, depth + 1);
+    return;
+  }
+  const vs = [a, c, d], rs = [ra, rc, rd];
+  const rockPoly: [TopVert, number][] = [], grassPoly: [TopVert, number][] = [];
+  for (let i = 0; i < 3; i++) {
+    const p = vs[i]!, q = vs[(i + 1) % 3]!, rp = rs[i]!, rq = rs[(i + 1) % 3]!;
+    (rp >= 0.5 ? rockPoly : grassPoly).push([p, rp]);
+    if (rp >= 0.5 !== rq >= 0.5) {
+      const cut = lerpTop(p, q, (0.5 - rp) / (rq - rp));
+      rockPoly.push([cut, 0.5]);
+      grassPoly.push([cut, 0.5]);
+    }
+  }
+  const grass = terraceGrass(level), dry = parseColor(TERRAIN.grassDry), stone = parseColor(TERRAIN.rockTop), moss = parseColor(TERRAIN.rockMoss);
+  const fan = (poly: [TopVert, number][], rock: boolean): void => {
+    if (poly.length < 3) return;
+    if (rock) b.setPattern(PATTERN.rock).setInk(`ground${level}`);
+    else b.setPattern(PATTERN.grass).setInk(`ground${level}`);
+    const col = ([v, r]: [TopVert, number]): [number, number, number] =>
+      rock ? mixRgb(stone, moss, Math.min(1, Math.max(0, (0.78 - r) / 0.28)) * 0.55) : mixRgb(grass, dry, Math.min(1, Math.max(0, (r - 0.12) / 0.38)) * 0.8 * Math.min(1, v.e));
+    for (let i = 1; i + 1 < poly.length; i++) {
+      const p0 = poly[0]!, p1 = poly[i]!, p2 = poly[i + 1]!;
+      const e = rock ? [EDGE_FAR, EDGE_FAR, EDGE_FAR] : [p0[0].e, p1[0].e, p2[0].e];
+      const cross = (p1[0].p[2] - p0[0].p[2]) * (p2[0].p[0] - p0[0].p[0]) - (p1[0].p[0] - p0[0].p[0]) * (p2[0].p[2] - p0[0].p[2]);
+      if (cross >= 0) b.tri(p0[0].p, p1[0].p, p2[0].p, { edge: e, colors: [col(p0), col(p1), col(p2)] });
+      else b.tri(p0[0].p, p2[0].p, p1[0].p, { edge: [e[0]!, e[2]!, e[1]!], colors: [col(p0), col(p2), col(p1)] });
+    }
+  };
+  fan(rockPoly, true);
+  fan(grassPoly, false);
 }
 
 /** A wall strip between two outline points, facing along the given normals. */
@@ -276,9 +359,17 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
     const s = u * 2, t = v * 2;
     return f00 * (1 - s) * (1 - t) + f10 * s * (1 - t) + f01 * (1 - s) * t + f11 * s * t;
   };
-  const rockTop = inA && hA === level && g.mat(x, z) === MAT.rock;
-  if (rockTop) b.setColor(PALETTE.rock).setPattern(PATTERN.rock).setInk(`rocktop${level}`);
-  else b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
+  // Rock on this terrace top: 1 on a rock column, 0 on grass or sand, null where the column's top is elsewhere.
+  const rk = (hh: number, m: number): number | null => (hh === level ? (m === MAT.rock ? 1 : 0) : null);
+  const rA = rk(hA, g.mat(x, z)), rB = rk(hB, g.mat(x + sx, z)), rC = rk(hC, g.mat(x, z + sz)), rD = rk(hD, g.mat(x + sx, z + sz));
+  const rocky = rA === 1 || rB === 1 || rC === 1 || rD === 1;
+  const r00 = avg(rA, rB, rC, rD);
+  const r11 = rA ?? r00, r10 = rA === null ? r00 : avg(rA, rC), r01 = rA === null ? r00 : avg(rA, rB);
+  const rockField = (u: number, v: number): number => {
+    const s = u * 2, t = v * 2;
+    return r00 * (1 - s) * (1 - t) + r10 * s * (1 - t) + r01 * (1 - s) * t + r11 * s * t;
+  };
+  b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
   const arc = (i: number): [number, number] => {
     const phi = (i / ARC) * (Math.PI / 2);
     return [r - r * Math.sin(phi), r - r * Math.cos(phi)];
@@ -312,12 +403,20 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
   const hubAt: Vec3 = [vx - sx * hub[0], yt, vz - sz * hub[1]];
   const hubField = field(hub[0], hub[1]);
   const isHub = (p: readonly [number, number, boolean]): boolean => p[0] === hub[0] && p[1] === hub[1];
+  const topV = (p: readonly [number, number, boolean] | readonly [number, number]): TopVert => {
+    const onOutline = p.length === 3 && p[2];
+    const [px, pz] = world(p[0], p[1], onOutline);
+    return { p: [px, yt, pz], e: field(p[0], p[1]), r: rockField(p[0], p[1]) };
+  };
+  const hubV: TopVert = { p: hubAt, e: hubField, r: rockField(hub[0], hub[1]) };
   for (let i = 0; i < poly.length; i++) {
     const p = poly[i]!, q = poly[(i + 1) % poly.length]!;
     if (isHub(p) || isHub(q)) continue;
     if (fillet && i === poly.length - 1) continue; // the fan closes on the hub itself
-    upTri(b, hubAt, at(p), at(q), hubField, field(p[0], p[1]), field(q[0], q[1]));
+    if (rocky) splitTop(b, g, level, hubV, topV(p), topV(q), 0);
+    else upTri(b, hubAt, at(p), at(q), hubField, field(p[0], p[1]), field(q[0], q[1]));
   }
+  if (rocky) b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
 
   // ── the banks ──────────────────────────────────────────────────────────
   const yb = level === 1 ? SEA_Y - UNDER_SEA : (level - 1) * CELL_H;
@@ -370,6 +469,42 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
   }
 }
 
+// ──────────────────────────────────────────────────────────── the scree ──
+
+/**
+ * Stones fallen from a tall rock face, lying on the ground at its foot: a few per side of column
+ * (x, z) where a neighbour stands TERRAIN.screeDrop or more above it with a rock top. Not where
+ * anything is built at the foot. Each stone is a low, lumpy, faceted heap with its own outline.
+ */
+function emitScree(b: MeshBuilder, g: Ground, x: number, z: number): void {
+  const lo = g.h(x, z);
+  if (lo < 1 || g.built(x, z, lo, lo + 1)) return;
+  const sides: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let d = 0; d < 4; d++) {
+    const [dx, dz] = sides[d]!;
+    const hi = g.h(x + dx, z + dz);
+    if (hi - lo < TERRAIN.screeDrop || g.mat(x + dx, z + dz) !== MAT.rock) continue;
+    const n = 1 + Math.floor(rand(g.seed, 'scree', x, z, d) * Math.min(4, hi - lo));
+    for (let k = 0; k < n; k++) {
+      const along = 0.12 + 0.76 * rand(g.seed, 'screeA', x, z, d, k);
+      const out = 0.1 + 0.32 * rand(g.seed, 'screeO', x, z, d, k) ** 1.5;
+      // The face is the side of this column toward the neighbour; the stone lies inside this column.
+      const cx = x + 0.5 + dx * (0.5 - out) + (dz !== 0 ? along - 0.5 : 0);
+      const cz = z + 0.5 + dz * (0.5 - out) + (dx !== 0 ? along - 0.5 : 0);
+      const r = 0.05 + 0.08 * rand(g.seed, 'screeR', x, z, d, k) * (1.2 - out);
+      const tone = 0.9 + 0.14 * rand(g.seed, 'screeT', x, z, d, k);
+      const base = parseColor(PALETTE.rock);
+      b.setColor([Math.round(base[0] * tone), Math.round(base[1] * tone), Math.round(base[2] * tone)]).setPattern(PATTERN.rock).setEdge(EDGE_FAR).setInk(`scree${x},${z},${d},${k}`);
+      b.push();
+      b.translate(cx, lo * CELL_H - 0.01, cz);
+      b.rotateY(rand(g.seed, 'screeY', x, z, d, k) * Math.PI * 2);
+      b.scale(1, 1, 0.7 + 0.5 * rand(g.seed, 'screeS', x, z, d, k));
+      b.lathe([[r, 0], [r * 0.85, r * 0.55], [r * 0.4, r * 0.95], [0, r * 1.05]], { segments: 5, smooth: false });
+      b.pop();
+    }
+  }
+}
+
 // ────────────────────────────────────────────────────────────── the sea ──
 
 /** Pulls a point inside the slab's rounded outline (identity away from the four corners). */
@@ -396,7 +531,8 @@ function shoreDistance(g: Ground, px: number, pz: number): number {
       const round = g.h(cx + ex, cz) < 1 && g.h(cx, cz + ez) < 1 ? Math.min(0.5, g.radius(cx + (ex > 0 ? 1 : 0), cz + (ez > 0 ? 1 : 0), 1)) : 0;
       const ax = Math.abs(qx) - 0.5 + round, az = Math.abs(qz) - 0.5 + round;
       const d = Math.hypot(Math.max(ax, 0), Math.max(az, 0)) + Math.min(Math.max(ax, az), 0) - round;
-      const run = (g.mat(cx, cz) === MAT.sand && g.h(cx, cz) === 1 ? TERRAIN.beachRun : TERRAIN.shoreRun) * wet;
+      const low = g.h(cx, cz) === 1;
+      const run = (low && g.mat(cx, cz) === MAT.sand ? TERRAIN.beachRun : low && g.mat(cx, cz) === MAT.grass ? TERRAIN.bankRun : TERRAIN.shoreRun) * wet;
       if (d - run < best) best = d - run;
     }
   }
@@ -513,6 +649,7 @@ export function buildTerrainChunk(chunk: Chunk, plan: ShapePlan): MeshBuilder {
         emitQuarter(b, g, x, z, -1, 1, level);
         emitQuarter(b, g, x, z, 1, 1, level);
       }
+      emitScree(b, g, x, z);
       b.setColor(PALETTE.sea).setPattern(PATTERN.water).setInk('sea');
       emitSea(b, g, x, z);
     }

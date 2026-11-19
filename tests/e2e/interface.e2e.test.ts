@@ -444,7 +444,7 @@ describe('desktop: mouse and keys', () => {
   });
 
   test('a share link carries the town; a broken link leaves the town alone; autosave brings the town back', async () => {
-    const { page, errors } = await open('/?seed=4', { ...DESKTOP, permissions: ['clipboard-read', 'clipboard-write'] });
+    const { page, errors } = await open('/?seed=4&gen=1', { ...DESKTOP, permissions: ['clipboard-read', 'clipboard-write'] });
     await page.mouse.click(640, 400);
     await page.waitForFunction('window.__lc.world().blocks.size >= 1');
     const blocks = await count(page);
@@ -467,7 +467,7 @@ describe('desktop: mouse and keys', () => {
     expect(await count(page)).toBe(blocks);
 
     // The same player opens a link to another town: they are asked before theirs is replaced.
-    const other = await open('/?seed=9', { ...DESKTOP, permissions: ['clipboard-read', 'clipboard-write'] });
+    const other = await open('/?seed=9&gen=1', { ...DESKTOP, permissions: ['clipboard-read', 'clipboard-write'] });
     await other.page.mouse.click(600, 380);
     await other.page.mouse.click(700, 420);
     const otherLink = await shareLinkOf(other.page);

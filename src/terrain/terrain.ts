@@ -11,109 +11,12 @@ import { columnIndex, inColumnBounds, key, SIZE_X, SIZE_Z } from '@/core/grid';
 import { rand, randInt, randRange } from '@/core/rand';
 import { MAT, type Terrain, type World } from '@/core/world';
 import { ISLAND } from '@/style/island';
+import { coastDistance, components, D4, fbm, hAt, N } from './noise';
+import { generateIsland2 } from './terrain2';
 import { applyEdit, canApply, emptyWorld } from '@/world/world';
 
 export type { Terrain, TerrainMaterial } from '@/core/world';
 export { MAT } from '@/core/world';
-
-const N = SIZE_X * SIZE_Z;
-const D4 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-] as const;
-
-// ──────────────────────────────────────────────────────────── noise ──
-
-function smooth(t: number): number {
-  return t * t * (3 - 2 * t);
-}
-
-/** Value noise in [0, 1) on a lattice of the given cell size. */
-function valueNoise(seed: number, layer: string, x: number, z: number, size: number): number {
-  const fx = x / size;
-  const fz = z / size;
-  const ix = Math.floor(fx);
-  const iz = Math.floor(fz);
-  const tx = smooth(fx - ix);
-  const tz = smooth(fz - iz);
-  const v = (a: number, b: number): number => rand(seed, layer, a, b);
-  const top = v(ix, iz) + (v(ix + 1, iz) - v(ix, iz)) * tx;
-  const bot = v(ix, iz + 1) + (v(ix + 1, iz + 1) - v(ix, iz + 1)) * tx;
-  return top + (bot - top) * tz;
-}
-
-/** Two octaves of value noise, in [0, 1). */
-function fbm(seed: number, layer: string, x: number, z: number, size: number): number {
-  return (valueNoise(seed, layer + '1', x, z, size) * 2 + valueNoise(seed, layer + '2', x, z, size / 2)) / 3;
-}
-
-// ───────────────────────────────────────────────────────── helpers ──
-
-function hAt(h: Uint8Array, x: number, z: number): number {
-  return inColumnBounds(x, z) ? h[columnIndex(x, z)]! : 0;
-}
-
-/** Labels 4-connected components of columns where `inSet` is true. Returns labels (−1 outside) and sizes. */
-function components(inSet: (i: number) => boolean): { label: Int32Array; sizes: number[] } {
-  const label = new Int32Array(N).fill(-1);
-  const sizes: number[] = [];
-  const stack: number[] = [];
-  for (let start = 0; start < N; start++) {
-    if (label[start] !== -1 || !inSet(start)) continue;
-    const id = sizes.length;
-    let size = 0;
-    label[start] = id;
-    stack.push(start);
-    while (stack.length) {
-      const i = stack.pop()!;
-      size++;
-      const x = i % SIZE_X;
-      const z = (i / SIZE_X) | 0;
-      for (const [dx, dz] of D4) {
-        const nx = x + dx;
-        const nz = z + dz;
-        if (!inColumnBounds(nx, nz)) continue;
-        const j = columnIndex(nx, nz);
-        if (label[j] === -1 && inSet(j)) {
-          label[j] = id;
-          stack.push(j);
-        }
-      }
-    }
-    sizes.push(size);
-  }
-  return { label, sizes };
-}
-
-/** Steps (4-connected) from each land column to the nearest water column. */
-function coastDistance(h: Uint8Array): Int32Array {
-  const dist = new Int32Array(N).fill(-1);
-  const queue: number[] = [];
-  for (let i = 0; i < N; i++) {
-    if (h[i] === 0) {
-      dist[i] = 0;
-      queue.push(i);
-    }
-  }
-  for (let q = 0; q < queue.length; q++) {
-    const i = queue[q]!;
-    const x = i % SIZE_X;
-    const z = (i / SIZE_X) | 0;
-    for (const [dx, dz] of D4) {
-      const nx = x + dx;
-      const nz = z + dz;
-      if (!inColumnBounds(nx, nz)) continue;
-      const j = columnIndex(nx, nz);
-      if (dist[j] === -1) {
-        dist[j] = dist[i]! + 1;
-        queue.push(j);
-      }
-    }
-  }
-  return dist;
-}
 
 // ──────────────────────────────────────────────────────── checking ──
 
@@ -320,8 +223,32 @@ function roll(s: number): Uint8Array {
   return h;
 }
 
-/** The island for a seed. Pure and deterministic. */
-export function generateTerrain(seed: number): Terrain {
+/** Which island generator made a town's terrain (design section 6). Absent on a saved world means 1. */
+export type TerrainGen = 1 | 2;
+/** What new islands and the dice use. */
+export const NEW_ISLAND_GEN: TerrainGen = 2;
+
+/** The generator a world's island was made with. */
+export function terrainGenOf(w: Pick<World, 'terrainGen'>): TerrainGen {
+  return w.terrainGen === 2 ? 2 : 1;
+}
+
+/** The island a saved world stands on: its seed, through the generator recorded with it. */
+export function terrainOf(w: Pick<World, 'seed' | 'terrainGen'>): Terrain {
+  return generateTerrain(w.seed, terrainGenOf(w));
+}
+
+/**
+ * The island for a seed. Pure and deterministic. `gen` 1 (the default) is the
+ * first generator, kept exactly as it was so old towns keep their island;
+ * 2 is the second (terrain2.ts: rivers, characters, rock).
+ */
+export function generateTerrain(seed: number, gen: TerrainGen = 1): Terrain {
+  if (gen === 2) return generateIsland2(seed, generateTerrain1).terrain;
+  return generateTerrain1(seed);
+}
+
+function generateTerrain1(seed: number): Terrain {
   let fallback: Uint8Array | null = null;
   for (let attempt = 0; attempt < ISLAND.attempts; attempt++) {
     const h = roll(attempt === 0 ? seed : rand(seed, 'reroll', attempt) * 4294967296);
@@ -352,9 +279,13 @@ export function terrainFromHeights(seed: number, height: Uint8Array): Terrain {
   return { seed, height, material };
 }
 
-/** The world a new island starts with: 6–14 starting trees (real, removable blocks) on grass, nothing else. */
-export function initialWorld(seed: number, t: Terrain): World {
-  let w = emptyWorld(seed);
+/**
+ * The world a new island starts with: 6–14 starting trees (real, removable blocks) on grass, nothing
+ * else. On generator 2 the world records its generator, and where there is a river one copse stands
+ * on its bank (where the tree rule grows willows).
+ */
+export function initialWorld(seed: number, t: Terrain, gen: TerrainGen = 1): World {
+  let w = emptyWorld(seed, gen);
   const want = randInt(ISLAND.trees[0], ISLAND.trees[1], seed, 'trees');
   const grass: number[] = [];
   for (let i = 0; i < N; i++) if (t.height[i]! > 0 && t.material[i] === MAT.grass) grass.push(i);
@@ -362,6 +293,10 @@ export function initialWorld(seed: number, t: Terrain): World {
   // A few clumps: each tree is near a clump centre, so they read as copses rather than confetti.
   const clumps = randInt(2, 4, seed, 'clumps');
   const centres = Array.from({ length: clumps }, (_, c) => grass[Math.floor(rand(seed, 'clump', c) * grass.length)]!);
+  if (gen === 2) {
+    const banks = grass.filter((i) => D4.some(([dx, dz]) => hAt(t.height, (i % SIZE_X) + dx, ((i / SIZE_X) | 0) + dz) === 0));
+    if (banks.length) centres[0] = banks[Math.floor(rand(seed, 'bank') * banks.length)]!;
+  }
   for (let i = 0, placed = 0; placed < want && i < 400; i++) {
     const c = centres[i % clumps]!;
     const x = (c % SIZE_X) + randInt(-3, 3, seed, 'tx', i);

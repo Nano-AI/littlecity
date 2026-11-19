@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 // The 200-seed sweep is slow when the machine is busy; give it room.
 vi.setConfig({ testTimeout: 60_000 });
 import { columnIndex, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
+import { hash } from '@/core/rand';
 import { MAT } from '@/core/world';
 import { checkTerrain, generateTerrain, heightAt, initialWorld, terrainFromHeights } from './terrain';
 
@@ -18,6 +19,26 @@ describe('the island generator', () => {
       for (let i = 0; i < t.height.length; i++) expect(t.height[i]).toBeLessThanOrEqual(6);
     }
     expect(failures).toEqual([]);
+  });
+
+  test('generator 1 is frozen: its islands and starting trees match the digests taken before generator 2', () => {
+    // Taken on 2026-11-19 before generator 2 existed. Every saved town on generator 1 depends on these.
+    const pinned = [
+      '0:985767133:3672504995', '1:3282243841:3454046421', '2:4208019968:349991262', '42:324720022:3398259350',
+      '-7:4115070419:3481315432', '12345:2770682464:2449019399', '99991:986167734:1071322550',
+      '2026:3527204830:1406187372', '777:70010054:3919015125', '31337:270985800:1038755752',
+    ];
+    const got = pinned.map((p) => {
+      const s = Number(p.split(':')[0]);
+      const t = generateTerrain(s, 1);
+      let a = 0;
+      for (let i = 0; i < t.height.length; i++) a = hash(a, t.height[i]!, t.material[i]!);
+      let b = 0;
+      for (const [k, bl] of [...initialWorld(s, t).blocks].sort((p, q) => p[0] - q[0])) b = hash(b, k, bl.seq, bl.color);
+      return `${s}:${a}:${b}`;
+    });
+    expect(got).toEqual(pinned);
+    expect(generateTerrain(42)).toEqual(generateTerrain(42, 1));
   });
 
   test('deterministic per seed, and different seeds give different islands', () => {

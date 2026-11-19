@@ -53,6 +53,12 @@ export interface ScenarioDef {
    * generator changes). A function builds your own (cliffs, coves, hills).
    */
   terrain?: 'flat' | 'generated' | ((t: TerrainBuilder) => void);
+  /**
+   * With terrain 'generated': which island generator (design section 6). Default 1, the first
+   * generator, so scenarios written before generator 2 keep their island; 2 is the one new
+   * islands use (rivers, characters, rock). The built world records it.
+   */
+  terrainGen?: 1 | 2;
   /** Start from the new-island world (with its starting trees) instead of an empty one. Default false. */
   startingTrees?: boolean;
   build(b: TownBuilder): void;
@@ -106,13 +112,14 @@ export function flatTerrain(seed: number): Terrain {
 /** Runs a scenario's build() and returns its terrain, world and cameras. Pure. */
 export function buildScenario(s: Scenario): BuiltScenario {
   let terrain: Terrain;
-  if (s.terrain === 'generated') terrain = generateTerrain(s.seed);
+  const gen = s.terrain === 'generated' && s.terrainGen === 2 ? 2 : 1;
+  if (s.terrain === 'generated') terrain = generateTerrain(s.seed, gen);
   else if (typeof s.terrain === 'function') {
     const t = new TerrainBuilder(s.seed);
     s.terrain(t);
     terrain = t.build();
   } else terrain = flatTerrain(s.seed);
-  const start = s.startingTrees ? initialWorld(s.seed, terrain) : emptyWorld(s.seed);
+  const start = s.startingTrees ? initialWorld(s.seed, terrain, gen) : emptyWorld(s.seed, gen);
   const b = new TownBuilder(start, terrain, s.name);
   s.build(b);
   const world = b.world;
