@@ -117,3 +117,9 @@ runs on Opus 5.5 ("fable is too slow"): Stage 4 polish, discovery rounds,
 final art pass, and any replacement for an agent that dies. The seven
 already running stay on Fable to keep their memory; each keeps a handoff
 note in `docs/swarm/handoff/<owner>.md`.
+
+**Published (11:10):** https://yaoderek.github.io/littlecity/ serves the
+built game from the `gh-pages` branch (built files only; the working branch
+is not pushed beyond what was already on the remote). Pages source was
+changed from the working branch to `gh-pages`. Redeploy after each gate
+with `./tools/deploy-pages.sh`.
