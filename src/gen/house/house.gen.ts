@@ -14,7 +14,7 @@
 
 import { above, below, CELL_H, SEA_Y, columnIndex, DIR4, inColumnBounds, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, type CellKey, type Dir4 } from '@/core/grid';
 import { KINDS } from '@/core/kinds';
-import { compose, multiply, rotationY, rotationZ, scaling, transformPoint, translation, type Mat4Like } from '@/core/mat4';
+import { compose, multiply, rotationY, rotationZ, scaling, transformPoint, translation, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { roofRegions, type RoofRegion } from '@/resolve/facts/roofs.fact';
 import type { Feature, ShapePlan, Structure } from '@/resolve/plan';
@@ -226,6 +226,34 @@ function shell(h: House): void {
             band(b, e, inset - 0.018, inset, 0.27, 0.3);
             for (const x of [-0.25, 0, 0.25]) b.box([x - 0.013, HOUSE.plinthH, -inset], [x + 0.013, CELL_H - 0.05, -inset + 0.018], { skip: ['n', 'top', 'bottom'] });
           });
+          // The plants inside, seen through the glass: leafy shapes behind the bars, in the wall's
+          // own ink group so nothing outlines them. At night they are silhouettes against the light.
+          if (!doors.has(edgeId(cell, d))) {
+            const z = -inset + 0.004;
+            const leafs = [PALETTE.leafDark, PALETTE.bush, PALETTE.leaf];
+            const fruit = [PALETTE.red, PALETTE.yellow, PALETTE.pink];
+            for (let i = 0; i < 3; i++) {
+              const r = (...k: (number | string)[]): number => rand(s.seed, 'plant', cell, d, i, ...k);
+              const cx = -0.3 + i * 0.3 + (r('x') - 0.5) * 0.12, rad = 0.075 + r('r') * 0.05, cy = 0.31 + rad * 0.8 + r('y') * 0.14;
+              const pts: Vec3[] = [];
+              for (let k = 0; k < 9; k++) {
+                const a = (k / 9) * Math.PI * 2, w = 1 + (r('w', k) - 0.5) * 0.35;
+                pts.push([cx + Math.cos(a) * rad * w, cy + Math.sin(a) * rad * w * 1.15, z]);
+              }
+              b.with({ color: leafs[Math.floor(r('c') * 3)]!, pattern: PATTERN.none, ink: 'walls' }, () => {
+                b.polygon(pts);
+                b.quad([cx - 0.012, 0.3, z], [cx + 0.012, 0.3, z], [cx + 0.012, cy, z], [cx - 0.012, cy, z]);
+              });
+              if (r('fruit') < 0.6) {
+                b.with({ color: fruit[Math.floor(r('f') * 3)]!, pattern: PATTERN.none, ink: 'walls' }, () => {
+                  for (let k = 0; k < 2; k++) {
+                    const fx = cx + (r('fx', k) - 0.5) * rad, fy = cy + (r('fy', k) - 0.5) * rad, q = 0.016;
+                    b.quad([fx - q, fy - q, z + 0.002], [fx + q, fy - q, z + 0.002], [fx + q, fy + q, z + 0.002], [fx - q, fy + q, z + 0.002]);
+                  }
+                });
+              }
+            }
+          }
         }
         // J24: a stone foundation down to the lower ground on this side.
         const depth = foundation.get(edgeId(cell, d));

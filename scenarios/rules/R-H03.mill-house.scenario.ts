@@ -14,11 +14,12 @@ export default scenario({
     b.house(17, 12, { color: 2 });
     b.house(21, 12, { w: 2, color: 3 });
     b.put('windmill', 21, 12);
-    b.garden(9, 13, 14, 15);
+    b.garden(8, 13, 12, 15);
   },
   cameras: [
     { name: 'front', yaw: 45, pitch: 30, zoom: 6, target: [16, 2, 12.5] },
     { name: 'back', yaw: 225, pitch: 30, zoom: 6, target: [16, 2, 12.5] },
+    { name: 'close', yaw: 40, pitch: 28, zoom: 13, target: [13.8, 1.3, 12.8] },
   ],
   expect(_plan, _dressing, check) {
     check.role(13, 1, 12, 'mill-house');
@@ -27,5 +28,8 @@ export default scenario({
     check.equal(check.applied('R-H03.mill-house'), 1, 'mill houses');
     // No window looks into the mill's wall.
     check.noFeature({ type: 'window', at: [13, 1, 12], dir: 3 });
+    // Flour sacks and a hand cart by its door.
+    check.equal(check.props({ type: 'role-prop', variant: 'sacks' }).length, 1, 'piles of sacks');
+    check.equal(check.props({ type: 'role-prop', variant: 'cart' }).length, 1, 'carts');
   },
 });

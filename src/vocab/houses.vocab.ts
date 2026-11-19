@@ -37,6 +37,20 @@ declare module '@/core/vocab' {
     // R-H09: a portico with two small columns at the main door. cell + dir as the door.
     'portico': true;
   }
+  interface PropVocab {
+    // The props that belong to a house's role (R-H99.role-props). At a 'door' socket (slipway,
+    // lantern) or a floor slot beside the house (the rest).
+    'role-prop': true;
+    'role-prop/slipway': true; //   boathouse: a plank ramp from the boat doors into the water
+    'role-prop/net': true; //       boathouse: a fishing net hung to dry on the wall; +Z away from the wall
+    'role-prop/lantern': true; //   inn: a lantern on a bracket by the door (glows at night)
+    'role-prop/sacks': true; //     mill house: flour sacks by the door
+    'role-prop/cart': true; //      mill house: a hand cart
+    'role-prop/telescope': true; // lookout cottage: a telescope on a tripod
+    // lantern: how far behind the door socket the wall is, and how far above it the door's floor.
+    'role-prop.back': number;
+    'role-prop.up': number;
+  }
   interface ActorVocab {
     // Sail length from the hub in world units (set from the mill's height). Default 0.78.
     'windmill-sails.size': number;

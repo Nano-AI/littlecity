@@ -118,6 +118,6 @@ whoever widens or narrows that hash:
   layer reads it.
 - **Role props (Dressing).** The tier 2 role props are drawn by one part,
   `src/parts/openings/role-prop.part.ts`, for the prop type `role-prop`
-  (variants `slipway`, `net`, `lantern`, `sacks`, `cart`, `telescope`,
-  `plants`), emitted by `src/rules/decoration/D-H01.role-props.rule.ts`. It
+  (variants `slipway`, `net`, `lantern`, `sacks`, `cart`, `telescope`),
+  emitted by `src/rules/roles/R-H99.role-props.rule.ts` (a decoration-stage rule, priority 895). Greenhouse plants are drawn by the house generator behind the glass. It
   claims the floor slots it uses, so D11 and friends skip them.
