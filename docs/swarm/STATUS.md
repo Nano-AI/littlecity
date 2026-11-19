@@ -195,3 +195,15 @@ only where someone is home; the walking graph reads decoration props.
 Flaky: `tests/e2e/held-length.e2e.test.ts` once measured a stepper button
 at 43 px against a 44 px minimum (passes on rerun): fix in polish.
 Running: dressing-depth, life-depth (both Opus 5.5).
+
+**Life depth merged** (`ad8e993`, Opus 5.5): soft smoke, flaw fixes, L29
+mechanisms and mill cap unblocked, L05, L10 (moon, shooting star), L14, L15,
+L18, L30, L31, L33–L35, sound F06. Conflict in `src/render/index.ts` and
+`slots.ts` against the Look fix pass resolved by keeping both mechanisms
+(Look's `aloof` slots and movers pool; life depth's slot kinds and `urgent`).
+One view test threshold updated (moving props refresh ground shade every 4th
+frame). Full check green: 1,240 tests. Published. Not done: L20 rower,
+bunting glow at night, gust front unverified by eye; sound defaults to ON
+(interface's stored default) where the brief said off.
+Dev server hit its two-hour limit again and is NOT restarted; the public
+site serves the same build. Running: dressing-depth, grow-town (Opus 5.5).
