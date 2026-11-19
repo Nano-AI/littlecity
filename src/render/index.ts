@@ -260,6 +260,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uInk: v3(),
     uTint: v3(),
     uLift: v3(),
+    uSat: { value: 1 },
     uLampWarm: v3(),
     uStar: v3(),
     uGlow: { value: 0 },
@@ -806,6 +807,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       cu.uInk.value.set(...grade.ink);
       cu.uTint.value.set(...grade.tint);
       cu.uLift.value.set(...grade.lift);
+      cu.uSat.value = grade.sat;
       cu.uGlow.value = grade.glow;
       cu.uStars.value = grade.stars;
       cu.uHalo.value = LOOK.halo;

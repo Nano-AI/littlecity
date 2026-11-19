@@ -87,6 +87,7 @@ uniform float uPaperAmt;
 uniform vec3 uInk;
 uniform vec3 uTint;
 uniform vec3 uLift;
+uniform float uSat;
 uniform vec3 uLampWarm;
 uniform vec3 uStar;
 uniform float uGlow;
@@ -154,7 +155,8 @@ void main(){
   float glow = c0.a;
 
   // The dusk grade: the whole page is tinted, paper included. Lit glass keeps its own colour.
-  vec3 g = col * uTint + uLift;
+  vec3 g = col * uTint;
+  g = mix(vec3(dot(g, vec3(0.299, 0.587, 0.114))), g, uSat) + uLift;
   g = mix(g, col, glow);
   if (uGlow > 0.01 && uHalo > 0.0) {
     // A warm halo round anything lit: two rings of taps on the glow channel.

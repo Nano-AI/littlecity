@@ -266,14 +266,14 @@ void main(){
         f -= (vec2(h1(c + 3.1), h1(c + 7.7)) - 0.5) * 0.5;
         vec2 dir = normalize(vec2(1.0, -1.0) + (r - 0.5) * 1.1);
         float t = clamp(dot(f, dir), -0.11, 0.11);
-        float m = lineAA(length(f - dir * t), 0.03) * step(0.42, r);
+        float m = lineAA(length(f - dir * t), 0.036) * step(0.34, r);
         // a second, sparser layer: two-stroke tufts
         vec2 p2 = vW.xz * 1.7 + 5.3; vec2 c2 = floor(p2); vec2 f2 = fract(p2) - 0.5;
         float r2 = h1(c2 + 11.0);
         f2 -= (vec2(h1(c2 + 2.3), h1(c2 + 8.9)) - 0.5) * 0.6;
         vec2 d1 = normalize(vec2(0.55, -1.0)), d2 = normalize(vec2(1.0, -0.4));
-        float tuft = max(lineAA(length(f2 - d1 * clamp(dot(f2, d1), 0.0, 0.1)), 0.014), lineAA(length(f2 - d2 * clamp(dot(f2, d2), 0.0, 0.085)), 0.014)) * step(0.6, r2);
-        grass = mix(grass, grass * vec3(0.72, 0.84, 0.68), max(m * fade(0.28), tuft * fade(0.5)));
+        float tuft = max(lineAA(length(f2 - d1 * clamp(dot(f2, d1), 0.0, 0.1)), 0.016), lineAA(length(f2 - d2 * clamp(dot(f2, d2), 0.0, 0.085)), 0.016)) * step(0.5, r2);
+        grass = mix(grass, grass * vec3(0.6, 0.77, 0.56), max(m * fade(0.28), tuft * fade(0.5)));
         // flowers: rare specks of palette colour
         vec2 p3 = vW.xz * 2.3 + 1.7; vec2 c3 = floor(p3); vec2 f3 = fract(p3) - 0.5;
         float r3 = h1(c3 + 4.0);
@@ -444,8 +444,8 @@ void main(){
       float r = h1(c);
       f -= (vec2(h1(c + 3.1), h1(c + 7.7)) - 0.5) * 0.45;
       float arc = lineAA(abs(length(f) - 0.2), 0.035) * step(f.y, 0.03) * step(0.5, r);
-      col *= 0.95 + 0.1 * n2(p * 0.33 + 2.0);
-      col = mix(col, col * vec3(0.72, 0.84, 0.7), arc * fade(0.18));
+      col = shade(base, mix(s, 1.0, 0.3)) * (0.95 + 0.1 * n2(p * 0.33 + 2.0));
+      col = mix(col, col * vec3(0.62, 0.78, 0.6), arc * fade(0.18));
     } else if (pat == 18) {
       // ── bark: broken upright strokes
       float x = along * 18.0 + sin(vW.y * 9.0) * 0.6;

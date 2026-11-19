@@ -12,7 +12,7 @@ export const LOOK = defineStyle(
     inkWidth: 1.6,
     inkWidthFar: 0.95,
     /** Screen pixels per world unit at which the line reaches each width. */
-    inkNearPx: 70,
+    inkNearPx: 110,
     inkFarPx: 18,
     /** How strongly each kind of edge is inked (0–1). Silhouettes are depth jumps. */
     inkSilhouette: 1,
@@ -66,22 +66,31 @@ export const LOOK = defineStyle(
  * line colour. Dusk and dawn are the colours at the peak of those stretches;
  * the grade eases between neighbours (src/render/grade.ts).
  */
-export const GRADE = defineStyle('grade', {
-  dayTint: '#ffffff',
-  dayLift: '#000000',
-  dayInk: '#3a2f2a',
-  duskTint: '#ffcfa8',
-  duskLift: '#0d0408',
-  duskInk: '#4a2c33',
-  nightTint: '#4a5598',
-  nightLift: '#06071a',
-  nightInk: '#11112c',
-  dawnTint: '#e6cfe2',
-  dawnLift: '#07050c',
-  dawnInk: '#3b2e40',
-  /** Lit windows and lamps: the pane colour and its warmer halo. */
-  lamp: '#ffd96e',
-  lampWarm: '#ffb45e',
-  /** Stars and the lighthouse beam. */
-  star: '#fff6d8',
-});
+export const GRADE = defineStyle(
+  'grade',
+  {
+    dayTint: '#ffffff',
+    dayLift: '#000000',
+    dayInk: '#3a2f2a',
+    daySat: 1,
+    duskTint: '#ffd4bd',
+    duskLift: '#12060f',
+    duskInk: '#4a2c33',
+    duskSat: 1.05,
+    nightTint: '#4c5590',
+    nightLift: '#080a1c',
+    nightInk: '#11112c',
+    /** Night is a little greyer as well as darker: colours rest, lit windows sing. */
+    nightSat: 0.72,
+    dawnTint: '#e6cfe2',
+    dawnLift: '#07050c',
+    dawnInk: '#3b2e40',
+    dawnSat: 0.92,
+    /** Lit windows and lamps: the pane colour and its warmer halo. */
+    lamp: '#ffd96e',
+    lampWarm: '#ffb45e',
+    /** Stars and the lighthouse beam. */
+    star: '#fff6d8',
+  },
+  { daySat: [0, 1.5, 0.01], duskSat: [0, 1.5, 0.01], nightSat: [0, 1.5, 0.01], dawnSat: [0, 1.5, 0.01] },
+);

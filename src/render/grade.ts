@@ -20,6 +20,8 @@ export interface Grade {
   lift: Rgb;
   /** The ink line colour. */
   ink: Rgb;
+  /** Colour saturation after the tint: 1 leaves it alone. */
+  sat: number;
   /** 0 by day to 1 at night: how lit the windows and lamps are. Leads the darkness a little. */
   glow: number;
   /** 0 by day to 1 in full night: stars. */
@@ -40,16 +42,22 @@ interface Key {
   tint: Rgb;
   lift: Rgb;
   ink: Rgb;
+  sat: number;
 }
 function keys(): Record<'day' | 'dusk' | 'night' | 'dawn', Key> {
   return {
-    day: { tint: rgb(GRADE.dayTint), lift: rgb(GRADE.dayLift), ink: rgb(GRADE.dayInk) },
-    dusk: { tint: rgb(GRADE.duskTint), lift: rgb(GRADE.duskLift), ink: rgb(GRADE.duskInk) },
-    night: { tint: rgb(GRADE.nightTint), lift: rgb(GRADE.nightLift), ink: rgb(GRADE.nightInk) },
-    dawn: { tint: rgb(GRADE.dawnTint), lift: rgb(GRADE.dawnLift), ink: rgb(GRADE.dawnInk) },
+    day: { tint: rgb(GRADE.dayTint), lift: rgb(GRADE.dayLift), ink: rgb(GRADE.dayInk), sat: GRADE.daySat },
+    dusk: { tint: rgb(GRADE.duskTint), lift: rgb(GRADE.duskLift), ink: rgb(GRADE.duskInk), sat: GRADE.duskSat },
+    night: { tint: rgb(GRADE.nightTint), lift: rgb(GRADE.nightLift), ink: rgb(GRADE.nightInk), sat: GRADE.nightSat },
+    dawn: { tint: rgb(GRADE.dawnTint), lift: rgb(GRADE.dawnLift), ink: rgb(GRADE.dawnInk), sat: GRADE.dawnSat },
   };
 }
-const blend = (a: Key, b: Key, t: number): Key => ({ tint: mix(a.tint, b.tint, t), lift: mix(a.lift, b.lift, t), ink: mix(a.ink, b.ink, t) });
+const blend = (a: Key, b: Key, t: number): Key => ({
+  tint: mix(a.tint, b.tint, t),
+  lift: mix(a.lift, b.lift, t),
+  ink: mix(a.ink, b.ink, t),
+  sat: a.sat + (b.sat - a.sat) * t,
+});
 
 /** Where the peach of dusk and the pink of dawn peak inside their stretch (0–1). */
 const DUSK_PEAK = 0.42;
