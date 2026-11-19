@@ -240,7 +240,8 @@ function roofs(h: House): void {
       const n = neighbor(c, d);
       if (n !== NO_CELL && pierced.has(n)) return 'tower';
       if (has(n)) return 'wall'; // a member that is not in this region rises higher
-      if (n !== NO_CELL && (solid(n) || solid(above(n)))) return 'party';
+      // Only the side neighbour itself: the cell above it is diagonal to this house and not in its hash.
+      if (n !== NO_CELL && solid(n)) return 'party';
       return 'free';
     };
 

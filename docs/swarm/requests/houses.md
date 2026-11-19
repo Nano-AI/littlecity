@@ -87,8 +87,9 @@ The house generator reads only what `hashStructure` covers. Two notes for
 whoever widens or narrows that hash:
 
 - it reads the **kind** of each side neighbour (a `stairs` block beside a
-  terrace leaves the parapet open there) and whether the cell above a side
-  neighbour is solid (a party wall rising past the roof);
+  terrace leaves the parapet open there; any solid block makes that side a
+  party wall with no eave) and the terrain height of the side columns. It
+  does not read diagonal neighbours, which the hash does not cover;
 - trail features (J08) are drawn on ground cells outside the structure. They
   are features of the house, so they are in its hash; the terrain height of
   those cells is implied by the feature's cell.
