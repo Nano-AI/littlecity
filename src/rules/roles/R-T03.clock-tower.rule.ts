@@ -3,7 +3,7 @@
 // on each free side of its top storey, a pyramid roof (J13). The hands are
 // L29's, on each face's 'clock-hands' socket.
 
-import { above, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
+import { above, inBounds, key, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { plazas } from '@/resolve/facts/plazas.fact';
 
@@ -14,13 +14,18 @@ export default defineRule({
   priority: 8970,
   about: 'Reads: towers of height 4+ with no role; squares (plazas fact). Emits: role clock-tower; a clock-face per free side of the top storey (socket clock-hands).',
   find({ plan, facts }) {
-    const squares = plazas(facts).list.filter((p) => p.square);
-    if (!squares.length) return [];
     const out = [];
     for (const s of plan.structures.values()) {
       if (s.kind !== 'tower' || s.cells.length < 4) continue;
       const x = keyX(s.cells[0]!), y = keyY(s.cells[0]!), z = keyZ(s.cells[0]!);
-      const near = squares.some((p) => p.cells.some((c) => keyY(c) === y && Math.abs(keyX(c) - x) + Math.abs(keyZ(c) - z) <= 2));
+      // Plaza cells within 2 steps of the base; only then is the plazas fact worth asking for.
+      let near = false;
+      for (let dx = -2; dx <= 2 && !near; dx++) {
+        for (let dz = -2 + Math.abs(dx); dz <= 2 - Math.abs(dx); dz++) {
+          const c = inBounds(x + dx, y, z + dz) ? key(x + dx, y, z + dz) : -1;
+          if (c >= 0 && plan.world.floors.get(c) === 'plaza' && plazas(facts).byCell.get(c)?.square) near = true;
+        }
+      }
       if (near) out.push({ anchor: s.cells[0]!, structure: s.id });
     }
     return out;

@@ -4,7 +4,6 @@
 
 import { above } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
-import { townFacts } from '@/resolve/facts/town.fact';
 
 export default defineRule({
   id: 'R-T06.campanile',
@@ -12,12 +11,15 @@ export default defineRule({
   tier: 2,
   priority: 8940,
   townWide: true,
-  about: 'Reads: townFacts.tallestByKind (town-wide). Emits: role campanile on the tallest tower if it has 6+ storeys and no role; a belfry on its top cell (socket bell).',
-  find({ plan, facts }) {
-    const tallest = townFacts(facts).tallestByKind.get('tower');
-    if (!tallest || tallest.storeys < 6) return [];
-    const s = plan.structures.get(tallest.id);
-    return s ? [{ anchor: s.cells[0]!, structure: s.id }] : [];
+  about: 'Reads: every tower in town (town-wide). Emits: role campanile on the tallest tower if it has 6+ storeys and no role; a belfry on its top cell (socket bell).',
+  find({ plan }) {
+    // The tower with the most storeys; ties go to the lowest id (as townFacts.tallestByKind does).
+    let best: { id: number; storeys: number; anchor: number } | null = null;
+    for (const s of plan.structures.values()) {
+      if (s.kind !== 'tower') continue;
+      if (!best || s.cells.length > best.storeys || (s.cells.length === best.storeys && s.id < best.id)) best = { id: s.id, storeys: s.cells.length, anchor: s.cells[0]! };
+    }
+    return best && best.storeys >= 6 ? [{ anchor: best.anchor, structure: best.id }] : [];
   },
   apply(c, out, { plan }) {
     const s = plan.structures.get(c.structure!)!;

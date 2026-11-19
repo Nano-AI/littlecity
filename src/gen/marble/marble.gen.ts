@@ -39,7 +39,7 @@ export interface MarbleCell {
 }
 
 /** What the generator reads about each cell of a marble mass (all inside the structure hash). */
-export function marbleCells(s: Structure, plan: ShapePlan): MarbleCell[] {
+export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<CellKey, Dir4> = new Map()): MarbleCell[] {
   const mine = new Set(s.cells);
   const height = (x: number, z: number): number => (inColumnBounds(x, z) ? plan.terrain.height[columnIndex(x, z)]! : 0);
   return s.cells.map((cell) => {
@@ -51,7 +51,11 @@ export function marbleCells(s: Structure, plan: ShapePlan): MarbleCell[] {
     for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
       const n = neighbor(cell, d);
       const nh = n === NO_CELL ? 0 : height(keyX(n), keyZ(n));
-      open.push(n === NO_CELL || !mine.has(n));
+      // A neighbour cut into steps leaves this side showing above them, unless this cell is the block
+      // the flight climbs to (it is hidden behind the top step) or part of the same flight.
+      const steps = n === NO_CELL ? undefined : carved.get(n);
+      const beside = steps !== undefined && steps !== d && carved.get(cell) !== steps;
+      open.push(n === NO_CELL || !mine.has(n) || beside);
       grounded.push(onGround && n !== NO_CELL && !mine.has(n) && nh === y);
       flush.push(n !== NO_CELL && !mine.has(n) && nh === y + 1);
     }
@@ -83,7 +87,9 @@ export default defineGenerator({
       return { mesh: b.build(), anchors };
     }
 
-    const cells = marbleCells(s, plan);
+    const carved = new Map<CellKey, Dir4>();
+    for (const f of features) if (f.type === 'broad-steps' && f.cell !== undefined && f.dir !== undefined) carved.set(f.cell, f.dir as Dir4);
+    const cells = marbleCells(s, plan, carved);
     const byCell = new Map(cells.map((c) => [c.cell, c] as const));
     const battlements = new Set<number>();
     const stylobates = new Map<CellKey, number>();
@@ -92,10 +98,38 @@ export default defineGenerator({
       if (f.type === 'stylobate' && f.cell !== undefined) stylobates.set(f.cell, (f.params as { depth?: number } | undefined)?.depth ?? 1);
     }
     const temple = role === 'temple';
+    const besideSteps = (cell: CellKey, d: number): boolean => {
+      const n = neighbor(cell, d as Dir4);
+      return n !== NO_CELL && carved.has(n);
+    };
 
     b.setColor(stone).setPattern(PATTERN.marble).setInk('mass');
     for (const c of cells) {
       const x = keyX(c.cell), y = keyY(c.cell) * CELL_H, z = keyZ(c.cell);
+      const down = carved.get(c.cell);
+      if (down !== undefined) {
+        // Broad steps (R-M04): four to the cell, climbing away from `down`. Drawn facing downhill (+z).
+        const n = 4, rise = CELL_H / n, run = 1 / n;
+        const left = ((down + 3) & 3) as Dir4, right = ((down + 1) & 3) as Dir4;
+        const sameFlight = (side: Dir4): boolean => {
+          const o = neighbor(c.cell, side);
+          return o !== NO_CELL && carved.get(o) === down;
+        };
+        b.at(compose(translation(x + 0.5, y, z + 0.5), rotationY(Math.atan2(DIR4[down]![0], DIR4[down]![1]))), () => {
+          for (let i = 0; i < n; i++) {
+            const z1 = 0.5 - i * run, z0 = z1 - run, y0 = i * rise, y1 = y0 + rise;
+            b.quad([-0.5, y0, z1], [0.5, y0, z1], [0.5, y1, z1], [-0.5, y1, z1]); // riser
+            b.quad([-0.5, y1, z1], [0.5, y1, z1], [0.5, y1, z0], [-0.5, y1, z0]); // tread
+          }
+          // The cheeks, where the flight's side is open. (In this frame the cell's left side is at +x.)
+          const profile: [number, number][] = [[0.5, 0]];
+          for (let i = 0; i < n; i++) profile.push([0.5 - i * run, (i + 1) * rise], [0.5 - (i + 1) * run, (i + 1) * rise]);
+          profile.push([-0.5, 0]);
+          if (c.open[left] && !sameFlight(left)) b.polygon(profile.map(([pz, py]): [number, number, number] => [0.5, py, pz]).reverse());
+          if (c.open[right] && !sameFlight(right)) b.polygon(profile.map(([pz, py]): [number, number, number] => [-0.5, py, pz]));
+        });
+        continue;
+      }
       const sides = FACE.filter((_, d) => c.open[d]);
       if (sides.length) b.box([x, y, z], [x + 1, y + CELL_H, z + 1], { only: sides, bevelTop: c.topOpen && MONUMENTS.marbleCornice <= 0 });
       if (!c.topOpen) continue;
@@ -105,7 +139,7 @@ export default defineGenerator({
         continue;
       }
       // A paved top inside a marble coping along every edge that drops away.
-      const edge = (d: number): boolean => c.open[d]! && !c.flush[d];
+      const edge = (d: number): boolean => c.open[d]! && !c.flush[d] && !besideSteps(c.cell, d);
       const x0 = x + (edge(3) ? COPING : 0), x1 = x + 1 - (edge(1) ? COPING : 0);
       const z0 = z + (edge(0) ? COPING : 0), z1 = z + 1 - (edge(2) ? COPING : 0);
       b.with({ pattern: PATTERN.paving, color: PALETTE.plaza }, () => b.quad([x0, top, z1], [x1, top, z1], [x1, top, z0], [x0, top, z0]));
@@ -152,13 +186,13 @@ export default defineGenerator({
     };
     const out = MONUMENTS.marbleBaseOut, baseH = MONUMENTS.marbleBase;
     if (baseH > 0 && out > 0) {
-      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => band((c, d) => c.grounded[d]!, () => 0, baseH, out));
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => band((c, d) => c.grounded[d]! && !carved.has(c.cell), () => 0, baseH, out));
     }
     const corniceH = MONUMENTS.marbleCornice * (temple ? 1.5 : 1);
     if (corniceH > 0) {
       // A temple's is deeper and darker: its frieze.
       b.with({ color: temple ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'cornice' }, () =>
-        band((c, d) => c.topOpen && c.open[d]! && !c.flush[d], () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
+        band((c, d) => c.topOpen && c.open[d]! && !c.flush[d] && !carved.has(c.cell) && !besideSteps(c.cell, d), () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
       );
     }
     if (battlements.size) {
@@ -200,6 +234,11 @@ export default defineGenerator({
     const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
     for (const f of features) {
       if (f.type === 'battlement' || f.type === 'stylobate') continue;
+      if (f.type === 'broad-steps') {
+        // People sit on the second step, facing downhill.
+        if (f.cell !== undefined && f.dir !== undefined) ownSockets(plan, anchors, f.id, faceFrame(f.cell, f.dir as Dir4, CELL_H / 2), { seat: translation(0, 0, -0.38) });
+        continue;
+      }
       const face = f.cell !== undefined && f.dir !== undefined;
       const sub = (): MeshBuilder => new MeshBuilder({ ink: f.id });
       if (f.type === 'arrow-slit' && face) {

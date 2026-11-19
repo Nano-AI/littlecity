@@ -2,10 +2,9 @@
 // rows of dove holes with perching ledges on its top storey, and a low cone
 // roof with a little lantern the birds fly in by (J13). The doves are L15's.
 
-import { above, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
+import { above, inBounds, key, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
-import { gardens } from '@/resolve/facts/gardens.fact';
 
 export default defineRule({
   id: 'R-T05.dovecote',
@@ -13,14 +12,17 @@ export default defineRule({
   tier: 3,
   priority: 8950,
   about: 'Reads: towers of height 3 with no role; gardens within 2 cells. Emits: role dovecote; dove-holes on two free sides of the top storey (socket perch).',
-  find({ plan, facts }) {
-    const beds = gardens(facts).list;
-    if (!beds.length) return [];
+  find({ plan }) {
     const out = [];
     for (const s of plan.structures.values()) {
       if (s.kind !== 'tower' || s.cells.length !== 3) continue;
       const x = keyX(s.cells[0]!), y = keyY(s.cells[0]!), z = keyZ(s.cells[0]!);
-      const near = beds.some((g) => g.cells.some((c) => keyY(c) === y && Math.abs(keyX(c) - x) + Math.abs(keyZ(c) - z) <= 2));
+      let near = false;
+      for (let dx = -2; dx <= 2 && !near; dx++) {
+        for (let dz = -2 + Math.abs(dx); dz <= 2 - Math.abs(dx); dz++) {
+          if (inBounds(x + dx, y, z + dz) && plan.world.floors.get(key(x + dx, y, z + dz)) === 'garden') near = true;
+        }
+      }
       if (near) out.push({ anchor: s.cells[0]!, structure: s.id });
     }
     return out;

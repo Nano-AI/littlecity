@@ -10,11 +10,10 @@
 //   - the tag 'footing:water' when it rises straight out of the sea.
 
 import { above, below, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { KINDS } from '@/core/kinds';
 import type { FeatureVariant, Role, Tag } from '@/core/vocab';
 import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
-import { cellInfo } from '@/resolve/facts/cell.fact';
-import { facades } from '@/resolve/facts/facades.fact';
 
 const BY_ROLE: Partial<Record<Role, { body: Tag; cap: FeatureVariant<'cap'> }>> = {
   steeple: { body: 'body:square', cap: 'spire' },
@@ -32,7 +31,7 @@ export default defineRule({
   tier: 1,
   priority: 870,
   about:
-    'Reads: tower and lighthouse structures, their roles and features so far, facades. Emits: tags body:round/square and footing:water; ' +
+    'Reads: tower and lighthouse structures, their roles and features so far, the cells and floors straight outside. Emits: tags body:round/square and footing:water; ' +
     'a cap by role (sockets tower-top, flag-mount); window/slit features spiralling up (socket window); a main door if there is none (socket door).',
   find({ plan }) {
     const out = [];
@@ -41,13 +40,12 @@ export default defineRule({
     }
     return out;
   },
-  apply(c, out, { plan, facts }) {
+  apply(c, out, { plan }) {
     const s = plan.structures.get(c.structure!)!;
     const n = s.cells.length;
     const bottom = s.cells[0]!;
     const top = s.cells[n - 1]!;
     const have = plan.featuresByStructure.get(s.id) ?? [];
-    const info = cellInfo(facts);
 
     if (keyY(bottom) === 0 && plan.terrain.height[columnIndex(keyX(bottom), keyZ(bottom))] === 0) out.tag(s.id, 'footing:water');
 
@@ -64,31 +62,42 @@ export default defineRule({
     }
 
     // A side is free for a window or a door if nothing stands in the cell outside it.
+    const groundAt = (c: CellKey): number => plan.terrain.height[columnIndex(keyX(c), keyZ(c))]!;
+    const firm = (c: CellKey): boolean => {
+      if (c === NO_CELL) return false;
+      if (keyY(c) < groundAt(c)) return true;
+      const k = plan.kinds.get(c);
+      return k !== undefined && KINDS[k].solid;
+    };
     const free = (cell: CellKey, d: Dir4): boolean => {
       const o = neighbor(cell, d);
-      return o !== NO_CELL && !plan.kinds.has(o) && !info.at(o).inTerrain;
+      return o !== NO_CELL && !plan.kinds.has(o) && keyY(o) >= groundAt(o);
     };
 
-    // The door: the ground storey's best side, scored as J06 scores a house's.
+    // The door: the ground storey's best side, scored as J06 scores a house's: a street right outside
+    // (+5), a plaza (+4), a floor within 3 cells (+3), open ground (+1). Never over a drop, the sea or
+    // into a cliff. (Worked out from the cells straight ahead, so the rule stays cheap.)
     let doorDir = have.find((f) => f.type === 'door' && f.cell === bottom)?.dir as Dir4 | undefined;
     const start = hash(s.seed, 'spiral') & 3;
     // No door where it stands on a pitched roof or on another tower; none in mid-air.
     const under = below(bottom);
     const underKind = under === NO_CELL ? undefined : plan.kinds.get(under);
-    const onFlat = info.at(bottom).walkableTop && underKind !== 'house' && underKind !== 'tower' && underKind !== 'lighthouse';
+    const onFlat = firm(under) && underKind !== 'house' && underKind !== 'tower' && underKind !== 'lighthouse';
     if (!have.some((f) => f.type === 'door') && onFlat) {
-      const sides = facades(facts);
       let best = -Infinity;
       for (let k = 0; k < 4; k++) {
         const d = ((start + k) & 3) as Dir4;
-        const f = sides.at(bottom, d);
-        if (!f || f.drop > 0 || !free(bottom, d)) continue;
-        let score = 0;
-        if (f.street === 1) score += 5;
-        if (f.plaza === 1) score += 4;
-        if (f.street !== undefined || f.plaza !== undefined || f.garden !== undefined) score += 3;
-        if (f.faces === 'ground') score += 1;
-        if (f.faces === 'water' || f.faces === 'cliff' || f.alley) score -= 3;
+        if (!free(bottom, d)) continue;
+        let o = neighbor(bottom, d);
+        if (!firm(below(o))) continue; // a drop, or the sea
+        const first = plan.world.floors.get(o);
+        let score = first === 'path' ? 5 : first === 'plaza' ? 4 : 1;
+        for (let step = 0; step < 3 && o !== NO_CELL && !plan.kinds.has(o) && keyY(o) >= groundAt(o); step++, o = neighbor(o, d)) {
+          if (plan.world.floors.has(o)) {
+            score += 3;
+            break;
+          }
+        }
         if (score > best) {
           best = score;
           doorDir = d;
