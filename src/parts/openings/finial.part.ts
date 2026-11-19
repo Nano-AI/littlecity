@@ -21,6 +21,22 @@ export default definePart({
       b.with({ color: PALETTE.metal, pattern: PATTERN.metal }, () => {
         b.boxAt([0, -0.04, 0], [0.022, 0.4, 0.022], { skip: ['bottom'] });
         bead(b, 0, 0.2, 0, 0.035);
+        // D12: some vanes carry a figure above the arrow: a rooster or a little ship.
+        const figure = item.params?.figure ?? 0;
+        if (figure > 0) {
+          b.at(compose(translation(0, 0.33, 0), rotationY((across ? 0 : Math.PI / 2) + 0.3 + ctx.rand('swing'))), () => {
+            const shape: [number, number][] =
+              figure === 1
+                ? // a rooster: tail up behind, comb on top, standing on the rod
+                  [[-0.1, 0.02], [0.05, 0.0], [0.08, 0.06], [0.11, 0.08], [0.085, 0.11], [0.06, 0.15], [0.04, 0.11], [0.03, 0.07], [-0.04, 0.07], [-0.09, 0.15], [-0.12, 0.1]]
+                : // a ship: a hull and one square sail on a mast
+                  [[-0.1, 0.03], [0.1, 0.03], [0.13, 0.065], [0.02, 0.065], [0.02, 0.2], [0.08, 0.075], [-0.07, 0.075], [-0.01, 0.2], [-0.01, 0.065], [-0.12, 0.065]];
+            for (const z of [0.007, -0.007]) {
+              const pts = shape.map(([x, y]): [number, number, number] => [x, y, z]);
+              b.polygon(z > 0 ? pts : pts.reverse());
+            }
+          });
+        }
         b.at(compose(translation(0, 0.3, 0), rotationY((across ? 0 : Math.PI / 2) + 0.5 + ctx.rand('swing'))), () => {
           b.box([-0.14, -0.01, -0.008], [0.12, 0.012, 0.008]);
           // head and tail, flat plates seen from both sides

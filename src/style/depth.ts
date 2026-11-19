@@ -23,6 +23,32 @@ export const DEPTH = defineStyle(
     edgeReach: 10,
     /** Share of small rustic houses (footprint up to 6) that are thatched. */
     rusticThatch: 0.6,
+    // ── D12 weathervane ──
+    /** A house taller than every house within this many column steps flies a vane. */
+    vaneReach: 6,
+    // ── D14 roof life ──
+    birdhouse: 0.1,
+    /** A stork nests on the tallest chimney once the town has this many houses. */
+    storkHouses: 12,
+    // ── D18 garden things ──
+    beehives: 0.3,
+    wheelbarrow: 0.5,
+    trellis: 0.5,
+    // ── D21 castle dressing ──
+    cannon: 0.15,
+    // ── D26 fingerposts, D27 post ──
+    fingerpost: 0.5,
+    mailbox: 0.3,
+    /** One pillar box on each street at least this long. */
+    postboxStreet: 10,
+    // ── D28 terrace furniture, D30 stair pots ──
+    terrace: 0.6,
+    stairPots: 0.3,
+    // ── D32 under the trees, D34 lost kite ──
+    swing: 0.2,
+    hammock: 0.3,
+    picnic: 0.35,
+    kite: 0.1,
   },
   {
     vistaStreet: [3, 10, 1],
@@ -30,5 +56,21 @@ export const DEPTH = defineStyle(
     hallFootprint: [4, 20, 1],
     edgeReach: [4, 20, 1],
     rusticThatch: [0, 1, 0.05],
+    vaneReach: [2, 12, 1],
+    birdhouse: [0, 1, 0.05],
+    storkHouses: [1, 40, 1],
+    beehives: [0, 1, 0.05],
+    wheelbarrow: [0, 1, 0.05],
+    trellis: [0, 1, 0.05],
+    cannon: [0, 1, 0.05],
+    fingerpost: [0, 1, 0.05],
+    mailbox: [0, 1, 0.05],
+    postboxStreet: [4, 30, 1],
+    terrace: [0, 1, 0.05],
+    stairPots: [0, 1, 0.05],
+    swing: [0, 1, 0.05],
+    hammock: [0, 1, 0.05],
+    picnic: [0, 1, 0.05],
+    kite: [0, 1, 0.05],
   },
 );
