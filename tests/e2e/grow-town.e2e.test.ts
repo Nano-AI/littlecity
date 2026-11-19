@@ -71,6 +71,9 @@ describe('grow a town', () => {
     await page.click('[data-menu="grow-no"]');
     expect(await page.evaluate(growing)).toBe(false);
 
+    // The new island's seed comes from the clock and Math.random: pin them to a positive seed
+    // (a negative one trips L10.fireflies, docs/swarm/requests/grow-town.md).
+    await page.evaluate('Date.now = () => 3; Math.random = () => 0.5;');
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow-new"]');
     await page.click('[data-menu="grow-new-yes"]');
