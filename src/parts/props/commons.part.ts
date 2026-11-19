@@ -396,11 +396,12 @@ export const swing = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 769));
-    const z = 0.36, top = 0.62, seat = 0.13 + r('h') * 0.03;
-    b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.12, 0.05], [0.02, top - 0.02, z * 0.6], [0.03, top, z + 0.08]], [0.03, 0.022, 0.015], { seg: 5 }));
-    b.with({ color: PALETTE.sand, pattern: PATTERN.none, ink: 'swing', sway: (_x: number, y: number) => Math.max(0, (top - y) / top) * 0.35 }, () => {
+    // Out past the crown's edge, so the swing shows from above: a long low bough reaching out.
+    const z = 0.52, top = 0.5, seat = 0.12 + r('h') * 0.03;
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.16, 0.05], [0.02, top - 0.03, z * 0.6], [0.03, top, z + 0.1]], [0.035, 0.025, 0.016], { seg: 5 }));
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'swing', sway: (_x: number, y: number) => Math.max(0, (top - y) / top) * 0.35 }, () => {
       for (const x of [-0.08, 0.08]) b.box([x + 0.02 - 0.004, seat, z - 0.004], [x + 0.02 + 0.004, top, z + 0.004]);
-      b.box([-0.08, seat - 0.02, z - 0.045], [0.12, seat, z + 0.045]);
+      b.with({ color: PALETTE.red }, () => b.box([-0.09, seat - 0.025, z - 0.05], [0.13, seat, z + 0.05]));
     });
     return { mesh: b.build(), anchors: { seat: translation(0.02, seat, z) } };
   },
