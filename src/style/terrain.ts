@@ -14,6 +14,8 @@ export const TERRAIN = defineStyle(
     radiusBuilt: 0.1,
     /** How far outline points wander from the grid (seeded, smooth). */
     wobble: 0.045,
+    /** How far each terrace above the first leans toward PALETTE.grassHigh (0 keeps one green everywhere). */
+    levelTint: 0.34,
     /** Height of the grass lip that caps an earth bank or a cliff. */
     turf: 0.12,
     /** How far it overhangs. */
@@ -34,6 +36,7 @@ export const TERRAIN = defineStyle(
     radiusVary: [0, 0.3, 0.01],
     radiusBuilt: [0.02, 0.5, 0.01],
     wobble: [0, 0.12, 0.005],
+    levelTint: [0, 1, 0.02],
     turf: [0, 0.3, 0.01],
     turfOut: [0, 0.08, 0.005],
     beachRun: [0, 0.45, 0.01],

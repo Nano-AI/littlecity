@@ -136,6 +136,8 @@ uniform vec3 uSea;
 uniform vec3 uSeaDeep;
 uniform vec3 uShallow;
 uniform vec3 uFoam;
+uniform vec3 uSeaKeep;    // multiplies the sea: undoes most of a warm tint's pull toward grey
+uniform float uSeaY;      // the waterline
 uniform vec3 uWhite;
 uniform vec3 uTimber;
 uniform vec3 uLamp;
@@ -261,23 +263,49 @@ void main(){
     float m = n2(vW.xz * 0.32 + vec2(uTime * 0.03, 0.0));
     c = mix(c, uSeaDeep, smoothstep(0.5, 0.8, m) * 0.45);
     float sd = vEdge + (n2(vW.xz * 2.3 + uTime * 0.05) - 0.5) * 0.09;
+    // Round the island the water pales in two steps, like the contours of a chart: a wide lazy
+    // shelf with a pencilled edge, then the pale shallows at the shore itself.
+    float sd2 = vEdge + (n2(vW.xz * 0.8 + 4.0) - 0.5) * 0.6 + (n2(vW.xz * 3.1) - 0.5) * 0.1;
+    float fw2 = max(fwidth(sd2), 1e-4);
+    c = mix(c, uShallow, (1.0 - smoothstep(1.3 - fw2, 1.3 + fw2, sd2)) * 0.3);
+    c = mix(c, uSeaDeep, (1.0 - smoothstep(0.5, 1.5, abs(sd2 - 1.3) / fw2)) * 0.55 * step(vEdge, 3.0));
     c = mix(c, uShallow, (1.0 - smoothstep(0.0, 0.62, sd)) * 0.7);
+    c *= uSeaKeep;       // the sea keeps its blue through a warm dusk (index.ts)
     // Wave marks lie level on the page whichever way the island is turned.
     vec2 r2 = normalize(uCamRight.xz);
     vec2 q = vec2(dot(vW.xz, r2), dot(vW.xz, vec2(-r2.y, r2.x)));
+    float fwq = fwidth(q.y) * 1.2;      // from the unbroken coordinate: no hairline where the cells meet
     q.x += uTime * 0.1;
-    vec2 cell = vec2(0.9, 0.34);
-    vec2 id = floor(q / cell); vec2 f = fract(q / cell) - 0.5;
-    float r = h1(id);
-    vec2 lp = (f - (vec2(h1(id + 1.7), h1(id + 5.3)) - 0.5) * vec2(0.35, 0.3)) * cell;
-    float len = 0.11 + r * 0.08;
-    float wav = sin(lp.x * 26.0 + r * 6.0 + uTime * 1.5) * 0.014;
-    float life = 0.5 + 0.5 * sin(uTime * 0.7 + r * 40.0);
-    float mark = band(lp.y - wav, 0.011) * smoothstep(len, len - 0.05, abs(lp.x)) * step(0.45, r) * smoothstep(0.25, 0.7, life);
-    c = mix(c, uFoam, mark * 0.85 * fade(0.2) * smoothstep(0.25, 0.5, sd));
-    float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), 0.024);
-    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2));
-    c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0) * fade(0.12));
+    float open = smoothstep(0.25, 0.5, sd);
+    {
+      vec2 cell = vec2(0.9, 0.34);
+      vec2 id = floor(q / cell); vec2 f = fract(q / cell) - 0.5;
+      float r = h1(id);
+      vec2 lp = (f - (vec2(h1(id + 1.7), h1(id + 5.3)) - 0.5) * vec2(0.35, 0.3)) * cell;
+      float len = 0.11 + r * 0.08;
+      float wav = sin(lp.x * 26.0 + r * 6.0 + uTime * 1.5) * 0.014;
+      float life = 0.5 + 0.5 * sin(uTime * 0.7 + r * 40.0);
+      float mark = (1.0 - smoothstep(0.011 - fwq, 0.011 + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.05, abs(lp.x)) * step(0.45, r) * smoothstep(0.25, 0.7, life);
+      c = mix(c, uFoam, mark * 0.85 * fade(0.2) * open);
+    }
+    {
+      // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
+      vec2 cell = vec2(3.1, 1.05);
+      vec2 qq = q + vec2(uTime * 0.12, 0.0);
+      vec2 id = floor(qq / cell); vec2 f = fract(qq / cell) - 0.5;
+      float r = h1(id + 31.0);
+      vec2 lp = (f - (vec2(h1(id + 2.9), h1(id + 6.1)) - 0.5) * vec2(0.4, 0.45)) * cell;
+      float len = 0.45 + r * 0.5;
+      float wav = sin(lp.x * 5.5 + r * 6.0 + uTime * 0.9) * 0.05;
+      float life = 0.5 + 0.5 * sin(uTime * 0.45 + r * 40.0);
+      float w = max(0.03, 0.75 / uPx);
+      float mark = (1.0 - smoothstep(w - fwq, w + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.2, abs(lp.x)) * step(0.4, r) * smoothstep(0.2, 0.7, life);
+      c = mix(c, uFoam, mark * 0.7 * (1.0 - fade(0.2)) * open);
+    }
+    float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
+    float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
+    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12);
+    c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0));
     // Things standing in the water (a dock, a hull) darken it a little where they meet it.
     c *= mix(vec3(1.0), vec3(0.8, 0.84, 0.93), grounding(n) * uGround * smoothstep(0.15, 0.4, sd));
     col = c;
@@ -296,6 +324,12 @@ void main(){
           pen += (1.0 - smoothstep(0.7, 1.6, abs(e - 0.5) / fw)) * 0.32;
         }
         vec3 grass = col * (0.965 + 0.07 * n2(vW.xz * 0.45 + 3.0));
+        // Meadow: wide patches of longer, deeper grass with a wandering edge, so open ground is not one flat green.
+        float meadow = n2(vW.xz * 0.21 + 13.0) + (n2(vW.xz * 1.7 + 5.0) - 0.5) * 0.16;
+        float mfw = max(fwidth(meadow), 1e-4);
+        float deep = smoothstep(0.56 - mfw, 0.56 + mfw, meadow);
+        grass *= mix(vec3(1.0), vec3(0.93, 0.965, 0.9), deep);
+        grass = mix(grass, grass * vec3(0.78, 0.88, 0.74), (1.0 - smoothstep(0.6, 1.6, abs(meadow - 0.56) / mfw)) * 0.5);
         vec2 p = vW.xz * 3.6; vec2 c = floor(p); vec2 f = fract(p) - 0.5;
         float r = h1(c);
         f -= (vec2(h1(c + 3.1), h1(c + 7.7)) - 0.5) * 0.5;
@@ -316,6 +350,18 @@ void main(){
         float dotm = lineAA(length(f3), 0.085) * step(0.93, r3) * fade(0.2);
         vec3 fl = r3 > 0.977 ? uFlowerA : (r3 > 0.953 ? uFlowerB : uFlowerC);
         grass = mix(grass, fl, dotm);
+        // From far off single flowers vanish, so they gather into drifts: looser, bigger specks where a slow noise says so.
+        float drift = smoothstep(0.55, 0.75, n2(vW.xz * 0.33 + 41.0));
+        vec2 p4 = vW.xz * 1.15 + 7.3; vec2 c4 = floor(p4); vec2 f4 = fract(p4) - 0.5;
+        float r4 = h1(c4 + 17.0);
+        f4 -= (vec2(h1(c4 + 3.3), h1(c4 + 8.1)) - 0.5) * 0.7;
+        float speck = lineAA(length(f4), max(0.07, 1.25 / uPx)) * step(1.0 - 0.55 * drift, r4) * (1.0 - fade(0.2)) * (1.0 - sandy);
+        grass = mix(grass, r4 > 0.85 ? uFlowerA : (r4 > 0.7 ? uFlowerB : uFlowerC), speck * 0.8);
+        // ... and the deeper meadow carries a few darker tussocks.
+        vec2 p5 = vW.xz * 0.9 + 3.1; vec2 c5 = floor(p5); vec2 f5 = fract(p5) - 0.5;
+        f5 -= (vec2(h1(c5 + 5.3), h1(c5 + 1.1)) - 0.5) * 0.7;
+        float tussock = lineAA(length(f5 * vec2(1.0, 1.7)), max(0.09, 1.4 / uPx)) * step(0.62, h1(c5 + 23.0)) * deep * (1.0 - fade(0.3));
+        grass = mix(grass, grass * vec3(0.8, 0.9, 0.76), tussock * 0.8);
         // sand: stipple
         vec3 sand = shade(uSand, s) * (0.975 + 0.05 * n2(vW.xz * 0.7));
         vec2 ps = vW.xz * 9.0; vec2 cs = floor(ps); vec2 fs = fract(ps) - 0.5;
@@ -407,6 +453,11 @@ void main(){
       float r = h1(c);
       pen = lineAA(length(f - (vec2(h1(c + 2.0), h1(c + 9.0)) - 0.5) * 0.6), 0.09) * step(0.74, r) * 0.3 * fade(0.11);
       col *= 0.975 + 0.05 * n2(p * 0.08);
+      if (!top) {
+        // Wet sand: a darker band where the beach slopes into the water, with an uneven upper edge.
+        float wet = 1.0 - smoothstep(0.03, 0.06, vW.y - uSeaY - 0.07 - 0.05 * n2(vW.xz * 2.1));
+        col *= mix(vec3(1.0), vec3(0.84, 0.86, 0.9), wet);
+      }
     } else if (pat == 10) {
       // ── rock: broken courses and cracks, each block a different tone
       vec2 q = top ? vW.xz * vec2(1.5, 1.9) : vec2(along * 1.7, vW.y * 2.6);

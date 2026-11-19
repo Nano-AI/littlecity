@@ -24,7 +24,7 @@
 // (light beams, the ghost preview).
 
 import * as THREE from 'three';
-import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
+import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { styleVersion } from '@/core/style';
 import type { PartOutput } from '@/gen/api';
@@ -192,6 +192,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uSeaDeep: v3(),
     uShallow: v3(),
     uFoam: v3(),
+    uSeaKeep: { value: new THREE.Vector3(1, 1, 1) },
+    uSeaY: { value: SEA_Y },
     uWhite: v3(),
     uTimber: v3(),
     uLamp: v3(),
@@ -884,6 +886,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         overlay ||= p.overlay.visible;
       }
       su.uGround.value = LOOK.ground;
+      // A warm tint (dusk) multiplies blue water toward grey. The sea is drawn with less red and green
+      // by the same measure, so after the tint it is still blue: deeper, a little violet, not grey.
+      const warm = Math.min(1, Math.max(0, (grade.tint[0] - grade.tint[2]) * 4));
+      const low = Math.min(grade.tint[0], grade.tint[1], grade.tint[2]);
+      const keep = (channel: number): number => 1 + warm * ((low / Math.max(1e-3, grade.tint[channel]!)) ** (LOOK.seaKeep * 2.2) - 1);
+      su.uSeaKeep.value.set(keep(0), keep(1), keep(2));
       su.uSlope.value = grade.slope;
       su.uCast.value = grade.cast;
 

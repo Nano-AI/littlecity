@@ -35,6 +35,8 @@ export const LOOK = defineStyle(
     paper: 1,
     /** Grounding: the contact tone, cover shade and short cast shadow that sit pieces on the ground. 0 is off. */
     ground: 0.85,
+    /** How much of its blue the sea keeps under a warm dusk tint (0 lets it go grey, 1 keeps its hue). */
+    seaKeep: 1.1,
     /** Soft shadow of the floating slab on the paper. */
     slabShadow: 0.16,
     /** Warm halo around lit windows and lamps at night. */
@@ -57,6 +59,7 @@ export const LOOK = defineStyle(
     pencil: [0, 1.5, 0.05],
     paper: [0, 2, 0.05],
     ground: [0, 1.5, 0.05],
+    seaKeep: [0, 2, 0.05],
     slabShadow: [0, 0.4, 0.01],
     halo: [0, 1, 0.05],
     sway: [0, 0.3, 0.01],

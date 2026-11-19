@@ -38,7 +38,7 @@ import type { ShapePlan } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
 import { TERRAIN } from '@/style/terrain';
 import { defineLayer } from '../api';
-import { MeshBuilder, PATTERN } from '../mesh';
+import { MeshBuilder, parseColor, PATTERN } from '../mesh';
 
 /** Segments in a quarter-circle of outline. */
 const ARC = 6;
@@ -125,6 +125,13 @@ function edgeKind(g: Ground, hx: number, hz: number, lx: number, lz: number, lev
   return { shore, run, lip: shore !== 'sand' && m === MAT.grass && hi === level };
 }
 const harder = (a: EdgeKind, b: EdgeKind): EdgeKind => (HARDNESS[b.shore] > HARDNESS[a.shore] ? b : a);
+
+/** Grass colour by level: each terrace above the first is a step lighter, so plateaus read from every side. */
+function grassAt(level: number): [number, number, number] {
+  const a = parseColor(PALETTE.grass), b = parseColor(PALETTE.grassHigh);
+  const t = Math.min(1, Math.max(0, level - 1) * TERRAIN.levelTint);
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+}
 
 // ───────────────────────────────────────────────────────────── emitters ──
 
@@ -234,7 +241,7 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
   };
   const rockTop = inA && hA === level && g.mat(x, z) === MAT.rock;
   if (rockTop) b.setColor(PALETTE.rock).setPattern(PATTERN.rock).setInk(`rocktop${level}`);
-  else b.setColor(PALETTE.grass).setPattern(PATTERN.grass).setInk(`ground${level}`);
+  else b.setColor(grassAt(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
   const arc = (i: number): [number, number] => {
     const phi = (i / ARC) * (Math.PI / 2);
     return [r - r * Math.sin(phi), r - r * Math.cos(phi)];
