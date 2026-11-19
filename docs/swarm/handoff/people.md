@@ -8,14 +8,14 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - The person: `src/parts/people/{person,pose}.ts`, parts `resident`, `figure`.
 - Rules with fixtures in `scenarios/rules/`: L21, L22, L23 (jobs, includes the L08 lamplighter round and the `lampReached` / `bellRung` events), L24, L25, L27, L28 (children, kites, pigeon spots), L32.
 - L26 reactions (look, hop, chat bubble, hand to hat) are runtime only in `crowd.ts` / `people.system.ts`: no rule file, by design.
-- Watched (stairs, viaduct, roof hatch, square, dusk) and benchmarked: see README "How to watch".
+- Watched (stairs, viaduct, roof hatch, square, dusk, jobs, chat, kite) and benchmarked: see README "How to watch".
+- Main (`yaoderek/bloom-s-monkey-city-builder`) is merged in. The only test that still fails in a full run is `interface.e2e` "phone: touch" (failed on the untouched baseline too; passes alone with `-t "phone: touch"`).
 
 ## In progress
 - Nothing half-done at the last commit. If this line is stale, `git status` is the truth.
 
 ## Next, in order
-1. Merge `yaoderek/bloom-s-monkey-city-builder` into the branch, `npm run check` green, final report.
-2. Nice-to-have after that: props in workers' hands (broom, rod, sack), a drawn roof hatch (Houses), seats once Dressing's benches exist.
+1. Nothing owed. Nice-to-have: props in workers' hands (broom, rod, sack), a drawn roof hatch (Houses), seats once Dressing's benches exist.
 
 ## Decisions and gotchas
 - The worktree guard refuses compound shell commands (`mkdir` + heredoc, `for` loops, `cat > file`). One plain command per call; write files with the Write tool.
@@ -25,7 +25,7 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - A house whose door opens onto nothing walkable has `resident/indoors` people: never drawn, not counted toward the cap of 60. Without this the bench town had 14 walkers.
 - Resident ids anchor on the house's founding block (seq = structure id), so a moved door does not re-roll the household.
 - A sky bridge (R-A02) is a covered gallery: people crossing it are hidden, correctly. No lookout is placed there.
-- Frame drops with walkers come from the renderer's ground-shade redraw (every other frame while anything moves), not from the crowd (0.03 ms a step). Raised with Look in the requests file.
+- Anything that moves makes the renderer redraw its ground-shade picture (a second scene pass). With walkers updated every frame, `tests/e2e/interface.e2e.test.ts` (about 25 app pages left open) timed out in two tests. Fix on our side: the crowd is DRAWN 15 times a second (`PERSON.drawRate`), simulated every frame. Do not raise it without rerunning that file. Raised with Look in the requests file.
 - `src/resolve/engine/run.test.ts` had one assertion loosened (it pinned an empty nav graph).
 - A job is a `workplace` socket (`name` = `job|order|ref`), not a new actor; the crowd assigns residents (live-in first, then nearest). Workers carry no props (no broom, rod or sack is drawn).
 - `scenarioTown()` in `testing.ts` resolves with the scenario's own rules (the L23 fixture brings its own lamps; D01 is Dressing's).

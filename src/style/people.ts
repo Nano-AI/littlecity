@@ -117,6 +117,8 @@ export const PERSON = defineStyle(
     walkPoses: 4,
     /** Idle poses change this many times a second. */
     idleRate: 3,
+    /** Drawings of the crowd per second: where people are is redrawn this often, not every frame. */
+    drawRate: 15,
     skin: ['#f6d2b4', '#eebd97', '#d9a078', '#b97f58', '#8f5f44', '#f9dcc6'],
     hair: ['#4a3a34', '#6b4a34', '#2f2b33', '#b98a52', '#d8b46a', '#9c5a3c', '#e4dfd6', '#c96a4a'],
     tops: ['#e56b58', '#6d8ccf', '#ffd96e', '#7cbf9b', '#f4a3bf', '#fdfaf3', '#c6b2ff', '#eaa65c', '#9a92b8', '#88c26b'],
@@ -130,5 +132,6 @@ export const PERSON = defineStyle(
     stride: [0.2, 1, 0.02],
     bob: [0, 0.04, 0.002],
     walkPoses: [2, 8, 1],
+    drawRate: [6, 60, 1],
   },
 );

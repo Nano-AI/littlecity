@@ -28,10 +28,14 @@ only from `signals.time`.
 Written here because `src/life/MOTION.md` did not exist when this was made;
 if the Animation owner's file says otherwise for shared things, that wins.
 
-- **Poses are held, places glide.** A figure's position moves smoothly every
-  frame along its line. Its *drawing* steps: a walk is four held drawings a
+- **Poses are held, places glide.** A figure's position moves smoothly
+  along its line. Its *drawing* steps: a walk is four held drawings a
   stride (contact, passing, contact, passing: "on twos"), an idle changes
   drawing about three times a second. Nothing is blended between poses.
+- **Fifteen drawings a second.** The crowd is simulated every frame but its
+  picture changes `PERSON.drawRate` (15) times a second. It suits the held
+  poses, and every frame in which something moves costs the renderer a
+  second pass for the ground shade, so it also keeps the page light.
 - **A step is a step.** Stride phase advances with distance walked
   (`PERSON.stepsPerCell`), never with time, so feet do not slide. Somebody
   held up stands; they do not march on the spot.
@@ -71,6 +75,25 @@ npm run shots -- people-town --time dusk
 `people-town` has a square, a pier, carved steps up a hill, a stairs flight
 to a marble terrace, an open viaduct, a covered sky bridge and a roof garden
 reached only through its house.
+
+## Jobs, reactions, children
+
+- **Jobs (L23, with L08's lamplighter).** A job is a place: `workplace`
+  sockets named `job|order|ref`. The crowd gives each to one grown-up
+  resident (whoever lives there, else nearest) and they keep it across
+  edits. By day workers are mostly at their stations; at dusk the
+  lamplighter walks to every lamp in order (`lampReached`, with the lamp
+  prop's id), the bell ringer goes in to ring (`bellRung`), the keeper goes
+  up the lighthouse until day; the baker is out at dawn. Lamps the
+  lamplighter cannot reach never get an event: light those on a timer.
+- **Reactions (L26)** are run time only, so there is no rule file: a block
+  landing within 4 cells makes people stop and turn to look (three in ten
+  add a hop); two people meeting stop for a chat two times in ten, taking
+  turns under a bubble, then leave each other alone for 40 seconds; in a
+  strong gust anyone in a hat puts a hand to it.
+- **Children (L28)** run, and prefer `haunt-play` sockets: a kite spot on
+  every square and viewpoint (the kite flies only while the wind is above
+  `PEOPLE.kiteWind`) and every pigeon's cell.
 
 ## Readings of the catalogue worth knowing
 

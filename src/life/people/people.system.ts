@@ -17,7 +17,7 @@ import { bubbleMesh, kiteMesh, lineMesh } from '@/parts/people/extras';
 import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
-import { PEOPLE } from '@/style/people';
+import { PEOPLE, PERSON } from '@/style/people';
 import { createCrowd, type Crowd, type Person } from './crowd';
 import { markCensusReady, recordHome } from './home';
 
@@ -41,6 +41,9 @@ interface State {
   lineMesh: MeshData | null;
   /** The plan's own resident instances, kept hidden. */
   standIns: InstanceHandle[];
+  /** The drawing last shown (see update), and whether the town changed since, which draws at once. */
+  tick: number;
+  fresh: boolean;
   unsubscribe: () => void;
 }
 
@@ -169,7 +172,7 @@ export default defineSystem<State>({
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
-    return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], unsubscribe };
+    return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe };
   },
   sync(state, next, _prev, ctx) {
     if (!next.dressing) return;
@@ -181,12 +184,20 @@ export default defineSystem<State>({
     }
     for (const h of state.standIns) h.setVisible(false);
     state.crowd.sync(next.shape, next.dressing, ctx.signals.time);
+    state.fresh = true;
     markCensusReady(ctx.signals);
   },
   update(state, dt, signals, ctx) {
     // Whatever else touches the plan's instances (pop-in, a re-sync), the stand-ins stay hidden.
     for (const h of state.standIns) h.setVisible(false);
     state.crowd.step(dt, signals.time);
+    // Drawn "on twos": the crowd steps every frame, but the picture of it changes PERSON.drawRate times
+    // a second. That is the hand of the thing, and it also spares the page: every frame in which
+    // something moved costs the renderer a second pass for the shade on the ground.
+    const tick = Math.floor(signals.time.seconds * PERSON.drawRate);
+    if (tick === state.tick && !state.fresh) return;
+    state.tick = tick;
+    state.fresh = false;
     for (const p of state.crowd.people) {
       const d = state.drawn.get(p);
       if (!d) continue;

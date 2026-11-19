@@ -22,9 +22,15 @@ with node and link arrays. The stage order it was written to pin is unchanged.
 
 ## 2. New vocabulary (`src/vocab/people.vocab.ts`)
 
-Actors: `resident/child`, `resident/indoors`, `resident.job`, `resident.work`; `figure` (gallery only).
-Sockets: `haunt-square|shop|cafe|bench|pier|garden|fountain|viewpoint|visit|night|stoop`, `queue-point`, `arrival`, `way-out`.
-Signal events (`src/life/people/home.ts`): `residentHome`, `lampReached`.
+Actors: `resident/child`, `resident/indoors`; `figure` (gallery only, one variant per pose).
+Sockets: `haunt-square|shop|cafe|bench|pier|garden|fountain|viewpoint|visit|night|stoop|play`, `workplace`, `queue-point`, `arrival`, `way-out`.
+Signal events (`src/life/people/home.ts`): `residentHome`, `lampReached`, `bellRung`.
+
+The lamplighter's round lives in `L23.jobs.rule.ts`, not in an `L08` file,
+so it cannot collide with the Animation owner's L08. **For Animation:** on
+`lampReached` light the lamp whose prop id is `lamp`; lamps with no
+`workplace` socket naming them (none reachable on foot, or no residents)
+never get the event and need the timer.
 
 ## 3. Requests
 
@@ -33,7 +39,10 @@ Signal events (`src/life/people/home.ts`): `residentHome`, `lampReached`.
   against 60.0 with nobody moving; update plus render CPU is 0.3–0.4 ms. The
   difference is the height picture, redrawn every other frame whenever any
   slot moved (23 draw calls a frame instead of 12). One walker costs the same
-  as sixty, and smoke or a gull will trigger it too. Asked: redraw it less
+  as sixty, and smoke or a gull will trigger it too. It also made two tests
+  of `tests/e2e/interface.e2e.test.ts` time out (that file leaves about 25
+  app pages open, all rendering), until the crowd was drawn 15 times a
+  second instead of every frame (`PERSON.drawRate`). Asked: redraw it less
   often for movers than for edits (every fourth frame would be invisible
   under people 0.46 tall), or redraw only the dynamic pool over the cached
   static picture.
