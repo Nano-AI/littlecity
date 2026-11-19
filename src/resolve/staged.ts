@@ -1,14 +1,20 @@
-// STUB (Stage 0). Owner: Logic (Stage 1). Final signatures.
+// Staged resolve for the app (plan Review Focus 1). Owner: Logic.
 //
-// Staged resolve for the app: the shape is resolved at once on every edit,
-// the dressing a little later, and dressing for a superseded world is never
-// delivered (plan Review Focus 1: the newest edit wins, nothing flickers
-// back). The app calls update() on each edit and poll() once per frame.
+// update(world) resolves the shape at once; poll(), called once a frame,
+// resolves the dressing for the NEWEST shape only and returns it once.
+// Several edits before a poll cost one dressing, for the last world; a
+// dressing for a superseded world is never computed or returned, so nothing
+// flickers back. preview() is a what-if shape for the ghost and touches
+// neither.
+//
+// Content hashes: a structure whose hash is unchanged keeps the very same
+// Structure object from the previous shape, so `prev === next` tells the
+// renderer (and life) it need not rebuild. diffShapes lists what changed.
 
 import type { Terrain, World } from '@/core/world';
 import type { ResolveOptions } from './engine/api';
 import { resolveDressing, resolveShape } from './index';
-import type { DressingPlan, ShapePlan } from './plan';
+import type { DressingPlan, ShapePlan, Structure, StructureId } from './plan';
 
 export interface StagedResolver {
   /** Resolves the shape for this world now and queues its dressing. */
@@ -27,17 +33,25 @@ export interface StagedResolver {
 /** `opts` is passed to every resolve (the app passes a scenario's own rules). */
 export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}): StagedResolver {
   let shape: ShapePlan | null = null;
-  let pending = false;
+  let version = 0;
+  let dressed = 0;
   return {
     update(world) {
-      shape = resolveShape(world, terrain, opts);
-      pending = true;
+      if (shape && shape.world === world) return shape;
+      const next = resolveShape(world, terrain, opts);
+      if (shape) keepUnchanged(shape, next);
+      shape = next;
+      version++;
       return shape;
     },
     poll() {
-      if (!pending || !shape) return null;
-      pending = false;
-      return { shape, dressing: resolveDressing(shape, opts) };
+      if (!shape || dressed === version) return null;
+      const target = shape;
+      const v = version;
+      const dressing = resolveDressing(target, opts);
+      if (v !== version) return null; // superseded while dressing (never, while dressing is synchronous)
+      dressed = v;
+      return { shape: target, dressing };
     },
     preview(world) {
       return resolveShape(world, terrain, opts);
@@ -46,4 +60,37 @@ export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}
       return shape;
     },
   };
+}
+
+/** Swaps in the previous Structure object wherever id and hash are unchanged. */
+function keepUnchanged(prev: ShapePlan, next: ShapePlan): void {
+  const map = next.structures as Map<StructureId, Structure>;
+  for (const [id, s] of map) {
+    const old = prev.structures.get(id);
+    if (old && old !== s && old.hash === s.hash) map.set(id, old);
+  }
+}
+
+export interface ShapeDiff {
+  /** Structure ids new in `next`. */
+  added: StructureId[];
+  /** Ids in both whose content hash changed (rebuild these). */
+  changed: StructureId[];
+  /** Ids gone from `next`. */
+  removed: StructureId[];
+}
+
+/** What changed between two shapes, by structure id and content hash. */
+export function diffShapes(prev: ShapePlan | null, next: ShapePlan): ShapeDiff {
+  const added: StructureId[] = [];
+  const changed: StructureId[] = [];
+  const removed: StructureId[] = [];
+  for (const [id, s] of next.structures) {
+    const old = prev?.structures.get(id);
+    if (!old) added.push(id);
+    else if (old.hash !== s.hash) changed.push(id);
+  }
+  if (prev) for (const id of prev.structures.keys()) if (!next.structures.has(id)) removed.push(id);
+  const asc = (a: number, b: number): number => a - b;
+  return { added: added.sort(asc), changed: changed.sort(asc), removed: removed.sort(asc) };
 }

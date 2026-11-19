@@ -18,7 +18,11 @@ describe('the app', () => {
   test('shows the town; click places a block; right click erases it; undo restores', async () => {
     const { page, errors } = await app.open('/?seed=1');
     await page.waitForFunction('window.__lc !== undefined');
-    expect(await page.evaluate(blocks)).toBe(0);
+    // A new island starts with its 6–14 starting trees.
+    const start = (await page.evaluate(blocks)) as number;
+    expect(start).toBeGreaterThanOrEqual(6);
+    expect(start).toBeLessThanOrEqual(14);
+    const before = new Set((await page.evaluate('[...window.__lc.world().blocks.keys()]')) as number[]);
 
     // WebGL is really drawing: the centre of the canvas is grass, not paper.
     await page.waitForTimeout(300);
@@ -26,9 +30,10 @@ describe('the app', () => {
     expect(shot.byteLength).toBeGreaterThan(5000);
 
     await page.mouse.click(640, 400);
-    await page.waitForFunction(`${blocks} === 1`);
-    const cell = (await page.evaluate('[...window.__lc.world().blocks.keys()][0]')) as number;
-    expect(cell >> 12).toBe(1); // on top of the height-1 island
+    await page.waitForFunction(`${blocks} === ${start + 1}`);
+    const cell = ((await page.evaluate('[...window.__lc.world().blocks.keys()]')) as number[]).find((c) => !before.has(c))!;
+    const ground = (await page.evaluate(`window.__lc.terrain().height[${(cell & 63) + ((cell >> 6) & 63) * 48}]`)) as number;
+    expect(cell >> 12).toBe(ground); // on top of the island
 
     // Clicking the new block's top stacks a second one on it.
     const [sx, sy] = (await page.evaluate(
@@ -36,21 +41,21 @@ describe('the app', () => {
       [cell & 63, cell >> 12, (cell >> 6) & 63],
     )) as [number, number];
     await page.mouse.click(sx, sy);
-    await page.waitForFunction(`${blocks} === 2`);
+    await page.waitForFunction(`${blocks} === ${start + 2}`);
     expect(await page.evaluate(`window.__lc.world().blocks.has(${cell + (1 << 12)})`)).toBe(true);
 
     await page.mouse.click(sx, sy - 20, { button: 'right' });
-    await page.waitForFunction(`${blocks} === 1`);
+    await page.waitForFunction(`${blocks} === ${start + 1}`);
 
     await page.keyboard.press('ControlOrMeta+z');
-    await page.waitForFunction(`${blocks} === 2`);
+    await page.waitForFunction(`${blocks} === ${start + 2}`);
 
     // Dragging orbits instead of placing.
     await page.mouse.move(200, 200);
     await page.mouse.down();
     await page.mouse.move(320, 220, { steps: 5 });
     await page.mouse.up();
-    expect(await page.evaluate(blocks)).toBe(2);
+    expect(await page.evaluate(blocks)).toBe(start + 2);
     expect(errors).toEqual([]);
   });
 

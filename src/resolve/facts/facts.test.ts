@@ -70,8 +70,9 @@ describe('facts', () => {
     expect(sawError).toMatch(/shape stage/);
     const { facts } = town();
     expect(facts.shapeReady).toBe(true);
-    expect(featuresOfType(facts, 'door')).toHaveLength(2);
-    expect(socketsOfType(facts, 'chimney-top').map((s) => s.cell)).toEqual([key(10, 1, 10), key(10, 2, 10)]);
-    expect(resolveDressing(town().shape, { rules: demoRules }).actors).toHaveLength(2);
+    // The two-storey house is one structure: one door at the bottom, one chimney on top.
+    expect(featuresOfType(facts, 'door')).toHaveLength(1);
+    expect(socketsOfType(facts, 'chimney-top').map((s) => s.cell)).toEqual([key(10, 2, 10)]);
+    expect(resolveDressing(town().shape, { rules: demoRules }).actors).toHaveLength(1);
   });
 });

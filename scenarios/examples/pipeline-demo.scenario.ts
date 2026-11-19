@@ -13,27 +13,27 @@ import { defineRule, slot } from '@/resolve/engine/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { scenario } from '@/scenario';
 
-const joinery = defineRule({
+const joinery = defineRule<{ top: number }>({
   id: 'X-J01.demo-joinery',
   part: 'joinery',
   tier: 1,
   priority: -1000,
+  // One candidate per house: a door on its lowest cell, windows and a chimney on its top cell.
   find: ({ facts }) =>
-    [...facts.structures.values()].filter((s) => s.kind === 'house').map((s) => ({ anchor: s.cells[0]!, structure: s.id })),
+    [...facts.structures.values()]
+      .filter((s) => s.kind === 'house')
+      .map((s) => ({ anchor: s.cells[0]!, structure: s.id, data: { top: s.cells[s.cells.length - 1]! } })),
   apply(c, out) {
     const structure = c.structure!;
-    const ground = (c.anchor >> 12) === 1;
-    if (ground) {
-      const door = out.feature({ type: 'door', structure, cell: c.anchor, dir: S, variant: 'plain', params: { main: 1 } });
-      out.socket({ type: 'door', owner: door, structure, cell: c.anchor, dir: S });
-    } else {
-      for (const dir of [E, W] as const) {
-        const window = out.feature({ type: 'window', structure, cell: c.anchor, dir, variant: 'square' });
-        out.socket({ type: 'window', owner: window, structure, cell: c.anchor, dir });
-      }
-      const chimney = out.feature({ type: 'chimney', structure, cell: c.anchor, variant: 'plain' });
-      out.socket({ type: 'chimney-top', owner: chimney, structure, cell: c.anchor });
+    const door = out.feature({ type: 'door', structure, cell: c.anchor, dir: S, variant: 'plain', params: { main: 1 } });
+    out.socket({ type: 'door', owner: door, structure, cell: c.anchor, dir: S });
+    const top = c.data.top;
+    for (const dir of [E, W] as const) {
+      const window = out.feature({ type: 'window', structure, cell: top, dir, variant: 'square' });
+      out.socket({ type: 'window', owner: window, structure, cell: top, dir });
     }
+    const chimney = out.feature({ type: 'chimney', structure, cell: top, variant: 'plain' });
+    out.socket({ type: 'chimney-top', owner: chimney, structure, cell: top });
   },
 });
 
