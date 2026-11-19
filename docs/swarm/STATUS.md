@@ -289,3 +289,10 @@ ignored `Block.style` (added to content keys and `sameWorld`).
 Full check green: 1,480 tests. Published. Follow-up sent to the guide
 agent: garrison and rider entries. Running: steady-ink, animation-polish
 pass 2, guide follow-up.
+
+**Guide follow-up merged** (`1e821fa`): Garrison and Rider entries, 47
+pictures (1,052 KB) re-rendered. Full check green: 1,485 tests. Published.
+Found by the guide agent and sent to animation-polish: a lone keep gets no
+garrison (no gate is found), and the rider is only drawn when a plaza
+exists; both contradict catalogue L36/L37.
+Running: steady-ink, animation-polish pass 2.
