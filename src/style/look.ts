@@ -8,8 +8,13 @@ import { defineStyle } from '@/core/style';
 export const LOOK = defineStyle(
   'look',
   {
-    /** Ink line width in CSS pixels at close zoom, and at the far overview. */
-    inkWidth: 1.6,
+    /**
+     * Ink line width in CSS pixels. Up close an outline (one thing in front of another) is `inkWidth`
+     * and the lines inside a shape (seams, creases) are `inkWidthInner`; at the far overview every
+     * line is `inkWidthFar`.
+     */
+    inkWidth: 1.5,
+    inkWidthInner: 0.85,
     inkWidthFar: 0.95,
     /** Screen pixels per world unit at which the line reaches each width. */
     inkNearPx: 110,
@@ -46,6 +51,7 @@ export const LOOK = defineStyle(
   },
   {
     inkWidth: [0.6, 3, 0.05],
+    inkWidthInner: [0.4, 3, 0.05],
     inkWidthFar: [0.4, 2, 0.05],
     inkSilhouette: [0, 1, 0.05],
     inkSeam: [0, 1, 0.05],

@@ -309,7 +309,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uPR: { value: 1 },
     uOrigin: { value: new THREE.Vector2() },
     uTime: { value: 0 },
-    uThick: { value: 1.6 },
+    uThick: { value: 1.5 },
+    uInner: { value: 1 },
     uDepthRange: { value: CAMERA_FAR - CAMERA_NEAR },
     uDepthT: { value: 0.07 },
     uWeights: v3(),
@@ -935,7 +936,14 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const origin = project(frame, [0, 0, 0], width, height);
       cu.uOrigin.value.set(origin[0], height - origin[1]);
       cu.uTime.value = seconds;
-      cu.uThick.value = (LOOK.inkWidthFar + (LOOK.inkWidth - LOOK.inkWidthFar) * closeness) * Math.max(0.7, beyond);
+      // Line weight by zoom. Out at the overview every line is the thin far width. Coming in, the
+      // outline grows toward inkWidth; the lines inside a shape follow it to playing zoom and then
+      // ease back to inkWidthInner, so a close-up is a pen drawing and not a sticker.
+      const outline = (LOOK.inkWidthFar + (LOOK.inkWidth - LOOK.inkWidthFar) * closeness) * Math.max(0.7, beyond);
+      const ease = Math.min(1, Math.max(0, (closeness - 0.25) / 0.6));
+      const inner = outline + (Math.min(outline, LOOK.inkWidthInner) - outline) * ease * ease * (3 - 2 * ease);
+      cu.uThick.value = outline;
+      cu.uInner.value = inner / Math.max(1e-3, outline);
       cu.uDepthT.value = LOOK.inkDepth;
       cu.uWeights.value.set(LOOK.inkSilhouette, LOOK.inkSeam * detail, LOOK.inkCrease * detail);
       cu.uWobble.value = LOOK.wobble;

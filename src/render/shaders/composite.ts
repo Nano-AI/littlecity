@@ -1,6 +1,10 @@
 // The page shaders (Look, Stage 1): the paper behind the drawing, and the
 // composite that turns the surface pass into an inked, graded picture.
 //
+// Line weight answers to zoom (LOOK.inkWidth*, index.ts): thin and even at the overview, and up
+// close the outline of a thing (a depth jump) grows to about a pixel and a half while the lines
+// inside it (seams, creases) stay under a pixel.
+//
 // Ink. A line is drawn wherever, between a pixel and its four neighbours at
 // the pen's half-width,
 //   the depth jumps        (a silhouette: one thing in front of another),
@@ -77,7 +81,8 @@ uniform vec2 uOut;         // this pass's target size, device pixels
 uniform float uPR;         // device pixels per CSS pixel in this target
 uniform vec2 uOrigin;      // the world origin on screen, CSS pixels from the bottom left
 uniform float uTime;
-uniform float uThick;      // line width, CSS pixels
+uniform float uThick;      // line width of a silhouette, CSS pixels
+uniform float uInner;      // width of seams and creases, as a share of it
 uniform float uDepthRange; // far - near, world units
 uniform float uDepthT;     // depth jump threshold, world units
 uniform vec3 uWeights;     // ink strength of a silhouette, a seam, a crease
@@ -99,10 +104,12 @@ ${COLOR}
 
 vec3 decN(vec4 s){ vec2 xy = s.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
 
+// px is the pen's half-width for silhouettes; seams and creases, the lines inside a shape, are
+// drawn with a finer one (uInner of it), so a close-up keeps a delicate interior and a firm outline.
 float edgeAt(vec2 uv, vec2 px){
   vec4 s0 = texture(tId, uv);
   vec3 n0 = decN(s0);
-  vec2 ox = vec2(px.x, 0.0), oy = vec2(0.0, px.y);
+  vec2 ox = vec2(px.x * uInner, 0.0), oy = vec2(0.0, px.y * uInner);
   vec4 sa = texture(tId, uv + ox), sb = texture(tId, uv - ox), sc = texture(tId, uv + oy), sd = texture(tId, uv - oy);
   // Depth is read at whole texels, the same distance either side of the centre, so that the second
   // difference is exactly zero across a flat surface at any slant and any zoom, and large across a jump.

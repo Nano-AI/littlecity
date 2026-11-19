@@ -7,7 +7,10 @@ Order: L1, L2, L3, L4, bench (`bench-2000`, `everything`), grounding cost with m
 - **L1 rock faces: done.** Banks are one ink group (`bank`), all `PATTERN.rock`; `edge` = rockiness
   (0 earth, 1 rock), blended across a cell at joints; shader draws the border. Ledges on faces of 2+
   levels (`TERRAIN.ledge`), suppressed where something is built at the foot. `PALETTE.rock` is warmer.
-- **L2 line weight by zoom: next.** Then L3 dusk, L4 night, bench.
+- **L2 line weight by zoom: done.** Outline (depth jump) uses `uThick`; seams and creases use
+  `uThick * uInner`. Up close: `LOOK.inkWidth` 1.5 outside, `inkWidthInner` 0.85 inside; equal below
+  playing zoom. Maths in index.ts `render()`.
+- **L3 dusk: next.** Then L4 night, bench.
 
 ## How to check
 - `npm run shots -- everything` (25 cameras, slow). One pose fast: `node .context/pose-shot.mjs`
