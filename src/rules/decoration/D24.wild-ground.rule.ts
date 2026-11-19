@@ -34,6 +34,7 @@ import { shelteredWater } from '@/resolve/facts/sheltered-water.fact';
 import type { CellPos } from '@/resolve/plan';
 import { DRESSING } from '@/style/dressing';
 import { landUse } from '../urban/land-use.fact';
+import { townEdge } from '../urban/town-edge.fact';
 import { clearways, edgePos, POSITIONS } from './clearways.fact';
 import { choose, heightAt, lucky } from './lib';
 
@@ -70,10 +71,12 @@ export default defineRule<Wild>({
     // Tufts.
     const left = leftovers(facts);
     const uses = landUse(facts);
+    // The dirt trail a street frays into (U06) is trodden bare.
+    const trails = new Set(townEdge(facts).list.flatMap((e) => e.cells));
     const dS = distToStructure(facts), dF = distToFloor(facts);
     const reach = Math.max(2, DRESSING.tuftReach);
     for (const c of wildGrass(facts).cells) {
-      if (left.byCell.has(c) || uses.byCell.has(c)) continue;
+      if (left.byCell.has(c) || uses.byCell.has(c) || trails.has(c)) continue;
       const x = keyX(c), z = keyZ(c);
       const d = Math.min(dS.at(x, z), dF.at(x, z));
       const far = Math.min(1, Math.max(0, (d - 1) / (reach - 1)));

@@ -11,7 +11,7 @@
 // 0, so a lamp depends only on the few path cells round it: extending the
 // street, or building anywhere else, never moves it.
 //
-// Reads: streets, clearways (doors, stairs, awnings, retaining walls).
+// Reads: streets, clearways (doors, stairs, awnings, retaining walls), townEdge.
 // Claims: the floor slot the lamp stands on, and one lamp per cell.
 
 import { keyX, keyZ, opposite, type CellKey, type Dir4 } from '@/core/grid';
@@ -21,6 +21,7 @@ import { streets, type Street } from '@/resolve/facts/streets.fact';
 import type { CellPos } from '@/resolve/plan';
 import { DRESSING } from '@/style/dressing';
 import { clearways, cornerPos, edgePos, type Clearways } from './clearways.fact';
+import { townEdge } from '../urban/town-edge.fact';
 import { onGround } from './lib';
 
 type Spot = 'junction' | 'end' | 'run';
@@ -113,6 +114,7 @@ export default defineRule<{ pos: CellPos }>({
   about: 'Reads: streets (junctions, dead ends, links), clearways. Claims: the floor slot of each lamp, one lamp per cell.',
   find({ facts }) {
     const clear = clearways(facts);
+    const edge = townEdge(facts);
     const out: Candidate<{ pos: CellPos }>[] = [];
     for (const street of streets(facts).list) {
       if (street.length < DRESSING.lampStreet) continue;
@@ -121,7 +123,9 @@ export default defineRule<{ pos: CellPos }>({
         if (!onGround(facts, cell)) continue;
         // One candidate per slot it could take, best first; the first whose slot is free wins the cell.
         // A slot out in the open beats one tucked under a house's eaves.
-        const slots = lampSlots(street, cell, spot).filter((pos) => clear.free(cell, pos) && clear.headroom(cell, pos));
+        // Where the street frays into a trail (U06) the lamp keeps to the side: the way ahead stays open.
+        const fray = edge.byEnd.get(cell);
+        const slots = lampSlots(street, cell, spot).filter((pos) => clear.free(cell, pos) && clear.headroom(cell, pos) && !(fray && pos.includes('nesw'[fray.dir]!)));
         for (const pos of [...slots.filter((p) => !clear.againstWall(cell, p)), ...slots.filter((p) => clear.againstWall(cell, p))]) {
           out.push({ anchor: cell, key: pos, data: { pos } });
         }

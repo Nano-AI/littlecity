@@ -135,7 +135,8 @@ declare module '@/core/vocab' {
     'signpost.arms': number;
     'dirt-trail': true; //             one cell of a trail fraying out of a street's end; square to the world
     'dirt-trail.dir': number; //       Dir4 it runs toward
-    'dirt-trail.fade': 0 | 1; //       1 on the last cell: it tapers away into the grass
+    'dirt-trail.step': number; //      which cell of the trail this is (0 = at the street), of `steps`: it narrows as it goes
+    'dirt-trail.steps': number;
     'dirt-trail.look': number;
 
     // ── more decoration (part D) ────────────────────────────────────────

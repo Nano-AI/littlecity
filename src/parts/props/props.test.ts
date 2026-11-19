@@ -73,6 +73,10 @@ const CASES: [string, string | undefined, object | undefined, number, number][] 
   ['veg-patch', undefined, { look: 6 }, 320, 2],
   ['washing-pole', undefined, { look: 7 }, 80, 5],
   ['woodpile', undefined, { look: 8 }, 300, 1],
+  ['street-tree', undefined, { look: 1 }, 260, 3],
+  ['signpost', undefined, { arms: 3, look: 2 }, 60, 4],
+  ['dirt-trail', undefined, { dir: 1, step: 0, steps: 3, look: 5 }, 40, 1],
+  ['dirt-trail', undefined, { dir: 2, step: 2, steps: 3, look: 7 }, 40, 1],
 ];
 
 describe('dressing props', () => {
