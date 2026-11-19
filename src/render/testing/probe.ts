@@ -115,6 +115,11 @@ const api = {
     view!.render(signals!);
     return summary();
   },
+  /** Advances and draws without reading the picture back (for timing). */
+  frameOnly(seconds = 0): void {
+    for (let t = 0; t < seconds; t += 1 / 30) signals!.advance(Math.min(1 / 30, seconds));
+    view!.render(signals!);
+  },
   time(part: DayPart): void {
     signals!.hold(part);
   },

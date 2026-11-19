@@ -72,7 +72,7 @@ void main(){
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
   float pat = color.a * 255.0;
-  bool over = abs(pat - 27.0) < 0.5 || params.w > 0.5;   // light beams and ghosts belong to the overlay pass
+  bool over = abs(pat - 27.0) < 0.5 || params.x < -0.5;  // light beams and ghosts (glow < 0) belong to the overlay pass
 #ifdef OVERLAY
   if (!over) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #else
@@ -199,7 +199,7 @@ void main(){
   vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
   if (pat == 27) {
     // A shaft of light: edge runs 0 at the source to 1 at the tip.
-    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * vParams.x;
+    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
     oColor = vec4(uStar * a, 0.0);
     return;
   }
@@ -265,15 +265,15 @@ void main(){
         float r = h1(c);
         f -= (vec2(h1(c + 3.1), h1(c + 7.7)) - 0.5) * 0.5;
         vec2 dir = normalize(vec2(1.0, -1.0) + (r - 0.5) * 1.1);
-        float t = clamp(dot(f, dir), -0.11, 0.11);
-        float m = lineAA(length(f - dir * t), 0.036) * step(0.34, r);
+        float t = clamp(dot(f, dir), -0.15, 0.15);
+        float m = lineAA(length(f - dir * t), 0.042) * step(0.34, r);
         // a second, sparser layer: two-stroke tufts
         vec2 p2 = vW.xz * 1.7 + 5.3; vec2 c2 = floor(p2); vec2 f2 = fract(p2) - 0.5;
         float r2 = h1(c2 + 11.0);
         f2 -= (vec2(h1(c2 + 2.3), h1(c2 + 8.9)) - 0.5) * 0.6;
         vec2 d1 = normalize(vec2(0.55, -1.0)), d2 = normalize(vec2(1.0, -0.4));
         float tuft = max(lineAA(length(f2 - d1 * clamp(dot(f2, d1), 0.0, 0.1)), 0.016), lineAA(length(f2 - d2 * clamp(dot(f2, d2), 0.0, 0.085)), 0.016)) * step(0.5, r2);
-        grass = mix(grass, grass * vec3(0.6, 0.77, 0.56), max(m * fade(0.28), tuft * fade(0.5)));
+        grass = mix(grass, grass * vec3(0.54, 0.73, 0.5), max(m * fade(0.28), tuft * fade(0.5)));
         // flowers: rare specks of palette colour
         vec2 p3 = vW.xz * 2.3 + 1.7; vec2 c3 = floor(p3); vec2 f3 = fract(p3) - 0.5;
         float r3 = h1(c3 + 4.0);

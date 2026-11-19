@@ -14,10 +14,10 @@ export default scenario({
   about: 'One sample block per pencil pattern, for the art guide.',
   build() {},
   cameras: [
-    { name: 'all', yaw: 30, pitch: 36, zoom: 2.9, target: [24, 1.5, 22.6] },
-    { name: 'row1', yaw: 30, pitch: 36, zoom: 4.6, target: [24, 1.5, 24.6] },
-    { name: 'row2', yaw: 30, pitch: 36, zoom: 4.6, target: [24, 1.5, 22.1] },
-    { name: 'row3', yaw: 30, pitch: 36, zoom: 4.6, target: [24, 1.5, 19.6] },
-    { name: 'night', yaw: 30, pitch: 36, zoom: 2.9, target: [24, 1.5, 22.6], time: 'night' },
+    { name: 'all', yaw: 30, pitch: 36, zoom: 3.1, target: [25.2, 1.5, 21.4] },
+    { name: 'row1', yaw: 30, pitch: 36, zoom: 3.7, target: [24.6, 1.5, 24.6] },
+    { name: 'row2', yaw: 30, pitch: 36, zoom: 3.7, target: [24.6, 1.5, 22.1] },
+    { name: 'row3', yaw: 30, pitch: 36, zoom: 3.7, target: [24.6, 1.5, 19.6] },
+    { name: 'night', yaw: 30, pitch: 36, zoom: 3.1, target: [25.2, 1.5, 21.4], time: 'night' },
   ],
 });

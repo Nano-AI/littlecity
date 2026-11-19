@@ -20,7 +20,10 @@ export const SLOT_TEXELS = 4;
 export const SLOT_WIDTH = SLOT_COLS * SLOT_TEXELS;
 const FLOATS = SLOT_TEXELS * 4;
 
-/** By convention a = glow (1 = lit as the time of day says), b = sway phase; c and d belong to the part. */
+/**
+ * By convention a = glow (1 = lit as the time of day says, 0 = off), b = sway phase; c and d belong to the
+ * part. A negative `a` is the view's own: it marks a ghost slot, drawn by the overlay pass.
+ */
 export const DEFAULT_PARAMS: readonly [number, number, number, number] = [1, 0, 0, 0];
 
 export class SlotTable {

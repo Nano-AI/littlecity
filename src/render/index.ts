@@ -593,7 +593,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   const ghostSlot = (kind: number): number => {
     const s = slots.alloc();
-    slots.setParams(s, 1, 0, kind, 1); // d = 1 sends it to the overlay pass; c says how to draw it
+    slots.setParams(s, -1, 0, kind, 0); // a negative glow sends it to the overlay pass; c says how to draw it
     ghostSlots.push(s);
     return s;
   };
