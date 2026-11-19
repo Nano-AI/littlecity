@@ -5,11 +5,11 @@ import { columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Di
 import type { EdgeKind, Kind, StructureKind } from '@/core/kinds';
 import type { StructureId } from '../plan';
 import { FACTS } from '@/style/facts';
-import { alleys } from './alleys.fact';
 import { defineFact, type Facts } from './api';
 import { contentKeys, regionKey, RegionMemo, registerMemo, saltKey } from './content-keys.fact';
 import { DIRS, edgeBetween } from './lib';
-import { BULKY, KIND_CODES, occupancy, SOLID, TERRAIN, type Occupancy } from './occupancy.fact';
+import { KINDS } from '@/core/kinds';
+import { BULKY, FLOOR_CODES, SOLID, TERRAIN } from './occupancy.fact';
 import { sunnySide } from './sun.fact';
 
 /** The kinds that have facades: the building kinds. */
@@ -79,10 +79,10 @@ const ROOF = 6;
  * garden), 4 the sea, 5 the terrain top, 6 the top of a solid block. The
  * levels down to it go in `drop`.
  */
-function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): number {
+function surfaceUnder(occ: Look, cell: CellKey, out: { drop: number }): number {
   const y = cell >> 12;
   for (let c = cell; ; c -= 1 << 12) {
-    const fl = occ.floor[c]!;
+    const fl = occ.floor(c);
     if (fl) {
       out.drop = y - (c >> 12);
       return fl;
@@ -91,7 +91,7 @@ function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): num
       out.drop = y;
       return 4; // at sea level and not in the ground: the sea
     }
-    const below = occ.flags[c - (1 << 12)]!;
+    const below = occ.flags(c - (1 << 12));
     if (below & SOLID) {
       out.drop = y - (c >> 12);
       return below & TERRAIN ? 5 : ROOF;
@@ -102,7 +102,8 @@ function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): num
 // A structure's facades, all but their alley flags, read the columns within
 // facadeReach of it and straight down each of them: they are kept across
 // resolves by the content of those columns (see content-keys.fact.ts). The
-// alley flags come from the alleys fact every time.
+// alley flags are worked out every time (an alley run is found from its
+// first cell, which may lie far away), the way alleys.fact.ts finds them.
 const memo = registerMemo(new RegionMemo<Facade[]>());
 
 export const facades = defineFact<Facades>('facades', (f) => {
@@ -113,7 +114,7 @@ export const facades = defineFact<Facades>('facades', (f) => {
   const k = regionKey();
   memo.begin();
   let env: Env | null = null;
-  const alleyCells = alleys(f).byCell;
+  const look = lookOf(f);
   const ids = [...f.structures.keys()].sort((a, b) => a - b);
   for (const id of ids) {
     const s = f.structures.get(id)!;
@@ -121,17 +122,17 @@ export const facades = defineFact<Facades>('facades', (f) => {
     saltKey(keys.around(s.cells, FACTS.facadeReach, k), FACTS.facadeReach);
     let mine = memo.get(id, k);
     if (!mine) {
-      mine = facadesOf(f, id, (env ??= envOf(f)));
-      for (const fc of mine) fc.alley = alleyCells.has(neighbor(fc.cell, fc.dir));
+      mine = facadesOf(f, id, (env ??= envOf(f, look)));
+      for (const fc of mine) fc.alley = inAlley(look, neighbor(fc.cell, fc.dir));
       memo.put(id, k, mine);
     }
-    // The alley flags, from the alleys fact: a remembered list whose flags differ is copied.
+    // The alley flags, worked out every time: a remembered list whose flags differ is copied.
     let digest = 0x2f;
     for (let i = 0; i < mine.length; i++) {
       const fc = mine[i]!;
-      const alley = alleyCells.has(neighbor(fc.cell, fc.dir));
+      const alley = inAlley(look, neighbor(fc.cell, fc.dir));
       if (alley !== fc.alley) {
-        mine = mine.map((x) => ({ ...x, alley: alleyCells.has(neighbor(x.cell, x.dir)) }));
+        mine = mine.map((x) => ({ ...x, alley: inAlley(look, neighbor(x.cell, x.dir)) }));
         memo.put(id, k, mine);
       }
       if (alley) digest = (Math.imul(digest, 31) + i + 1) | 0;
@@ -152,13 +153,75 @@ export const facades = defineFact<Facades>('facades', (f) => {
   return { list, byStructure, at, alleyDigest: (s) => digests.get(s) ?? 0 };
 });
 
+/**
+ * The occupancy fact's questions, answered from the maps: a facade fact that
+ * finds almost every structure remembered need not fill the dense arrays.
+ */
+interface Look {
+  /** SOLID, TERRAIN and BULKY bits, as in occupancy. */
+  flags(c: CellKey): number;
+  kind(c: CellKey): Kind | undefined;
+  /** FLOOR_CODES index (0 = none). */
+  floor(c: CellKey): number;
+  /** The block structure in the cell, or −1. */
+  structure(c: CellKey): number;
+}
+
+function lookOf(f: Facts): Look {
+  return {
+    flags(c) {
+      if (c < 0) return 0;
+      // As occupancy fills them: the terrain first, then any block overwrites its cell.
+      const k = f.kinds.get(c);
+      if (k !== undefined) {
+        const info = KINDS[k];
+        return (info.solid ? SOLID : 0) | (info.solid || info.building ? BULKY : 0);
+      }
+      return c >> 12 < f.terrain.height[columnIndex(c & 63, (c >> 6) & 63)]! ? SOLID | TERRAIN : 0;
+    },
+    kind: (c) => f.kinds.get(c),
+    floor(c) {
+      const k = f.world.floors.get(c);
+      return k === undefined ? 0 : FLOOR_CODES.indexOf(k);
+    },
+    structure: (c) => f.structureAt.get(c) ?? -1,
+  };
+}
+
+/**
+ * The cell is in an alley (alleys.fact.ts, exactly: a run of 2+ corridor
+ * cells, found from its first cell, which must not hold a building).
+ */
+function inAlley(look: Look, c: CellKey): boolean {
+  const wall = (n: CellKey): boolean => n !== NO_CELL && look.kind(n) !== undefined && (look.flags(n) & BULKY) !== 0;
+  const standable = (n: CellKey): boolean => n !== NO_CELL && !(look.flags(n) & SOLID) && n >> 12 > 0 && (look.flags(n - (1 << 12)) & SOLID) !== 0;
+  const along = (n: CellKey, axis: 'x' | 'z'): boolean => {
+    if (!standable(n)) return false;
+    const [a, b, c1, c2] = axis === 'x' ? ([0, 2, 1, 3] as const) : ([1, 3, 0, 2] as const);
+    if (!wall(neighbor(n, a)) || !wall(neighbor(n, b))) return false;
+    return !wall(neighbor(n, c1)) || !wall(neighbor(n, c2));
+  };
+  for (const axis of ['x', 'z'] as const) {
+    if (!along(c, axis)) continue;
+    const fwd = axis === 'x' ? 1 : 2;
+    const back = axis === 'x' ? 3 : 0;
+    let start = c;
+    for (let p = neighbor(start, back); along(p, axis); p = neighbor(p, back)) start = p;
+    if (wall(start)) continue; // a run whose first cell holds a building is never found
+    let n = 0;
+    for (let p = start; p !== NO_CELL && along(p, axis) && n < FACTS.alleyMin; p = neighbor(p, fwd)) n++;
+    if (n >= FACTS.alleyMin) return true;
+  }
+  return false;
+}
+
 interface Env {
-  occ: Occupancy;
+  occ: Look;
   sun: ReturnType<typeof sunnySide>;
 }
 
-function envOf(f: Facts): Env {
-  return { occ: occupancy(f), sun: sunnySide(f) };
+function envOf(f: Facts, look: Look): Env {
+  return { occ: look, sun: sunnySide(f) };
 }
 
 function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
@@ -172,7 +235,7 @@ function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
   for (const cell of s.cells) {
     for (const dir of DIRS) {
       const out = neighbor(cell, dir);
-      if (out === NO_CELL || occ.flags[out]! & SOLID || occ.structure[out] === id) continue;
+      if (out === NO_CELL || occ.flags(out) & SOLID || occ.structure(out) === id) continue;
       const fc: Facade = {
         structure: id,
         kind: s.kind,
@@ -193,16 +256,16 @@ function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
         touching: undefined,
         edge: edgeBetween(f, cell, dir),
         drop: 0,
-        alley: false, // set by the fact, from the alleys fact
+        alley: false, // set by the fact
         sunny: sun.isSunny(dir),
       };
-      const outKind = occ.kind[out]!;
-      if (outKind && !(occ.flags[out]! & BULKY)) fc.touching = KIND_CODES[outKind - 1];
+      const outKind = occ.kind(out);
+      if (outKind !== undefined && !(occ.flags(out) & BULKY)) fc.touching = outKind;
       let c = cell;
       for (let k = 1; k <= reach; k++) {
         c = neighbor(c, dir);
         if (c === NO_CELL) break;
-        const fl = occ.flags[c]!;
+        const fl = occ.flags(c);
         if (fl & TERRAIN) {
           if (fc.faces === 'open') {
             fc.faces = 'cliff';
@@ -213,7 +276,7 @@ function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
           break;
         }
         if (fl & BULKY) {
-          const other = occ.structure[c]!;
+          const other = occ.structure(c);
           if (other !== id) {
             if (fc.faces === 'open') {
               fc.faces = 'structure';
