@@ -87,3 +87,17 @@ to Houses, Monuments, Ground and Look (same agents, resumed) on their
 existing branches. Unit-test timeout raised to 30 s. Seven agents running:
 Animation, People, Dressing, plus the four fix passes. Dev server hit its
 two-hour limit and is not restarted (Derek can run `npm run dev`).
+
+**~05:30 STOPPED: Fable usage limit.** All seven running agents died
+mid-work (Animation, People, Dressing, and the Houses, Monuments, Ground and
+Look fix passes). Work survived in their worktrees.
+
+**10:40 RESUMED** after Derek reset the limit. All seven resumed by message
+with: commit after every rule or fix, must-fix notes only for the fix
+passes, no sub-agent forks. State at resume: animation 1 commit (plus dead
+forks `swarm/animation-boats`, `swarm/animation-birds` with uncommitted
+work), people 2 commits + 4 files, dressing 0 commits + 31 files, houses 16
+files, monuments 12 files, ground and look at the start of their passes.
+
+To stay inside the limit from here: no forks; discovery rounds cut to 2
+with one explorer and one builder each; logic-only work goes to Opus 5.5.
