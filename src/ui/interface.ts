@@ -99,9 +99,10 @@ const SOUND_KEY = 'little-city.sound';
 
 function readSound(): boolean {
   try {
-    return localStorage.getItem(SOUND_KEY) !== 'off';
+    // Off until the player turns it on.
+    return localStorage.getItem(SOUND_KEY) === 'on';
   } catch {
-    return true;
+    return false;
   }
 }
 

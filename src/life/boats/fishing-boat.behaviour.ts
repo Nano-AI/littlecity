@@ -7,12 +7,14 @@
 // A fishing boat anchored to a cell (the gallery) just lies there afloat.
 //
 // Travel (where it is, which way it heads) is smooth; the swell is posed on
-// twos; it leaves a wake of rings under way.
+// twos; it leaves a wake of rings under way. The legs between the berth and
+// the lane keep to open water (waterRoute): round a headland, not over it.
 
 import { SEA_Y } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { ShapePlan } from '@/resolve/plan';
 import { seaLane, type SeaLane } from '@/rules/life/sea-lanes.fact';
+import { alongRoute, routeLength, waterMask, waterRoute, type Pt } from '@/rules/life/waterway';
 import { BOATS } from '@/style/boats';
 import { defineBehaviour, type LifeStage, type TimeSignal } from '../api';
 import { angleDelta, easeInOut, glide } from '../motion/ease';
@@ -52,13 +54,12 @@ interface State {
   x: number;
   z: number;
   yaw: number;
-  /** A leg between two points (out to the lane, or home): where it began, where it ends, how far along. */
-  fx: number;
-  fz: number;
-  tx: number;
-  tz: number;
+  /** A leg between two points (out to the lane, or home): its route through open water, how far along. */
+  route: Pt[];
   leg: number;
   legLen: number;
+  /** Open-water columns of the town now (waterway.ts). */
+  water: Uint8Array | null;
   /** Distance along the lane, and where along it the way home leaves it. */
   s: number;
   turnHome: number;
@@ -70,12 +71,11 @@ interface State {
 }
 
 function startLeg(state: State, tx: number, tz: number): void {
-  state.fx = state.x;
-  state.fz = state.z;
-  state.tx = tx;
-  state.tz = tz;
+  const from: Pt = [state.x, state.z], to: Pt = [tx, tz];
+  // Through open water; straight across only if no way through is found (the old behaviour).
+  state.route = (state.water && waterRoute(state.water, from, to, 0.18)) || [from, to];
   state.leg = 0;
-  state.legLen = Math.max(0.01, Math.hypot(tx - state.x, tz - state.z));
+  state.legLen = Math.max(0.01, routeLength(state.route));
 }
 
 export default defineBehaviour({
@@ -87,7 +87,7 @@ export default defineBehaviour({
     return {
       moored, mode: 'berth', started: false, shape: null, lane: null,
       bx, bz, byaw, x: bx, z: bz, yaw: byaw,
-      fx: bx, fz: bz, tx: bx, tz: bz, leg: 1, legLen: 1, s: 0, turnHome: 0, wake: 0,
+      route: [[bx, bz]], leg: 1, legLen: 1, water: null, s: 0, turnHome: 0, wake: 0,
       phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, drawn: NaN, m: new Array<number>(16).fill(0),
     };
   },
@@ -105,6 +105,7 @@ export default defineBehaviour({
     }
     if (ctx.shape !== state.shape) {
       state.shape = ctx.shape;
+      state.water = waterMask(ctx.shape.facts);
       const lane = seaLane(ctx.shape.facts);
       state.lane = lane.kind === 'none' ? null : lane;
       if (state.lane && state.mode === 'lane') state.s = state.lane.nearest(state.x, state.z);
@@ -150,9 +151,10 @@ export default defineBehaviour({
       state.leg = Math.min(1, state.leg + (FISH_SPEED * dt) / state.legLen);
       // Gathering way at the start of a leg and coming gently alongside at the end.
       const t = state.legLen > 2 ? state.leg : easeInOut(state.leg);
-      state.x = state.fx + (state.tx - state.fx) * t;
-      state.z = state.fz + (state.tz - state.fz) * t;
-      heading = Math.atan2(state.tx - state.fx, state.tz - state.fz);
+      const p = alongRoute(state.route, t * state.legLen);
+      state.x = p.x;
+      state.z = p.z;
+      heading = Math.atan2(p.dx, p.dz);
       if (state.leg >= 1) {
         if (state.mode === 'out') state.mode = 'lane';
         else state.mode = 'berth';

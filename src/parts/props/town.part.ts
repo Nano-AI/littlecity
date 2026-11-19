@@ -19,7 +19,8 @@ const WALL_IN = 0.07;
  * Bunting: a string of little flags between two sockets, in the town's
  * colours. Each pennon is pegged at the rope and free at its point, so the
  * wind lifts the whole string. Frame: origin at `from`, +X toward `to`.
- * `drop` hangs the rope that far below its two ends (negative raises it).
+ * `drop` hangs the rope that far below its two ends (negative raises it);
+ * `bulbs` hangs a small glowing bulb between every two flags.
  */
 export const bunting = definePart({
   prop: 'bunting',
@@ -49,6 +50,16 @@ export const bunting = definePart({
         b.tri([x - w, y, 0.004], [x, y - deep, 0.004], [x + w, y, 0.004]);
         b.tri([x + w, y, -0.004], [x, y - deep, -0.004], [x - w, y, -0.004]);
         b.setSway(0);
+      });
+    }
+    // L10: on a square, a small bulb between every two flags, hanging just under the rope. Its glass
+    // glows (PATTERN.glow): the dusk lamps system lights the string with the square's lamps.
+    if (item.params?.bulbs) {
+      b.with({ color: PALETTE.yellow, pattern: PATTERN.glow, ink: 'bulbs' }, () => {
+        for (let i = 1; i < n; i++) {
+          const [x, y] = rope(i / n);
+          lump(b, x, y - 0.03, 0, 0.021, 0.026, 0.021, { seg: 5, rings: 3 });
+        }
       });
     }
     return { mesh: b.build() };

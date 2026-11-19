@@ -7,7 +7,8 @@
 //   the upper storey, on every second cell.
 //
 //   Round a square that has a market stall on it: always, from lamp to lamp
-//   along its sides (between the heads of D02's corner lamps).
+//   along its sides (between the heads of D02's corner lamps), with small
+//   bulbs between the flags that glow at night (L10).
 //
 // A string across a street takes the air between its two walls, so D05
 // (laundry) never hangs a line through it; laundry never crosses a plaza.
@@ -95,7 +96,8 @@ export default defineRule<Bunting>({
       // Hung a little above the middle of the storey, wall to wall.
       out.prop({ type: 'bunting', at: { from, to }, params: { look, drop: -0.18 } });
     } else {
-      out.prop({ type: 'bunting', at: { from: d.a, to: d.b }, params: { look, drop: 0.03 } });
+      // L10: a square's strings carry small bulbs, which glow softly at night.
+      out.prop({ type: 'bunting', at: { from: d.a, to: d.b }, params: { look, drop: 0.03, bulbs: 1 } });
     }
   },
 });

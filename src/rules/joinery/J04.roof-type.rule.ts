@@ -24,6 +24,7 @@ export default defineRule<{ region: RoofRegion }>({
   part: 'joinery',
   tier: 1,
   priority: 960,
+  local: 1, // apply reads only its roof regions, the cells beside them and a touching steeple (RuleDef.local)
   about: 'Reads: roofRegions, roles, neighbours of the roof cells. Emits: one roof feature per region; a finial on a chapel.',
   find(ctx) {
     const regions = roofRegions(ctx.facts);

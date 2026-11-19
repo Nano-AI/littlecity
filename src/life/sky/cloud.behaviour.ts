@@ -80,12 +80,14 @@ export default defineBehaviour({
       l.handle.setMatrix(compose(translation(wx, state.y + l.dy, wz), scaling(l.size, l.size * 0.7, l.size)));
       l.handle.setParams(0.42 * night * seen, l.dx, 1, 0);
     }
-    const r = state.radius;
+    // The shadow is smaller than the cloud and soft all through: a passing shade over a few houses,
+    // never a whole quarter of the town at full strength.
+    const r = state.radius * 0.75;
     state.shadow.setMatrix(compose(translation(state.x, 0.9, state.z), scaling(r, 1, r)));
     // The shadow falls on the island and the sea, not on the paper round the map: it fades out at the edge.
     const out = Math.max(Math.max(-state.x, state.x - SIZE_X), Math.max(-state.z, state.z - SIZE_Z));
     const onMap = 1 - Math.min(1, Math.max(0, (out + r * 0.6) / (r * 0.8)));
-    state.shadow.setParams(0.24 * (signals.time.light * 0.8 + 0.2) * onMap, 0, 0, r);
+    state.shadow.setParams(0.2 * (signals.time.light * 0.8 + 0.2) * onMap, 0, 0, r);
   },
   dispose(state) {
     for (let i = 1; i < state.lobes.length; i++) state.lobes[i]!.handle.release();

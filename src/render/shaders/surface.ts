@@ -321,10 +321,15 @@ void main(){
     vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
     float face = smoothstep(0.0, 0.5, abs(vn.z));
     // Param d > 0: a soft round patch lying flat (a cloud's shadow), d its radius in world units.
-    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.35, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
+    // It has no flat middle: it fades from its centre all the way out, so it reads as a passing shade.
+    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.0, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
     float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
     float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
     vec3 c = toSrgb(base) * uTint + uLift;
+    // A cloud's shadow darkens what it falls on and cools it a little, keeping each surface's own
+    // colour (warm stone stays warm stone): nearly black, so the wash scales the page down rather
+    // than mixing grey into it.
+    if (vParams.w > 0.0) c = toSrgb(base) * uTint * 0.18;
     // Param c > 0.5: a cloud, whose wash is edged with a soft graphite line where it thins.
     if (vParams.z > 0.5 && vParams.w <= 0.0) {
       float rim = smoothstep(0.04, 0.16, face) * (1.0 - smoothstep(0.18, 0.42, face));

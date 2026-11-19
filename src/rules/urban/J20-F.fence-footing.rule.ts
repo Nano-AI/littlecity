@@ -1,10 +1,12 @@
-// J20-F · tier 1 · Fence footing (a fix to J20, kept in a file of its own).
+// J20-F · tier 1 · Fence (and wall) footing (a fix to J20, kept in a file of
+// its own).
 //
-// A player can lay fence edge pieces where nothing is flat to stand on: round
-// the eaves of a pitched roof, or across the top of a tower. Drawn on their
-// cell line they float in the air at eaves level. Such a piece gets a
-// 'run-bare' feature, and the fence generator leaves it out (the run's other
-// pieces are drawn as before, with an end post where a bare piece was).
+// A player can lay fence or low-wall edge pieces where nothing is flat to
+// stand on: round the eaves of a pitched roof, or across the top of a tower.
+// Drawn on their cell line they float in the air at eaves level. Such a
+// piece gets a 'run-bare' feature, and the fence and wall generators leave it
+// out (the run's other pieces are drawn as before, with an end post or pier
+// where a bare piece was).
 //
 // A side of an edge piece has footing when the cell on that side, at the
 // piece's level, is standable (ground, a floor, a deck, the top of a solid
@@ -12,7 +14,7 @@
 // or windmill. A piece with footing on neither side is bare. A flat roof
 // terrace (J05) is footing: its railings stay.
 //
-// Reads: fence runs (edge pieces), standable cells, roof features (J04, J05).
+// Reads: fence and wall runs (edge pieces), standable cells, roof features (J04, J05).
 // Claims: nothing.
 
 import { below, edgeCells, NO_CELL, type CellKey } from '@/core/grid';
@@ -26,7 +28,7 @@ export default defineRule<{ structure: StructureId; edge: number }>({
   part: 'joinery',
   tier: 1,
   priority: 799,
-  about: 'Reads: fence runs (edge pieces), standable cells, roof features. Emits: run-bare on an edge piece with nothing flat to stand on either side. Claims: nothing.',
+  about: 'Reads: fence and wall runs (edge pieces), standable cells, roof features. Emits: run-bare on an edge piece with nothing flat to stand on either side. Claims: nothing.',
   find(ctx) {
     const { facts } = ctx;
     const footing = (c: CellKey): boolean => {
@@ -38,7 +40,7 @@ export default defineRule<{ structure: StructureId; edge: number }>({
     };
     const out: Candidate<{ structure: StructureId; edge: number }>[] = [];
     for (const s of facts.structures.values()) {
-      if (s.kind !== 'fence') continue;
+      if (s.kind !== 'fence' && s.kind !== 'wall') continue;
       for (const edge of s.edges) {
         const [a, b] = edgeCells(edge);
         if (footing(a) || footing(b)) continue;
