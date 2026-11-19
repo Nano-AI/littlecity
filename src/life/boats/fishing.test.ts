@@ -57,4 +57,26 @@ describe('the fishing boat (L18)', () => {
     expect(signals.time.isNight).toBe(true);
     expect(fromBerth()).toBeLessThan(0.3);
   });
+  test('it goes bow first: it never crabs sideways (off the dock at dawn, in at dusk, round the lane)', () => {
+    const town = resolveScenario(scn);
+    const rec = recordingStage(town);
+    const signals = createSignals(scn.seed);
+    const life = createLife(rec.stage, signals, { behaviours: [fishing], systems: [] });
+    signals.setPhase(partPhases().night.mid);
+    life.sync(town);
+    const boat = town.dressing.actors.find((a) => a.type === 'fishing-boat')!;
+    let [lx, , lz] = positionOf(rec.of(boat.id).matrix);
+    let worst = 0;
+    for (let i = 0; i < 480 * 10; i++) {
+      step(life, signals, 0.1, 2);
+      const m = rec.of(boat.id).matrix;
+      const [x, , z] = positionOf(m);
+      const dx = x - lx, dz = z - lz, d = Math.hypot(dx, dz);
+      // Under way (not swinging to its berth): the way it moves is the way its bow points.
+      if (d > 0.02) worst = Math.max(worst, Math.acos(Math.max(-1, Math.min(1, (dx * m[8]! + dz * m[10]!) / d / Math.hypot(m[8]!, m[10]!)))));
+      lx = x;
+      lz = z;
+    }
+    expect(worst).toBeLessThan(1.1);
+  });
 });

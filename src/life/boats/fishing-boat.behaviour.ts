@@ -63,6 +63,8 @@ interface State {
   s: number;
   turnHome: number;
   wake: number;
+  /** Leaning into a turn (radians of roll), eased. */
+  bank: number;
   phase: number;
   swell: Swell;
   drawn: number;
@@ -88,7 +90,7 @@ export default defineBehaviour({
       moored, mode: 'berth', started: false, shape: null, lane: null,
       bx, bz, byaw, x: bx, z: bz, yaw: byaw,
       fx: bx, fz: bz, tx: bx, tz: bz, leg: 1, legLen: 1, s: 0, turnHome: 0, wake: 0,
-      phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, drawn: NaN, m: new Array<number>(16).fill(0),
+      phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, bank: 0, drawn: NaN, m: new Array<number>(16).fill(0),
     };
   },
   changed(state, ctx) {
@@ -147,7 +149,10 @@ export default defineBehaviour({
     const px = state.x, pz = state.z;
     let heading: number;
     if (state.mode === 'out' || state.mode === 'home') {
-      state.leg = Math.min(1, state.leg + (FISH_SPEED * dt) / state.legLen);
+      // Bow first: it gathers way only as it comes round to the leg, so it never crabs sideways off the dock.
+      const off = Math.abs(angleDelta(state.yaw, Math.atan2(state.tx - state.fx, state.tz - state.fz)));
+      const align = Math.max(0.12, Math.cos(Math.min(Math.PI / 2, off)));
+      state.leg = Math.min(1, state.leg + (FISH_SPEED * dt * align) / state.legLen);
       // Gathering way at the start of a leg and coming gently alongside at the end.
       const t = state.legLen > 2 ? state.leg : easeInOut(state.leg);
       state.x = state.fx + (state.tx - state.fx) * t;
@@ -181,7 +186,11 @@ export default defineBehaviour({
       state.x += (state.bx - state.x) * k;
       state.z += (state.bz - state.z) * k;
     }
-    state.yaw += angleDelta(state.yaw, heading) * glide(BOATS.turn, dt);
+    const turn = angleDelta(state.yaw, heading) * glide(BOATS.turn, dt);
+    state.yaw += turn;
+    // Leaning into its turns, a little, while under way.
+    const rate = dt > 0 ? turn / dt : 0;
+    state.bank += (Math.max(-0.1, Math.min(0.1, -rate * 0.35)) - state.bank) * Math.min(1, dt * 3);
     const moved = Math.hypot(state.x - px, state.z - pz);
     state.wake += moved;
     if (state.wake > 1.1) {
@@ -196,7 +205,7 @@ export default defineBehaviour({
       state.drawn = now;
       swellAt(now, state.phase, BOATS.fishLength, signals.wind(state.x, state.z).strength, state.swell);
     }
-    fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll, 1, state.m);
+    fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll + state.bank, 1, state.m);
     ctx.instance.setMatrix(state.m);
   },
   dispose(_state, ctx) {
