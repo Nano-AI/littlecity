@@ -26,13 +26,15 @@ interface Tri {
   area: number;
 }
 
-/** One overlapping pair: who drew each side, their ink ids, the smaller triangle's area, and a place. */
+/** One overlapping pair: who drew each side, their ink ids, the smaller triangle's area, the area they share, and a place. */
 export interface CoplanarPair {
   a: string;
   b: string;
   inkA: number;
   inkB: number;
   area: number;
+  /** The area the two triangles share, in square units (projected on the plane's two widest axes). */
+  shared: number;
   at: V3;
   normal: V3;
   triA: V3[];
@@ -53,6 +55,34 @@ function overlap(a: [number, number][], b: [number, number][], eps: number): boo
     }
   }
   return true;
+}
+
+/** The area two 2D triangles share (one clipped by the other, Sutherland–Hodgman). */
+function sharedArea(a: [number, number][], b: [number, number][]): number {
+  const signed = (t: [number, number][]): number => (t[1]![0] - t[0]![0]) * (t[2]![1] - t[0]![1]) - (t[2]![0] - t[0]![0]) * (t[1]![1] - t[0]![1]);
+  const clip = signed(b) >= 0 ? b : [b[0]!, b[2]!, b[1]!];
+  let poly = a;
+  for (let i = 0; i < 3 && poly.length; i++) {
+    const p = clip[i]!, q = clip[(i + 1) % 3]!;
+    const side = (v: [number, number]): number => (q[0] - p[0]) * (v[1] - p[1]) - (q[1] - p[1]) * (v[0] - p[0]);
+    const next: [number, number][] = [];
+    for (let k = 0; k < poly.length; k++) {
+      const u = poly[k]!, w = poly[(k + 1) % poly.length]!;
+      const su = side(u), sw = side(w);
+      if (su >= 0) next.push(u);
+      if ((su >= 0) !== (sw >= 0)) {
+        const t = su / (su - sw);
+        next.push([u[0] + (w[0] - u[0]) * t, u[1] + (w[1] - u[1]) * t]);
+      }
+    }
+    poly = next;
+  }
+  let area = 0;
+  for (let k = 0; k < poly.length; k++) {
+    const u = poly[k]!, w = poly[(k + 1) % poly.length]!;
+    area += u[0] * w[1] - w[0] * u[1];
+  }
+  return Math.abs(area) / 2;
 }
 
 /** Every coplanar overlapping pair with different ink ids among a shape's structures and layers. */
@@ -99,7 +129,7 @@ export function coplanarPairs(shape: ShapePlan): CoplanarPair[] {
         const pairKey = `${x.ink}:${y.ink}:${x.v[0]}`;
         if (seen.has(pairKey)) continue;
         seen.add(pairKey);
-        out.push({ a: names[x.who]!, b: names[y.who]!, inkA: x.ink, inkB: y.ink, area: Math.min(t.area, o.area), at: x.v[0]!, normal: t.n, triA: x.v, triB: y.v });
+        out.push({ a: names[x.who]!, b: names[y.who]!, inkA: x.ink, inkB: y.ink, area: Math.min(t.area, o.area), shared: sharedArea(t.p, o.p), at: x.v[0]!, normal: t.n, triA: x.v, triB: y.v });
       }
     }
   }

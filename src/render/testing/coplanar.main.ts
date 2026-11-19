@@ -39,7 +39,7 @@ export function main(name: string, log: (line: string) => void, opts: { pairs?: 
   if (opts.pairs) {
     const shown = pairs.filter((q) => q.area >= min).sort((x, y) => (x.a + x.b).localeCompare(y.a + y.b) || y.area - x.area);
     for (const p of shown) {
-      log(`  ${p.a} [${inks.get(p.inkA) ?? p.inkA}] / ${p.b} [${inks.get(p.inkB) ?? p.inkB}]  area ${p.area.toFixed(4)}  n ${f(p.normal)}`);
+      log(`  ${p.a} [${inks.get(p.inkA) ?? p.inkA}] / ${p.b} [${inks.get(p.inkB) ?? p.inkB}]  area ${p.area.toFixed(4)} shared ${p.shared.toFixed(5)}  n ${f(p.normal)}`);
       log(`      A ${p.triA.map((v) => `(${f(v)})`).join(' ')}`);
       log(`      B ${p.triB.map((v) => `(${f(v)})`).join(' ')}`);
     }
