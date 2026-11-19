@@ -254,12 +254,26 @@ export function createInterface(host: InterfaceHost): Interface {
   };
 
   // ── the pointer ────────────────────────────────────────────────────────
+  /** A press on the town while a pop-up is open only closes it: that click builds nothing. */
+  let dismissing = false;
+  const closePopups = (): boolean => {
+    const menuWasOpen = menu.isOpen;
+    menu.close();
+    return tray.closePopups() || menuWasOpen;
+  };
+  const onCanvasDown = (): void => {
+    dismissing = closePopups();
+  };
+  canvas.addEventListener('pointerdown', onCanvasDown, { capture: true });
+
   const sink: GestureSink = {
     use(x, y) {
+      if (dismissing) return;
       const seen = look(x, y);
       if (seen) perform(planUse(tool(), seen.pick, seen.ctx), x, y);
     },
     erase(x, y) {
+      if (dismissing) return;
       const seen = look(x, y);
       if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) navigator.vibrate?.(12);
     },
@@ -278,7 +292,7 @@ export function createInterface(host: InterfaceHost): Interface {
       setGhost(null, '');
     },
     runStart(x, y) {
-      if (!paintsRuns(tray.state.item)) return false;
+      if (dismissing || !paintsRuns(tray.state.item)) return false;
       const seen = look(x, y);
       if (!seen) return false;
       const plan = planUse(tool(), seen.pick, seen.ctx);
@@ -307,11 +321,6 @@ export function createInterface(host: InterfaceHost): Interface {
     },
   };
   const detachPointer = attachPointer(canvas, sink);
-  const closePopups = (): void => {
-    menu.close();
-    tray.closePopups();
-  };
-  canvas.addEventListener('pointerdown', closePopups);
 
   // ── the keyboard ───────────────────────────────────────────────────────
   const onKey = (e: KeyboardEvent): void => {
@@ -330,7 +339,7 @@ export function createInterface(host: InterfaceHost): Interface {
       return;
     }
     if (e.altKey) return;
-    if (key === 'escape') return closePopups();
+    if (key === 'escape') return void closePopups();
     if (/^[0-9]$/.test(e.key)) tray.pickNumber(Number(e.key));
   };
   window.addEventListener('keydown', onKey);
@@ -396,7 +405,7 @@ export function createInterface(host: InterfaceHost): Interface {
     }),
     dispose() {
       detachPointer();
-      canvas.removeEventListener('pointerdown', closePopups);
+      canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDrop);

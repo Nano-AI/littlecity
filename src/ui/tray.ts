@@ -28,7 +28,8 @@ export interface Tray {
   pickNumber(n: number): boolean;
   /** Refusal feedback: the selected button shakes its head. */
   shake(): void;
-  closePopups(): void;
+  /** Closes the colour pop-up; true if it was open. */
+  closePopups(): boolean;
   onChange(fn: (state: Readonly<TrayState>) => void): void;
 }
 
@@ -173,7 +174,11 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
       void target.offsetWidth; // restart the animation
       target.classList.add('lc-shake');
     },
-    closePopups: () => setPopup(false),
+    closePopups() {
+      const wasOpen = !swatches.hasAttribute('hidden');
+      setPopup(false);
+      return wasOpen;
+    },
     onChange(fn) {
       listeners.push(fn);
     },

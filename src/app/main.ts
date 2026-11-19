@@ -122,7 +122,7 @@ resize();
 if (scenarioCamera) view.setCamera(scenarioCamera);
 else if (window.innerWidth < window.innerHeight) {
   // A phone held upright: pull back so the island's width fits the screen.
-  view.setCamera({ zoom: Math.max(0.7, view.getCamera().zoom * Math.min(1, (window.innerWidth / window.innerHeight) * 1.3)) });
+  view.setCamera({ zoom: Math.max(0.7, view.getCamera().zoom * Math.min(1, (window.innerWidth / window.innerHeight) * 1.05)) });
 }
 
 function render(): void {

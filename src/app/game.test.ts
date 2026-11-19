@@ -8,7 +8,7 @@ import { key } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
 import type { ShapePlan } from '@/resolve/plan';
 import { flatTerrain } from '@/scenario';
-import { ghostFor } from '@/ui/ghost';
+import { changedAutos, ghostFor } from '@/ui/ghost';
 import { SAVE_KEY, loadTown } from '@/world/save';
 import { emptyWorld } from '@/world/world';
 import { createAutosave } from './autosave';
@@ -147,6 +147,22 @@ describe('the ghost', () => {
     game.edit(place(10, 10));
     const cell = key(10, 1, 10);
     expect(ghostFor({ tries: [place(10, 10)], at: cell }, game)).toEqual({ plan: game.shape, show: [], refuse: cell });
+  });
+
+  test('Auto blocks whose resolved kind would change are the ones that shimmer', () => {
+    const { game } = setup();
+    game.edit(place(10, 10, 'auto'));
+    game.edit(place(12, 10, 'auto'));
+    game.edit(place(14, 10, 'house'));
+    const [a, b, c] = [key(10, 1, 10), key(12, 1, 10), key(14, 1, 10)];
+    const now = game.shape;
+    // A what-if plan in which the first Auto block has become something else.
+    const other = now.kinds.get(a) === 'tower' ? 'house' : 'tower';
+    const next = { ...now, kinds: new Map(now.kinds).set(a, other).set(c, 'marble') } as ShapePlan;
+    // The second Auto block did not change; the house did, but it is not Auto.
+    expect(changedAutos(game.world, now, next)).toEqual([a]);
+    expect(changedAutos(game.world, now, now)).toEqual([]);
+    expect(b).not.toBe(a);
   });
 
   test('only placing has a ghost: change, paint and erase do not', () => {

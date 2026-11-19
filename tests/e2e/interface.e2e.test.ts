@@ -402,6 +402,13 @@ describe('desktop: mouse and keys', () => {
     await page.click('[data-menu="tuning"]');
     expect(await page.locator('[data-ui="tuning"]').count()).toBe(0);
 
+    // A click on the town while the menu is open only closes the menu.
+    await pick(page, 'house');
+    await page.click('[data-ui="menu-button"]');
+    await page.mouse.click(...(await ground(page, 26, 28)));
+    expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
+    expect(await count(page)).toBe(5);
+
     // New island: "Keep this one" changes nothing; "New island" starts over.
     const seed = await js<number>(page, 'window.__lc.world().seed');
     await pick(page, 'house');
