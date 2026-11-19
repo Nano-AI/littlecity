@@ -224,18 +224,23 @@ export function mooredClear(field: SeaField, h: HullSize, m: Mooring): boolean {
   return hullClearAt(field, h, m.x, m.z, m.yaw, SHIPS.alongside * 0.5) && hullClearAt(field, h, m.wx, m.wz, m.yaw, 0.1);
 }
 
-function choose(f: Facts, ship: BigShip, berths: readonly Berth[], taken: Set<string>): ShipPlan | null {
+function choose(f: Facts, ship: BigShip, berths: readonly Berth[], taken: Set<string>, fields: Map<string, SeaField>): ShipPlan | null {
   const need = needs(ship).berth;
+  const fieldOf = (b: Berth): SeaField => {
+    let field = fields.get(b.key);
+    if (!field) fields.set(b.key, (field = planningField(f, b)));
+    return field;
+  };
   for (const b of berths) {
     if (b.cells < need) continue;
     // Two kinds of ship may share a berth (they call at different times), but a free one is better.
     if (taken.has(b.key)) continue;
-    const plan = planBerth(f, ship, b);
+    const plan = planBerth(f, ship, b, fieldOf(b));
     if (plan) return plan;
   }
   for (const b of berths) {
     if (b.cells < need || !taken.has(b.key)) continue;
-    const plan = planBerth(f, ship, b);
+    const plan = planBerth(f, ship, b, fieldOf(b));
     if (plan) return plan;
   }
   return null;
@@ -251,11 +256,12 @@ export const harbour = defineFact<Harbour>('harbour', (f) => {
   const berths = findBerths(f);
   if (!berths.length) return { ...none, berths };
   const taken = new Set<string>();
-  const galleon = docks >= SHIPS.galleonPort ? choose(f, 'galleon', berths, taken) : null;
+  const fields = new Map<string, SeaField>();
+  const galleon = docks >= SHIPS.galleonPort ? choose(f, 'galleon', berths, taken, fields) : null;
   if (galleon) taken.add(galleon.berth.key);
-  const cog = docks >= SHIPS.cogPort ? choose(f, 'cog', berths, taken) : null;
+  const cog = docks >= SHIPS.cogPort ? choose(f, 'cog', berths, taken, fields) : null;
   if (cog) taken.add(cog.berth.key);
-  const galley = lighthouses > 0 ? choose(f, 'galley', berths, taken) : null;
+  const galley = lighthouses > 0 ? choose(f, 'galley', berths, taken, fields) : null;
   const reserved = new Set<number>();
   for (const p of [galleon, cog, galley]) if (p) for (const i of p.berth.water) reserved.add(i);
   return { berths, galleon, cog, galley, reserved };

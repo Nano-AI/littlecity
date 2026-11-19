@@ -45,24 +45,35 @@ export function lowObstacles(f: Facts): Uint8Array {
 
 /** The barge's run for a town, or null. Pure. */
 export function riverRun(f: Facts): RiverRun | null {
+  const docks = [...f.structures.values()].filter((s) => s.kind === 'dock').sort((a, b) => a.id - b.id);
+  if (docks.length < 2) return null;
   const land = new Uint8Array(SIZE_X * SIZE_Z);
   for (let i = 0; i < land.length; i++) if (f.terrain.height[i]! > 0) land[i] = 1;
-  const banks = seaField(land);
   const low = lowObstacles(f);
-  const water = seaField(low);
-  // Banks on both sides: land within reach one way and the other, across x, across z, or across a diagonal.
+  // Banks on both sides: land within reach one way and the other, across x, across z, or across a diagonal;
+  // and a bank near (within RIVER_REACH) in one of those directions.
   const landAt = (x: number, z: number): boolean => inColumnBounds(x, z) && land[columnIndex(x, z)] === 1;
   const reach = Math.ceil(RIVER_REACH * 2);
-  const bank = (x: number, z: number, dx: number, dz: number): boolean => {
-    for (let k = 1; k <= reach; k++) if (landAt(x + dx * k, z + dz * k)) return true;
+  const bank = (x: number, z: number, dx: number, dz: number, n: number): boolean => {
+    for (let k = 1; k <= n; k++) if (landAt(x + dx * k, z + dz * k)) return true;
     return false;
   };
-  const between = (x: number, z: number): boolean =>
-    ([[1, 0], [0, 1], [1, 1], [1, -1]] as const).some(([dx, dz]) => bank(x, z, dx, dz) && bank(x, z, -dx, -dz));
-  const river = (x: number, z: number): boolean => inColumnBounds(x, z) && low[columnIndex(x, z)] === 0 && banks.at(x + 0.5, z + 0.5) <= RIVER_REACH && between(x, z);
+  const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]] as const;
+  const river = (x: number, z: number): boolean =>
+    inColumnBounds(x, z) &&
+    low[columnIndex(x, z)] === 0 &&
+    DIRS.some(([dx, dz]) => bank(x, z, dx, dz, reach) && bank(x, z, -dx, -dz, reach)) &&
+    DIRS.some(([dx, dz]) => bank(x, z, dx, dz, Math.floor(RIVER_REACH)) || bank(x, z, -dx, -dz, Math.floor(RIVER_REACH)));
+  // Only now, with docks that may be on a river, the distances the barge keeps.
+  let near = 0;
+  for (const s of docks) {
+    if (s.cells.some((c) => keyY(c) === 0 && DIR4.some(([dx, dz]) => river(keyX(c) + dx, keyZ(c) + dz)))) near++;
+  }
+  if (near < 2) return null;
+  const water = seaField(low);
   // Docks on the river: the river column beside each, one per dock structure.
   const ends: Pt[] = [];
-  for (const s of [...f.structures.values()].filter((s) => s.kind === 'dock').sort((a, b) => a.id - b.id)) {
+  for (const s of docks) {
     let best: Pt | null = null;
     let room = -1;
     // Beside the dock's long side, where the barge lies along it, before off its end.

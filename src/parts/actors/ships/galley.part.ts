@@ -37,6 +37,13 @@ function curl(a: Vec3, len: number, start: number, turn: number, steps: number):
   return out;
 }
 
+/** The start of segment i of a chain of sticks, drawn back a hair into the one before so their end caps do not coincide. */
+function nudge(a: Vec3, c: Vec3, i: number): Vec3 {
+  if (i === 0) return a;
+  const d = Math.hypot(c[0] - a[0], c[1] - a[1], c[2] - a[2]) || 1;
+  return [a[0] - ((c[0] - a[0]) / d) * 0.006, a[1] - ((c[1] - a[1]) / d) * 0.006, a[2] - ((c[2] - a[2]) / d) * 0.006];
+}
+
 export function drawGalley(b: MeshBuilder, rig: ShipRig, paint: ShipPaint): void {
   const hull = drawShipHull(b, rig.spec, paint, { boot: 0.05, wale: [0.15, 0.2], waleOut: 0.025 });
   const o = rig.oars!;
@@ -59,7 +66,7 @@ export function drawGalley(b: MeshBuilder, rig: ShipRig, paint: ShipPaint): void
   });
   b.with({ color: paint.hull, ink: 'stem' }, () => {
     const pts = curl([0, 0.3, zs(0.3) - 0.02], 0.62, 0.35, -1.5, 6);
-    for (let i = 0; i + 1 < pts.length; i++) stick(b, pts[i]!, pts[i + 1]!, 0.07 - i * 0.006, 0.07 - i * 0.006);
+    for (let i = 0; i + 1 < pts.length; i++) stick(b, nudge(pts[i]!, pts[i + 1]!, i), pts[i + 1]!, 0.07 - i * 0.006, 0.07 - i * 0.006);
   });
 
   // ── the stern post, curling forward, a lantern hung from its crook ──
@@ -67,7 +74,7 @@ export function drawGalley(b: MeshBuilder, rig: ShipRig, paint: ShipPaint): void
   b.with({ color: paint.wale, ink: 'sternpost' }, () => {
     const zt = hull.z(0, 0.5);
     const pts = curl([0, 0.3, zt - 0.04], 2.0, -0.4, 2.9, 11);
-    for (let i = 0; i + 1 < pts.length; i++) stick(b, pts[i]!, pts[i + 1]!, 0.09 - i * 0.006, 0.07 - i * 0.004);
+    for (let i = 0; i + 1 < pts.length; i++) stick(b, nudge(pts[i]!, pts[i + 1]!, i), pts[i + 1]!, 0.09 - i * 0.006, 0.07 - i * 0.004);
     stern.push(...pts);
   });
 
@@ -99,7 +106,8 @@ export function drawGalley(b: MeshBuilder, rig: ShipRig, paint: ShipPaint): void
       const x = side * (aw + 0.08);
       const pts: Vec3[] = [[x, top, za - 0.05], [x, top, zb + 0.05], [x, top - 0.08, zb + 0.05], [x, top - 0.08, za - 0.05]];
       b.quad(pts[0]!, side > 0 ? pts[3]! : pts[1]!, pts[2]!, side > 0 ? pts[1]! : pts[3]!);
-      b.quad(pts[0]!, side > 0 ? pts[1]! : pts[3]!, pts[2]!, side > 0 ? pts[3]! : pts[1]!);
+      const inner = pts.map((q): Vec3 => [q[0] - side * 0.004, q[1], q[2]]);
+      b.quad(inner[0]!, side > 0 ? inner[1]! : inner[3]!, inner[2]!, side > 0 ? inner[3]! : inner[1]!);
     }
   });
 

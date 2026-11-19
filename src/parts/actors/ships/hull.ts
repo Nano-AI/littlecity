@@ -17,7 +17,7 @@
 
 import type { Vec3 } from '@/core/mat4';
 import type { ColorInput, MeshBuilder } from '@/gen/mesh';
-import { face, flat, unit } from '../boats/hull';
+import { face, faceMirror, flat, unit } from '../boats/hull';
 
 export interface DeckSpan {
   /** Stations [t0, t1] and the deck's height above the water. */
@@ -177,7 +177,7 @@ export function drawShipHull(b: MeshBuilder, spec: ShipHullSpec, colors: ShipCol
         const p = [grid[i]![j]!, grid[i + 1]![j]!, grid[i + 1]![j + 1]!, grid[i]![j + 1]!];
         const q = [outerN[i]![j]!, outerN[i + 1]![j]!, outerN[i + 1]![j + 1]!, outerN[i]![j + 1]!];
         face(b, p, q);
-        face(b, p.map(mirror), q.map(mirror));
+        faceMirror(b, p, q);
       }
     }
     // The stern: a flat board across, its outline the stern station of the skin, painted like the sides.
@@ -198,7 +198,7 @@ export function drawShipHull(b: MeshBuilder, spec: ShipHullSpec, colors: ShipCol
       const a = grid[i]![ROWS - 1]!, c = grid[i + 1]![ROWS - 1]!;
       const ai: Vec3 = [Math.max(0, a[0] - spec.skin), a[1], a[2]], ci: Vec3 = [Math.max(0, c[0] - spec.skin), c[1], c[2]];
       face(b, [a, c, ci, ai], [UP, UP, UP, UP]);
-      face(b, [a, c, ci, ai].map(mirror), [UP, UP, UP, UP]);
+      faceMirror(b, [a, c, ci, ai], [UP, UP, UP, UP]);
     }
     // Across the stern's top.
     const top = grid[0]![ROWS - 1]!;
@@ -217,7 +217,7 @@ export function drawShipHull(b: MeshBuilder, spec: ShipHullSpec, colors: ShipCol
         const p: Vec3[] = [[hull.inner(a, d.y), d.y, hull.z(a, d.y)], [hull.inner(c, d.y), d.y, hull.z(c, d.y)], [hull.inner(c, hull.rail(c)), hull.rail(c), hull.z(c, hull.rail(c))], [hull.inner(a, hull.rail(a)), hull.rail(a), hull.z(a, hull.rail(a))]];
         const nIn = unit([-1, 0.08, 0]);
         face(b, p, [nIn, nIn, nIn, nIn]);
-        face(b, p.map(mirror), [nIn, nIn, nIn, nIn].map(mirror));
+        faceMirror(b, p, [nIn, nIn, nIn, nIn]);
       }
       // At the stern: the inside of the stern board above this deck.
       if (d.t0 <= 1e-9) {
