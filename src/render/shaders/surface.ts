@@ -491,7 +491,9 @@ void main(){
       float glint = smoothstep(0.02, 0.0, abs(g - 0.35) - 0.06) * 0.45;
       col = mix(col, vec3(1.0), glint);
       float hsh = h1(vId * 255.0 + 0.37);
-      float on = smoothstep(hsh * 0.75, hsh * 0.75 + 0.12, uGlow) * step(hsh, 0.86) * vParams.x;
+      // Param c of the slot brings the panes forward (a shop lights before the street: L07).
+      float at = hsh * 0.75 - vParams.z;
+      float on = smoothstep(at, at + 0.12, uGlow) * step(hsh, 0.86) * vParams.x * step(0.001, uGlow);
       vec3 lit = mix(uLamp, uWhite, glint * 0.5) * (0.9 + 0.1 * h1(vId * 91.0));
       col = mix(col, lit, on);
       glow = on;
