@@ -1,6 +1,7 @@
 // Lamps at dusk. Any prop of a lamp type in the vocabulary ('lamp',
-// 'hanging-lantern') comes on in the evening and goes out at dawn; this
-// system needs nothing from the rule that placed it but its type.
+// 'hanging-lantern', and 'bunting', whose square strings carry bulbs) comes
+// on in the evening and goes out at dawn; this system needs nothing from the
+// rule that placed it but its type.
 //
 // Lamps along one street light one after another, LAMP_GAP seconds apart,
 // from one end to the other; each street starts at its own seeded moment in
@@ -23,11 +24,15 @@ import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import { dawnProgress, eveningSeconds } from './evening';
 import { canGlow, glowOf, litParam } from './glow';
 
-/** The prop types that are lamps. */
-export const LAMP_TYPES: ReadonlySet<PropType> = new Set<PropType>(['lamp', 'hanging-lantern']);
+/** The prop types that are lamps. Bunting is one: a square's carries small bulbs (L10, D04). */
+export const LAMP_TYPES: ReadonlySet<PropType> = new Set<PropType>(['lamp', 'hanging-lantern', 'bunting']);
+/** How bright a lit lamp of each type is, if not fully: a string of bulbs glows softly. */
+const SOFT: Partial<Record<PropType, number>> = { bunting: 0.55 };
 
 interface Lamp {
   id: string;
+  /** Full brightness, 0 to 1. */
+  bright: number;
   handle: InstanceHandle | null;
   /** Seconds into the evening at which it lights. */
   at: number;
@@ -118,16 +123,16 @@ export default defineSystem<State>({
     const dressing = next.dressing;
     if (!dressing || dressing === state.dressing) return;
     state.dressing = dressing;
-    const found: { id: string; pos: [number, number, number]; handle: InstanceHandle | null }[] = [];
+    const found: { id: string; pos: [number, number, number]; handle: InstanceHandle | null; bright: number }[] = [];
     for (const p of dressing.props) {
       if (!LAMP_TYPES.has(p.type)) continue;
       const handle = ctx.stage.instance(p.id);
-      found.push({ id: p.id, handle, pos: handle ? positionOf(handle.base) : [0, 0, 0] });
+      found.push({ id: p.id, handle, pos: handle ? positionOf(handle.base) : [0, 0, 0], bright: SOFT[p.type] ?? 1 });
     }
     const order = lampOrder(next.shape, found, ctx.seed);
     const byId = new Map<string, Lamp>();
     state.lamps = found.map((f) => {
-      const lamp: Lamp = { id: f.id, handle: f.handle, at: order.get(f.id) ?? 0, early: state.byId.get(f.id)?.early ?? false, shown: NaN };
+      const lamp: Lamp = { id: f.id, bright: f.bright, handle: f.handle, at: order.get(f.id) ?? 0, early: state.byId.get(f.id)?.early ?? false, shown: NaN };
       byId.set(f.id, lamp);
       return lamp;
     });
@@ -160,7 +165,7 @@ export default defineSystem<State>({
         if (l.early && evening < l.at) l.at = evening;
         level = catching(evening - l.at);
       }
-      const a = litParam(level, glow);
+      const a = litParam(level * l.bright, glow);
       if (a !== l.shown) {
         l.shown = a;
         l.handle?.setParams(a);

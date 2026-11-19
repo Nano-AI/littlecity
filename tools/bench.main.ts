@@ -3,8 +3,10 @@
 // engine and every discovered rule loaded.
 
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario, TownBuilder } from '@/scenario';
+import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
+import { benchEdit } from '@/scenario/edits';
+import { applyEdit } from '@/world/world';
 
 export interface LogicBench {
   scenario: string;
@@ -27,20 +29,23 @@ export function main(name = 'bench-2000', runs = 30): LogicBench {
   let world = built.world;
   const clock = (): number => performance.now();
 
+  const opts = scenarioResolveOptions(scn);
   // Warm up the JIT, then measure one edit at a time.
-  for (let i = 0; i < 5; i++) resolveDressing(resolveShape(world, built.terrain));
+  for (let i = 0; i < 5; i++) resolveDressing(resolveShape(world, built.terrain, opts), opts);
   const shapeMs: number[] = [];
   const dressingMs: number[] = [];
   const ruleMs = new Map<string, number>();
   let structures = 0;
   let rules = 0;
   for (let i = 0; i < runs; i++) {
-    // One edit: an Auto block on top of whatever stands in a column, a different column each time.
-    world = new TownBuilder(world, built.terrain).put('auto', 4 + ((i * 7) % 40), 4 + ((i * 11) % 40)).world;
+    // One edit: an Auto block on top of a column, a legal one for this town, a different column each time.
+    const edit = benchEdit(world, built.terrain, i);
+    if (!edit) throw new Error(`no legal Auto block left to place in '${name}'`);
+    world = applyEdit(world, built.terrain, edit);
     const a = performance.now();
-    const shape = resolveShape(world, built.terrain, { clock });
+    const shape = resolveShape(world, built.terrain, { ...opts, clock });
     const b = performance.now();
-    const dressing = resolveDressing(shape, { clock });
+    const dressing = resolveDressing(shape, { ...opts, clock });
     const c = performance.now();
     shapeMs.push(b - a);
     dressingMs.push(c - b);

@@ -7,6 +7,7 @@
 import type { CellKey } from '@/core/grid';
 import type { Role, Tag } from '@/core/vocab';
 import { createFacts, type FactsBase } from '../facts/api';
+import { contentKeys, memosOn, regionKey, RegionMemo, registerMemo } from '../facts/content-keys.fact';
 import type {
   Actor,
   Anchor,
@@ -19,6 +20,7 @@ import type {
   Slot,
   Socket,
   StructureId,
+  Support,
 } from '../plan';
 import {
   candidateRandom,
@@ -37,6 +39,15 @@ import {
   type RulePart,
 } from './api';
 import { hashDressing, hashItem, hashShape, hashStructure } from './hash';
+import { OutputLanes, ShapeReuse, type Lane } from './reuse';
+
+const sortedCache = new WeakMap<readonly Rule[], Rule[]>();
+/** sortRules, remembered per rules array (the discovered list is the same array every resolve). */
+function sortedRules(rules: readonly Rule[]): Rule[] {
+  let sorted = sortedCache.get(rules);
+  if (!sorted) sortedCache.set(rules, (sorted = sortRules(rules)));
+  return sorted;
+}
 
 /** Run order: part, then priority descending, then id. Throws on a duplicate id. */
 export function sortRules(rules: readonly Rule[]): Rule[] {
@@ -89,11 +100,17 @@ interface StageEnv {
   makeOut(rule: Rule, c: AnyCandidate): RuleOut;
   /** Called between parts (the dressing stage builds the walking graph before 'life'). */
   beforePart?(part: RulePart): void;
+  /** Reuse of earlier resolves' work for rules marked `local` (shape stage). */
+  reuse?: ShapeReuse;
+  /** makeOut ignores the candidate: one emitter per rule will do. */
+  outPerRule?: boolean;
 }
 
 function runParts(rules: readonly Rule[], env: StageEnv): void {
-  const sorted = sortRules(rules);
+  const sorted = sortedRules(rules);
   const { ctx, claims, inherited, opts } = env;
+  // One emitter per rule when it does not depend on the candidate (the shape stage).
+  const outs = env.outPerRule ? new Map<Rule, RuleOut>() : null;
   const seed = ctx.seed;
   for (const part of env.parts) {
     env.beforePart?.(part);
@@ -103,9 +120,10 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
       if (opts.maxTier !== undefined && rule.tier > opts.maxTier) continue;
       const t0 = opts.clock ? opts.clock() : 0;
       const tr: RuleTrace = { rule: rule.id, part, candidates: 0, chanceSkipped: 0, claimSkipped: 0, applied: 0 };
+      env.reuse?.beginRule(rule);
       let found: AnyCandidate[];
       try {
-        found = rule.find(ctx) as AnyCandidate[];
+        found = env.reuse && rule.findEach && rule.local !== undefined && memosOn() ? env.reuse.find(rule, ctx) : (rule.find(ctx) as AnyCandidate[]);
       } catch (err) {
         throw annotate(err, `rule ${rule.id} find()`);
       }
@@ -136,9 +154,11 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
           continue;
         }
         for (const s of wanted) claims.set(s, rule.id);
-        const applyCtx: ApplyContext = { ...ctx, ...candidateRandom(seed, rule.id, c) };
+        const out = outs ? (outs.get(rule) ?? outs.set(rule, env.makeOut(rule, c)).get(rule)!) : env.makeOut(rule, c);
         try {
-          rule.apply(c, env.makeOut(rule, c), applyCtx);
+          if (env.reuse && rule.local !== undefined && rule.localReplay !== false) {
+            env.reuse.apply(rule, c, ctx, out, (o) => rule.apply(c, o, { ...ctx, ...candidateRandom(seed, rule.id, c) }));
+          } else rule.apply(c, out, { ...ctx, ...candidateRandom(seed, rule.id, c) } as ApplyContext);
         } catch (err) {
           throw annotate(err, `rule ${rule.id} apply() at cell ${c.anchor}`);
         }
@@ -182,6 +202,23 @@ function featureId(f: {
   return `${f.type}@${where}${f.dir !== undefined ? `:${f.dir}` : ''}`;
 }
 
+// Structure hashes kept across resolves (see the end of runShapeStage).
+const hashMemo = registerMemo(new RegionMemo<number>());
+const SUPPORT_CODES = new Map<string, number>();
+function supportCode(type: string): number {
+  let c = SUPPORT_CODES.get(type);
+  if (c === undefined) SUPPORT_CODES.set(type, (c = SUPPORT_CODES.size + 1));
+  return c;
+}
+function mix(h: number, k: number): number {
+  k = Math.imul(k | 0, 0xcc9e2d51);
+  k = (k << 15) | (k >>> 17);
+  k = Math.imul(k, 0x1b873593);
+  h ^= k;
+  h = (h << 13) | (h >>> 19);
+  return (Math.imul(h, 5) + 0xe6546b64) | 0;
+}
+
 const SHAPE_ONLY = 'is only available to roles and joinery rules (the shape stage)';
 const DRESSING_ONLY = 'is only available to decoration, urban and life rules (the dressing stage)';
 
@@ -198,6 +235,34 @@ export function runShapeStage(base: FactsBase, rules: readonly Rule[], opts: Res
   const claims = new Map<Slot, string>();
   const trace: RuleTrace[] = [];
   const ids = new Ids();
+  const lanes = new OutputLanes();
+  const putFeature = (f: Feature, h: Lane): void => {
+    features.push(f);
+    let list = featuresByStructure.get(f.structure);
+    if (!list) featuresByStructure.set(f.structure, (list = []));
+    list.push(f);
+    lanes.feature(f, h);
+  };
+  const putSocket = (s: Socket, h: Lane): void => {
+    sockets.push(s);
+    if (s.owner !== undefined) {
+      let list = socketsByOwner.get(s.owner);
+      if (!list) socketsByOwner.set(s.owner, (list = []));
+      list.push(s);
+    }
+    lanes.socket(s, h);
+  };
+  const reuse = new ShapeReuse(facts, lanes, {
+    hasId: (id) => ids.has(id),
+    putFeature(f, h) {
+      ids.exact(f.id, 'replay');
+      putFeature(f, h);
+    },
+    putSocket(s, h) {
+      ids.exact(s.id, 'replay');
+      putSocket(s, h);
+    },
+  });
 
   const plan: ShapePlan = {
     world: base.world,
@@ -240,30 +305,32 @@ export function runShapeStage(base: FactsBase, rules: readonly Rule[], opts: Res
       }
       claims.set(slot.role(s), rule.id);
       roles.set(s, { role, rule: rule.id });
+      lanes.role(s, role, rule.id);
+      reuse.emitted({ m: 'role', s, role });
     },
     tag(s, tag) {
       needStructure(s, 'out.tag');
       let set = tags.get(s);
       if (!set) tags.set(s, (set = new Set()));
       set.add(tag);
+      lanes.tag(s, tag);
+      reuse.emitted({ m: 'tag', s, tag });
     },
     feature(input) {
       needStructure(input.structure, `out.feature('${input.type}')`);
-      const f = { ...input, id: ids.unique(featureId(input)), rule: rule.id } as Feature;
-      features.push(f);
-      let list = featuresByStructure.get(f.structure);
-      if (!list) featuresByStructure.set(f.structure, (list = []));
-      list.push(f);
+      const base = featureId(input);
+      const f = { ...input, id: ids.unique(base), rule: rule.id } as Feature;
+      const h = lanes.featureHash(f);
+      putFeature(f, h);
+      reuse.emitted({ m: 'feature', f, base, h });
       return f.id;
     },
     socket(input) {
-      const s: Socket = { ...input, id: ids.unique(socketId(input)), rule: rule.id };
-      sockets.push(s);
-      if (s.owner !== undefined) {
-        let list = socketsByOwner.get(s.owner);
-        if (!list) socketsByOwner.set(s.owner, (list = []));
-        list.push(s);
-      }
+      const base = socketId(input);
+      const s: Socket = { ...input, id: ids.unique(base), rule: rule.id };
+      const h = lanes.socketHash(s);
+      putSocket(s, h);
+      reuse.emitted({ m: 'socket', s, base, h });
       return s.id;
     },
     prop() {
@@ -282,10 +349,43 @@ export function runShapeStage(base: FactsBase, rules: readonly Rule[], opts: Res
     trace,
     opts,
     makeOut,
+    reuse,
+    outPerRule: true,
   });
 
+  // A structure's hash reads its cells and their neighbours (the columns within 1), the supports
+  // carrying it and its own outputs: unchanged, the hash from an earlier resolve stands.
+  const keys = contentKeys(facts);
+  const k = regionKey();
+  let supportsByCell: Map<CellKey, Support[]> | null = null;
+  hashMemo.begin();
   for (const s of base.structures.values()) {
-    (s as { hash: number }).hash = hashStructure(s, plan);
+    keys.around(s.cells, 1, k, s.edges);
+    k.a = mix(mix(k.a, s.id), lanes.laneA(s.id));
+    k.b = mix(mix(k.b, s.id ^ 0x2d), lanes.laneB(s.id));
+    if (base.supports.length) {
+      if (!supportsByCell) {
+        supportsByCell = new Map();
+        for (const sup of base.supports) {
+          const list = supportsByCell.get(sup.carries);
+          if (list) list.push(sup);
+          else supportsByCell.set(sup.carries, [sup]);
+        }
+      }
+      for (const c of s.cells) {
+        for (const sup of supportsByCell.get(c) ?? []) {
+          k.a = mix(mix(mix(mix(mix(k.a, sup.carries), sup.bottomY), sup.against ?? -1), supportCode(sup.type)), sup.arcadeTo?.length ?? -1);
+          k.b = mix(mix(mix(mix(mix(k.b, supportCode(sup.type)), sup.carries ^ 0x55), sup.bottomY), (sup.against ?? -1) + 11), sup.arcadeTo?.length ?? -1);
+          for (const d of sup.arcadeTo ?? []) {
+            k.a = mix(k.a, d);
+            k.b = mix(k.b, d + 7);
+          }
+        }
+      }
+    }
+    let h = hashMemo.get(s.id, k);
+    if (h === undefined) hashMemo.put(s.id, k, (h = hashStructure(s, plan)));
+    (s as { hash: number }).hash = h;
   }
   (plan as { hash: number }).hash = hashShape(plan);
   facts.attachShape(plan);

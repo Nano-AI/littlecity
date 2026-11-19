@@ -5,7 +5,7 @@
 // Several edits before a poll cost one dressing, for the last world; a
 // dressing for a superseded world is never computed or returned, so nothing
 // flickers back. preview() is a what-if shape for the ghost and touches
-// neither.
+// neither; placing the piece that was just previewed reuses that shape.
 //
 // Content hashes: a structure whose hash is unchanged keeps the very same
 // Structure object from the previous shape, so `prev === next` tells the
@@ -35,10 +35,17 @@ export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}
   let shape: ShapePlan | null = null;
   let version = 0;
   let dressed = 0;
+  // The last ghost preview: placing the piece that was hovered is the same world again.
+  let previewed: ShapePlan | null = null;
   return {
     update(world) {
       if (shape && shape.world === world) return shape;
-      const next = resolveShape(world, terrain, opts);
+      let next: ShapePlan;
+      if (previewed && previewed !== shape && sameWorld(previewed.world, world)) {
+        next = previewed;
+        (next as { world: World }).world = world;
+      } else next = resolveShape(world, terrain, opts);
+      previewed = null;
       if (shape) keepUnchanged(shape, next);
       shape = next;
       version++;
@@ -54,12 +61,26 @@ export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}
       return { shape: target, dressing };
     },
     preview(world) {
-      return resolveShape(world, terrain, opts);
+      return (previewed = resolveShape(world, terrain, opts));
     },
     get shape() {
       return shape;
     },
   };
+}
+
+/** Same blocks, floors and edge pieces (and seed and next seq): the same town to resolve. */
+export function sameWorld(a: World, b: World): boolean {
+  if (a === b) return true;
+  if (a.seed !== b.seed || a.nextSeq !== b.nextSeq) return false;
+  if (a.blocks.size !== b.blocks.size || a.floors.size !== b.floors.size || a.edges.size !== b.edges.size) return false;
+  for (const [c, x] of a.blocks) {
+    const y = b.blocks.get(c);
+    if (!y || y.kind !== x.kind || y.color !== x.color || y.rot !== x.rot || y.seq !== x.seq || (y.style ?? 0) !== (x.style ?? 0)) return false;
+  }
+  for (const [c, k] of a.floors) if (b.floors.get(c) !== k) return false;
+  for (const [e, k] of a.edges) if (b.edges.get(e) !== k) return false;
+  return true;
 }
 
 /** Swaps in the previous Structure object wherever id and hash are unchanged. */

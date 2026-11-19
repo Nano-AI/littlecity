@@ -229,6 +229,17 @@ const DRAWINGS: Record<string, string> = {
   menu: `<path stroke-width="3" d="M10 15 Q24 13.2 38 15.4 M10 24.6 Q24 23.2 38 24 M10 33 Q24 34.6 38 33.2"/>`,
   undo: `<path stroke-width="2.6" d="M17.4 13.4 L8.8 21 L17.8 28.4"/><path stroke-width="2.6" d="M9.6 21 L28 20.8 Q38.6 21.4 38.6 29.6 Q38.4 37.2 29 37.2 L21.6 37.2"/>`,
   redo: `<path stroke-width="2.6" d="M30.6 13.4 L39.2 21 L30.2 28.4"/><path stroke-width="2.6" d="M38.4 21 L20 20.8 Q9.4 21.4 9.4 29.6 Q9.6 37.2 19 37.2 L26.4 37.2"/>`,
+  // The guide: an open sketchbook, a little house drawn on its right page, a ribbon to keep the place.
+  guide:
+    `<path d="M4.6 16.4 L4.8 39.6 Q14.4 36.8 24 41 Q33.6 36.8 43.2 39.4 L43.2 16.2" fill="${C.roof}"/>` +
+    `<path d="M6.6 12.4 Q15.6 9.6 24 13.8 L24.1 38.2 Q15.4 34.4 6.8 36.6 Z" fill="${C.white}"/>` +
+    `<path d="M24 13.8 Q32.4 9.4 41.4 12 L41.2 36.2 Q32.6 34 24.1 38.2 Z" fill="${C.white}"/>` +
+    `<path ${thin} d="M10.2 18 Q14.8 16.6 20.2 18.4 M10.2 22.6 Q14.8 21.2 20.2 23 M10.2 27.2 Q14 26 18 27.4"/>` +
+    `<path stroke-width="1.5" d="M28.4 31.4 L28.5 24.8 L32.8 20.6 L37 24.6 L37 31 Z" fill="${C.pink}"/>` +
+    `<path ${thin} d="M31.6 31.2 L31.6 27.8 L34 27.8 L34 31.1"/>` +
+    `<path stroke-width="1.5" d="M29.8 11.6 L29.9 4.8 L33.4 4.6 L33.4 10.8 L31.6 9.4 Z" fill="${C.red}"/>`,
+  // A small tick in a ring: an entry of the guide the town already holds.
+  tick: `<circle cx="24" cy="24" r="17.5" fill="${C.leaf}"/><path stroke-width="3.6" d="M15.2 24.6 L21.6 31 L33.4 17.4" stroke="${C.ink}"/>`,
   'time-run':
     sun(17.5, 17.5, 6.6) +
     `<path d="M33.6 21.6 A10.4 10.4 0 1 0 41 37.4 A8.4 8.4 0 0 1 33.6 21.6 Z" fill="${C.moon}"/>`,
