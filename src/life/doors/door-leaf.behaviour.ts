@@ -12,6 +12,7 @@ import { invertAffine, multiply, type Mat4, type Mat4Like } from '@/core/mat4';
 import { HATCH, hatchLift, hingesOf, leafSwing, wallInSocket, type LeafKind } from '@/parts/openings/door-leaf';
 import { defineBehaviour, type InstanceHandle } from '../api';
 import { carryOf } from '../feedback/carry';
+import { houseGlowOf } from '../dusk/occupancy';
 import { easeInOut } from '../motion/ease';
 import { Twos } from '../motion/twos';
 import { doorTableOf } from './table';
@@ -29,6 +30,8 @@ interface State {
   shown: number;
   base: Mat4Like | null;
   carried: boolean;
+  /** The glow last given its glass (it follows the house's windows: lit only while somebody is home). */
+  glow: number;
 }
 
 /** The door table's key for a door-leaf actor: its door feature's id (the socket's owner), or the derived hatch's. */
@@ -57,9 +60,15 @@ export default defineBehaviour({
     let extra: InstanceHandle | null = null;
     if (variant === 'double') extra = ctx.stage.spawn({ actor: 'door-leaf', variant: 'double-right' }, ctx.instance.base);
     else if (kind === 'hatch' && derived) extra = ctx.stage.spawn({ actor: 'door-leaf', variant: 'hatch', params: { frame: 1 } }, ctx.instance.base);
-    return { key: doorKeyOf(item.at), kind, wall, unwall: invertAffine(wall), extra, twos: new Twos(ctx.rand('twos')), shown: 0, base: null, carried: false };
+    return { key: doorKeyOf(item.at), kind, wall, unwall: invertAffine(wall), extra, twos: new Twos(ctx.rand('twos')), shown: 0, base: null, carried: false, glow: 1 };
   },
   update(state, dt, _signals, ctx) {
+    const glow = houseGlowOf(ctx.stage, ctx.item.home);
+    if (glow !== state.glow) {
+      state.glow = glow;
+      ctx.instance.setParams(glow);
+      if (state.kind === 'double') state.extra?.setParams(glow);
+    }
     const open = doorTableOf(ctx.stage)?.open(state.key) ?? 0;
     const carry = carryOf(ctx.stage, ctx.item.home);
     const base = ctx.instance.base;

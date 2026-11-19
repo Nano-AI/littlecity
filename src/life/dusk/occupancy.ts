@@ -30,3 +30,18 @@ export function isOccupied(stage: LifeStage, house: StructureId | undefined): bo
 export function clearOccupancy(stage: LifeStage): void {
   byStage.delete(stage);
 }
+
+const glows = new WeakMap<LifeStage, Map<StructureId, number>>();
+
+/** L07: how lit a house's windows are now (0–1); the window behaviour writes it, the door leaves' glass follows it. */
+export function setHouseGlow(stage: LifeStage, house: StructureId, level: number): void {
+  let t = glows.get(stage);
+  if (!t) glows.set(stage, (t = new Map()));
+  t.set(house, level);
+}
+
+/** 1 (as the time of day says) unless the window behaviour has said otherwise. */
+export function houseGlowOf(stage: LifeStage, house: StructureId | undefined): number {
+  if (house === undefined) return 1;
+  return glows.get(stage)?.get(house) ?? 1;
+}

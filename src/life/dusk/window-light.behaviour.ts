@@ -23,7 +23,7 @@ import { defineBehaviour, type InstanceHandle } from '../api';
 import { approach } from '../motion/ease';
 import { dawnProgress, eveningSeconds, nightProgress } from './evening';
 import { canGlow, glowOf } from './glow';
-import { isOccupied } from './occupancy';
+import { isOccupied, setHouseGlow } from './occupancy';
 import type { TimeSignal } from '../api';
 
 /** Seconds over which the homes of a town come on (catalogue L07). */
@@ -85,11 +85,13 @@ export default defineBehaviour({
         state.lift = null;
       }
       state.level = -1;
+      setHouseGlow(ctx.stage, home, 1);
       return;
     }
     const want = wantsLight(state.house, time, isOccupied(ctx.stage, home));
     // The first drawing of an evening (or of a town opened at night) starts where it should be.
     state.level = state.level < 0 ? want : approach(state.level, want, DUSKY.houseFade > 0 ? dt / DUSKY.houseFade : 1);
+    setHouseGlow(ctx.stage, home, state.level);
     const lead = shopLead(state.house, time);
     if (state.level >= 1 && lead === 0 && !state.lift) return; // fully lit is the default: nothing to hold
     if (!state.lift || state.held !== home) {
