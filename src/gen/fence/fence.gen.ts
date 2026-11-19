@@ -8,7 +8,9 @@
 //   iron-railing      dark bars between two rails (roof terraces)
 //   stone-balustrade  turned balusters under a stone rail (marble)
 //
-// One ink group for the whole run, so it is drawn as one object.
+// One ink group for the whole run, so it is drawn as one object. Edge pieces
+// J20-F found nothing to stand on (round the eaves of a pitched roof) are
+// left out.
 //
 // Reads: the structure, its role and features, each cell piece's side
 // neighbours and side-column terrain (through buildRun). Triangles: about
@@ -33,7 +35,10 @@ export default defineGenerator({
     const role = plan.roles.get(s.id)?.role;
     const style: FenceStyle = STYLES.includes(role as FenceStyle) ? (role as FenceStyle) : 'picket-fence';
     const stone = rampColor('marble', s.color);
-    const run = buildRun(s, plan);
+    // J20-F: an edge piece with nothing flat to stand on (round a pitched roof's eaves) is not drawn.
+    const bare = new Set<number>();
+    for (const f of plan.featuresByStructure.get(s.id) ?? []) if (f.type === 'run-bare' && f.edge !== undefined) bare.add(f.edge);
+    const run = buildRun(bare.size ? { ...s, edges: s.edges.filter((e) => !bare.has(e)) } : s, plan);
 
     for (const seg of run.segments) {
       const t0 = trimAt(seg.from), t1 = trimAt(seg.to);
@@ -61,7 +66,7 @@ export default defineGenerator({
       }
     }
     // Gates and run ends are drawn above; anything else on the run is drawn by its part.
-    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' ? null : undefined));
+    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' || f.type === 'run-bare' ? null : undefined));
     return { mesh: b.build(), anchors };
   },
 });
