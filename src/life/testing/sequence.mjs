@@ -76,7 +76,8 @@ try {
   await page.waitForFunction(() => window.__lc !== undefined, null, { timeout: 60_000 });
   // The interface is not what is being looked at.
   await page.addStyleTag({ content: 'body > *:not(#town) { display: none !important; }' });
-  await page.clock.pauseAt(1000);
+  // The page's clock has been running since it loaded (a slow start can take seconds): stop it just ahead of now.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500);
 
   /** Plays `ms` of the app's frame loop, one 60 fps frame at a time. */
   const play = async (ms) => {
