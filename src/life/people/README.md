@@ -45,9 +45,14 @@ if the Animation owner's file says otherwise for shared things, that wins.
   are rigid pieces; squash and stretch belongs to buildings landing.
 - **One accent at a time.** An idle is mostly still, with one small event
   every few seconds (a head turn, a swung foot, a tug on the line).
-- **In and out of sight in one beat.** Through a door: half a second walking
-  into the wall, then hidden. Down a hatch: sinking through the roof. At the
-  shore: shrinking in or out over 0.8 s.
+- **Nobody passes through anything.** Through a door: its leaf swings open
+  first (the crowd's door table, `doors.ts`), they walk into the dark
+  doorway, it shuts after them. Up through a hatch: its lid flops open first.
+  At the shore: they climb up out of the water, or walk off into it
+  (`edgeX/edgeZ`). Only with no water or edge anywhere do they still shrink
+  out of sight.
+- **Castle life** (L36, L37): `troop.ts`, `rider.ts` on `track.ts`, drawn by
+  `garrison.system.ts`.
 
 ## For other owners
 

@@ -218,6 +218,21 @@ try {
   };
   if (flags.aim) await aim();
 
+  // --gust: play on until a gust front is about to reach the middle of the map (it is felt 12 columns
+  // upwind of it), so the frames that follow show it crossing.
+  if (flags.gust) {
+    for (let waited = 0; waited < 40000; waited += 50) {
+      const near = await page.evaluate(() => {
+        const s = window.__lc.signals;
+        const c = s.wind(24, 24);
+        const up = s.wind(24 - c.dirX * 12, 24 - c.dirZ * 12);
+        return up.strength > c.strength + 0.25;
+      });
+      if (near) break;
+      await play(50);
+    }
+  }
+
   // --delay ms: play this long before the first frame (after any --door or --shore aim).
   if (flags.delay) await play(Number(flags.delay));
 

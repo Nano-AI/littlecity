@@ -32,6 +32,12 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - After a chat both rest 40 s (`PEOPLE.chatRest`); without it a pair on a busy street chatted for minutes.
 - Timing assertions flake under load: assert means loosely, never a worst case.
 
+## Animation polish changes (2026-11-19)
+- Doors open (L29): the crowd owns a door table (`doors.ts`, `crowd.doors`) and gates door pieces on it; `Piece.enter` marks a door piece going in. Shopkeepers sweep on the window side of a shop. Walkers going wide past a door go wide away from it (`towardDoor` in walk.ts).
+- Thresholds: `Person.edgeX/edgeZ/fadeTime`: newcomers climb up out of the water at their landing before walking home; leavers walk off a dock's end or into the sea (way-outs over water preferred). people.system draws the step down/up instead of shrinking.
+- Workers hold tools (`toolOf` in people.system.ts, meshes in `src/parts/people/extras.ts`).
+- Castle life: `troop.ts`, `rider.ts`, `track.ts`, `garrison.system.ts`; walkers wait for soldiers and the horse (`CrowdOptions.obstacles`).
+
 ## How walking is verified
 - `npm test`: `crowd.test.ts` steps the crowd at 30 Hz with a watcher (`testing.ts`) that fails on leaving a cell, crossing with no link, wrong height, walking backwards, or being stuck.
 - By eye: `node src/life/testing/sequence.mjs everything --warm 25000 --zoom 8 --target x,y,z --frames 6 --every 3000 --name n` (Animation's tool; add `--time 0.6 --run` for the evening). Also `scenarios/people/people-town.scenario.ts`; `npm run shots -- people-town`; frame sequences with the untracked helper `.context/watch.mjs` (`--until x,y,z` waits for a walker in a cell), reading `window.__lcPeople`.
