@@ -13,9 +13,15 @@ import type { Feature, ShapePlan, Structure } from '@/resolve/plan';
 /** Stoop steps per storey of drop (J08). The door part's step rise is CELL_H / 5. */
 export const STEPS_PER_LEVEL = 5;
 
-/** House structures, by id. */
+const houses = new WeakMap<ReadonlyMap<number, Structure>, Structure[]>();
+/** House structures, by id (one list per resolve: do not change it). */
 export function houseStructures(ctx: RuleContext): Structure[] {
-  return [...ctx.facts.structures.values()].filter((s) => s.kind === 'house' && s.cells.length > 0).sort((a, b) => a.id - b.id);
+  let list = houses.get(ctx.facts.structures);
+  if (!list) {
+    list = [...ctx.facts.structures.values()].filter((s) => s.kind === 'house' && s.cells.length > 0).sort((a, b) => a.id - b.id);
+    houses.set(ctx.facts.structures, list);
+  }
+  return list;
 }
 
 export function roleOf(plan: ShapePlan, id: number): Role | undefined {

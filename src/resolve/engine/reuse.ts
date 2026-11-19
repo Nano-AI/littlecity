@@ -300,7 +300,7 @@ function growBox(box: Box, c: CellKey): void {
 interface Scope {
   a: number;
   b: number;
-  /** Block structures with a cell within reach, ascending, without the structure itself. */
+  /** Block structures with a cell within reach (in column scan order), without the structure itself. */
   near: StructureId[];
 }
 
@@ -362,23 +362,26 @@ export class ShapeReuse {
     const own = this.boxOf(s);
     const box = { ...own };
     const cols = this.columns();
-    const near = new Set<StructureId>();
+    // In column scan order: the same content gives the same order.
+    const near: StructureId[] = [];
     for (let z = Math.max(0, own.z0 - reach); z <= Math.min(SIZE_Z - 1, own.z1 + reach); z++) {
       for (let x = Math.max(0, own.x0 - reach); x <= Math.min(SIZE_X - 1, own.x1 + reach); x++) {
         const list = cols[columnIndex(x, z)];
-        if (list) for (const id of list) if (id !== s) near.add(id);
+        if (!list) continue;
+        for (const id of list) {
+          if (id === s || near.includes(id)) continue;
+          near.push(id);
+          // The key covers every near structure whole (its facts read all of it).
+          const nb = this.boxOf(id);
+          if (nb.x0 < box.x0) box.x0 = nb.x0;
+          if (nb.x1 > box.x1) box.x1 = nb.x1;
+          if (nb.z0 < box.z0) box.z0 = nb.z0;
+          if (nb.z1 > box.z1) box.z1 = nb.z1;
+        }
       }
     }
-    // The key covers every near structure whole (its facts read all of it).
-    for (const id of near) {
-      const nb = this.boxOf(id);
-      if (nb.x0 < box.x0) box.x0 = nb.x0;
-      if (nb.x1 > box.x1) box.x1 = nb.x1;
-      if (nb.z0 < box.z0) box.z0 = nb.z0;
-      if (nb.z1 > box.z1) box.z1 = nb.z1;
-    }
     const k = contentKeys(this.facts).region(box.x0 - reach, box.z0 - reach, box.x1 + reach, box.z1 + reach, this.k);
-    sc = { a: k.a, b: k.b, near: [...near].sort((p, q) => p - q) };
+    sc = { a: k.a, b: k.b, near };
     this.scopes.set(sk, sc);
     return sc;
   }
