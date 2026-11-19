@@ -21,17 +21,18 @@ import { canPave, pave } from '../route';
 
 export function buildSquare(town: Town): boolean {
   const { g, site } = town;
-  for (const k of [5, 4, 3]) {
+  // The biggest square that fits away from the water; then, on a small or broken island, nearer it.
+  for (const [k, shore] of [[5, 4], [4, 4], [5, 2], [4, 2], [3, 2], [3, 1]] as const) {
     // The town hall along the north side: k − 1 wide, deep enough for a footprint of 8.
     const hd = Math.ceil(8 / (k - 1));
     const top = 1 - hd;
-    const found = search(g, `square${k}`, (f) => {
+    const found = search(g, `square${k}-${shore}`, (f) => {
       if (!fits(g, f, -3, top - 1, k + 2, k + 2, 1)) return null;
       const h = rectFlat(g, f, -2, top, k + 1, k + 1);
       if (h < 0) return null;
       const [cx, cz] = [f.x((k + 1) / 2, (k + 1) / 2), f.z((k + 1) / 2, (k + 1) / 2)];
       const water = site.waterDist[Math.round(cx) + Math.round(cz) * 48]!;
-      if (water < 4) return null;
+      if (water < shore) return null;
       const d = Math.abs(cx - site.centre[0]) + Math.abs(cz - site.centre[1]);
       // Facing the default camera (from the south-east) with its open side: the hall to the north, the inn west.
       return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 4), data: h };

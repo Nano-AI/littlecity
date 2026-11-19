@@ -116,7 +116,8 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
  */
 function joinStreets(town: Town): string[] {
   const { g } = town;
-  const sq = town.districts.find((d) => d.name === 'square') ?? town.districts[0];
+  // The square's streets, or (no square fitted) the first district that laid any.
+  const sq = town.districts.find((d) => d.name === 'square') ?? town.districts.find((d) => g.streetOf.includes(d.id));
   if (!sq) return [];
   const roots = (): CellKey[] => {
     const out: CellKey[] = [];

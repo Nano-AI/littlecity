@@ -7,6 +7,7 @@
 // them.
 
 import { columnIndex, type Dir4, inBounds, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
+import { AUTO } from '@/style/auto';
 import { CLAIM, type Grower } from './grower';
 import { D4 } from './site';
 
@@ -81,6 +82,8 @@ export interface RouteOptions {
   maxCost?: number;
   /** Also cross ground a district claimed but left empty (a last resort: a district that cannot be reached otherwise). */
   relaxed?: boolean;
+  /** Bridge water (default true). */
+  cross?: boolean;
 }
 
 /**
@@ -95,7 +98,7 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
   if (arrived(fx, fz)) return [];
   const cost = new Float64Array(N).fill(Infinity);
   const prev = new Int32Array(N).fill(-1);
-  /** Reached from prev[] by a climb up or down a cliff of two levels (see buildClimb). */
+  /** How a column was reached from prev[]: 1 a climb up a cliff of two levels (buildClimb), 2 a bridge, 3 a boardwalk (buildCrossing). */
   const climbed = new Uint8Array(N);
   /** A column a climb may stand stairs or a landing on: free, flat ground nobody uses. */
   const climbable = (x: number, z: number): boolean => canPave(g, x, z) && !onNetwork(g, x, z);
@@ -139,21 +142,50 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
         heap.push(j, next);
       }
     }
-    // A cliff of two levels: three columns on, through a landing and two flights of stairs.
+    // A cliff of r levels (2 to 6): r + 1 columns on, up a flight of stairs on stepped marble.
     for (const [dx, dz] of D4) {
-      const ax = x + dx, az = z + dz, bx = x + 2 * dx, bz = z + 2 * dz, ex = x + 3 * dx, ez = z + 3 * dz;
-      if (!canPave(g, ex, ez, opts.allow, opts.relaxed)) continue;
-      const end = g.h(ex, ez);
-      const down = g.h(ax, az) === here - 2 && g.h(bx, bz) === here - 2 && end === here - 2;
-      const up = g.h(ax, az) === here && g.h(bx, bz) === here && end === here + 2;
-      if (!(down || up) || !climbable(ax, az) || !climbable(bx, bz)) continue;
-      const j = columnIndex(ex, ez);
-      const next = c + 9;
-      if (next < cost[j]!) {
-        cost[j] = next;
-        prev[j] = i;
-        climbed[j] = 1;
-        heap.push(j, next);
+      for (let r = 2; r <= MAX_CLIMB; r++) {
+        const ex = x + (r + 1) * dx, ez = z + (r + 1) * dz;
+        const end = g.h(ex, ez);
+        const down = end === here - r;
+        const up = end === here + r;
+        if (!(down || up) || !canPave(g, ex, ez, opts.allow, opts.relaxed)) continue;
+        // The columns between stand at the low level, free.
+        const low = Math.min(here, end);
+        let ok = true;
+        for (let k = 1; k <= r && ok; k++) ok = g.h(x + k * dx, z + k * dz) === low && climbable(x + k * dx, z + k * dz);
+        if (!ok) continue;
+        const j = columnIndex(ex, ez);
+        const next = c + 5 + 2 * r;
+        if (next < cost[j]!) {
+          cost[j] = next;
+          prev[j] = i;
+          climbed[j] = 1;
+          heap.push(j, next);
+        }
+      }
+    }
+    // Across water: a straight run of open water to land of the same height on the far side.
+    // Up to 6 wide it is a bridge of arches (a valid span over water: a stone bridge); between
+    // two beaches it may be longer, a boardwalk of docks.
+    if (opts.cross !== false) {
+      for (const [dx, dz] of D4) {
+        let k = 1;
+        while (k <= MAX_DOCKWALK && crossable(g, x + dx * k, z + dz * k)) k++;
+        const n = k - 1;
+        if (n < 1) continue;
+        const ex = x + dx * k, ez = z + dz * k;
+        if (g.h(ex, ez) !== here || !canPave(g, ex, ez, opts.allow, opts.relaxed)) continue;
+        const kind = n <= AUTO.spanMax ? 2 : here === 1 ? 3 : 0;
+        if (!kind) continue;
+        const j = columnIndex(ex, ez);
+        const next = c + 4 + n * (kind === 2 ? 1.5 : 2);
+        if (next < cost[j]!) {
+          cost[j] = next;
+          prev[j] = i;
+          climbed[j] = kind;
+          heap.push(j, next);
+        }
       }
     }
   }
@@ -163,7 +195,8 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
   chain.reverse();
   const xz = (i: number): [number, number] => [i % SIZE_X, Math.floor(i / SIZE_X)];
   for (let k = 0; k < chain.length; k++) {
-    if (k > 0 && climbed[chain[k]!]) buildClimb(g, xz(chain[k - 1]!), xz(chain[k]!));
+    if (k > 0 && climbed[chain[k]!] === 1) buildClimb(g, xz(chain[k - 1]!), xz(chain[k]!));
+    if (k > 0 && climbed[chain[k]!]! >= 2) buildCrossing(g, xz(chain[k - 1]!), xz(chain[k]!), climbed[chain[k]!] === 3);
     if (k < chain.length - 1) pave(g, ...xz(chain[k]!));
   }
   return chain.slice(0, -1).map(xz);
@@ -178,14 +211,22 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
 function buildClimb(g: Grower, a: readonly [number, number], b: readonly [number, number]): void {
   const [hi, lo] = g.h(a[0], a[1]) > g.h(b[0], b[1]) ? [a, b] : [b, a];
   const dx = Math.sign(lo[0] - hi[0]), dz = Math.sign(lo[1] - hi[1]);
-  const l1: [number, number] = [hi[0] + dx, hi[1] + dz];
-  const l2: [number, number] = [hi[0] + 2 * dx, hi[1] + 2 * dz];
-  const toHigh = D4.findIndex(([x, z]) => x === -dx && z === -dz) as Dir4;
   const y = g.h(lo[0], lo[1]);
-  g.put('marble', l1[0], y, l1[1], g.colorFor('marble', [[l1[0], y, l1[1]]], 'landing'));
-  g.put('stairs', l1[0], y + 1, l1[1], 0, toHigh);
-  g.put('stairs', l2[0], y, l2[1], 0, toHigh);
-  for (const [x, z] of [l1, l2]) g.mark(x, z, CLAIM.built);
+  const r = g.h(hi[0], hi[1]) - y;
+  const toHigh = D4.findIndex(([x, z]) => x === -dx && z === -dz) as Dir4;
+  // Column k from the top (1 … r): marble r − k high, stairs on it climbing toward the top.
+  const cols: [number, number][] = [];
+  for (let k = 1; k <= r; k++) cols.push([hi[0] + k * dx, hi[1] + k * dz]);
+  const color = g.colorFor('marble', cols.map(([x, z]) => [x, y, z] as const), 'landing');
+  for (let k = 1; k <= r; k++) {
+    const [x, z] = cols[k - 1]!;
+    for (let m = 0; m < r - k; m++) g.put('marble', x, y + m, z, color);
+  }
+  for (let k = r; k >= 1; k--) {
+    const [x, z] = cols[k - 1]!;
+    g.put('stairs', x, y + r - k, z, 0, toHigh);
+    g.mark(x, z, CLAIM.built);
+  }
   pave(g, hi[0], hi[1]);
   pave(g, lo[0], lo[1]);
 }
@@ -243,4 +284,37 @@ export function joinedStreets(g: Grower, roots: readonly CellKey[]): Set<CellKey
     }
   }
   return seen;
+}
+
+/** The longest boardwalk of docks a street will take between two beaches. */
+const MAX_DOCKWALK = 12;
+/** The highest cliff a street climbs by stairs. */
+const MAX_CLIMB = 6;
+
+/** Open water a crossing may pass over: nothing at sea level in it, no claim on it. */
+function crossable(g: Grower, x: number, z: number): boolean {
+  if (!inColumnBounds(x, z) || g.h(x, z) !== 0 || g.world.blocks.has(key(x, 0, z))) return false;
+  return !g.claimed(x, z, CLAIM.built | CLAIM.keep);
+}
+
+/**
+ * A crossing from bank `a` to bank `b` (same height, open water between, in
+ * a line). A bridge: arches at the banks' top level, one per water column
+ * (anchored on the banks: a valid span; with water below, R-A01 makes it a
+ * stone bridge), a path along the deck. A boardwalk: docks at sea level and
+ * a path on them. Paths on both banks.
+ */
+function buildCrossing(g: Grower, a: readonly [number, number], b: readonly [number, number], docks: boolean): void {
+  const dx = Math.sign(b[0] - a[0]), dz = Math.sign(b[1] - a[1]);
+  const n = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]) - 1;
+  const top = g.h(a[0], a[1]);
+  pave(g, a[0], a[1]);
+  for (let k = 1; k <= n; k++) {
+    const x = a[0] + dx * k, z = a[1] + dz * k;
+    if (docks) g.put('dock', x, 0, z, 0);
+    else g.put('arch', x, top - 1, z, 0);
+    g.mark(x, z, CLAIM.built);
+  }
+  for (let k = 1; k <= n; k++) g.floor('path', a[0] + dx * k, a[1] + dz * k, docks ? 1 : top);
+  pave(g, b[0], b[1]);
 }

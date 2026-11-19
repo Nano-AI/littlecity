@@ -64,7 +64,7 @@ export function reserveFarmstead(town: Town): void {
       }
     }
   }
-  if (!best || bestCost > 100) return;
+  if (!best || bestCost > Math.min(100, town.site.land * 0.12)) return;
   const [bx, bz] = best;
   for (let dz = -reach; dz <= reach; dz++) {
     for (let dx = -reach + Math.abs(dz); dx <= reach - Math.abs(dz); dx++) {
