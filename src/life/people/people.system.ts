@@ -18,6 +18,7 @@ import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig 
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
 import { PEOPLE, PERSON } from '@/style/people';
+import { setDoorTable } from '../doors/table';
 import { deferLamp, lightLamp } from '../dusk/lamps.system';
 import { setOccupied } from '../dusk/occupancy';
 import { createCrowd, type Crowd, type Person } from './crowd';
@@ -175,6 +176,8 @@ export default defineSystem<State>({
       },
     });
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
+    // L36: the door leaves swing as the crowd's door table says.
+    setDoorTable(ctx.stage, crowd.doors);
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
     return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe };
@@ -257,8 +260,9 @@ export default defineSystem<State>({
       }
     }
   },
-  dispose(state) {
+  dispose(state, ctx) {
     state.unsubscribe();
+    setDoorTable(ctx.stage, null);
     for (const d of state.drawn.values()) {
       if (d.handles) for (const h of d.handles) h.release();
       d.bubble?.release();

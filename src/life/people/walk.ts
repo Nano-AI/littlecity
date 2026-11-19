@@ -63,6 +63,8 @@ export interface Piece {
   pace: number;
   /** door, hide: the door this piece goes through. */
   door: NavDoor | null;
+  /** door: going in (from the threshold into the building); false coming out, and for other pieces. */
+  enter: boolean;
 }
 
 /** How far carved steps reach into the lower cell (src/parts/ground/terrain-steps.part.ts). */
@@ -163,6 +165,24 @@ export interface WalkOptions {
   doorAt?: DoorPlace;
 }
 
+const doorSides = new WeakMap<NavGraph, Map<number, Dir4[]>>();
+/** True if an offset (ox, oz) from a node's middle leans toward the wall of a door that opens onto it. */
+function towardDoor(nav: NavGraph, node: number, ox: number, oz: number): boolean {
+  let sides = doorSides.get(nav);
+  if (!sides) {
+    sides = new Map();
+    for (const d of nav.doors) {
+      if (d.dir === undefined || d.node < 0) continue;
+      const list = sides.get(d.node);
+      if (list) list.push(d.dir);
+      else sides.set(d.node, [d.dir]);
+    }
+    doorSides.set(nav, sides);
+  }
+  for (const dir of sides.get(node) ?? []) if (-(DIR4[dir]![0] * ox + DIR4[dir]![1] * oz) > 0.05) return true;
+  return false;
+}
+
 /** The pieces of a walk along a route. */
 export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): Piece[] {
   const lane = opts.lane ?? PEOPLE.lane;
@@ -197,6 +217,7 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       seconds: 0,
       pace: n.rot !== undefined ? 0.7 : 1,
       door: null,
+      enter: false,
     });
   };
   // A boundary point sits on one edge of the cell: its lane offset lies along that edge. The control
@@ -229,6 +250,7 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       seconds: 0,
       pace: 0.8,
       door,
+      enter: entering,
     });
   };
   /** The ramp of the approach to a door, if it stands above its node (a stoop, or the head of a flight). */
@@ -275,7 +297,7 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       const seconds = link!.seconds ?? 1;
       after = () => {
         doorPiece(here, true);
-        pieces.push({ ...pieces[pieces.length - 1]!, kind: 'hide', length: 0, seconds, link: links[i]!, door: there, sink0: 0, sink1: 0 });
+        pieces.push({ ...pieces[pieces.length - 1]!, kind: 'hide', length: 0, seconds, link: links[i]!, door: there, sink0: 0, sink1: 0, enter: false });
         doorPiece(there, false);
       };
     } else {
@@ -287,7 +309,9 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       // Single file through a gate; wide of a post on the boundary, or of whatever stands in the middle
       // of either cell.
       const wide = link!.post === true || nav.nodes[node]!.clutter === true || nav.nodes[next]!.clutter === true;
-      const off = wide ? PEOPLE.laneWide : lane * (nav.runOf[links[i]!]! >= 0 ? 0.55 : 1);
+      let off = wide ? PEOPLE.laneWide : lane * (nav.runOf[links[i]!]! >= 0 ? 0.55 : 1);
+      // Going wide past a door, go wide on the side away from it: its leaf swings out there (L36).
+      if (wide && (towardDoor(nav, node, -dz * off, dx * off) || towardDoor(nav, next, -dz * off, dx * off))) off = -off;
       exit = { x: c.x + dx * 0.5 - dz * off, z: c.z + dz * 0.5 + dx * off };
       exitOnEdge = true;
       if (link!.via === 'steps') {

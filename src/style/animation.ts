@@ -223,3 +223,34 @@ export const MECHANISMS = defineStyle(
     signDamp: [0, 8, 0.1],
   },
 );
+
+/** L36: doors that open (design section 13, "Doors and thresholds"). Lengths are along the walk, from the threshold. */
+export const DOORS = defineStyle(
+  'doors',
+  {
+    /** Seconds a leaf takes to swing fully open, and to close. */
+    openTime: 0.45,
+    shutTime: 0.65,
+    /** Seconds it stays open after the last person through, so two in quick succession hold it. */
+    linger: 0.8,
+    /** Somebody walking in claims the door this far before the threshold; somebody coming out, this many seconds before. */
+    reach: 1.0,
+    lead: 0.6,
+    /** And holds it until this far past it. */
+    clear: 0.5,
+    /** A walker whose door is not open yet waits this far before the threshold, clear of the swing. */
+    wait: 0.36,
+    /** Shops stand open by day: they open and shut up to this many seconds apart. */
+    shopSpread: 18,
+  },
+  {
+    openTime: [0.1, 2, 0.05],
+    shutTime: [0.1, 2, 0.05],
+    linger: [0, 4, 0.1],
+    reach: [0.4, 2, 0.05],
+    lead: [0, 2, 0.05],
+    clear: [0.2, 1.5, 0.05],
+    wait: [0.3, 0.6, 0.01],
+    shopSpread: [0, 60, 1],
+  },
+);

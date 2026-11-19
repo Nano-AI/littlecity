@@ -13,15 +13,12 @@ import { compose, rotationX, translation, type Mat4Like } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
-import { archPts, bar, bead, face, personaOf, plate, rectPts, shrink, slab } from './lib';
+import { doorway, doubleLeaf, doubleOutline, hatchFrame, hatchLid, houseLeaf, houseLeafOutline, shopLeaf, shopLeafOutline } from './door-leaf';
+import { archPts, bar, face, personaOf, plate, rectPts, slab } from './lib';
 
 /** Height of one stoop step. Five make a storey. */
 export const STEP_RISE = 0.16;
 const STEP_RUN = 0.1;
-
-function knob(b: MeshBuilder, x: number, y: number, z: number): void {
-  b.with({ color: PALETTE.yellow, ink: 'knob' }, () => bead(b, x, y, z, 0.02));
-}
 
 /** The step, or a flight of `steps` more going down and out to the ground. */
 function stoop(b: MeshBuilder, width: number, steps: number, cx = 0): number {
@@ -45,11 +42,13 @@ export default definePart({
     const main = item.params?.main === 1;
     const anchors: Record<string, Mat4Like> = {};
 
+    // The leaf is the 'door-leaf' actor's when that part exists (it swings open): a dark doorway here then.
+    const moving = ctx.parts.has('actor', 'door-leaf');
+
     if (variant === 'hatch') {
       // A trapdoor in a terrace floor: the frame is the cell's floor centre.
-      b.with({ color: p.trim, ink: 'hatch-frame' }, () => b.boxAt([0, 0, 0], [0.42, 0.035, 0.42], { skip: ['bottom'] }));
-      b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'hatch' }, () => b.boxAt([0, 0.035, 0], [0.34, 0.015, 0.34], { skip: ['bottom'] }));
-      b.with({ color: PALETTE.metal, ink: 'hatch-ring' }, () => b.boxAt([0.1, 0.05, 0], [0.05, 0.012, 0.09], { skip: ['bottom'] }));
+      hatchFrame(b, p.trim, moving);
+      if (!moving) hatchLid(b);
       return { mesh: b.build(), anchors: { door: translation(0, 0.05, 0) } };
     }
 
@@ -58,17 +57,8 @@ export default definePart({
       // Chapel: a tall round-headed doorway with two boarded leaves and iron straps.
       const frame = archPts(0.5, 0.38, 0);
       plate(b, frame, 0, 0.05);
-      const leaf = shrink(frame, 0.05).map(([x, y]) => [x, Math.max(y, 0.0)] as const);
-      b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'leaf' }, () => face(b, leaf, 0.054));
-      b.with({ color: PALETTE.metal, ink: 'leaf' }, () => {
-        bar(b, 0, 0.02, 0, 0.55, 0.014, 0.058);
-        for (const y of [0.14, 0.34]) {
-          bar(b, -0.19, y, -0.05, y, 0.022, 0.058);
-          bar(b, 0.05, y, 0.19, y, 0.022, 0.058);
-        }
-      });
-      knob(b, -0.035, 0.25, 0.062);
-      knob(b, 0.035, 0.25, 0.062);
+      if (moving) doorway(b, doubleOutline(), 0.051);
+      else doubleLeaf(b, 'both');
       anchors['sign-bracket'] = translation(0.36, 0.66, 0);
       // R-H01: a chapel door stands in a small gabled porch on two posts.
       if (ctx.structure && ctx.plan.roles.get(ctx.structure.id)?.role === 'chapel') {
@@ -95,9 +85,8 @@ export default definePart({
     } else if (variant === 'shop') {
       // A shopfront: glazed door on the left, display window on the right, one signboard over both.
       plate(b, rectPts(0.8, 0.52, 0), 0, 0.045);
-      b.with({ color: p.accent, ink: 'leaf' }, () => face(b, rectPts(0.2, 0.46, 0.02, -0.26), 0.049));
-      b.with({ color: PALETTE.glass, pattern: PATTERN.glass, ink: 'leaf' }, () => face(b, rectPts(0.13, 0.22, 0.21, -0.26), 0.052));
-      knob(b, -0.19, 0.2, 0.056);
+      if (moving) doorway(b, shopLeafOutline());
+      else shopLeaf(b, p.accent);
       b.with({ color: p.accent, ink: 'riser' }, () => face(b, rectPts(0.47, 0.1, 0.03, 0.13), 0.049));
       b.with({ color: PALETTE.glass, pattern: PATTERN.glass }, () => face(b, rectPts(0.47, 0.31, 0.16, 0.13), 0.049));
       bar(b, 0.13, 0.16, 0.13, 0.47, 0.022, 0.052);
@@ -111,27 +100,8 @@ export default definePart({
       const arched = look === 'arched';
       const frame = arched ? archPts(0.34, 0.37, 0) : rectPts(0.34, 0.55, 0);
       plate(b, frame, 0, 0.045);
-      const leaf = arched ? archPts(0.26, 0.37, 0.0) : rectPts(0.26, 0.505, 0);
-      b.with({ color: p.accent, pattern: look === 'plank' ? PATTERN.planksAcross : PATTERN.none, ink: 'leaf' }, () => face(b, leaf, 0.049));
-      if (look === 'glazed') {
-        b.with({ color: PALETTE.glass, pattern: PATTERN.glass, ink: 'leaf' }, () => face(b, rectPts(0.17, 0.2, 0.26), 0.052));
-        b.with({ ink: 'leaf' }, () => bar(b, 0, 0.26, 0, 0.46, 0.02, 0.055));
-      } else if (look === 'panel') {
-        // Two raised panels: the same paint, so they read by their edges alone.
-        b.with({ color: p.accent, ink: 'leaf' }, () => {
-          slab(b, -0.085, 0.085, 0.3, 0.45, 0.049, 0.062);
-          slab(b, -0.085, 0.085, 0.07, 0.24, 0.049, 0.062);
-        });
-      } else if (look === 'plank') {
-        // A small diamond light.
-        b.with({ color: PALETTE.glass, pattern: PATTERN.glass, ink: 'leaf' }, () =>
-          face(b, [[0, 0.33], [0.045, 0.385], [0, 0.44], [-0.045, 0.385]], 0.052));
-      } else {
-        // arched: a fanlight in the round head
-        b.with({ color: PALETTE.glass, pattern: PATTERN.glass, ink: 'leaf' }, () => face(b, archPts(0.2, 0, 0.39, 0, 6), 0.052));
-        b.with({ ink: 'leaf' }, () => bar(b, 0, 0.39, 0, 0.485, 0.018, 0.055));
-      }
-      knob(b, 0.085, 0.24, 0.058);
+      if (moving) doorway(b, houseLeafOutline(look));
+      else houseLeaf(b, look, p.accent);
       anchors['sign-bracket'] = translation(0.3, 0.66, 0); // an inn hangs its sign here
       if (variant !== 'deck') {
         const out = stoop(b, 0.46, steps);

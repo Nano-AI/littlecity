@@ -30,6 +30,8 @@ import type { PoseName } from '@/parts/people/pose';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavDoor, NavGraph, ShapePlan, StructureId } from '@/resolve/plan';
 import { PEOPLE, PERSON } from '@/style/people';
+import { DOORS } from '@/style/animation';
+import { createDoors, type DoorTable } from './doors';
 import { createRouter, type Router } from './route';
 import { buildWalk, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
@@ -195,6 +197,8 @@ export interface Crowd {
   readonly jobs: readonly Work[];
   /** Residents inside each home right now. */
   readonly atHome: ReadonlyMap<StructureId, number>;
+  /** Every door somebody has used, and how far open it is (L36). */
+  readonly doors: DoorTable;
   /** The town changed (or is shown for the first time). Does nothing until the dressing has arrived. */
   sync(shape: ShapePlan, dressing: DressingPlan | null, time: TimeSignal): void;
   step(dt: number, time: TimeSignal): void;
@@ -246,6 +250,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   /** Seconds since dusk began (0 by day): everyone has set off for home by PEOPLE.duskSpread. */
   let duskClock = 0;
   let planCursor = 0;
+  const doors = createDoors();
+  /** Shop doors (they stand open by day). */
+  let shopDoors: string[] = [];
 
   // ── small helpers ─────────────────────────────────────────────────────
   const r = (p: Person, what: string, n = p.trips): number => rand(p.seed, what, n);
@@ -389,7 +396,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           // Beside the door, back to the wall, looking out.
           if (h.dir !== undefined) {
             const [dx, dz] = DIR4[h.dir]!;
-            const side = r(p, 'side') < 0.5 ? -0.3 : 0.3;
+            // Not in front of a shop's door, which stands open by day (L36): by its window.
+            const side = door && shopDoors.includes(door.feature) ? -0.3 : r(p, 'side') < 0.5 ? -0.3 : 0.3;
             g.spot = { x: c.x - dx * 0.24 - dz * side, z: c.z - dz * 0.24 + dx * side };
             g.face = DIR_HEADING[h.dir]!;
           } else anywhere();
@@ -664,6 +672,23 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     }
   };
 
+  // ── doors (L36) ───────────────────────────────────────────────────────
+  /** The doors this walker needs open now: the one they are in, about to reach, or just came out of. */
+  const claimDoors = (p: Person): void => {
+    if (p.mode !== 'walk' || !p.walk) return;
+    const walk = p.walk;
+    const cur = walk[p.at]!, next = walk[p.at + 1], prev = walk[p.at - 1];
+    if (cur.kind === 'door' && cur.door) {
+      doors.claim(cur.door.feature);
+      doors.passing(cur.door.feature, cur.enter);
+    }
+    if (next?.kind === 'door' && next.door) {
+      if (cur.kind === 'move' && (1 - p.t) * cur.length < DOORS.reach) doors.claim(next.door.feature);
+      else if (cur.kind === 'hide' && (1 - p.t) * cur.seconds < DOORS.lead) doors.claim(next.door.feature);
+    }
+    if (prev?.kind === 'door' && prev.door && !prev.enter && cur.kind === 'move' && p.t * cur.length < DOORS.clear) doors.claim(prev.door.feature);
+  };
+
   // ── moving ────────────────────────────────────────────────────────────
   const turnTo = (p: Person, target: number, dt: number): void => {
     let d = target - p.heading;
@@ -701,6 +726,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         rate = speed / piece.length;
         if (piece.kind === 'move' && !mayEnter(p, piece)) {
           limit = WAIT_AT;
+          p.queued = true;
+        }
+        // L36: nobody steps into a doorway until its door is open, nor while somebody is coming the other way.
+        const next = walk[p.at + 1];
+        if (piece.kind === 'move' && next?.kind === 'door' && next.enter && next.door && (!doors.ready(next.door.feature) || doors.comingOut(next.door.feature) > 0)) {
+          limit = Math.min(limit, Math.max(p.t, 1 - DOORS.wait / piece.length));
+          p.queued = true;
+        } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && doors.goingIn(piece.door.feature) > 0))) {
+          limit = 0;
           p.queued = true;
         }
       }
@@ -1090,12 +1124,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       return jobs;
     },
     atHome,
+    doors,
 
     sync(shape, dressing, time) {
       if (!dressing) return;
       const first = nav === null;
       const old = nav;
       seed = shape.world.seed;
+      // L36: doors new to the town start as they should already be; shops stand open by day.
+      doors.settle();
+      shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
       nav = dressing.nav;
       router = createRouter(nav);
       runCount = new Int16Array(nav.runs.length);
@@ -1213,6 +1251,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       if (!nav) return;
       duskClock = time.isDusk || time.isNight ? duskClock + dt : 0;
       now = time;
+      for (const key of shopDoors) doors.stand(key, time.isDay, rand(seed, 'shop-door', key) * DOORS.shopSpread);
+      for (const p of people) claimDoors(p);
+      doors.step(dt);
       follow();
       let plans = Math.max(1, Math.round(PEOPLE.plansPerFrame));
       const n = people.length;

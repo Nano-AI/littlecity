@@ -120,6 +120,45 @@ try {
   );
   await play(warm);
 
+  // --door [n]: play on (up to --wait ms) until somebody is about to go in or come out of a door (or a
+  // hatch), then aim the camera at that door. n skips the first n doors found.
+  if (flags.door !== undefined) {
+    const skip = flags.door === true ? 0 : Number(flags.door);
+    const lead = Number(flags.lead ?? 1.1);
+    const seen = new Set();
+    let found = null;
+    for (let waited = 0; waited < Number(flags.wait ?? 120000) && !found; waited += 100) {
+      const hit = await page.evaluate((lead) => {
+        const crowd = window.__lcPeople;
+        if (!crowd) return null;
+        for (const p of crowd.people) {
+          if (p.mode !== 'walk' || !p.walk) continue;
+          const cur = p.walk[p.at], next = p.walk[p.at + 1];
+          if (!cur || !next || next.kind !== 'door') continue;
+          const key = `${next.door?.feature}`;
+          if (cur.kind === 'move' && (1 - p.t) * cur.length < lead) return { key, x: next.x0, y: next.base, z: next.z0, out: false };
+          if (cur.kind === 'hide' || (p.at === 0 && cur.kind === 'door')) return { key, x: next.x1, y: next.base, z: next.z1, out: true };
+        }
+        for (const p of crowd.people) {
+          if (p.mode !== 'walk' || !p.walk || p.at !== 0) continue;
+          const cur = p.walk[0];
+          if (cur.kind === 'door' && p.t < 0.3) return { key: `${cur.door?.feature}`, x: cur.x1, y: cur.base, z: cur.z1, out: true };
+        }
+        return null;
+      }, lead);
+      if (hit && !seen.has(hit.key)) {
+        seen.add(hit.key);
+        if (seen.size > skip) found = hit;
+      }
+      if (!found) await play(100);
+    }
+    if (!found) console.log('--door: nobody went through a door in time');
+    else {
+      console.log(`--door: ${found.out ? 'out of' : 'into'} ${found.key} at ${found.x.toFixed(2)},${found.y.toFixed(2)},${found.z.toFixed(2)}`);
+      await page.evaluate(([x, y, z, zoom]) => window.__lc.view.setCamera({ target: [x, y + 0.25, z], ...(zoom ? { zoom } : {}) }), [found.x, found.y, found.z, flags.zoom === undefined ? undefined : Number(flags.zoom)]);
+    }
+  }
+
   const applyEdits = (list) =>
     page.evaluate((edits) => {
       const lc = window.__lc;
@@ -161,6 +200,14 @@ try {
     }
     const png = await page.locator('#town').screenshot();
     shots.push({ png, label: `${Math.round(at)} ms` });
+    // --open all | --open door@<cell>:<dir>,…: after the first frame, those doors swing open and stay open.
+    if (i === 0 && flags.open) {
+      await page.evaluate((which) => {
+        const crowd = window.__lcPeople;
+        const keys = which === 'all' || which === true ? crowd.nav.doors.map((d) => d.feature) : String(which).split(',');
+        for (const k of keys) crowd.doors.stand(k, true, 0);
+      }, flags.open);
+    }
     if (flags.keep) {
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(path.join(outDir, `${scenario}-${name}-${String(i).padStart(2, '0')}.png`), png);
