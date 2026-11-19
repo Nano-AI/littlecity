@@ -18,11 +18,14 @@ No forks. Commit after each note. Finish with `npm run check` green.
   stair heads on bare terrain.
 - **G5 plaza motif: done.** Rings in `plaza` and `stoneShade`, one thin
   `brick` course, radial joints; the star in the two stone tones.
-- **Next:** look at seams against real buildings in `everything` (fences and
-  walls at houses and towers, stairs at walls, docks at quay walls, railings
-  on marble and bridges), fix what is Ground's, file the rest in
-  `docs/swarm/requests/ground.md`; then `npm run check`; then report.
-  Would-be-nice items are skipped unless nearly free.
+- **Seams: looked at** in `everything` (day, dusk, night). Notes for Houses
+  and Monuments are in `docs/swarm/requests/ground.md` section 6.
+- **Check:** typecheck, lint and all unit tests green. In the full
+  `npm run check` only `tests/e2e/interface.e2e.test.ts` fails, by timeout
+  (`page.goto` 30 s) with the machine at load 20; every failing test passes
+  when run alone (`npx vitest run --project e2e <file> -t "<name>"`).
+- **Not done:** the would-be-nice list (path edges, coping stones, reed
+  pools, a wider fountain basin) and the fountain/stall triangle trims.
 
 ## Tricks and gotchas
 - **Flat tones** (`src/parts/ground/kit.ts`): a lump whose vertices all carry
