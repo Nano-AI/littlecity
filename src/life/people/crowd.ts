@@ -96,6 +96,8 @@ export interface Person {
   part: string;
   /** Walking with their arms full (a miller's sack, a baker's tray). */
   carrying: boolean;
+  /** Walking the lamp round, briskly (L08). */
+  brisk: boolean;
 
   mode: Mode;
   visible: boolean;
@@ -215,7 +217,7 @@ const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
 const WAIT_AT = 0.42;
 const TURN_RATE = 9;
 /** L28: how much a child prefers somewhere to play over anywhere else (a square weighs 4). */
-const PLAY_WEIGHT = 9;
+const PLAY_WEIGHT = 5;
 /** L26: the small hop after turning to look: how long, how high. */
 const JUMP = 0.36;
 const JUMP_HEIGHT = 0.12;
@@ -315,7 +317,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       g.face = DIR_HEADING[h.dir]!;
     };
     const anywhere = (): void => {
-      const a = r(p, 'angle') * Math.PI * 2, d = 0.2 + r(p, 'reach') * 0.13;
+      const a = r(p, 'angle') * Math.PI * 2, d = 0.08 + r(p, 'reach') * 0.14; // clear of whatever stands at the cell's edges
       g.spot = { x: c.x + Math.sin(a) * d, z: c.z + Math.cos(a) * d };
       g.face = r(p, 'face') * Math.PI * 2;
     };
@@ -436,7 +438,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           case 'lamplighter':
             g.spot = { x: c.x + (r(p, 'lx') - 0.5) * 0.2, z: c.z + (r(p, 'lz') - 0.5) * 0.2 };
             g.pose = 'wave'; // an arm up to the lamp
-            g.linger = 0.9;
+            g.linger = 0.6;
             break;
           default:
             anywhere();
@@ -471,12 +473,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const weights: number[] = [];
     const here = nav.nodes[p.node]!.cell;
     const strandedHome = stranded.has(p.home);
+    // When it is windy, a kite is the thing (L28).
+    const windy = p.child && opts.wind !== undefined && opts.wind(p.x, p.z).strength > PEOPLE.kiteWind;
     for (const h of haunts) {
       if (h.user !== null || h.id === lastId || nav.part[h.node] !== part) continue;
       let w: number;
       if (strandedHome) w = h.type === 'haunt-stoop' && h.structure === p.home ? 1 : 0;
       else if (night) w = h.type === 'haunt-night' && p.owl ? 1 : 0;
-      else if (h.type === 'haunt-play') w = p.child ? PLAY_WEIGHT : 0;
+      else if (h.type === 'haunt-play') w = !p.child ? 0 : h.name !== 'kite' ? PLAY_WEIGHT : windy ? PLAY_WEIGHT * 2 : 1;
       else w = h.type === 'haunt-visit' && h.structure === p.home ? 0 : (KIND_WEIGHT[h.type] ?? 0);
       if (w <= 0) continue;
       open.push(h);
@@ -484,10 +488,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     }
     if (open.length === 0) return null;
     // The kind first, by its weight, whatever the number of places of that kind; then a place of that
-    // kind, nearer ones more likely.
-    const kinds = [...new Set(open.map((h) => h.type))];
-    const kind = kinds[Math.min(kinds.length - 1, pickIndex(kinds.map((k) => weights[open.findIndex((h) => h.type === k)]!), r(p, 'kind')))]!;
-    const of = open.filter((h) => h.type === kind);
+    // kind, nearer ones more likely. Flying a kite and chasing pigeons are two kinds of play.
+    const kindOf = (h: Haunt): string => (h.type === 'haunt-play' ? `play:${h.name ?? ''}` : h.type);
+    const kinds = [...new Set(open.map(kindOf))];
+    const kind = kinds[Math.min(kinds.length - 1, pickIndex(kinds.map((k) => weights[open.findIndex((h) => kindOf(h) === k)]!), r(p, 'kind')))]!;
+    const of = open.filter((h) => kindOf(h) === kind);
     const near = of.map((h) => 1 / (6 + Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here))));
     return of[pickIndex(near, r(p, 'place'))]!;
   };
@@ -581,6 +586,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.stuck = 0;
     p.flying = false;
     p.carrying = goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker');
+    p.brisk = goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter';
     enterPiece(p);
     return true;
   };
@@ -619,6 +625,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const goal = p.goal;
     clearWalk(p);
     p.carrying = false;
+    p.brisk = false;
     if (goal?.haunt?.type === 'workplace' && p.work) {
       if (p.work.job === 'lamplighter') {
         events.lamp?.(p.work.refs[p.station] ?? '', p);
@@ -690,7 +697,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       if (piece.kind === 'hide') rate = 1 / Math.max(0.05, piece.seconds);
       else {
-        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow);
+        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow) * (p.brisk ? PEOPLE.lampPace : 1);
         rate = speed / piece.length;
         if (piece.kind === 'move' && !mayEnter(p, piece)) {
           limit = WAIT_AT;
@@ -1057,7 +1064,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       speed: PEOPLE.speed * (1 + (rand(s, 'speed') * 2 - 1) * PEOPLE.speedVary) * (child ? PEOPLE.childSpeed : 1),
       owl: false,
       shutIn: false,
-      work: null, station: -1, round: 0, part: '', carrying: false,
+      work: null, station: -1, round: 0, part: '', carrying: false, brisk: false,
       mode: 'home', visible: false, fade: 1,
       x: 0, y: 0, z: 0, heading: rand(s, 'heading') * 6.28,
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,

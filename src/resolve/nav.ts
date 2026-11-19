@@ -66,6 +66,44 @@ import {
   type StructureId,
 } from './plan';
 
+/**
+ * How a decoration prop standing at a floor slot of a walkable cell is treated. Props are not blocks,
+ * so nothing in the saved world says they are in the way; this table does. (Props on sockets and on
+ * lines hang on walls or overhead and are ignored.)
+ *
+ *   centre  'clutter'  something solid in the middle of the cell: the node stays, dearer, and is
+ *                      crossed to one side (never removed: a crate on a one-wide pier must not cut
+ *                      the pier end off)
+ *   edge    'cut'      a run along that side (a fence, a hedge, a retaining wall): no link across it
+ *           'gate'     a way through such a run: a single-file link
+ *           'steer'    a post in the middle of that side: the link stays; walkers cross to one side
+ *           'block'    something wide on that side (a bench, a net rack): the link stays but costs
+ *                      NAV.clutter more, so it is used only when there is no other way (only a real
+ *                      run may cut a place off: a rack across the foot of a pier must not)
+ *
+ * Corner slots are clear of every line people walk and are ignored. A type not listed is a small
+ * solid thing: clutter at the centre, steer at an edge.
+ */
+type Footprint = { centre?: 'clutter'; edge?: 'cut' | 'gate' | 'steer' | 'block' };
+const FLAT: Footprint = {};
+const POST: Footprint = { centre: 'clutter', edge: 'steer' };
+const BULK: Footprint = { centre: 'clutter', edge: 'block' };
+const RUN: Footprint = { edge: 'cut' };
+const WAY: Footprint = { edge: 'gate' };
+const FOOTPRINTS: Readonly<Record<string, Footprint>> = {
+  // Underfoot or on the wall: walked over or past.
+  tuft: FLAT, 'beach-find': FLAT, 'worn-track': FLAT, 'dirt-trail': FLAT, reeds: FLAT, 'lily-pads': FLAT, creeper: FLAT, doorstep: FLAT,
+  // Runs along a side, and the ways through them.
+  'garden-fence': RUN, 'garden-fence/gate': WAY, hedge: RUN, 'hedge/gap': WAY, 'retaining-wall': RUN, espalier: RUN,
+  // Wide things: they fill a side, or the middle of a cell.
+  bench: BULK, 'cafe-table': BULK, 'flower-bed': BULK, 'net-rack': BULK, trough: BULK, shed: BULK, woodpile: BULK, 'wall-fountain': BULK,
+  'street-tree': BULK, 'goods-stack': BULK, cart: BULK, kiosk: BULK, grazer: BULK, 'veg-patch': BULK, 'role-prop/net': BULK,
+};
+function footprintOf(type: string, variant: string | undefined): Footprint {
+  return (variant !== undefined ? FOOTPRINTS[`${type}/${variant}`] : undefined) ?? FOOTPRINTS[type] ?? POST;
+}
+const EDGE_SLOT: Readonly<Record<string, Dir4 | undefined>> = { n: 0, e: 1, s: 2, w: 3 };
+
 /** The kinds whose top can be walked on as it is. A house top is walkable only where its roof is a flat terrace. */
 const DECK_KINDS: ReadonlySet<Kind> = new Set<Kind>(['dock', 'arch', 'marble']);
 
@@ -89,8 +127,28 @@ export function usableDoors(nav: NavGraph, structure: StructureId): NavDoor[] {
   return out.sort((a, b) => Number(b.main) - Number(a.main));
 }
 
-export function buildNav(shape: ShapePlan, _draft: DressingDraft): NavGraph {
+export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
   const { world, terrain, kinds } = shape;
+
+  // ── what the decoration and urban rules stood in the way ───────────────
+  const cluttered = new Set<CellKey>();
+  /** Per edge: 2 = cut, 1 = a gate, 4 = something wide, 3 = a post. A cut wins over a gate, a gate over the rest. */
+  const propEdges = new Map<EdgeKey, 1 | 2 | 3 | 4>();
+  for (const p of draft.props) {
+    if (!('cell' in p.at)) continue;
+    const foot = footprintOf(p.type, p.variant);
+    if (p.at.pos === 'c') {
+      if (foot.centre) cluttered.add(p.at.cell);
+      continue;
+    }
+    const side = EDGE_SLOT[p.at.pos];
+    if (side === undefined || !foot.edge) continue;
+    const e = edgeOf(p.at.cell, side);
+    if (e === NO_CELL) continue;
+    const had = propEdges.get(e);
+    const now = foot.edge === 'cut' ? 2 : foot.edge === 'gate' ? 1 : foot.edge === 'block' ? 4 : 3;
+    if (had === undefined || now === 2 || (now === 1 && had !== 2) || (now === 4 && had === 3)) propEdges.set(e, now);
+  }
 
   // ── what the shape rules decided ──────────────────────────────────────
   /** House cells whose top is a flat terrace. */
@@ -165,7 +223,8 @@ export function buildNav(shape: ShapePlan, _draft: DressingDraft): NavGraph {
     return under !== NO_CELL && kinds.get(under) === 'house' ? 'roof' : 'deck';
   };
   const node = (cell: CellKey, surface: NavSurface, extra?: Partial<NavNode>): void => {
-    found.set(cell, { cell, surface, cost: NAV[surface], ...extra });
+    const clutter = cluttered.has(cell);
+    found.set(cell, { cell, surface, cost: NAV[surface] + (clutter ? NAV.clutter : 0), ...(clutter ? { clutter } : {}), ...extra });
   };
   /** A cell directly above a walkable top: a node if nothing but a floor (or a gate) is in it. */
   const stand = (c: CellKey): void => {
@@ -223,13 +282,20 @@ export function buildNav(shape: ShapePlan, _draft: DressingDraft): NavGraph {
       const j = at(neighbor(n.cell, d));
       if (j < 0) continue;
       const m = nodes[j]!;
-      const edge = edgeBetween(n.cell, d);
+      let edge: 0 | 1 | 2 | 3 | 4 = edgeBetween(n.cell, d);
+      if (edge === 0) {
+        // A prop on this side. A run of them never closes a street or a square: where both cells lie on
+        // one floor region it is taken for a post.
+        const prop = propEdges.get(edgeOf(n.cell, d)) ?? 0;
+        const oneFloor = shape.floorAt.get(n.cell) !== undefined && shape.floorAt.get(n.cell) === shape.floorAt.get(m.cell);
+        edge = prop === 2 && oneFloor ? 3 : prop;
+      }
       if (edge === 2) continue;
       // Two cells of one wide flight, side by side.
       const sameFlight = n.rot !== undefined && m.rot === n.rot && (d & 1) !== (n.rot & 1);
       if (!sameFlight && !(opens(n, d) && opens(m, opposite(d)))) continue;
       const gate = edge === 1 || (n.passage !== undefined && kinds.get(n.cell) !== 'arch') || (m.passage !== undefined && kinds.get(m.cell) !== 'arch');
-      links.push({ a: i, b: j, via: gate ? 'gate' : 'walk', cost: gate ? NAV.gate : 0 });
+      links.push({ a: i, b: j, via: gate ? 'gate' : 'walk', cost: gate ? NAV.gate : edge === 4 ? NAV.clutter : 0, ...(edge >= 3 ? { post: true } : {}) });
     }
     if (n.rot !== undefined) {
       // The head of the flight: the cell ahead, one level up.

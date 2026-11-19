@@ -25,6 +25,8 @@ export const NAV = defineStyle(
     interiorCost: 1,
     /** Added when a route goes through a building that is neither the walker's home nor where they are going. */
     through: 12,
+    /** Added for crossing a cell with something solid standing in the middle of it. */
+    clutter: 20,
   },
   { garden: [1, 4, 0.5], grass: [1, 6, 0.5], through: [0, 40, 1] },
 );
@@ -49,6 +51,8 @@ export const PEOPLE = defineStyle(
     children: 0.15,
     /** How far right of the line through the cell centres a walker keeps (so two-way traffic passes). */
     lane: 0.11,
+    /** The same where a post stands on the boundary crossed, or something stands in the middle of the cell. */
+    laneWide: 0.31,
     /** Gap kept behind the person ahead, and the distance at which a walker starts to slow for them. */
     gap: 0.2,
     slowAt: 0.42,
@@ -83,6 +87,13 @@ export const PEOPLE = defineStyle(
     chatRest: 40,
     /** L26: wind strength above which a hand goes to the hat. */
     gust: 0.72,
+    /** L08: the most lamps on the lamplighter's round; the rest light by themselves. */
+    lampRound: 10,
+    /** L08: how long into the evening the first lamp of the round waits for the lamplighter, and each one after it that much longer. */
+    lampWait: 7,
+    lampStep: 5.5,
+    /** L08: how much brisker than their own pace the lamplighter walks the round. */
+    lampPace: 1.45,
     /** L28: wind strength above which a child at a kite spot flies a kite; how far downwind and how high it flies. */
     kiteWind: 0.24,
     kiteOut: 0.95,

@@ -22,9 +22,12 @@ import { above, keyX, keyZ, neighbor, NO_CELL, opposite, type CellKey, type Dir4
 import { hash } from '@/core/rand';
 import { defineRule, type Candidate, type RuleContext } from '@/resolve/engine/api';
 import { gardens } from '@/resolve/facts/gardens.fact';
+import { plazas } from '@/resolve/facts/plazas.fact';
+import { streets } from '@/resolve/facts/streets.fact';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { usableDoors } from '@/resolve/nav';
 import type { NavGraph, StructureId } from '@/resolve/plan';
+import { PEOPLE } from '@/style/people';
 import { navOf, steps } from './people.lib';
 
 export type Job = 'baker' | 'shopkeeper' | 'miller' | 'keeper' | 'fisher' | 'gardener' | 'vendor' | 'guard' | 'bell-ringer' | 'lamplighter';
@@ -37,14 +40,23 @@ interface Data {
   structure?: StructureId;
 }
 
-/** The lamps of a town as (cell to stand in, lamp id), in the order one person would walk them. */
+/**
+ * The lamplighter's round: (cell to stand in, lamp id), in the order one person would walk them.
+ *
+ * On the round: lamp POSTS, wherever a rule stood them (streets D01, squares D02, bridge parapets D20,
+ * pier ends), if a cell of the walking graph is at or beside them. Not on it: hanging lanterns (under
+ * arches, on brackets by doors) and an inn's door lantern, which are their households' to light and
+ * come on by themselves. The round is PEOPLE.lampRound lamps at most, the ones nearest the town's
+ * biggest square (or its longest street, or failing both the lowest lamp), so that it can be walked
+ * in one dusk; every other lamp lights on its own timer.
+ */
 export function lampRound(ctx: RuleContext, nav: NavGraph): { cell: CellKey; lamp: string }[] {
   const stops: { cell: CellKey; lamp: string }[] = [];
   const socketCell = new Map<string, CellKey>();
   for (const s of ctx.plan.sockets) socketCell.set(s.id, s.cell);
   for (const s of ctx.dressing?.sockets ?? []) socketCell.set(s.id, s.cell);
   for (const p of ctx.dressing?.props ?? []) {
-    if (p.type !== 'lamp' && p.type !== 'hanging-lantern') continue;
+    if (p.type !== 'lamp') continue;
     const at = 'cell' in p.at ? p.at.cell : 'socket' in p.at ? socketCell.get(p.at.socket) : undefined;
     if (at === undefined) continue;
     // The lamp's own cell, the one on top of it, or one beside it.
@@ -53,8 +65,17 @@ export function lampRound(ctx: RuleContext, nav: NavGraph): { cell: CellKey; lam
     if (cell !== undefined) stops.push({ cell, lamp: p.id });
   }
   if (stops.length === 0) return stops;
-  // Route order: start at the lowest cell, always on to the nearest lamp not yet lit.
-  stops.sort((a, b) => a.cell - b.cell || (a.lamp < b.lamp ? -1 : 1));
+  // Where the round is: about the middle of the biggest square, else of the longest street.
+  const square = [...plazas(ctx.facts).list].sort((a, b) => b.area - a.area || a.id - b.id)[0];
+  const street = [...streets(ctx.facts).list].sort((a, b) => b.length - a.length || a.id - b.id)[0];
+  const heart = square ? square.cells[square.cells.length >> 1]! : street ? street.cells[street.cells.length >> 1]! : stops.reduce((a, b) => (b.cell < a.cell ? b : a)).cell;
+  stops.sort((a, b) => steps(a.cell, heart) - steps(b.cell, heart) || a.cell - b.cell || (a.lamp < b.lamp ? -1 : 1));
+  // Only lamps that can be walked between: those in the same part of the graph as the nearest one.
+  const part = nav.part[nav.nodeAt.get(stops[0]!.cell)!];
+  for (let i = stops.length - 1; i >= 0; i--) if (nav.part[nav.nodeAt.get(stops[i]!.cell)!] !== part) stops.splice(i, 1);
+  stops.length = Math.min(stops.length, Math.max(1, Math.round(PEOPLE.lampRound)));
+  // Route order: start at the end farthest from the heart, always on to the nearest lamp not yet lit.
+  stops.reverse();
   const round = [stops.shift()!];
   while (stops.length > 0) {
     const from = round[round.length - 1]!.cell;
@@ -125,7 +146,7 @@ export default defineRule<Data>({
     }
     for (const g of gardens(facts).list) {
       if (g.area < 4) continue;
-      const cells = g.cells.filter((c) => nav.nodeAt.has(c) && !facts.kinds.has(c)).sort((a, b) => hash(seed, 'gardener', a) - hash(seed, 'gardener', b) || a - b);
+      const cells = g.cells.filter((c) => nav.nodeAt.has(c) && !facts.kinds.has(c) && !nav.nodes[nav.nodeAt.get(c)!]!.clutter).sort((a, b) => hash(seed, 'gardener', a) - hash(seed, 'gardener', b) || a - b);
       if (cells[0] !== undefined) add(cells[0], { job: 'gardener', order: 0, ref: '', structure: g.id });
     }
     // One fisher per dock that has a fishing spot.

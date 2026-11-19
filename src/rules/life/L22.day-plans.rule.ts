@@ -101,7 +101,7 @@ function computeHaunts(ctx: RuleContext, nav: NavGraph): Candidate<HauntData>[] 
   };
   /** About one cell in `every` (at least one, at most `max`), the seed's choice. */
   const spread = (cells: readonly CellKey[], what: string, max: number, every: number): CellKey[] => {
-    const free = cells.filter((c) => nav.nodeAt.has(c) && !facts.kinds.has(c));
+    const free = cells.filter((c) => nav.nodeAt.has(c) && !facts.kinds.has(c) && !nav.nodes[nav.nodeAt.get(c)!]!.clutter);
     return free
       .map((c) => ({ c, r: hash(seed, what, c) }))
       .sort((a, b) => a.r - b.r || a.c - b.c)

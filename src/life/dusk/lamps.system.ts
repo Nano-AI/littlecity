@@ -54,6 +54,18 @@ export function lightLamp(stage: LifeStage, propId: string): boolean {
   return true;
 }
 
+/**
+ * Keeps a lamp dark until `seconds` into the evening, unless lightLamp comes first: it is on the
+ * lamplighter's round (L08), and waits for them that long. Call it after every dressing sync (a sync
+ * works the timetable out afresh). Added by People. Returns false if there is no such lamp.
+ */
+export function deferLamp(stage: LifeStage, propId: string, seconds: number): boolean {
+  const lamp = tables.get(stage)?.byId.get(propId);
+  if (!lamp) return false;
+  if (!lamp.early) lamp.at = Math.max(lamp.at, seconds);
+  return true;
+}
+
 /** When each lamp of a town lights, in seconds into the evening. Pure, for the system and for tests. */
 export function lampOrder(shape: ShapePlan, lamps: readonly { id: string; pos: readonly [number, number, number] }[], seed: number): Map<string, number> {
   const streets = new Map<string, { id: string; pos: readonly [number, number, number] }[]>();

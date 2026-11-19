@@ -212,6 +212,12 @@ export interface NavNode {
   rot?: Dir4;
   /** A gate cell or a ground arch: it can be crossed only along this direction and its opposite. */
   passage?: Dir4;
+  /**
+   * Something solid stands in the middle of the cell (a street tree, crates, a cart, a bench, a café
+   * table). The cell stays on the graph, at NAV.clutter more cost, and whoever must cross it keeps to
+   * one side. Nobody is sent to linger in one, except to sit at its seats.
+   */
+  clutter?: boolean;
 }
 
 export type NavVia = 'walk' | 'stairs' | 'steps' | 'gate' | 'interior';
@@ -234,6 +240,8 @@ export interface NavLink {
   seconds?: number;
   doorA?: number;
   doorB?: number;
+  /** A post stands in the middle of the boundary crossed (a lamp, a signpost): walkers cross well to one side of it. */
+  post?: boolean;
 }
 
 /** A way into a building: a door feature, or the hatch of a roof terrace. */
