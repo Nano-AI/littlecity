@@ -39,6 +39,26 @@ follows from them.
    soft contact shade on the water by themselves. The sea keeps its blue at
    dusk. Nothing changes in how you use the pattern.
 
+After art review 1 (again, nothing to redo):
+
+7. **Rock is drawn**: tilted beds and a few long cracks in a warmer stone
+   (`PALETTE.rock` changed). `PATTERN.rock` now reads `edge` below 1.5 as
+   "how rocky" (0 draws earth, 1 rock, with a wandering border between);
+   the terrain uses it so cliffs and earth banks interleave. A boulder or a
+   rock garden leaves `edge` alone (`EDGE_FAR`) and gets plain rock.
+8. **Line weight answers to zoom.** Up close, outlines stay about 1.5 px and
+   the lines inside a shape (ink-group seams and creases) thin to about
+   0.85. So fine interior detail survives a close look; the rule that a
+   group needs to be 0.06 across still holds for playing zoom.
+9. **Dusk and night grade by facing**: warm (or moonlit) on faces turned to
+   the light, cool on faces turned away, and pale materials keep their
+   brightness at night. Correct normals are all it needs. Neighbouring
+   surfaces should still differ in value (section 2).
+10. **Actors and spawned things are not grounded.** Props and structures
+    throw and receive the shade of section 11; actors (people, birds, boats,
+    sails, smoke) are kept out of it, so that moving costs nothing. Do not
+    add a fake shadow under an actor.
+
 ![The look](art/hero.jpg)
 
 The look is **an ink-and-coloured-pencil drawing on cream paper**: flat
@@ -193,7 +213,7 @@ with a good outline is better than a busy one.
 | `glass` | window panes | a glint by day; **lights up at dusk** (section 7). One ink group per window. |
 | `marble` | marble, pillars | soft veins; a bevel line under top edges marked with `bevelTop` |
 | `sand`, `dirt` | beaches, worn paths | stipple; scuffs |
-| `rock` | cliffs, boulders | broken courses, each block a different tone |
+| `rock` | cliffs, boulders | tilted beds of uneven thickness, a few long cracks; `edge` below 1.5 blends it with earth (terrain only) |
 | `water` | sea, ponds, basins | set `edge` to the distance from the shore for foam and shallows; leave it for still water |
 | `plaster` | house walls | nearly flat; a few flecks |
 | `brick` | chimneys, mills, warehouses | running bond, bricks 0.25 × 0.1 |

@@ -115,6 +115,38 @@ No further changes to frozen files. Things that changed for other owners:
 - **New look scenarios**: `look-generated`, `look-generated-2`, `-3`, `-4`
   (the real generator, four seeds, four sides).
 
+## Third pass (art review 1)
+
+One additive change to a frozen file, `src/render/api.ts`:
+
+```ts
+interface ViewStats { rebuild?: { generators; layers; parts; view; structures; vertices } }
+```
+
+Where the last `setTown` / `setDressing` spent its time, in milliseconds: inside structure
+generators, inside layers, inside prop and actor parts, and in the view itself. `npm run bench`
+could print it; `node src/render/testing/bench.mjs [scenario ...] [--auto]` already does, on any
+scenario (the standard bench's edits are not legal in `everything`).
+
+For other owners:
+
+- **Houses: the rebuild budget.** After one edit the view itself spends well under a
+  millisecond; four fifths or more of the rebuild is inside structure generators, because a merged
+  structure is regenerated whole (on `bench-2000`: 2 structures, about 10,000 vertices per edit).
+  If the 8 ms budget is to hold on big merged houses, the generator has to get cheaper per cell or
+  cache per cell.
+- **Animation, People: actors and anything from `stage.spawn` / `spawnMesh` are kept out of the
+  grounding picture.** They throw and receive no shade, and moving them every frame costs one
+  small texture upload. Props and lifted structures are in it: moving one redraws it (at most every
+  other frame, about ten extra draw calls on those frames). So make things that move all the time
+  actors, not props.
+- **The layout is built lazily**: `setTown(shape, null)` no longer builds it; the first
+  `stage.socket()` or `setDressing` after an edit does.
+- **Terrain**: banks are `PATTERN.rock` with `edge` = rockiness; ledges on faces of two levels or
+  more stay clear of anything built at the foot (the terrain hash already covered those cells).
+- **Grade**: per part of the day `Tint`, `Shade`, `Chroma`, `Contrast`, `Sea` in the `grade` style;
+  `gradeColor()` in `src/render/grade.ts` is the reference arithmetic.
+
 ## Requests
 
 None outstanding.

@@ -109,6 +109,8 @@ interface DrawnLayer {
 }
 interface DrawnItem {
   hash: number;
+  /** True for actors: drawn from the movers pool. */
+  mover: boolean;
   slot: number;
   base: Mat4Like;
   handle: InstanceHandle;
@@ -170,7 +172,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const groundSize = halfInk ? 512 : 1024;
   const heightRT = new THREE.WebGLRenderTarget(groundSize, groundSize, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: false, generateMipmaps: false });
   heightRT.depthTexture = new THREE.DepthTexture(groundSize, groundSize, THREE.UnsignedIntType);
-  const shadeRT = new THREE.WebGLRenderTarget(groundSize, groundSize, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace });
+  // The shade is soft, so it is baked at half the size: a quarter of the work each time it is redrawn.
+  const shadeRT = new THREE.WebGLRenderTarget(groundSize / 2, groundSize / 2, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace });
 
   // ── data textures ────────────────────────────────────────────────────────
   const slots = new SlotTable();
@@ -429,9 +432,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   for (const c of allChunks()) chunkPools.set(`${c.cx}:${c.cz}`, addPool(true));
   const dynamic = addPool(false);
+  // Actors and spawned things (people, birds, boats, smoke) move every frame. They live in a pool of
+  // their own that is left out of the grounding picture, so their moving never makes it redraw.
+  const movers = addPool(false);
   const ghostScene = new THREE.Scene().add(dynamic.addView(ghostMaterial));
   const ghostPostScene = new THREE.Scene().add(screenMesh(ghostComposite));
-  const allPools = [...chunkPools.values(), dynamic];
+  const allPools = [...chunkPools.values(), dynamic, movers];
   const chunkKeyOf = (x: number, z: number): string => `${Math.floor(x / CHUNK)}:${Math.floor(z / CHUNK)}`;
 
   // ── town state ───────────────────────────────────────────────────────────
@@ -443,10 +449,23 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   let shape: ShapePlan | null = null;
   let dressing: DressingPlan | null = null;
   let layout: Layout | null = null;
+  const anchorFrames = new Map<string, Mat4Like>();
   let registries: Registries | null = null;
   let seenStyle = styleVersion();
   let seenStyleKey = geometryStyleKey();
   let rebuildMs = 0;
+  /** Where the current rebuild's time goes (ViewStats.rebuild). */
+  const spent = { generators: 0, layers: 0, parts: 0, view: 0, structures: 0, vertices: 0 };
+  let lastSpent = { ...spent };
+  const beginRebuild = (): number => {
+    spent.generators = spent.layers = spent.parts = spent.structures = spent.vertices = 0;
+    return performance.now();
+  };
+  const endRebuild = (t0: number): void => {
+    rebuildMs = performance.now() - t0;
+    spent.view = Math.max(0, rebuildMs - spent.generators - spent.layers - spent.parts);
+    lastSpent = { ...spent };
+  };
   let spawnCounter = 0;
   let ghostKeys: string[] = [];
   let ghostSlots: number[] = [];
@@ -491,10 +510,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     partOutputs.clear();
     spawnOutputs.clear();
     for (const [id, it] of items) {
-      dynamic.pool.remove(`i:${id}`);
+      (it.mover ? movers : dynamic).pool.remove(`i:${id}`);
       slots.release(it.slot);
     }
     items.clear();
+    anchorFrames.clear();
+    layout = null;
   };
 
   /**
@@ -538,15 +559,21 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       chunkPools.get(d.chunk)!.pool.remove(`s:${id}`);
       d.alive = false;
       slots.release(d.slot);
+      setAnchors(d.anchors, {});
       structures.delete(id);
     }
     for (const s of next.structures.values()) {
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
+      const t = performance.now();
       const out = generators.build(s, next, parts);
+      spent.generators += performance.now() - t;
+      spent.structures++;
+      spent.vertices += out.mesh.position.length / 3;
       const chunk = structureChunk(s);
       if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
       chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
+      setAnchors(old?.anchors, out.anchors);
       if (old) {
         old.hash = s.hash;
         old.chunk = chunk;
@@ -559,11 +586,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;
         const id = `l:${layer.layer}:${k}`;
+        const t = performance.now();
         const hash = layer.hash(chunk, next);
         const old = layers.get(id);
-        if (old && old.hash === hash) continue;
-        const out = layer.build(chunk, next, parts);
+        const out = old && old.hash === hash ? null : layer.build(chunk, next, parts);
+        spent.layers += performance.now() - t;
+        if (!out) continue;
+        spent.vertices += out.mesh.position.length / 3;
         chunkPools.get(k)!.pool.put(id, hash, out.mesh, 0);
+        setAnchors(old?.anchors, out.anchors);
         layers.set(id, { hash, anchors: out.anchors });
       }
     }
@@ -574,18 +605,29 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     let out = partOutputs.get(k);
     if (!out) {
       const env = { plan: shape!, span };
+      const t = performance.now();
       out = category === 'prop' ? registries!.parts.prop(item as Prop, env) : registries!.parts.actor(item as Actor, env);
+      spent.parts += performance.now() - t;
       partOutputs.set(k, out);
     }
     return out;
   };
 
+  /**
+   * Where every socket, prop and actor is. Built only when someone asks (life looking up a socket,
+   * or dressing arriving): an edit by itself does not pay for it. The socket frames the generators
+   * returned are kept in one standing map (`anchorFrames`) that changes only with what was rebuilt.
+   */
   const rebuildLayout = (): void => {
-    if (!shape) return;
-    const anchors = new Map<string, Mat4Like>();
-    for (const d of structures.values()) for (const id in d.anchors) anchors.set(id, d.anchors[id]!);
-    for (const d of layers.values()) for (const id in d.anchors) anchors.set(id, d.anchors[id]!);
-    layout = createLayout({ shape, dressing, anchors, propOutput: (p, span) => propOutput(p, 'prop', span) });
+    layout = null;
+  };
+  const getLayout = (): Layout | null => {
+    if (!layout && shape) layout = createLayout({ shape, dressing, anchors: anchorFrames, propOutput: (p, span) => propOutput(p, 'prop', span) });
+    return layout;
+  };
+  const setAnchors = (old: Record<string, Mat4Like> | undefined, next: Record<string, Mat4Like>): void => {
+    if (old) for (const id in old) anchorFrames.delete(id);
+    for (const id in next) anchorFrames.set(id, next[id]!);
   };
 
   const makeHandle = (slot: () => number, base: () => Mat4Like, release: () => void): InstanceHandle => ({
@@ -610,22 +652,24 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const syncDressing = (next: DressingPlan): void => {
     const seen = new Set<string>();
     const live = new Set<string>();
+    const where = getLayout()!;
     const visit = (item: Prop | Actor, category: 'prop' | 'actor'): void => {
       seen.add(item.id);
-      const placed = layout!.item(item.id);
+      const placed = where.item(item.id);
       const span = placed?.span ?? 0;
       const base = placed?.frame ?? identity();
       live.add(`${category}:${item.id}:${item.hash}:${span.toFixed(3)}`);
       let it = items.get(item.id);
       if (!it) {
-        const slot = slots.alloc();
-        const entry: DrawnItem = { hash: NaN, slot, base, handle: null as unknown as InstanceHandle };
+        const mover = category === 'actor';
+        const slot = slots.alloc(mover);
+        const entry: DrawnItem = { hash: NaN, mover, slot, base, handle: null as unknown as InstanceHandle };
         entry.handle = makeHandle(() => (items.get(item.id) === entry ? slot : 0), () => entry.base, () => {});
         items.set(item.id, (it = entry));
       }
       const hash = item.hash * 31 + Math.round(span * 1000);
       if (it.hash !== hash) {
-        dynamic.pool.put(`i:${item.id}`, hash, propOutput(item, category, span).mesh, it.slot);
+        (it.mover ? movers : dynamic).pool.put(`i:${item.id}`, hash, propOutput(item, category, span).mesh, it.slot);
         it.hash = hash;
       }
       it.base = base;
@@ -638,7 +682,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     for (const a of next.actors) visit(a, 'actor');
     for (const [id, it] of items) {
       if (seen.has(id)) continue;
-      dynamic.pool.remove(`i:${id}`);
+      (it.mover ? movers : dynamic).pool.remove(`i:${id}`);
       slots.release(it.slot);
       items.delete(id);
     }
@@ -648,15 +692,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   // ── the stage: how life moves things ─────────────────────────────────────
   const spawnMesh = (data: MeshData, at: Mat4Like): InstanceHandle => {
     const key = `x:${spawnCounter++}`;
-    let slot = slots.alloc();
+    let slot = slots.alloc(true);
     slots.setMatrix(slot, at);
-    dynamic.pool.put(key, 0, data, slot);
+    movers.pool.put(key, 0, data, slot);
     return makeHandle(
       () => slot,
       () => at,
       () => {
         if (slot === 0) return;
-        dynamic.pool.remove(key);
+        movers.pool.remove(key);
         slots.release(slot);
         slot = 0;
       },
@@ -710,7 +754,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       );
     },
     socket(id) {
-      return layout?.socket(id) ?? null;
+      return getLayout()?.socket(id) ?? null;
     },
   };
 
@@ -722,7 +766,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     ghostSlots = [];
   };
   const ghostSlot = (kind: number): number => {
-    const s = slots.alloc();
+    const s = slots.alloc(true);
     slots.setParams(s, -1, 0, kind, 0); // a negative glow sends it to the overlay pass; c says how to draw it
     ghostSlots.push(s);
     return s;
@@ -783,21 +827,21 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     stage,
 
     setTown(nextShape, nextDressing) {
-      const t0 = performance.now();
+      const t0 = beginRebuild();
       shape = nextShape;
       syncShape(nextShape);
       if (nextDressing) dressing = nextDressing;
       rebuildLayout();
       if (nextDressing) syncDressing(nextDressing);
-      rebuildMs = performance.now() - t0;
+      endRebuild(t0);
     },
     setDressing(nextDressing) {
       if (!shape) throw new Error('setDressing before setTown');
-      const t0 = performance.now();
+      const t0 = beginRebuild();
       dressing = nextDressing;
       rebuildLayout();
       syncDressing(nextDressing);
-      rebuildMs = performance.now() - t0;
+      endRebuild(t0);
     },
     setGhost(ghost: Ghost | null) {
       clearGhost();
@@ -883,11 +927,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       // A style value changed (the tuning panel, the gallery's sliders): redraw the town with it,
       // whether or not anyone calls setTown again.
       if (shape && styleVersion() !== seenStyle) {
-        const t0 = performance.now();
+        const t0 = beginRebuild();
         syncShape(shape);
         rebuildLayout();
         if (dressing) syncDressing(dressing);
-        rebuildMs = performance.now() - t0;
+        endRebuild(t0);
       }
       // Camera damping runs on life time, which is already clamped to 100 ms a step.
       const seconds = signals.time.seconds;
@@ -985,7 +1029,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       let overlay = false;
       let rebuilt = false;
       for (const p of allPools) {
-        rebuilt = p.sync() || rebuilt;
+        const changed = p.sync();
+        if (p !== movers) rebuilt ||= changed;
         overlay ||= p.overlay.visible;
       }
       su.uGround.value = LOOK.ground;
@@ -1008,13 +1053,16 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         groundStale = false;
         slots.moved = false;
         groundAge = 0;
+        const moversShown = movers.mesh.visible;
         paperMesh.visible = false;
+        movers.mesh.visible = false;
         scene.overrideMaterial = heightMaterial;
         renderer.setRenderTarget(heightRT);
         renderer.clear(true, true, false);
         renderer.render(scene, mapCamera);
         scene.overrideMaterial = null;
         paperMesh.visible = true;
+        movers.mesh.visible = moversShown;
         renderer.setRenderTarget(shadeRT);
         renderer.render(shadeScene, postCamera);
       }
@@ -1043,7 +1091,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
 
     stats(): ViewStats {
-      return { drawCalls, triangles, rebuildMs };
+      return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent } };
     },
 
     dispose() {

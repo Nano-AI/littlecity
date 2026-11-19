@@ -7,7 +7,9 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
+import { translation } from '@/core/mat4';
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
+import { MeshBuilder } from '@/gen/mesh';
 import type { DayPart, InstanceHandle, SignalsDriver } from '@/life/api';
 import { createSignals } from '@/life/signals';
 import type { Edit } from '@/core/world';
@@ -48,6 +50,7 @@ let shape: ShapePlan | null = null;
 let options: ResolveOptions | null = null;
 let dressing: DressingPlan | null = null;
 let lifted: InstanceHandle | null = null;
+let spawned: InstanceHandle[] = [];
 
 function summary(): FrameSummary {
   const gl = canvas!.getContext('webgl2')!;
@@ -107,6 +110,7 @@ const api = {
     view?.dispose();
     canvas?.remove();
     lifted = null;
+    spawned = [];
     const width = opts.width ?? 640, height = opts.height ?? 400;
     canvas = document.createElement('canvas');
     canvas.style.cssText = `position:fixed;left:0;top:0;width:${width}px;height:${height}px`;
@@ -132,6 +136,90 @@ const api = {
   frameOnly(seconds = 0): void {
     for (let t = 0; t < seconds; t += 1 / 30) signals!.advance(Math.min(1 / 30, seconds));
     view!.render(signals!);
+  },
+  /**
+   * One edit at a time, as a player makes them: a house (or Auto) block on a column where one is
+   * legal, a different column each time. Returns, per edit, the time in resolveShape, in setTown, and where
+   * setTown spent it (ViewStats.rebuild), plus the cost of the frame that follows.
+   */
+  editBench(edits = 30, kind: 'house' | 'auto' = 'house'): { shapeMs: number; rebuildMs: number; frameMs: number; generators: number; layers: number; parts: number; view: number; structures: number; vertices: number; dressingMs: number; dressMs: number; dressParts: number; dressView: number; items: number }[] {
+    const out = [];
+    let world = shape!.world;
+    const terrain = shape!.terrain;
+    const gl = canvas!.getContext('webgl2')!;
+    const px = new Uint8Array(4);
+    for (let i = 0, tries = 0; out.length < edits && tries < edits * 40; tries++, i++) {
+      const x = 5 + ((i * 7) % 38), z = 5 + ((i * 11) % 38);
+      let y = terrain.height[x + z * 48]!;
+      while (world.blocks.has(x | (z << 6) | (y << 12))) y++;
+      const edit: Edit = { type: 'placeBlock', cell: x | (z << 6) | (y << 12), kind, color: 'auto', from: world.blocks.has(x | (z << 6) | ((y - 1) << 12)) ? x | (z << 6) | ((y - 1) << 12) : null };
+      if (y < 1 || !canApply(world, terrain, edit).ok) continue;
+      world = applyEdit(world, terrain, edit);
+      const a = performance.now();
+      const next = resolveShape(world, terrain, options ?? {});
+      const b = performance.now();
+      view!.setTown(next, null);
+      const stats = view!.stats();
+      const c = performance.now();
+      signals!.advance(1 / 60);
+      view!.render(signals!);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const frameMs = performance.now() - c;
+      // Then the dressing arrives, as it does in the game a moment after the edit.
+      const d0 = performance.now();
+      dressing = resolveDressing(next, options ?? {});
+      const d1 = performance.now();
+      view!.setDressing(dressing);
+      const dress = view!.stats();
+      out.push({ shapeMs: b - a, rebuildMs: stats.rebuildMs, frameMs, ...stats.rebuild!, dressingMs: d1 - d0, dressMs: dress.rebuildMs, dressParts: dress.rebuild!.parts, dressView: dress.rebuild!.view, items: dressing.props.length + dressing.actors.length });
+      shape = next;
+    }
+    return out;
+  },
+  /** Spawns `n` small boxes over the town, as life spawns walkers and puffs. */
+  spawn(n: number): number {
+    const b = new MeshBuilder({ ink: 'probe' }).setColor('#e56b58');
+    b.boxAt([0, 0, 0], [0.16, 0.42, 0.16]);
+    const mesh = b.build();
+    for (let i = 0; i < n; i++) spawned.push(view!.stage.spawnMesh(mesh, translation(8 + ((i * 7) % 32), 0.8, 8 + ((i * 13) % 32))));
+    return spawned.length;
+  },
+  /** Moves every spawned box to where it would be at time `t` (a little circle each). */
+  moveSpawned(t: number): void {
+    spawned.forEach((h, i) => h.setMatrix(translation(8 + ((i * 7) % 32) + Math.cos(t + i) * 0.5, 0.8, 8 + ((i * 13) % 32) + Math.sin(t + i) * 0.5)));
+  },
+  /** Moves the first prop sideways by `dx` from its resting place (props stand in the grounding picture). */
+  moveProp(dx: number): boolean {
+    const h = dressing!.props.length > 0 ? view!.stage.instance(dressing!.props[0]!.id) : null;
+    if (!h) return false;
+    const m = Array.from(h.base);
+    m[12] = m[12]! + dx;
+    h.setMatrix(m);
+    return true;
+  },
+  /**
+   * Whole-frame time (CPU and GPU, synced by a pixel read) over `frames` frames while `mode` moves:
+   * nothing, the spawned boxes, or one prop. Returns the median and the mean draw calls per frame.
+   */
+  moving(mode: 'still' | 'spawned' | 'prop', frames = 120): { ms: number; drawCalls: number } {
+    const gl = canvas!.getContext('webgl2')!;
+    const px = new Uint8Array(4);
+    const times: number[] = [];
+    let calls = 0;
+    for (let i = 0; i < frames + 10; i++) {
+      const t0 = performance.now();
+      signals!.advance(1 / 60);
+      if (mode === 'spawned') api.moveSpawned(i / 20);
+      if (mode === 'prop') api.moveProp(Math.sin(i / 20) * 0.3);
+      view!.render(signals!);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      if (i >= 10) {
+        times.push(performance.now() - t0);
+        calls += view!.stats().drawCalls;
+      }
+    }
+    times.sort((a, b) => a - b);
+    return { ms: times[Math.floor(times.length / 2)]!, drawCalls: calls / frames };
   },
   /** Changes one style value, as the tuning panel does. No arguments puts every value back. */
   style(name?: string, key?: string, value?: StyleValue): void {

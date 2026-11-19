@@ -217,6 +217,21 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('actors and spawned things move without redrawing the grounding picture; a moved prop redraws it', async () => {
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    const rest = (await settled()).drawCalls;
+    expect(await look<number>(`window.__look.spawn(60)`)).toBe(60);
+    await settled();
+    // Sixty things moving every frame: one more draw call (their pool) and nothing else, ever.
+    const walking = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('spawned', 30)`);
+    expect(walking.drawCalls).toBe(rest + 1);
+    // A prop stands in the picture (it throws shade), so moving one redraws it, every other frame at most.
+    const sliding = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('prop', 30)`);
+    expect(sliding.drawCalls).toBeGreaterThan(rest + 3);
+    expect(sliding.drawCalls).toBeLessThanOrEqual(rest + 1 + (rest + 2) / 2 + 1);
+    expect(errors).toEqual([]);
+  });
+
   test('flat ground and open sea never ink over, however far out or low the view (phone, half ink)', async () => {
     for (const ink of ['half', 'full']) {
       await look(`window.__look.open('look-isle-1', { ink: '${ink}', pixelRatio: 2, width: 390, height: 844 })`);

@@ -1,7 +1,7 @@
 # Look: handoff
 
 Branch `swarm/look`. Task: Look section of `docs/swarm/art-review-1.md`, then bench.
-Order: L1, L2, L3, L4, bench (`bench-2000`, `everything`), grounding cost with movers. Skip "would be nice".
+All four must-fix notes and the measurements are done; see State.
 
 ## State
 - **L1 rock faces: done.** Banks are one ink group (`bank`), all `PATTERN.rock`; `edge` = rockiness
@@ -14,7 +14,13 @@ Order: L1, L2, L3, L4, bench (`bench-2000`, `everything`), grounding cost with m
   the light and on paper, `shade` on faces away; before the tint, `chroma` (pre-saturation) and
   `contrast` (brightness curve); `sea` multiplies the sea alone. Values per part in `GRADE`
   (src/style/look.ts). `gradeColor()` in grade.ts mirrors the shader for tests: change both together.
-- **Bench: next** (`npm run bench`, `npm run bench -- everything`), then grounding cost with movers.
+- **Bench and grounding cost: done.** `node src/render/testing/bench.mjs [scenario] [--auto]` prints
+  frame time, movers, and a rebuild breakdown (`ViewStats.rebuild`, additive in api.ts). Actors and
+  spawned things live in a `movers` pool that is hidden from the height pass and whose slots are
+  `aloof` (never set `slots.moved`). Layout is lazy (`getLayout()`); `anchorFrames` is a standing map.
+- **Left:** would-be-nice list (sage grass, hatching on pale stone) not started. Rebuild over budget
+  is generator time (Houses), not the view. Numbers were taken on a machine at load 10–20: redo
+  them on a quiet one before quoting.
 
 ## How to check
 - `npm run shots -- everything` (25 cameras, slow). One pose fast: `node .context/pose-shot.mjs`
