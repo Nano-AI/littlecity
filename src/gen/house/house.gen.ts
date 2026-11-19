@@ -25,6 +25,7 @@ import { faceFrame, facingFrame } from '../frames';
 import { MeshBuilder, PATTERN, type ColorInput } from '../mesh';
 import { emitRoof, roofField, type EdgeMode, type RoofField } from '../roof/roof';
 import { band, leftOf, leftX, rightOf, rightX, wallEdge, wallFace, type WallEdge } from './outline';
+import { crossGable, gableMaterial, roofDoor, skylightFrame } from './rooftop';
 
 interface Material {
   color: ColorInput;
@@ -32,7 +33,7 @@ interface Material {
 }
 
 /** Everything the pieces of one house need to know about it. */
-interface House {
+export interface House {
   s: Structure;
   plan: ShapePlan;
   b: MeshBuilder;
@@ -108,7 +109,11 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
       case 'finial':
         return finialFrame(h, f);
       case 'dormer':
-        return dormerFrame(h, f);
+        if (f.variant === 'cross-gable') {
+          crossGable(h, f, parts);
+          return null;
+        }
+        return f.variant === 'skylight' ? skylightFrame(h, f) : dormerFrame(h, f);
       case 'window':
         if (f.variant === 'round' || f.variant === 'rose') return gableFrame(h, f) ?? onWall(f, inset);
         return onWall(f, inset);
@@ -118,7 +123,10 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         ladder(h, f);
         return null;
       case 'door':
-        return f.variant === 'hatch' ? undefined : onWall(f, inset);
+        if (f.variant === 'hatch') return undefined;
+        // A door whose cell is above the house opens from the roof (J26): it stands in its own housing.
+        if (f.cell !== undefined && !has(f.cell) && has(below(f.cell))) return roofDoor(h, f);
+        return onWall(f, inset);
       case 'balcony':
       case 'portico':
         return onWall(f, inset);
@@ -171,6 +179,9 @@ function shell(h: House): void {
   const beltOn = (c: CellKey, d: Dir4): boolean => persona.storeyBands && exposed(c, d) && exposed(above(c), d);
   const foundOn = (c: CellKey, d: Dir4): boolean => foundation.has(edgeId(c, d));
   const glass = h.plan.tags.get(s.id)?.has('glass-walls') ?? false;
+  const chapel = h.plan.roles.get(s.id)?.role === 'chapel';
+  const doors = new Set<number>();
+  for (const f of h.features) if (f.type === 'door' && f.cell !== undefined && f.dir !== undefined) doors.add(edgeId(f.cell, f.dir));
   const caps = (e: WallEdge, on: (c: CellKey, d: Dir4) => boolean): { capLeft: boolean; capRight: boolean } => ({
     capLeft: !on(...partner(e, 'left')),
     capRight: !on(...partner(e, 'right')),
@@ -186,7 +197,7 @@ function shell(h: House): void {
         b.with({ color: mat.color, pattern: mat.pattern, ink: 'walls' }, () => wallFace(b, e, inset, 0, CELL_H));
         if (plinthOn(cell, d)) {
           b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'plinth' }, () =>
-            band(b, e, inset - proud, inset, 0, HOUSE.plinthH, caps(e, plinthOn)));
+            band(b, e, inset - proud, inset, 0, chapel ? HOUSE.plinthH + 0.05 : HOUSE.plinthH, caps(e, plinthOn)));
         } else if (beamOn(cell, d)) {
           b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'beam' }, () =>
             band(b, e, inset - proud, inset, 0, 0.07, caps(e, beamOn)));
@@ -194,6 +205,18 @@ function shell(h: House): void {
         if (beltOn(cell, d)) {
           b.with({ color: persona.trim, ink: 'belt' }, () =>
             band(b, e, inset - proud, inset, CELL_H - HOUSE.trimH, CELL_H, caps(e, beltOn)));
+        }
+        // R-H01: a chapel's walls are buttressed: one where each bay meets the next, one near each corner.
+        if (chapel) {
+          const at: number[] = [];
+          const doorHere = doors.has(edgeId(cell, d));
+          if (e.right === 0) at.push(0.5);
+          if (e.right === 1 && !doorHere) at.push(0.5 - inset - 0.075);
+          if (e.left === 1 && !doorHere) at.push(-0.5 + inset + 0.075);
+          const carriesOn = exposed(above(cell), d);
+          b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'buttress' }, () => {
+            for (const x of at) buttress(b, x, -inset, carriesOn);
+          });
         }
         // R-H13: a greenhouse wall is glass in a white frame: a sill rail, a head rail, glazing bars.
         if (glass) {
@@ -214,14 +237,70 @@ function shell(h: House): void {
   }
 }
 
+/**
+ * A stepped buttress against a wall at x (in the wall's face frame, the wall at z = `wall`): a
+ * lower stage 0.09 proud, a sloped weathering, an upper stage 0.05 proud, and a sloped head. On
+ * a storey with another above it, the lower stage simply runs the full height.
+ */
+function buttress(b: MeshBuilder, x: number, wall: number, carriesOn: boolean): void {
+  const w = 0.055, p1 = 0.09, p2 = 0.05;
+  const x0 = x - w, x1 = x + w;
+  if (carriesOn) {
+    b.box([x0, 0, wall], [x1, CELL_H, wall + p1], { skip: ['n', 'bottom', 'top'] });
+    return;
+  }
+  const y1 = 0.4, y2 = 0.62, s = 0.07;
+  b.box([x0, 0, wall], [x1, y1, wall + p1], { skip: ['n', 'bottom', 'top'] });
+  b.box([x0, y1, wall], [x1, y2, wall + p2], { skip: ['n', 'bottom', 'top'] });
+  // The weathering between the stages, and the head running back into the wall.
+  b.quad([x0, y1, wall + p1], [x1, y1, wall + p1], [x1, y1 + s, wall + p2], [x0, y1 + s, wall + p2]);
+  b.tri([x1, y1, wall + p1], [x1, y1, wall + p2], [x1, y1 + s, wall + p2]);
+  b.tri([x0, y1, wall + p2], [x0, y1, wall + p1], [x0, y1 + s, wall + p2]);
+  b.quad([x0, y2, wall + p2], [x1, y2, wall + p2], [x1, y2 + s, wall], [x0, y2 + s, wall]);
+  b.tri([x1, y2, wall + p2], [x1, y2, wall], [x1, y2 + s, wall]);
+  b.tri([x0, y2, wall], [x0, y2, wall + p2], [x0, y2 + s, wall]);
+}
+
 // ───────────────────────────────────────────────────────────── the roofs ──
 
 type Side = 'free' | 'party' | 'wall' | 'tower';
+
+/** Ridge tiles: a tone darker than the roof they cap (white bars on a glass roof). */
+function capColor(p: Personality): ColorInput {
+  if (p.cover === 'glass') return p.trim;
+  return mixColor(p.roofColor, p.cover === 'thatch' ? PALETTE.trunk : PALETTE.ink, p.cover === 'thatch' ? 0.3 : 0.2);
+}
+
+/**
+ * Tile tone: a long roof is laid in two or three seeded bands of slightly different lightness
+ * (±6%, ART.md section 6), a cell or two wide, so it never reads as one flat sheet. Short roofs
+ * are one tone.
+ */
+function tileTone(seed: number, region: RoofRegion, p: Personality): ((x: number, z: number) => ColorInput) | undefined {
+  const alongX = region.width >= region.depth;
+  const length = alongX ? region.width : region.depth;
+  if (length < 3 || p.cover === 'glass') return undefined;
+  const start = alongX ? region.box.x0 : region.box.z0;
+  const shift = rand(seed, 'tone-shift', region.index) < 0.5 ? 0 : 1;
+  const base = mixColor(p.roofColor, p.roofColor, 0);
+  const tones = new Map<number, ColorInput>();
+  return (x, z) => {
+    const band = Math.floor((Math.floor(alongX ? x : z) - start + shift) / 2);
+    let tone = tones.get(band);
+    if (!tone) {
+      const k = 1 + (rand(seed, 'tone', region.index, band) - 0.5) * HOUSE.tileTone * 2;
+      tone = [Math.min(255, Math.round(base[0] * k)), Math.min(255, Math.round(base[1] * k)), Math.min(255, Math.round(base[2] * k))];
+      tones.set(band, tone);
+    }
+    return tone;
+  };
+}
 /** Thickness of a stepped gable's parapet. */
 const STEP_GABLE = 0.09;
 
 function roofs(h: House): void {
   const { b, s, plan, has, solid, persona } = h;
+  const role = plan.roles.get(s.id)?.role;
   const regions = roofRegions(plan.facts).byStructure.get(s.id) ?? [];
   const roofFeature = new Map<number, Feature>();
   for (const f of h.features) if (f.type === 'roof' && f.region !== undefined) roofFeature.set(f.region, f);
@@ -288,6 +367,8 @@ function roofs(h: House): void {
         thick: HOUSE.roofThick,
         fascia: persona.trim,
         fasciaInk: `fascia${region.index}`,
+        cap: { color: capColor(persona), ink: `ridge${region.index}`, width: HOUSE.capWidth, proud: role === 'chapel' ? HOUSE.capProud * 1.6 : HOUSE.capProud },
+        tone: tileTone(s.seed, region, persona),
       });
       // Gable walls: where the roof is cut off, the wall below carries on up to it.
       for (const c of cells) {
@@ -332,9 +413,8 @@ function roofs(h: House): void {
 function gableWall(h: House, field: RoofField, e: WallEdge, inset: number, top: number, stepped: boolean): void {
   const { b } = h;
   const frame = faceFrame(e.cell, e.dir);
-  const plain = h.material(e.cell);
   // Some houses have half-timbered gables over plain walls.
-  const mat = h.persona.timberGable && !stepped && inset > 0 && plain.pattern === PATTERN.plaster ? { color: mixColor(h.wall, PALETTE.white, 0.45), pattern: PATTERN.timber } : plain;
+  const mat = !stepped && inset > 0 ? gableMaterial(h, e.cell) : h.material(e.cell);
   const xl = leftX(e, inset), xr = rightX(e, inset);
   const heightAt = (x: number): number => {
     const p = transformPoint(frame, [x, 0, -inset - 0.001]);
@@ -429,6 +509,14 @@ function chimneyFrame(h: House, f: Feature): Mat4Like | null | undefined {
   const field = h.fields.get(f.cell);
   if (!field) return undefined; // on a flat roof or terrace: the cell's floor centre is right
   const seed = h.s.seed;
+  // A tall flue climbs the taller wall beside it: its frame is on that wall, at this roof's wall top.
+  const against = (f.params as { against?: number } | undefined)?.against as Dir4 | undefined;
+  if (f.variant === 'tall-flue' && against !== undefined) {
+    const n = neighbor(f.cell, against);
+    const theirs = n !== NO_CELL && h.plan.kinds.get(n) === 'house' ? HOUSE.inset : 0; // a house wall stands inside its cell line
+    const along = (rand(seed, 'flue-along', f.cell) - 0.5) * 0.4;
+    return compose(faceFrame(f.cell, against), translation(along, CELL_H, theirs));
+  }
   const c = field.crest(f.cell);
   // Which way the ridge runs here: the direction in which the roof does not fall away.
   const fallX = c.y - Math.min(field.heightAt(f.cell, c.x + 0.2, c.z), field.heightAt(f.cell, c.x - 0.2, c.z));
@@ -491,7 +579,7 @@ function gableFrame(h: House, f: Feature): Mat4Like | null {
   const peak = field.heightAt(f.cell, p[0], p[2]) - top;
   if (peak < 0.3) return null;
   const wide = hi - lo + 1;
-  const scale = f.variant === 'rose' ? Math.min(1.5, 0.8 + 0.35 * wide) : Math.min(1.3, 0.85 + 0.15 * wide);
+  const scale = f.variant === 'rose' ? Math.min(1.6, 0.7 + 0.3 * wide) : Math.min(1.3, 0.85 + 0.15 * wide);
   // The parts draw these windows centred half-way up a storey; lift that point to a third of the gable.
   return compose(frame, translation(mid, CELL_H + peak * 0.36, -HOUSE.inset), scaling(scale), translation(0, -CELL_H / 2, 0));
 }

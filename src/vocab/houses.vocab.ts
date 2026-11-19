@@ -12,6 +12,10 @@ declare module '@/core/vocab' {
     // R-H14 (and D12): a weathervane on a ridge end.
     'finial/vane': true;
 
+    // J11: the side (Dir4) of the taller wall a tall flue climbs, as a brick breast against it.
+    // Without it a tall flue stands free.
+    'chimney.against': number;
+
     // R-H04: a stove pipe instead of a brick stack.
     'chimney/pipe': true;
 
@@ -19,8 +23,12 @@ declare module '@/core/vocab' {
     // cells stacked on it) half-timbered. `cell` = the jettied cell.
     'jetty': true;
 
-    // J10: a dormer on a pitched roof. `cell` = the roof cell, `dir` = the way it looks out.
+    // J10: something on a pitched roof over an eave. `cell` = the roof cell, `dir` = the eave it
+    // looks out over.
     'dormer': true;
+    'dormer/gabled': true; //       a small gabled window house on the slope
+    'dormer/cross-gable': true; //  the wall over the main door carried up into a gable of its own
+    'dormer/skylight': true; //     a roof light lying on the slope
 
     // R-H09: a portico with two small columns at the main door. cell + dir as the door.
     'portico': true;

@@ -37,10 +37,14 @@ export default definePart({
       b.boxAt([0, -0.04, 0], [0.03, 0.14, 0.03], { skip: ['bottom', 'top'] });
       bead(b, 0, 0.13, 0, 0.045);
     } else {
-      const t = 0.028;
-      b.boxAt([0, -0.05, 0], [t, 0.3, t], { skip: ['bottom'] });
-      if (across) b.box([-t / 2, 0.13, -0.075], [t / 2, 0.13 + t, 0.075]);
-      else b.box([-0.075, 0.13, -t / 2], [0.075, 0.13 + t, t / 2]);
+      // A stone cross on a small gablet block.
+      const t = 0.042;
+      b.with({ color: PALETTE.stoneShade }, () => {
+        b.boxAt([0, -0.06, 0], [0.1, 0.1, 0.1], { skip: ['bottom'] });
+        b.boxAt([0, 0.04, 0], [t, 0.3, t], { skip: ['bottom'] });
+        if (across) b.box([-t / 2, 0.2, -0.1], [t / 2, 0.2 + t, 0.1]);
+        else b.box([-0.1, 0.2, -t / 2], [0.1, 0.2 + t, t / 2]);
+      });
     }
     return { mesh: b.build() };
   },
