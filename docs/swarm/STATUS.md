@@ -276,3 +276,16 @@ timeouts are now 240 s). Published. The watching pass is only partly done:
 birds, boats, smoke, beam, sails, flags, clock, lamps, windows, bounce,
 wobble, pop-in). Second pass sent to the same agent.
 Running: polish (speed), guide, steady-ink, animation-polish pass 2.
+
+**Polish merged** (`f20fc9b`, Opus 5.5): incremental town logic
+(per-structure facts and local rules reused across resolves, with an
+equivalence test over 360 random edits), cell-by-cell path meshes, phone
+bench (`node tools/phone-bench.mjs`), and all small fixes (walls on pitched
+roofs, bunting glow, L20 rower, fishing-boat route, bench tool, sound off
+by default, soft cloud shadows). Orchestrator fix at merge: the new caches
+ignored `Block.style` (added to content keys and `sameWorld`).
+**The guide merged** (`613d9ec`, Opus 5.5): 44 entries plus the Auto block,
+45 pictures (986 KB) in `public/guide/`, proof test per recipe.
+Full check green: 1,480 tests. Published. Follow-up sent to the guide
+agent: garrison and rider entries. Running: steady-ink, animation-polish
+pass 2, guide follow-up.
