@@ -150,3 +150,15 @@ Published to Pages. Open: windmill cap does not yaw; L29 blocked (bell,
 clock hands, fountain jet baked as static geometry); grounding picture
 redraws every other frame so GPU load is about 3.5x (check on phone);
 remaining L rules and sound not done.
+
+**13:20** Merged Dressing `ea3274c`: D01–D11 (not D12), D13, D15, D20, D24,
+U01–U08, U12 (centre half). Full check green: 1,089 tests. Published.
+Not built: U09–U11 and U12 edge half (need Houses files), D12, D14, D17–D19,
+D21–D23, D25–D28, D30–D34. `resolveDressing` 13 ms of 30 ms. Orchestrator
+note: chimney smoke reads as stacked white lumps and is too dense; a laundry
+line can cross above a public stair.
+
+**13:25** Stage 4 depth launched on Opus 5.5: `swarm/dressing-depth`
+(remaining D and U rules; may edit Houses files for U09–U11) and
+`swarm/life-depth` (remaining L rules, L29 unblock, cap yaw, sound, smoke
+tuning; may edit the generators that bake bell, clock hands and jets).
