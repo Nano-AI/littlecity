@@ -110,6 +110,8 @@ export const WINDY = defineStyle(
     /** Opacity of the wash by day, and at dawn and dusk. */
     smokeOpacity: 0.62,
     smokeOpacityBusy: 0.82,
+    /** ... and at night, when it is hard to see against the dark. */
+    smokeOpacityNight: 0.3,
     // L03 sails.
     /** Radians a second at wind strength 1; a mill in calm air still creeps at sailIdle. */
     sailSpeed: 1.9,
@@ -134,6 +136,7 @@ export const WINDY = defineStyle(
     smokeGrow: [1, 4, 0.1],
     smokeOpacity: [0, 1, 0.01],
     smokeOpacityBusy: [0, 1, 0.01],
+    smokeOpacityNight: [0, 1, 0.01],
     sailSpeed: [0, 6, 0.1],
     sailIdle: [0, 1, 0.02],
     sailInertia: [0.1, 4, 0.1],

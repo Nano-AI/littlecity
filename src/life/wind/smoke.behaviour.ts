@@ -81,7 +81,7 @@ export default defineBehaviour({
     if (step === 0) return;
     if (ctx.instance.base[12] !== state.x || ctx.instance.base[13] !== state.y || ctx.instance.base[14] !== state.z) [state.x, state.y, state.z] = positionOf(ctx.instance.base);
     const busy = signals.time.isDusk || signals.time.isDawn;
-    const goal = busy ? WINDY.smokeOpacityBusy : WINDY.smokeOpacity;
+    const goal = busy ? WINDY.smokeOpacityBusy : signals.time.isNight ? WINDY.smokeOpacityNight : WINDY.smokeOpacity;
     state.thick += (goal - state.thick) * Math.min(1, step * 0.4);
     const max = state.puffs.length;
     const day = Math.round(WINDY.smokePuffs);

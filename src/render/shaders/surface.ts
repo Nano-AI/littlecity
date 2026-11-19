@@ -54,6 +54,7 @@ out float vEdge;
 flat out vec4 vParams;
 flat out float vPat;
 flat out vec2 vId;
+flat out vec3 vOrigin;   // the slot's origin in the world (a glow centre)
 
 ${COLOR}
 
@@ -61,6 +62,7 @@ void main(){
   vec3 p = position;
   vec3 n = normal.xyz;
   vec4 params = vec4(1.0, 0.0, 0.0, 0.0);
+  vOrigin = vec3(0.0);
   int s = int(slot + 0.5);
   if (s > 0) {
     ivec2 at = ivec2((s & 63) * 4, s >> 6);
@@ -68,6 +70,7 @@ void main(){
     vec4 r1 = texelFetch(uSlots, at + ivec2(1, 0), 0);
     vec4 r2 = texelFetch(uSlots, at + ivec2(2, 0), 0);
     params = texelFetch(uSlots, at + ivec2(3, 0), 0);
+    vOrigin = vec3(r0.w, r1.w, r2.w);
     p = vec3(dot(r0.xyz, position) + r0.w, dot(r1.xyz, position) + r1.w, dot(r2.xyz, position) + r2.w);
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
@@ -125,6 +128,7 @@ in float vEdge;
 flat in vec4 vParams;
 flat in float vPat;
 flat in vec2 vId;
+flat in vec3 vOrigin;
 
 uniform vec3 uLight;
 uniform float uTime;
@@ -274,8 +278,23 @@ void main(){
     // A shaft of light. Seen end on (pointing at you) its walls are edge-on: it fades away there,
     // instead of laying a flat sheet of light over the lighthouse it comes out of.
     float side = smoothstep(0.15, 0.55, abs(vn.z));
+    if (vParams.z > 0.5 && vParams.w > 0.0) {
+      // A point of light (param d is its halo's radius): bright at the centre, gone at the rim, the
+      // same from every side.
+      vec3 off = vW - vOrigin;
+      float d = length(vec2(dot(off, uCamRight), dot(off, uCamUp))) / vParams.w;
+      side = pow(clamp(1.0 - d, 0.0, 1.0), 1.7);
+    } else {
+      // Turned toward you, the shaft runs down over the tower it stands on: there it fades in only
+      // well clear of the lantern on the page. Seen across, it starts at the lamp.
+      vec3 off = vW - vOrigin;
+      float onPage = length(vec2(dot(off, uCamRight), dot(off, uCamUp)));
+      float across = onPage / max(length(off), 1e-3);
+      side *= mix(smoothstep(0.2, 4.5, onPage), 1.0, smoothstep(0.62, 0.95, across));
+    }
+    // Param c > 0.5: the light is the colour of the mesh (a firefly), not starlight.
     float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0) * side;
-    oColor = vec4(uStar * a, 0.0);
+    oColor = vec4((vParams.z > 0.5 ? toSrgb(base) : uStar) * a, 0.0);
   }
 #elif defined(GHOST)
   // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
