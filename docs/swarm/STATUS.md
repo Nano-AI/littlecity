@@ -141,3 +141,12 @@ adds J19 railings on house roofs, so the house parapet stands there.
 house float at eaves level (needs a decision: skip drawing them); stall and
 fountain triangle trims not done. Still running: Animation, Dressing, Look
 fix pass, held-length; People finishing.
+
+**12:50** Merged Animation `409c40c` (L02, L03, L06, L07, L09, L10 part,
+L11–L13, L16, L17, L19, F01–F05; `src/life/MOTION.md`; sequence tool
+`src/life/testing/sequence.mjs`). Full `npm run check` green: 972 tests,
+browser tests included (Animation fixed the slow e2e file by closing pages).
+Published to Pages. Open: windmill cap does not yaw; L29 blocked (bell,
+clock hands, fountain jet baked as static geometry); grounding picture
+redraws every other frame so GPU load is about 3.5x (check on phone);
+remaining L rules and sound not done.
