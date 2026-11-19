@@ -2,8 +2,8 @@
 // roof terrace. West to east: a terrace with nothing on it (the house's own
 // parapet all round); one the player fenced all round (no parapet, a low
 // coping under the railing); one fenced on its south side only (parapet on
-// the others); a paved terrace two storeys up, railed by J19 (no parapet
-// where the railing is).
+// the others); a paved terrace two storeys up, which keeps the house's
+// parapet (J19 adds no railing on a house roof).
 import { scenario } from '@/scenario';
 import { houseDressing } from '../houses/standins';
 
@@ -34,9 +34,9 @@ export default scenario({
     check.equal(check.features({ type: 'coping', on: [13, 1, 10] }).length, 8, 'coped sides of the fenced terrace');
     const south = check.hasFeature({ type: 'coping', on: [18, 1, 10] }, 2);
     check.ok(south.every((f) => f.dir === 2), 'only the fenced south side is coped');
-    // J19 rails the paved terrace's drop sides; each railed side is coped, so nothing is doubled.
-    const rails = check.hasFeature({ type: 'railing', rule: 'J19.edge-railing' }, 1).filter((f) => f.cell! >> 12 === 3);
-    check.equal(check.features({ type: 'coping', on: [23, 1, 10] }).length, rails.length, 'coped sides of the railed terrace');
-    for (const r of rails) check.hasFeature({ type: 'coping', at: [r.cell! & 63, 2, (r.cell! >> 6) & 63], dir: r.dir });
+    // Since the Ground fix pass (G4), J19 adds no derived railing on a house roof: the house's own
+    // parapet is the only barrier there, so the paved terrace has no railing and no coping.
+    check.equal(check.features({ type: 'railing', rule: 'J19.edge-railing' }).filter((f) => f.cell! >> 12 === 3).length, 0, 'no derived railing on the house roof');
+    check.equal(check.features({ type: 'coping', on: [23, 1, 10] }).length, 0, 'no coping where the parapet stands');
   },
 });
