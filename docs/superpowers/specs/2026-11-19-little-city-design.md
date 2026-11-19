@@ -183,6 +183,39 @@ refused.
 - The sea surface sits partway up level 0, so a beach top (`h = 1`) and a
   dock deck (a block at `y = 0` over water) are flush.
 
+**Terrain, second generation** (Derek's request, 2026-11-19). Islands were
+too alike: nearly flat with one small hill, and never a river, which left
+bridges with nothing to cross. New islands use a second generator; towns
+saved before it keep the island they were built on.
+
+- **Rivers.** A river is a channel of open water (terrain height 0), one or
+  two columns wide, that winds from the sea into or right across the island.
+  Most islands have one (about 60%), some have two (about 20%), some none
+  (about 20%). A river may split the land in two; that is what bridges are
+  for. Rivers meander, widen a little at the mouth, and may have a ford-less
+  pool or a small river island. Banks are grass or sand on gentle islands
+  and rock walls where the river cuts through high ground (a gorge).
+- **Shapes of island.** Each island rolls a character:
+  - *Gentle* (about 45%): as before, low and rolling, good for big towns.
+  - *Hilly* (about 30%): several hills and terraces, heights up to 6.
+  - *Steep* (about 15%): a mountain or ridge with heights up to 10, big
+    cliffs, narrow ledges, a little flat ground by the shore.
+  - *Archipelago or lagoon* (about 10%): two or three landmasses close
+    together, or a ring round sheltered water.
+  Every island still has a beach, at least one sheltered landing, and enough
+  flat low ground to start a town (at least 60 columns in patches of 3 × 3
+  or larger); the other old requirements (land share, a hill, a cliff, a
+  cove) become tendencies of the character, not rules.
+- **Rock.** High and steep ground is rock: cliff faces already draw as rock
+  where the drop is 2 or more; now summits, ridges and gorge walls also have
+  rock tops (drawn as bare stone with a few tufts), and steep islands show
+  scree at cliff feet. Rock is only how the terrain looks: it cannot be
+  edited, and it can be built on like any ground.
+- **Old towns.** The save and the share link record which generator made
+  the island (`World.terrainGen`, 1 or 2). Generator 1 stays in the code
+  unchanged, so every existing town, link, test town and guide picture loads
+  on the island it was built on. New islands and the dice use generator 2.
+
 **What is saved.**
 
 ```ts
@@ -323,6 +356,18 @@ random every time, which is annoying when you want several the same.
   style's drawing. The choice stays until changed, for the session. Wall
   colour still comes from the Colour swatch (auto by default), so "all the
   same" is: pick a style and pick a colour.
+- **One building, not a row of strangers** (fix, 2026-11-19). A chosen
+  style must let you build the big houses: an inn, a manor, a town hall are
+  all one house of many blocks. So each style has its own wall colour, and
+  while a style is selected (and the Colour swatch is on auto) every house
+  you place takes that colour, wherever you click. Houses of one style that
+  touch therefore join into one building, and it grows into whatever its
+  size and surroundings make it. Setting the Colour swatch overrides the
+  style's colour. With Random selected nothing changes: each house started
+  on bare ground is its own building with its own colour, and clicking the
+  side or top of a house extends that house. The ghost preview shows the
+  whole building a new block would join, so joining is visible before the
+  click.
 - **Stored.** A placed block records its style (`Block.style`, 0 = random),
   so styles survive saving and share links. A structure takes the style of
   its lowest-`seq` block; with style 0 it rolls its look from its seed as

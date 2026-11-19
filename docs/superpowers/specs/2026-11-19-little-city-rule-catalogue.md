@@ -381,16 +381,24 @@ Actors and motion. All read the signals in the design, section 13.
 - **L06 · 1 · Water** — drifting stroke lines (spike), foam at the shore,
   rings around stilts, pillars and boats. Tier 3: a fish jumps now and then;
   lily pads bob.
-- **L07 · 1 · Windows at dusk** — windows light one by one over 20 seconds in
-  seeded order, only where a resident is home; shop windows light first; most
-  go dark late at night.
+- **L07 · 1 · Windows through the night** — windows light one by one over
+  20 seconds at dusk in seeded order, only where a resident is home; shop
+  windows light first and go dark when the shop shuts. Then the town goes to
+  bed: through the first half of the night houses put their lights out one
+  at a time (upstairs last), until only about one house in six still has a
+  window lit, plus inns, the lighthouse, the castle gate and street lamps.
+  A few of the late windows change through the night (one goes out, another
+  comes on for a while). In a lit window a resident's silhouette sometimes
+  crosses, pauses, or draws a curtain: dark shapes against the warm pane,
+  never more than a few in view at once. Before dawn the bakery lights
+  first.
 - **L08 · 1 · Lamplighter** — at dusk one resident walks each street in route
   order; each lamp lights as they reach it. Lamps they cannot reach light on
   their own a few seconds apart. All lamps go out at dawn.
 - **L09 · 1 · Lighthouse beam** — sweeps at night; a soft glow on the water.
 - **L10 · 2 · Night dressing** — bunting and lanterns glow on squares;
-  fireflies in gardens and groves at dusk; stars and a moon on the paper;
-  rarely, a shooting star.
+  stars and a moon on the paper; rarely, a shooting star. (Fireflies were
+  removed at Derek's request, 2026-11-19: do not add them back.)
 - **L31 · 3 · Clouds** — ink-drawn clouds drift over the paper with the wind
   and drag soft shadows across the island.
 
