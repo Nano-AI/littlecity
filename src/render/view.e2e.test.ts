@@ -117,6 +117,19 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('flat ground and open sea never ink over, however far out or low the view (phone, half ink)', async () => {
+    for (const ink of ['half', 'full']) {
+      await look(`window.__look.open('look-isle-1', { ink: '${ink}', pixelRatio: 2, width: 390, height: 844 })`);
+      await look(`window.__look.camera({ zoom: 0.01, pitch: 35, yaw: 45, target: [24, 1, 24] })`);
+      const far = await look<FrameSummary>(`window.__look.frame()`);
+      expect(far.dark, `${ink}, far`).toBeLessThan(0.02);
+      await look(`window.__look.camera({ zoom: 0.8, pitch: 10, yaw: 100, target: [24, 1, 40] })`);
+      const low = await look<FrameSummary>(`window.__look.frame()`);
+      expect(low.dark, `${ink}, low`).toBeLessThan(0.05);
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('orbit, pan and zoom glide: the pose moves toward the goal over a few frames', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full' })`);
     const still = await look<FrameSummary>(`window.__look.frame(0.1)`);

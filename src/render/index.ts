@@ -791,14 +791,17 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
       const near = Math.max(LOOK.inkFarPx + 1, LOOK.inkNearPx);
       const closeness = Math.min(1, Math.max(0, (css - LOOK.inkFarPx) / (near - LOOK.inkFarPx)));
-      const detail = LOOK.inkDetailFar + (1 - LOOK.inkDetailFar) * closeness;
+      // Farther out than the "far" zoom (a phone showing the whole island), lines keep thinning and
+      // interior detail keeps fading, so a house six pixels wide is a shape, not a blot.
+      const beyond = Math.min(1, Math.max(0.3, css / Math.max(1, LOOK.inkFarPx)));
+      const detail = (LOOK.inkDetailFar + (1 - LOOK.inkDetailFar) * closeness) * beyond;
       const cu = compositeUniforms;
       cu.uOut.value.set(Math.round(width * pixelRatio), Math.round(height * pixelRatio));
       cu.uPR.value = pixelRatio;
       const origin = project(frame, [0, 0, 0], width, height);
       cu.uOrigin.value.set(origin[0], height - origin[1]);
       cu.uTime.value = seconds;
-      cu.uThick.value = LOOK.inkWidthFar + (LOOK.inkWidth - LOOK.inkWidthFar) * closeness;
+      cu.uThick.value = (LOOK.inkWidthFar + (LOOK.inkWidth - LOOK.inkWidthFar) * closeness) * Math.max(0.7, beyond);
       cu.uDepthT.value = LOOK.inkDepth;
       cu.uWeights.value.set(LOOK.inkSilhouette, LOOK.inkSeam * detail, LOOK.inkCrease * detail);
       cu.uWobble.value = LOOK.wobble;

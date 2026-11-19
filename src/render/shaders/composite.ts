@@ -102,12 +102,18 @@ vec3 decN(vec4 s){ vec2 xy = s.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0
 float edgeAt(vec2 uv, vec2 px){
   vec4 s0 = texture(tId, uv);
   vec3 n0 = decN(s0);
-  float d0 = texture(tDepth, uv).x;
   vec2 ox = vec2(px.x, 0.0), oy = vec2(0.0, px.y);
   vec4 sa = texture(tId, uv + ox), sb = texture(tId, uv - ox), sc = texture(tId, uv + oy), sd = texture(tId, uv - oy);
-  float da = texture(tDepth, uv + ox).x, db = texture(tDepth, uv - ox).x, dc = texture(tDepth, uv + oy).x, dd = texture(tDepth, uv - oy).x;
-  // Second difference: zero across a flat surface at any slant, large across a jump.
-  float jump = max(abs(da + db - 2.0 * d0), abs(dc + dd - 2.0 * d0)) * uDepthRange;
+  // Depth is read at whole texels, the same distance either side of the centre, so that the second
+  // difference is exactly zero across a flat surface at any slant and any zoom, and large across a jump.
+  ivec2 size = textureSize(tDepth, 0);
+  ivec2 c = ivec2(uv * vec2(size));
+  ivec2 o = max(ivec2(1), ivec2(px * vec2(size) + 0.5));
+  ivec2 hi = size - 1;
+  float dm = texelFetch(tDepth, c, 0).x;
+  float da = texelFetch(tDepth, min(c + ivec2(o.x, 0), hi), 0).x, db = texelFetch(tDepth, max(c - ivec2(o.x, 0), ivec2(0)), 0).x;
+  float dc = texelFetch(tDepth, min(c + ivec2(0, o.y), hi), 0).x, dd = texelFetch(tDepth, max(c - ivec2(0, o.y), ivec2(0)), 0).x;
+  float jump = max(abs(da + db - 2.0 * dm), abs(dc + dd - 2.0 * dm)) * uDepthRange;
   float drawn = step(0.5 / 255.0, s0.z + s0.w);   // bare paper has ink id 0 and no depth of its own
   float eDepth = smoothstep(uDepthT, uDepthT * 2.0, jump) * drawn;
   float eId = step(0.5 / 255.0, abs(sa.z - s0.z) + abs(sa.w - s0.w));
