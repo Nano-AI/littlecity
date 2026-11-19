@@ -431,3 +431,10 @@ Published.
 published): served from its worktree at http://127.0.0.1:5174/ (try
 `/?walk=everything`, `/?walk=grown-town-2`). Waiting on Derek's verdict.
 Running: ships, coplanar follow-up.
+
+**Walk preview feedback from Derek ("alright"):** cannot look in some
+directions; trees block him completely (should pass through); wants
+Minecraft-style flying (double-tap Space; Shift up, Control down); the
+glide in looks wrong and must not pass through things (glide out is good).
+Sent to the walk agent. Still preview only, still served at port 5174.
+Running: ships, coplanar follow-up, walk (preview fixes).
