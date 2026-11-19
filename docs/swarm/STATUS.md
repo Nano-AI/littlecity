@@ -391,3 +391,18 @@ by digest; existing scenarios pinned to generator 1. Full check green:
 agent), Grow a town pass 3 for rivers and steep islands (grow-town agent).
 Running: coplanar, walk (preview only), ships, terrain2 follow-up,
 grow-town pass 3.
+
+**Welcome changed** to a small closable note beside the menu button (Derek
+did not want it centred or blocking). Published.
+**Grow a town pass 3 merged** (`df16da5`): the street router crosses water
+with stone bridges (up to 6 water columns, equal banks), boardwalks between
+beaches (up to 12), and climbs cliffs of 2–6 levels on stepped marble; a
+riverside district (willows, reeds, boathouse, two barge landings); a
+galleon berth sought in the harbour; a small 3×3 square on cramped islands.
+Generator-2 towns: 196–444 blocks, 40–61 roles each, a stone bridge on
+every river island. Full check green: 1,564 tests. Published.
+Still weak: one or two districts per town left without a street; no bridge
+between banks of unequal height; no viaduct or sky bridge between steep
+shelves; cog berth not built separately.
+Running: terrain2 follow-up (rivers from the overview), coplanar, ships,
+walk (preview only).
