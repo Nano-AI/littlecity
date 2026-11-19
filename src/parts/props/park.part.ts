@@ -138,23 +138,30 @@ export const espalier = definePart({
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 431));
     const tone = localTone((item.params?.face ?? 2) as Dir4);
     const z = LINE + 0.16;
+    // A fruit tree trained flat against the wall: a straight stem and three tiers of level arms,
+    // each arm a row of small leaf clumps with fruit hanging under it. Seen from any side it is a
+    // ladder of green bars, not a crown.
+    const tiers = [0.13, 0.25, 0.37];
     b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'tree' }, () => {
-      tube(b, [[0, 0, z], [0, 0.34, z]], [0.022, 0.014], { seg: 4 });
-      for (const y of [0.14, 0.27]) tube(b, [[-0.3, y + 0.02, z], [0, y, z], [0.3, y + 0.02, z]], 0.011, { seg: 3 });
+      tube(b, [[0, 0, z], [0, 0.43, z]], [0.022, 0.013], { seg: 4 });
+      for (const y of tiers) tube(b, [[-0.33, y + 0.015, z], [0, y, z], [0.33, y + 0.015, z]], 0.01, { seg: 3 });
     });
     const leaf = vary(PALETTE.leaf, r('leaf'));
-    b.with({ pattern: PATTERN.leaves, ink: 'tree', sway: 0.15 }, () => {
-      for (const [i, y] of [0.16, 0.29].entries()) {
+    b.with({ pattern: PATTERN.leaves, ink: 'tree', sway: 0.12 }, () => {
+      for (const [i, y] of tiers.entries()) {
         for (const side of [-1, 1]) {
-          b.with({ color: side > 0 ? leaf : mixColor(leaf, PALETTE.leafDark, 0.3) }, () =>
-            lump(b, side * 0.17, y + 0.02, z + 0.01, 0.15, 0.055, 0.04, { seg: 7, rings: 4, normal: side > 0 ? tone.lit : tone.mid, twist: i }),
-          );
+          for (let k = 0; k < 2; k++) {
+            const x = side * (0.1 + k * 0.14 + (r('lx', i, side, k) - 0.5) * 0.02);
+            b.with({ color: (k + i) % 2 ? leaf : mixColor(leaf, PALETTE.leafDark, 0.35) }, () =>
+              lump(b, x, y + 0.025, z + 0.012, 0.068, 0.036, 0.03, { seg: 5, rings: 3, normal: side > 0 ? tone.lit : tone.mid, twist: k }),
+            );
+          }
         }
       }
-      b.with({ color: leaf }, () => lump(b, 0, 0.37, z + 0.01, 0.09, 0.06, 0.04, { seg: 7, rings: 4, normal: tone.lit }));
+      b.with({ color: leaf }, () => lump(b, 0, 0.45, z + 0.01, 0.05, 0.04, 0.03, { seg: 6, rings: 3, normal: tone.lit }));
     });
     b.with({ color: r('fruit') < 0.5 ? PALETTE.red : PALETTE.yellow, pattern: PATTERN.none, ink: 'tree' }, () => {
-      for (let i = 0; i < 5; i++) dab(b, (r('fx', i) - 0.5) * 0.52, 0.15 + (i % 2) * 0.13 + r('fy', i) * 0.03, z + 0.052, 0.022, tone.lit, 5, 0.014);
+      for (let i = 0; i < 6; i++) dab(b, (i % 2 ? 1 : -1) * (0.1 + r('fx', i) * 0.2), tiers[i % 3]! - 0.025, z + 0.045, 0.02, tone.lit, 5, 0.012);
     });
     return { mesh: b.build() };
   },
