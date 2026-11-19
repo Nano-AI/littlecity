@@ -134,6 +134,12 @@ export const RANDOM_STYLE = 0;
 export interface HouseStyle {
   /** Short name shown in the flyout. */
   name: string;
+  /**
+   * The style's own wall colour (a palette index, RAMPS.wall): with the Colour
+   * swatch on auto every house of this style is placed in it, so touching
+   * houses of one style join into one building (design section 7).
+   */
+  wall: number;
   /** One line for the tooltip. */
   hint: string;
   /** Roof ramp index, or the cover's own colour when `cover` is not shingles. */
@@ -159,6 +165,7 @@ export interface HouseStyle {
 export const HOUSE_STYLES: readonly HouseStyle[] = [
   {
     name: 'Harbour',
+    wall: 5,
     hint: 'Blue roof, boarded walls, a glazed door',
     roof: 1,
     roofFor: { 4: 4 }, // blue walls: a slate roof
@@ -176,6 +183,7 @@ export const HOUSE_STYLES: readonly HouseStyle[] = [
   },
   {
     name: 'Thatch',
+    wall: 2,
     hint: 'A straw roof and green shutters',
     roof: 0,
     cover: 'thatch',
@@ -192,6 +200,7 @@ export const HOUSE_STYLES: readonly HouseStyle[] = [
   },
   {
     name: 'Tudor',
+    wall: 6,
     hint: 'Red tiles over half-timbered walls',
     roof: 0,
     cover: 'shingles',
@@ -208,6 +217,7 @@ export const HOUSE_STYLES: readonly HouseStyle[] = [
   },
   {
     name: 'Manor',
+    wall: 0,
     hint: 'Slate roof, tall windows, bands between the storeys',
     roof: 4,
     roofFor: { 1: 0 }, // lilac walls: a red roof (blue would read as Harbour)
@@ -225,6 +235,7 @@ export const HOUSE_STYLES: readonly HouseStyle[] = [
   },
   {
     name: 'Farm',
+    wall: 4,
     hint: 'Green roof, timbered gables, boarded upper storeys',
     roof: 3,
     roofFor: { 3: 0, 7: 0 }, // mint and lime walls: a red roof
@@ -242,6 +253,7 @@ export const HOUSE_STYLES: readonly HouseStyle[] = [
   },
   {
     name: 'Villa',
+    wall: 3,
     hint: 'Orange tiles and round-topped windows',
     roof: 2,
     roofFor: { 0: 0, 6: 0 }, // yellow and peach walls: a red roof

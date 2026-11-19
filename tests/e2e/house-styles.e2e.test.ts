@@ -84,7 +84,7 @@ describe('desktop: house styles', () => {
     await page.mouse.move(640, 300);
     await page.waitForSelector('[data-ui="styles"]', { state: 'hidden' });
 
-    // Two clicks on bare ground: two separate houses, both Tudor, though their colours (auto) differ.
+    // Two clicks on bare ground: two separate houses, both Tudor, both in its peach (apart, so they stay two buildings).
     const [ax, ay] = await ground(page, 18, 28);
     await page.mouse.move(ax, ay);
     await page.waitForFunction('window.__lc.ui.debug().ghost !== null');
