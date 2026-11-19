@@ -24,6 +24,11 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - Rider (every garrisoned castle): tethered a cell out from the gate; where a street leads from the gate, `RIDER.rides` rides a day: gate → nearest square → across it → back, or with no square along the street to its end (or a crossing 4+ cells on) and back; with no street it stays tethered. Trots, walks into sharp turns and through crowds. Horse: `src/parts/people/horse.ts` (walk and trot on twos, legs stepping with the ground, tail flicks).
 - Residents wait for soldiers and the horse (`obstacles` in crowd options; `src/life/doors/table.ts` shares the crowd, the door table and those bodies per stage). L23 places no lone guard on a garrisoned keep. Debug: `window.__lcGarrison`.
 
+### L07 windows through the night
+- `window-light.behaviour.ts`: `windowLight(house, time, occupied)` is the whole plan (pure): dusk ramp, bedtimes in the first half of the night (downstairs first: param d is a height below which the house's panes are dark), owls (one home in six, chosen in the rule), inns all night, shops dark at night, bakery before dawn, early risers at dawn; owl-off and wake-up spells of `DUSKY.nightSpell` seconds of life time, so a held night still changes. Published per house with `setHouseGlow(stage, house, level, dark)` (occupancy.ts) for door glass and silhouettes.
+- `silhouette.system.ts`: 4 slots of acts (cross, pause, curtain) at lit house windows; meshes in `src/parts/people/extras.ts`. Debug: `window.__lcSilhouettes`.
+- Fireflies are gone (owner's request): do not add them back.
+
 ## Not done
 - L20 rower. L10 bunting glow (Dressing's bunting part has no `PATTERN.glow` bulbs; add them, then add 'bunting' to `LAMP_TYPES`).
 - Gust front: checked numerically (wind field), not convincingly by eye in contact sheets.
