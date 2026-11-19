@@ -150,7 +150,7 @@ export const wallBanner = definePart({
     const colors = clothColors();
     const color = colors[(((item.params?.color ?? 0) % colors.length) + colors.length) % colors.length]!;
     const z = -(item.params?.back ?? WALL_IN) + 0.025;
-    const top = CELL_H / 2 - 0.04, w = 0.14, len = 0.48 + r('len') * 0.06;
+    const top = CELL_H / 2 - 0.06, w = 0.17, len = 0.52 + r('len') * 0.06;
     b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'banner-pole' }, () => {
       b.box([-w - 0.03, top, z - 0.025], [w + 0.03, top + 0.022, z + 0.015]);
     });
