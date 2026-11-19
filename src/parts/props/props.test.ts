@@ -77,6 +77,14 @@ const CASES: [string, string | undefined, object | undefined, number, number][] 
   ['signpost', undefined, { arms: 3, look: 2 }, 60, 4],
   ['dirt-trail', undefined, { dir: 1, step: 0, steps: 3, look: 5 }, 40, 1],
   ['dirt-trail', undefined, { dir: 2, step: 2, steps: 3, look: 7 }, 40, 1],
+  ['hanging-lantern', 'bracket', undefined, 100, 3],
+  ['cafe-table', undefined, { color: 1, look: 2 }, 200, 5],
+  ['creeper', undefined, { storeys: 2, look: 3, face: 1 }, 420, 1],
+  ['doorstep', undefined, { steps: 0, pots: 1, flowers: 2, look: 4 }, 260, 4],
+  ['doorstep', undefined, { steps: 2, barrel: 1, bicycle: 1, lantern: 1, look: 5 }, 420, 6],
+  ['rope-coil', undefined, undefined, 100, 1],
+  ['lobster-pot', undefined, { look: 6 }, 140, 3],
+  ['net-rack', undefined, { look: 7 }, 120, 2],
 ];
 
 describe('dressing props', () => {

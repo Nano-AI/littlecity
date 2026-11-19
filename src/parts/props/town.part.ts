@@ -213,7 +213,7 @@ export const ropeCoil = definePart({
     const b = ctx.mesh();
     const rope = vary(mixColor(PALETTE.sand, PALETTE.wood, 0.4), ctx.rand('c'));
     b.with({ color: rope, pattern: PATTERN.none, ink: 'coil' }, () => {
-      b.lathe([[0.045, 0], [0.11, 0], [0.115, 0.03], [0.1, 0.055], [0.055, 0.055], [0.045, 0.03], [0.045, 0]], { segments: 8 });
+      b.lathe([[0.045, 0.03], [0.045, 0], [0.11, 0], [0.115, 0.03], [0.1, 0.055], [0.055, 0.055], [0.045, 0.03]], { segments: 6 });
       tube(b, [[0.1, 0.02, 0], [0.16, 0.012, 0.05], [0.2, 0.01, 0.02]], 0.014, { seg: 4, capEnd: true });
     });
     return { mesh: b.build() };
