@@ -326,3 +326,15 @@ agent `swarm/coplanar`.
 Full check green: 1,500 tests. Published.
 Running: animation-polish (night windows, fireflies), house-styles fix,
 terrain2, coplanar.
+
+**House styles fix merged** (`570dd8a`): each style has a signature wall
+colour (Harbour cream, Thatch pink, Tudor peach, Manor yellow, Farm blue,
+Villa mint), so houses of one style join; inn and manor proven by real
+clicks in a browser test; ghost frames the building a block would join.
+Full check green: 1,508 tests. Published. Follow-ups sent to the same
+agent: houses must join across a one-level terrain step; R-H05 boathouse
+must not pre-empt inn, manor and town hall for big houses. Known limit,
+left as is: a row of identical same-style houses joins into one building
+(workaround: a different swatch colour per house, or gaps).
+Running: animation-polish (night windows, fireflies), terrain2, coplanar,
+house-styles follow-ups.
