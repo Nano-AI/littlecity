@@ -301,7 +301,8 @@ describe('stages and ids', () => {
     resolveTown(row(1).world, terrain, { rules: [peek('D94.peek', 'decoration'), peek('U94.peek', 'urban'), peek('L94.peek', 'life')] });
     expect(navSeen.decoration).toBeNull();
     expect(navSeen.urban).toBeNull();
-    expect(navSeen.life).toMatchObject({ nodes: [], links: [] });
+    // People (Stage 3): the real graph is no longer empty; what is pinned is that life rules get one.
+    expect(navSeen.life).toMatchObject({ nodes: expect.any(Array), links: expect.any(Array) });
   });
 });
 

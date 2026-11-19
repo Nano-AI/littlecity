@@ -193,42 +193,113 @@ export function isActor<T extends ActorType>(a: Actor, type: T): a is ActorOf<T>
 }
 
 // ──────────────────────────────────────────────────────── walking graph ──
+//
+// Reshaped by People (Stage 3); see docs/swarm/requests/people.md. Built by
+// buildNav in src/resolve/nav.ts from the finished shape plan (design
+// section 13). `nodes`, `links` and `nodeAt` are as Stage 0 sketched them;
+// the rest is new: adjacency for routing, doors, connected parts and the
+// single-file runs people queue at.
 
-export type NavSurface = 'path' | 'plaza' | 'garden' | 'grass' | 'sand' | 'deck' | 'stairs' | 'steps' | 'roof';
+export type NavSurface = 'path' | 'plaza' | 'garden' | 'grass' | 'sand' | 'deck' | 'roof' | 'stairs' | 'trail';
 
 export interface NavNode {
-  /** The cell a person stands in (the cell above the walkable top, or a stairs cell). */
+  /** The cell a person stands in (the cell above the walkable top, a stairs cell, a gate, a ground arch). */
   cell: CellKey;
   surface: NavSurface;
-  /** Cost to cross this cell (catalogue L24: path or plaza 1, deck 1.5, grass 3). */
+  /** Cost to cross this cell (catalogue L24: path or plaza 1, dock or deck 1.5, grass 3). */
   cost: number;
+  /** A stairs cell: the direction its flight climbs toward. The floor rises one level across the cell. */
+  rot?: Dir4;
+  /** A gate cell or a ground arch: it can be crossed only along this direction and its opposite. */
+  passage?: Dir4;
 }
 
+export type NavVia = 'walk' | 'stairs' | 'steps' | 'gate' | 'interior';
+
 export interface NavLink {
-  /** Indices into NavGraph.nodes. Links are two-way. */
+  /** Indices into NavGraph.nodes. Links are two-way. For 'stairs' and 'steps', `a` is the lower end. */
   a: number;
   b: number;
   /**
-   * 'walk' side by side; 'stairs' up a stairs block; 'steps' carved terrain
-   * steps (J17); 'gate' through a fence gate or wall opening (J20);
-   * 'interior' through a building between two of its doors or its roof
-   * hatch (the person is hidden for `seconds`).
+   * 'walk' side by side; 'stairs' from a stairs cell to the cell at its
+   * head; 'steps' carved terrain steps (J17); 'gate' through a fence gate
+   * or wall opening (J20); 'interior' through a building between two of
+   * its doors or its roof hatch (the person is hidden for `seconds`).
    */
-  via: 'walk' | 'stairs' | 'steps' | 'gate' | 'interior';
-  /** Extra cost of the link itself, on top of the nodes' costs. */
+  via: NavVia;
+  /** Extra cost of the link itself, on top of half of each end's node cost. */
   cost: number;
-  /** interior links: the building, and how long the walk through it takes. */
+  /** interior links: the building, how long the walk through it takes, and its two doors (indices into NavGraph.doors, at `a` and at `b`). */
   structure?: StructureId;
   seconds?: number;
+  doorA?: number;
+  doorB?: number;
+}
+
+/** A way into a building: a door feature, or the hatch of a roof terrace. */
+export interface NavDoor {
+  structure: StructureId;
+  /** The building cell the door is in (for a hatch: the terrace cell above the roof). */
+  cell: CellKey;
+  /** The side of `cell` it opens on; undefined for a hatch. */
+  dir?: Dir4;
+  /** The node a person stands on just outside, or -1 when the door opens onto nothing walkable. */
+  node: number;
+  /** The door feature's id, or `hatch@<cell>` for a hatch the graph derived. */
+  feature: string;
+  /** The 'door' socket (its frame is the threshold), if the feature owns one. */
+  socket?: string;
+  main: boolean;
+  hatch: boolean;
+  /** Levels from the door's floor down to the node outside (a stoop, J08): 0 or 1. */
+  drop: number;
+}
+
+/**
+ * A stretch only one person wide: a narrow stairs flight, carved steps, a
+ * gate, a ground arch. People queue at its ends while someone is coming the
+ * other way (catalogue L24).
+ */
+export interface NavRun {
+  id: number;
+  /** The links that lie in it, ascending. */
+  links: readonly number[];
+  /** The nodes at its open ends (where people wait), ascending. */
+  ends: readonly number[];
 }
 
 export interface NavGraph {
   nodes: readonly NavNode[];
   links: readonly NavLink[];
   nodeAt: ReadonlyMap<CellKey, number>;
+  /** Adjacency: the links of node n are linkOf[linkStart[n] … linkStart[n + 1] − 1]. */
+  linkStart: Int32Array;
+  linkOf: Int32Array;
+  doors: readonly NavDoor[];
+  /** Door indices per building, ascending. */
+  doorsOf: ReadonlyMap<StructureId, readonly number[]>;
+  /** Connected part of each node (interior links count). Two nodes have a route exactly when these are equal. */
+  part: Int32Array;
+  /** Per connected part: how many of its nodes carry a floor (path, plaza or garden). */
+  partFloors: Int32Array;
+  runs: readonly NavRun[];
+  /** The run each link lies in, or -1. */
+  runOf: Int32Array;
 }
 
-export const EMPTY_NAV: NavGraph = { nodes: [], links: [], nodeAt: new Map() };
+export const EMPTY_NAV: NavGraph = {
+  nodes: [],
+  links: [],
+  nodeAt: new Map(),
+  linkStart: new Int32Array(1),
+  linkOf: new Int32Array(0),
+  doors: [],
+  doorsOf: new Map(),
+  part: new Int32Array(0),
+  partFloors: new Int32Array(0),
+  runs: [],
+  runOf: new Int32Array(0),
+};
 
 // ──────────────────────────────────────────────────────────────── plans ──
 
