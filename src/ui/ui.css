@@ -88,8 +88,16 @@
     background: var(--lc-soft);
   }
 }
+/* The press dips the button and shrinks what is drawn in it, never the button itself: a scaled
+   button measured 43 × 43 px after a tap (44 × 0.97), under the 44 px a finger needs. */
+.lc-btn > * {
+  transition: transform 90ms ease-out;
+}
 .lc-btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.97);
+  transform: translateY(1px);
+}
+.lc-btn:active:not(:disabled) > * {
+  transform: scale(0.97);
 }
 .lc-btn:focus-visible,
 .lc-tab:focus-visible,
