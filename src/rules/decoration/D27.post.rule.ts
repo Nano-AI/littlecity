@@ -4,8 +4,9 @@
 //                straight onto a street: on a post beside the door, at the
 //                house-side corner of the next street cell along
 //   a pillar box one red pillar box on every street of DEPTH.postboxStreet
-//                cells or more: at a corner of the cell nearest the street's
-//                middle, against a wall if one can be found
+//                cells or more that two doors or more open onto: at a corner
+//                of the cell nearest the street's middle, against a wall if
+//                one can be found
 //
 // Corners of a path cell are never on its walking line (that is where lamps
 // stand), so neither blocks the way; a lamp that took the corner first keeps it.
@@ -54,7 +55,8 @@ export default defineRule<{ type: 'mailbox' | 'postbox'; cell: CellKey; pos: Cel
     }
     const min = Math.round(DEPTH.postboxStreet);
     for (const street of streets(facts).list) {
-      if (street.length < min) continue;
+      // A street people live on: two doors or more open onto it.
+      if (street.length < min || street.cells.filter((c) => clear.doorFronts.has(c)).length < 2) continue;
       const mid = street.cells[Math.floor(street.cells.length / 2)]!;
       const mx = mid & 63, mz = (mid >> 6) & 63;
       const order = [...street.cells].sort((a, b) => Math.abs((a & 63) - mx) + Math.abs(((a >> 6) & 63) - mz) - (Math.abs((b & 63) - mx) + Math.abs(((b >> 6) & 63) - mz)) || a - b);
