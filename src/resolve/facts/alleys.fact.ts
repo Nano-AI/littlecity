@@ -2,11 +2,10 @@
 // sides (design section 10).
 
 import { E, N, neighbor, NO_CELL, S, W, type CellKey } from '@/core/grid';
-import { KINDS } from '@/core/kinds';
 import type { StructureId } from '../plan';
 import { FACTS } from '@/style/facts';
-import { defineFact, type Facts } from './api';
-import { standable } from './lib';
+import { defineFact } from './api';
+import { BULKY, occupancy, SOLID } from './occupancy.fact';
 
 export interface Alley {
   /** 'x': the corridor runs east–west (structures on its N and S sides); 'z': north–south (E and W). */
@@ -23,36 +22,39 @@ export interface Alleys {
   byCell: ReadonlyMap<CellKey, Alley>;
 }
 
-function wallAt(f: Facts, c: CellKey): StructureId | undefined {
-  if (c === NO_CELL) return undefined;
-  const k = f.kinds.get(c);
-  if (k === undefined || !(KINDS[k].solid || KINDS[k].building)) return undefined;
-  return f.structureAt.get(c);
-}
-
 export const alleys = defineFact<Alleys>('alleys', (f) => {
+  const occ = occupancy(f);
+  /** The structure of a block (solid, or a windmill) in the cell, else undefined. Terrain is not a structure. */
+  const wallAt = (_f: unknown, c: CellKey): StructureId | undefined =>
+    c !== NO_CELL && occ.kind[c] && occ.flags[c]! & BULKY ? occ.structure[c]! : undefined;
+  /** Standable: on terrain top or a solid block top, and nothing solid in it. */
+  const standable = (c: CellKey): boolean => {
+    if (c === NO_CELL || occ.flags[c]! & SOLID) return false;
+    return c >> 12 > 0 && (occ.flags[c - (1 << 12)]! & SOLID) !== 0;
+  };
   const list: Alley[] = [];
   const byCell = new Map<CellKey, Alley>();
   // A corridor cell along x has blocks N and S but not both E and W (else it is a pocket, not a corridor).
   const along = (c: CellKey, axis: 'x' | 'z'): boolean => {
-    if (!standable(f, c)) return false;
+    if (!standable(c)) return false;
     const [a, b, c1, c2] = axis === 'x' ? [N, S, E, W] : [E, W, N, S];
     if (wallAt(f, neighbor(c, a)) === undefined || wallAt(f, neighbor(c, b)) === undefined) return false;
     return wallAt(f, neighbor(c, c1)) === undefined || wallAt(f, neighbor(c, c2)) === undefined;
   };
-  const candidates = new Set<CellKey>();
-  for (const [c, k] of f.kinds) {
-    if (!KINDS[k].solid && !KINDS[k].building) continue;
-    for (const d of [N, E, S, W]) {
-      const n = neighbor(c, d);
-      if (n !== NO_CELL) candidates.add(n);
-    }
+  // Candidates: a free cell with a block on both sides across the axis (N and S for 'x', W and E for 'z').
+  const candidates = { x: [] as CellKey[], z: [] as CellKey[] };
+  const bulky = (c: CellKey): boolean => c !== NO_CELL && (occ.flags[c]! & BULKY) !== 0 && occ.kind[c] !== 0;
+  for (const c of f.kinds.keys()) {
+    if (!bulky(c)) continue;
+    const s1 = neighbor(c, S);
+    if (s1 !== NO_CELL && !bulky(s1) && bulky(neighbor(s1, S))) candidates.x.push(s1);
+    const e1 = neighbor(c, E);
+    if (e1 !== NO_CELL && !bulky(e1) && bulky(neighbor(e1, E))) candidates.z.push(e1);
   }
-  const sorted = [...candidates].sort((a, b) => a - b);
   for (const axis of ['x', 'z'] as const) {
     const fwd = axis === 'x' ? E : S;
     const back = axis === 'x' ? W : N;
-    for (const c of sorted) {
+    for (const c of candidates[axis].sort((a, b) => a - b)) {
       if (!along(c, axis) || along(neighbor(c, back), axis)) continue;
       const cells = [c];
       for (let n = neighbor(c, fwd); n !== NO_CELL && along(n, axis); n = neighbor(n, fwd)) cells.push(n);

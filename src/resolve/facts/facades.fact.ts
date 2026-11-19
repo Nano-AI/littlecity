@@ -2,12 +2,13 @@
 // storey, and what it faces within 3 cells.
 
 import { columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
-import { KINDS, type EdgeKind, type Kind, type StructureKind } from '@/core/kinds';
+import type { EdgeKind, Kind, StructureKind } from '@/core/kinds';
 import type { StructureId } from '../plan';
 import { FACTS } from '@/style/facts';
 import { alleys } from './alleys.fact';
-import { defineFact, type Facts } from './api';
-import { bulky, DIRS, edgeBetween, inTerrain } from './lib';
+import { defineFact } from './api';
+import { DIRS, edgeBetween } from './lib';
+import { BULKY, KIND_CODES, occupancy, SOLID, TERRAIN, type Occupancy } from './occupancy.fact';
 import { sunnySide } from './sun.fact';
 
 /** The kinds that have facades: the building kinds. */
@@ -62,30 +63,43 @@ export interface Facades {
   at(cell: CellKey, dir: Dir4): Facade | undefined;
 }
 
-type Surface = 'street' | 'plaza' | 'garden' | 'water' | 'ground' | 'roof';
+const SURFACE: readonly (Faced | null)[] = [null, 'street', 'plaza', 'garden', 'water', 'ground'];
+const ROOF = 6;
 
-/** What lies at or below a free cell: the first floor, terrain top, block top or the sea. Also how far down. */
-function surfaceUnder(f: Facts, cell: CellKey): { what: Surface; drop: number } {
-  const y = keyY(cell);
-  for (let c = cell; c !== NO_CELL; c = keyY(c) > 0 ? c - (1 << 12) : NO_CELL) {
-    const fl = f.world.floors.get(c);
-    if (fl) return { what: fl === 'path' ? 'street' : fl, drop: y - keyY(c) };
-    const below = keyY(c) > 0 ? c - (1 << 12) : NO_CELL;
-    if (below === NO_CELL) return { what: f.terrain.height[columnIndex(keyX(c), keyZ(c))]! > 0 ? 'ground' : 'water', drop: y };
-    if (inTerrain(f, below)) return { what: 'ground', drop: y - keyY(c) };
-    const k = f.kinds.get(below);
-    if (k !== undefined && KINDS[k].solid) return { what: 'roof', drop: y - keyY(c) };
+/**
+ * What lies at or below a free cell, as a code: 1–3 a floor (path, plaza,
+ * garden), 4 the sea, 5 the terrain top, 6 the top of a solid block. The
+ * levels down to it go in `drop`.
+ */
+function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): number {
+  const y = cell >> 12;
+  for (let c = cell; ; c -= 1 << 12) {
+    const fl = occ.floor[c]!;
+    if (fl) {
+      out.drop = y - (c >> 12);
+      return fl;
+    }
+    if (c >> 12 === 0) {
+      out.drop = y;
+      return 4; // at sea level and not in the ground: the sea
+    }
+    const below = occ.flags[c - (1 << 12)]!;
+    if (below & SOLID) {
+      out.drop = y - (c >> 12);
+      return below & TERRAIN ? 5 : ROOF;
+    }
   }
-  return { what: 'water', drop: y };
 }
 
 export const facades = defineFact<Facades>('facades', (f) => {
+  const occ = occupancy(f);
   const list: Facade[] = [];
   const byStructure = new Map<StructureId, Facade[]>();
   const index = new Map<number, Facade>();
   const sun = sunnySide(f);
   const reach = FACTS.facadeReach;
   const ids = [...f.structures.keys()].sort((a, b) => a - b);
+  const under = { drop: 0 };
   for (const id of ids) {
     const s = f.structures.get(id)!;
     if (!FACADE_KINDS.has(s.kind) || !s.cells.length) continue;
@@ -95,9 +109,7 @@ export const facades = defineFact<Facades>('facades', (f) => {
     for (const cell of s.cells) {
       for (const dir of DIRS) {
         const out = neighbor(cell, dir);
-        if (out === NO_CELL || inTerrain(f, out)) continue;
-        const ok = f.kinds.get(out);
-        if (f.structureAt.get(out) === id || (ok !== undefined && KINDS[ok].solid)) continue;
+        if (out === NO_CELL || occ.flags[out]! & SOLID || occ.structure[out] === id) continue;
         const fc: Facade = {
           structure: id,
           kind: s.kind,
@@ -106,43 +118,62 @@ export const facades = defineFact<Facades>('facades', (f) => {
           storey: keyY(cell) - minY + 1,
           faces: 'open',
           dist: 0,
+          street: undefined,
+          plaza: undefined,
+          garden: undefined,
+          water: undefined,
+          cliff: undefined,
+          ground: undefined,
+          other: undefined,
+          gap: undefined,
+          cliffRise: undefined,
+          touching: undefined,
+          edge: edgeBetween(f, cell, dir),
           drop: 0,
           alley: false,
           sunny: sun.isSunny(dir),
         };
-        if (ok !== undefined && !KINDS[ok].building) fc.touching = ok;
-        const edge = edgeBetween(f, cell, dir);
-        if (edge) fc.edge = edge;
-        const note = (what: Faced, k: number): void => {
-          if (fc.faces === 'open') {
-            fc.faces = what;
-            fc.dist = k;
-          }
-          if (what === 'street' || what === 'plaza' || what === 'garden' || what === 'water' || what === 'cliff' || what === 'ground') {
-            fc[what] ??= k;
-          }
-        };
+        const outKind = occ.kind[out]!;
+        if (outKind && !(occ.flags[out]! & BULKY)) fc.touching = KIND_CODES[outKind - 1];
         let c = cell;
         for (let k = 1; k <= reach; k++) {
           c = neighbor(c, dir);
           if (c === NO_CELL) break;
-          if (inTerrain(f, c)) {
-            note('cliff', k);
-            fc.cliffRise ??= f.terrain.height[columnIndex(keyX(c), keyZ(c))]! - keyY(cell);
+          const fl = occ.flags[c]!;
+          if (fl & TERRAIN) {
+            if (fc.faces === 'open') {
+              fc.faces = 'cliff';
+              fc.dist = k;
+            }
+            fc.cliff = k;
+            fc.cliffRise = f.terrain.height[columnIndex(keyX(c), keyZ(c))]! - keyY(cell);
             break;
           }
-          if (bulky(f, c)) {
-            const other = f.structureAt.get(c)!;
+          if (fl & BULKY) {
+            const other = occ.structure[c]!;
             if (other !== id) {
-              note('structure', k);
+              if (fc.faces === 'open') {
+              fc.faces = 'structure';
+              fc.dist = k;
+            }
               fc.other = other;
               fc.gap = k - 1;
             }
             break;
           }
-          const under = surfaceUnder(f, c);
+          const what = surfaceUnder(occ, c, under);
           if (k === 1) fc.drop = under.drop;
-          if (under.what !== 'roof') note(under.what, k);
+          if (what === ROOF) continue;
+          const name = SURFACE[what]!;
+          if (fc.faces === 'open') {
+              fc.faces = name;
+              fc.dist = k;
+            }
+          if (what === 1) fc.street ??= k;
+          else if (what === 2) fc.plaza ??= k;
+          else if (what === 3) fc.garden ??= k;
+          else if (what === 4) fc.water ??= k;
+          else fc.ground ??= k;
         }
         mine.push(fc);
         list.push(fc);

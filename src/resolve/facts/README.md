@@ -37,12 +37,19 @@ in ascending cell or id order, so iteration is deterministic. Tunables
 | `wildGrass` (`grass.fact.ts`) | Bare grass: the terrain-top cell of a grass (not sand) column, with no block and no floor in it. |
 | `leftovers` (`leftovers.fact.ts`) | Connected bare-grass patches (side by side, or one terrain step apart, not across an edge piece) bounded on every side by blocks (`structure`, or `fence` / `wall` cell pieces), floors, edge pieces, a cliff (2+ levels) or water. Touching sand or the map edge makes it open, so not a leftover. `bounds`, and the `streets`, `plazas` and block `structures` it touches. |
 | `verges` (`verges.fact.ts`) | Bare grass cells with a path cell beside them (same level, or one terrain step). `dirs`, `streets`, and `fenced` (an edge piece stands between it and every street beside it). |
+| `occupancy` (`occupancy.fact.ts`) | Dense arrays indexed by CellKey for hot loops: `kind` (0 = none, else `KIND_CODES` index + 1), `flags` (`SOLID`, `TERRAIN`, `BULKY` = solid or building block), `floor` (`FLOOR_CODES`), `structure` (block structure id or −1). |
 | `townFacts` (`town.fact.ts`) | `structuresByKind`, `cellsByKind`, `floorCells`, `blocks`, `topLevel`, `tallest` (the block structure reaching highest: its top level, ties lowest id), `tallestByKind` (most storeys per kind), `highestWalkable` (highest standable cell on terrain or a solid block top), `streetLength` (path cells). Rules reading it are town-wide. |
 | `townRoles` (`town.fact.ts`) | Structures per role. Reads the finished shape: dressing-stage rules only. |
 | `socketsByType`, `featuresByType`, `socketsById` (`plan-index.fact.ts`) | Indexes over the finished shape plan (Stage 0); dressing-stage rules only. |
 
 Population is not a fact: it depends on the device's resident cap and is
 L21's to compute.
+
+Cost on the 2,000-block reference town (Node, each computed once per
+resolve): facades 1.5 ms (including alleys and occupancy), roofRegions,
+structureInfo, courtyards, townFacts about 0.6 ms each, the rest under
+0.5 ms. All together about 7 ms, so a shape-stage rule should read only
+what it needs.
 
 Helpers that are not facts, for fact authors: `lib.ts` (solidity, walkable
 tops, distance fields, largest square) and `regions.ts` (floor-region
