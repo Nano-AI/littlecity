@@ -37,6 +37,7 @@ export default scenario({
     b.path(31, 32, 32, 32).path(33, 32, 40, 32); // ... and on to the point
     b.path(15, 25, 15, 31).path(24, 25, 24, 31).path(36, 25, 36, 31); // down to the water
     b.path(20, 22, 20, 23); // square to main street
+    b.path(16, 27, 23, 27); // a back lane: the grass behind the shops becomes a pocket park
     b.path(7, 17, 17, 17).path(7, 18, 7, 23); // the alley, and round to main street
     b.path(28, 17, 28, 23); // up toward the hill
     b.path(24, 16, 41, 16); // along the foot of the first bank
@@ -100,13 +101,17 @@ export default scenario({
     b.house(32, 9, { color: 3 });
     b.put('tree', 29, 7).put('tree', 28, 9).put('tree', 41, 9).put('tree', 41, 13).put('tree', 29, 14);
 
+    // ── a marble terrace with a stair, beside the street up to the hill: the corner by the stair is a nook ──
+    b.fill('marble', 25, 20, 26, 21, { floors: 1 });
+    b.block('stairs', 27, 1, 21, { rot: 3 });
+
     // ── the fields ──
     b.fenceAround(8, 26, 12, 29);
     b.put('tree', 9, 27).put('tree', 11, 26).put('tree', 11, 28).put('tree', 8, 29);
     b.fenceAround(17, 28, 21, 30);
 
     // ── trees about the town ──
-    for (const [x, z] of [[6, 13], [9, 11], [14, 12], [16, 9], [22, 10], [25, 13], [13, 20], [26, 20], [38, 27], [34, 28], [22, 27], [29, 29], [41, 21], [6, 27]] as const) b.put('tree', x, z);
+    for (const [x, z] of [[6, 13], [9, 11], [14, 12], [16, 9], [22, 10], [25, 13], [13, 20], [38, 27], [34, 28], [22, 27], [29, 29], [41, 21], [6, 27]] as const) b.put('tree', x, z);
   },
   cameras: [
     { name: 'se', yaw: 45, pitch: 36, zoom: 1.55, target: [23.5, 1, 20.5] },
@@ -126,10 +131,14 @@ export default scenario({
     { name: 'courtyard', yaw: 45, pitch: 44, zoom: 5.5, target: [35, 1.6, 20] },
     { name: 'fields', yaw: 45, pitch: 34, zoom: 4.2, target: [14.5, 1, 28] },
     { name: 'street', yaw: 60, pitch: 28, zoom: 6, target: [19, 1.4, 24.5] },
+    { name: 'park', yaw: 30, pitch: 34, zoom: 6.5, target: [19.5, 1.2, 26.5] },
+    { name: 'nook', yaw: 45, pitch: 30, zoom: 7.5, target: [26.5, 1.3, 21] },
   ],
   expect(_plan, dressing, check) {
-    // Every tier-1 dressing rule has something to do here.
-    for (const rule of ['D01.street-lamps', 'D02.square-lamps', 'D05.laundry-line', 'D07.shop-dressing', 'D09.flower-boxes', 'D13.flags', 'D20.bridge-lamps', 'D24.wild-ground', 'U03.front-garden', 'U07.retaining-wall']) {
+    // The dressing rules all have something to do here.
+    const tier1 = ['D01.street-lamps', 'D02.square-lamps', 'D05.laundry-line', 'D07.shop-dressing', 'D09.flower-boxes', 'D13.flags', 'D20.bridge-lamps', 'D24.wild-ground', 'U03.front-garden', 'U07.retaining-wall'];
+    const more = ['U01.pocket-park', 'U02.fenced-field', 'U05.street-trees', 'U06.town-edge', 'U08.nooks', 'D03.benches', 'D04.bunting', 'D10.creepers', 'D11.doorstep', 'D15.dock-goods'];
+    for (const rule of [...tier1, ...more]) {
       check.ok(check.applied(rule) > 0, `${rule} applies in the show town`);
     }
     check.ok(dressing.props.length > 150, 'the town is dressed');

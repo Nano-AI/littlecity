@@ -57,7 +57,12 @@ describe('the gallery', () => {
 
     // The filter narrows the list.
     await page.fill('.g-filter', 'light');
-    expect(await js(page, `[...document.querySelectorAll('.g-list [data-entry]:not([hidden])')].map((b) => b.dataset.entry)`)).toEqual(['gen.lighthouse']);
+    // (Animation, Stage 3: the vocabulary's own actor types 'lighthouse-beam' and 'window-light' now have parts,
+    // so 'light' matches more than the lighthouse. What is tested is the same: only matching entries stay.)
+    const shown = (await js(page, `[...document.querySelectorAll('.g-list [data-entry]:not([hidden])')].map((b) => b.dataset.entry)`)) as string[];
+    expect(shown).toContain('gen.lighthouse');
+    expect(shown.every((entry) => entry.includes('light'))).toBe(true);
+    expect(shown.length).toBeLessThan(await js(page, `document.querySelectorAll('.g-list [data-entry]').length`));
     expect(errors).toEqual([]);
   });
 

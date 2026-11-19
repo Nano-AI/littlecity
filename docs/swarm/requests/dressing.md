@@ -13,6 +13,13 @@ Sections 2 to 4 are seams the other owners should know about.
 
 Request: bless these, or tell me the preferred shape.
 
+And one file of another owner's, changed at the merge with the main line:
+
+| File | Was | Now | Why |
+|---|---|---|---|
+| `src/life/dusk/dusk.test.ts` ("lamps along a street light in order…") | counts every `lamp` prop in the `L07.window-light` fixture and expects 9 | counts the fixture's own lamps (`rule === 'X-L07.lamps'`) | The fixture brings nine stand-in lamps; the real D01 and D02 now light the same town too (16 lamps), so the count and the "one street, equal steps" check failed. **Animation: the fixture still carries its stand-in lamp rule and overrides the lamp part with the look fixture's (`overrideRegistries` for seed 407). Both can go now: D01 places the lamps and `src/parts/props/lamp.part.ts` draws them, with the same `lamp-head` socket and `PATTERN.glow` glass.** I left that to you because the test's expectations are tuned to the stand-in's spacing. |
+| `scenarios/houses/standins.ts`, `scenarios/core/everything.scenario.ts` | stand-ins for D07, D09 (and, on my side, L03) | `houseDressing` is an empty list; `everything` no longer lists it | Animation removed the L03 stand-in while I removed D07 and D09; the merge of the two leaves nothing. The scenarios that still import `houseDressing` compile and behave the same. |
+
 ## 2. A flaky browser test that is not mine
 
 `tests/e2e/interface.e2e.test.ts` ("a one-finger drag orbits instead of

@@ -33,20 +33,17 @@
 //                  greenhouse, a dovecote, a reed bed
 //   the west       a boardwalk over an inlet to a beach cottage, a watchtower
 //
-// `houseDressing` stands in for L03 (the windmill's sails) until the
-// Animation owner's rule lands; drop it from `rules` then. D07 and D09
-// (awnings and signs, flower boxes) are real rules now and need no stand-in.
+// No stand-in rules: awnings and signs (D07), flower boxes (D09) and the
+// windmill's sails (L03) all come from the real rules now.
 
 import { key } from '@/core/grid';
 import { scenario } from '@/scenario';
-import { houseDressing } from '../houses/standins';
 
 export default scenario({
   name: 'everything',
   seed: 151,
   about: 'The standard showcase: a whole town on a generated island, with every tray piece and nearly every role. Day, dusk and night cameras.',
   terrain: 'generated',
-  rules: houseDressing,
   build(b) {
     // A path through the given corners (x first, then z on each leg), skipping cells that already hold a floor.
     const road = (...points: (readonly [number, number])[]): void => {
