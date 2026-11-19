@@ -11,6 +11,7 @@ import { createSignals, partPhases, timeAt } from '../signals';
 import { recordingStage, step } from '../testing/stage';
 import { beam, beamLevel, beamYaw, glow as pool } from './beam.behaviour';
 import { eveningSeconds, nightProgress } from './evening';
+import firefly, { firefliesOut, FIREFLY_UNTIL, flashing } from './firefly.behaviour';
 import { canGlow, glowOf, litParam } from './glow';
 import lamps, { catching, lampOrder, lightLamp } from './lamps.system';
 import { setOccupied } from './occupancy';
@@ -191,5 +192,48 @@ describe('L09 the beam', () => {
     // One full turn: every quarter of the compass was visited.
     expect(new Set(yaws.map((y) => Math.floor((y + Math.PI) / (Math.PI / 2)) % 4)).size).toBe(4);
     expect(beamYaw(DUSKY.beamTurn, 7)).toBeCloseTo(beamYaw(0, 7), 6);
+  });
+});
+
+describe('L10 fireflies', () => {
+  test('they are out from lamp-lighting until the middle of the night, never by day or at dawn', () => {
+    expect(firefliesOut(at('day', 0.5))).toBe(false);
+    expect(firefliesOut(at('dusk', 0.1))).toBe(false);
+    expect(firefliesOut(at('dusk', 0.7))).toBe(true);
+    expect(firefliesOut(at('night', FIREFLY_UNTIL - 0.05))).toBe(true);
+    expect(firefliesOut(at('night', FIREFLY_UNTIL + 0.05))).toBe(false);
+    expect(firefliesOut(at('dawn', 0.5))).toBe(false);
+    let lit = 0;
+    for (let i = 0; i < 1000; i++) if (flashing(i * 0.01, 2, 0.3)) lit++;
+    expect(lit).toBeGreaterThan(420);
+    expect(lit).toBeLessThan(580); // lit about half the time
+  });
+
+  test('each drifts within a cell or so of its spot and blinks; all are hidden by day', () => {
+    const scn = findScenario('L10.fireflies')!;
+    const built = buildScenario(scn);
+    const shape = resolveShape(built.world, built.terrain);
+    const dressing = resolveDressing(shape);
+    const rec = recordingStage({ shape, dressing });
+    const signals = createSignals(scn.seed);
+    const life = createLife(rec.stage, signals, { behaviours: [firefly], systems: [] });
+    life.sync({ shape, dressing });
+    const flies = dressing.actors.filter((a) => a.type === 'firefly');
+    expect(flies.length).toBeGreaterThanOrEqual(10);
+    step(life, signals, 1);
+    expect(flies.every((f) => !rec.of(f.id).visible)).toBe(true);
+    signals.hold('dusk');
+    const seen = flies.map(() => new Set<boolean>());
+    for (let f = 0; f < 600; f++) {
+      life.update(signals.advance(1 / 60));
+      flies.forEach((fly, i) => {
+        const r = rec.of(fly.id);
+        seen[i]!.add(r.visible);
+        if (r.moves === 0) return;
+        expect(Math.hypot(r.matrix[12]! - r.base[12]!, r.matrix[14]! - r.base[14]!)).toBeLessThan(1.4);
+        expect(r.matrix[13]! - r.base[13]!).toBeGreaterThan(0.05);
+      });
+    }
+    for (const s of seen) expect(s.size).toBe(2); // every one was seen lit and seen dark
   });
 });
