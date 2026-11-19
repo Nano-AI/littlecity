@@ -69,10 +69,6 @@ declare module '@/core/vocab' {
     'boat-sail.look': number;
     'mooring-line': true; //           a unit length of rope along +X; the behaviour stretches it
 
-    // L10. A firefly over a garden or a grove tree at dusk: at a floor slot of the cell it keeps to.
-    'firefly': true;
-    'firefly.index': number;
-
     // Run-time effects (spawned by feedback and wind behaviours, never by rules).
     'dust-ring.size': number;
     'sparkle.look': number;

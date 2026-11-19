@@ -3,10 +3,10 @@
 Read `src/life/MOTION.md` first (the motion style), then this.
 
 ## Done and committed (each looked at in sequences and unit-tested)
-- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L03 sails and vanes, L07, L09, L10 fireflies, birds L11–L16, boats L06/L17/L19.
+- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L03 sails and vanes, L07, L09, birds L11–L16 (L10 fireflies were removed at the owner's request, 2026-11-19: do not add them back), boats L06/L17/L19.
 - L02 smoke is MIST: 3 soft puffs a chimney (4 at dawn/dusk, fuller; dimmer at night), drifting with the wind where each puff is.
 - Renderer: `src/gen/airborne.ts` (AIRBORNE bit, MIST). Air stays out of the grounding picture and never makes it stale; items redraw it every 4th frame, lifted structures every other.
-- Flaws fixed: pigeons wheel clear of roofs; birds airborne (no shade smear); beam fades toward the camera; fireflies are warm points of light; shop panes lead at dusk (param c).
+- Flaws fixed: pigeons wheel clear of roofs; birds airborne (no shade smear); beam fades toward the camera; shop panes lead at dusk (param c).
 - L03 cap turns to the wind (sails follow via `capTurnOf`); L29 bells, clock hands (game time), fountain jets, hanging signs. Generators skip the moving piece when its part exists.
 - L05 leaves/petals, L10 moon and shooting stars (composite shader), L14 sparrows, L15 doves/stork/owl/crow/duck, L18 fishing boat (gulls trail it home), L30 balloon, L31 clouds with shadows, L33 cats, L34 sheep/hens/paddock grazers, L35 butterflies/bees. F06 sound (`src/life/sound/`).
 

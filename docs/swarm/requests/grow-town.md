@@ -1,6 +1,6 @@
 # Requests from Grow a town
 
-## L10.fireflies throws on a world with a negative seed (owner: Animation)
+## L10.fireflies threw on a world with a negative seed (owner: Animation): moot, fireflies were removed (2026-11-19)
 
 `src/rules/life/L10.fireflies.rule.ts`, `find`: the start offset is
 `seed % g.cells.length`. In JavaScript that is negative for a negative seed,

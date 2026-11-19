@@ -22,7 +22,7 @@ import { buildScenario } from '@/scenario';
 
 /** Actors that move about by chance: left out of the pictures. */
 const RESTLESS = new Set<string>([
-  'resident', 'figure', 'gull', 'pigeon', 'swift', 'small-bird', 'bird-wing', 'cat', 'insect', 'leaf', 'firefly', 'cloud', 'balloon',
+  'resident', 'figure', 'gull', 'pigeon', 'swift', 'small-bird', 'bird-wing', 'cat', 'insect', 'leaf', 'cloud', 'balloon',
   'rowboat', 'sailboat', 'fishing-boat', 'boat-sail', 'mooring-line', 'sheep', 'chicken',
 ]);
 
