@@ -13,6 +13,7 @@
 
 import { edgeOf, keyY, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
+import type { DressingPlan } from '@/resolve/plan';
 import type { TimeHold } from '@/life/api';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
@@ -24,6 +25,7 @@ import { growTown } from '@/townmaker/index';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
 import { ghostFor, ghostForRun } from './ghost';
+import { createGuide, type Guide } from './guide';
 import { clampLength, createScrollSteps, growthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
 import { createMenu } from './menu';
@@ -56,6 +58,10 @@ export interface Interface {
   readonly feedback: Feedback;
   /** Grow a town (design section 15a): the playing growth, if any. */
   readonly growth: Growth;
+  /** The guide to special buildings (design section 7, "The guide"). */
+  readonly guide: Guide;
+  /** The dressing for the newest world arrived (the guide's ticks for lamps, laundry and parks). */
+  dressed(dressing: DressingPlan): void;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -77,6 +83,8 @@ export interface Interface {
     length: number | null;
     /** How many cells of the held run the ghost shows (null when there is no run on show). */
     run: number | null;
+    /** The guide is open. */
+    guide: boolean;
   };
   dispose(): void;
 }
@@ -175,18 +183,22 @@ export function createInterface(host: InterfaceHost): Interface {
     root.append(tuning);
   };
 
+  const guide = createGuide({ shape: () => game.shape });
+
   const timeButton = iconButton('time-run', 'Time of day', { class: 'lc-round', attrs: { 'data-ui': 'time' } });
   const undoButton = iconButton('undo', 'Undo', { class: 'lc-round', title: 'Undo (⌘Z)', attrs: { 'data-ui': 'undo' } });
   const redoButton = iconButton('redo', 'Redo', { class: 'lc-round', title: 'Redo (⇧⌘Z)', attrs: { 'data-ui': 'redo' } });
   root.append(
     markers.el,
     el('div', { class: 'lc-card lc-corner lc-corner-left' }, [menu.button]),
+    el('div', { class: 'lc-card lc-corner lc-corner-left lc-corner-guide' }, [guide.button]),
     el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, undoButton, redoButton]),
     tray.el,
     count,
     menu.el,
     menu.file,
     feedback.el,
+    guide.el,
   );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
   tray.el.style.setProperty('--lc-slots', String(slots));
@@ -499,7 +511,7 @@ export function createInterface(host: InterfaceHost): Interface {
       return;
     }
     if (e.altKey) return;
-    if (key === 'escape') return void closePopups();
+    if (key === 'escape') return void (closePopups() || guide.close());
     if (/^[0-9]$/.test(e.key)) tray.pickNumber(Number(e.key));
   };
   window.addEventListener('keydown', onKey);
@@ -556,6 +568,8 @@ export function createInterface(host: InterfaceHost): Interface {
     tray,
     feedback,
     growth,
+    guide,
+    dressed: (dressing) => guide.dressed(dressing),
     frame() {
       growth.tick(performance.now());
       markers.update(tray.state.item === 'change', game.world, game.terrain);
@@ -565,6 +579,7 @@ export function createInterface(host: InterfaceHost): Interface {
       undoButton.disabled = !game.canUndo;
       redoButton.disabled = !game.canRedo;
       showTime();
+      guide.townChanged();
       if (hoverAt) updateGhost();
     },
     debug: () => ({
@@ -579,10 +594,12 @@ export function createInterface(host: InterfaceHost): Interface {
       sound,
       length: heldLength(),
       run: shownRun && ghost ? shownRun.edits.length : null,
+      guide: guide.isOpen,
     }),
     dispose() {
       growth.stop();
       tray.styles.dispose();
+      guide.dispose();
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);
