@@ -16,9 +16,11 @@ import type { Edit, World } from '@/core/world';
 import type { TimeHold } from '@/life/api';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
-import { lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
+import { copyLook, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
 import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
+import { createGrowth, onlyStartingTrees, type Growth } from './growth';
+import { growTown } from '@/townmaker/index';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
 import { ghostFor, ghostForRun } from './ghost';
@@ -52,6 +54,8 @@ export interface Interface {
   readonly el: HTMLElement;
   readonly tray: Tray;
   readonly feedback: Feedback;
+  /** Grow a town (design section 15a): the playing growth, if any. */
+  readonly growth: Growth;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -61,6 +65,10 @@ export interface Interface {
     item: ItemId;
     drawer: DrawerId;
     swatch: number | 'auto';
+    /** The house style in the hand: 0 = Random. */
+    style: number;
+    /** The house-style flyout is open. */
+    styles: boolean;
     time: TimeHold;
     ghost: GhostSummary | null;
     markers: CellKey[];
@@ -111,8 +119,34 @@ export function createInterface(host: InterfaceHost): Interface {
   let sound = readSound();
   let tuning: HTMLElement | null = null;
 
+  // ── grow a town (design section 15a) ───────────────────────────────────
+  let growingNote: (() => void) | null = null;
+  const growth = createGrowth(game, {
+    onDone() {
+      growingNote?.();
+      growingNote = null;
+      api.sync();
+    },
+  });
+  const grow = (): void => {
+    growth.stop();
+    setGhost(null, '');
+    growth.start(growTown(game.terrain, game.world.seed));
+    if (growth.active) growingNote = feedback.banner('A town is growing.', [{ label: 'Finish now', primary: true, run: () => growth.skip() }]);
+  };
+
   const menu = createMenu({
-    newIsland: () => host.newIsland(),
+    growTown: grow,
+    growNewIsland() {
+      growth.stop();
+      host.newIsland();
+      grow();
+    },
+    hasTown: () => !onlyStartingTrees(game.world, game.terrain),
+    newIsland: () => {
+      growth.stop();
+      host.newIsland();
+    },
     shareLink: () => void share(),
     postcard: () => void postcard(),
     downloadTown: () => downloadTown(game.world),
@@ -174,7 +208,7 @@ export function createInterface(host: InterfaceHost): Interface {
   redoButton.addEventListener('click', () => game.redo());
 
   // ── acting on the town ─────────────────────────────────────────────────
-  const tool = (): ToolState => ({ item: tray.state.item, swatch: tray.state.swatch });
+  const tool = (): ToolState => ({ item: tray.state.item, swatch: tray.state.swatch, style: tray.state.style });
 
   const look = (x: number, y: number, world: World = game.world): { pick: Pick; ctx: ActionContext } | null => {
     const ray = view.screenToRay(x, y);
@@ -235,6 +269,7 @@ export function createInterface(host: InterfaceHost): Interface {
 
   const updateGhost = (): void => {
     if (placingRun) return;
+    if (growth.active) return setGhost(null, '');
     const ghostOf = (): void => {
       if (!hoverAt || isToolId(tray.state.item)) return setGhost(null, '');
       const seen = look(hoverAt.x, hoverAt.y);
@@ -244,13 +279,13 @@ export function createInterface(host: InterfaceHost): Interface {
         // A held run: worked out again only when the target, the direction, the length or the piece changes.
         const run = planRun(tool(), seen.pick, seen.ctx, length);
         shownRun = run;
-        const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${length}|${run.at}|${run.dir}|${JSON.stringify(run.edits[0] ?? run.refusal)}`;
+        const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${tray.state.style}|${length}|${run.at}|${run.dir}|${JSON.stringify(run.edits[0] ?? run.refusal)}`;
         if (key === ghostKey) return;
         return setGhost(ghostForRun(run, game), key);
       }
       const plan = planUse(tool(), seen.pick, seen.ctx);
       // The same piece on the same target in the same world: nothing to work out again.
-      const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${plan.at}|${JSON.stringify(plan.tries[0] ?? plan.refusal ?? null)}`;
+      const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${tray.state.style}|${plan.at}|${JSON.stringify(plan.tries[0] ?? plan.refusal ?? null)}`;
       if (key === ghostKey) return;
       setGhost(ghostFor(plan, game), key);
     };
@@ -265,6 +300,7 @@ export function createInterface(host: InterfaceHost): Interface {
   const heldLength = (): number | null => (growthOf(tray.state.item) === null ? null : (lengths.get(tray.state.item) ?? 1));
   const stepper = createStepper((by) => changeLength(by));
   tray.el.append(stepper.el);
+  tray.avoid(stepper.el);
   const scrollSteps = createScrollSteps();
   /** True while a run is being placed: the ghost waits until it is all down. */
   let placingRun = false;
@@ -351,19 +387,34 @@ export function createInterface(host: InterfaceHost): Interface {
   // ── the pointer ────────────────────────────────────────────────────────
   /** A press on the town while a pop-up is open only closes it: that click builds nothing. */
   let dismissing = false;
+  /** The press that is going on is an Alt-click with the mouse: it copies a look instead of building. */
+  let copying = false;
   const closePopups = (): boolean => {
     const menuWasOpen = menu.isOpen;
     menu.close();
     return tray.closePopups() || menuWasOpen;
   };
-  const onCanvasDown = (): void => {
+  const onCanvasDown = (e: PointerEvent): void => {
     dismissing = closePopups();
+    copying = e.altKey && e.pointerType === 'mouse' && e.button === 0;
+  };
+
+  /** Alt-click (design section 7, "Copy a look"): the block's kind, colour and style go into the hand. */
+  const copyAt = (x: number, y: number): void => {
+    const seen = look(x, y);
+    const copied = seen && copyLook(seen.pick, seen.ctx);
+    if (!copied) return;
+    tray.select(copied.item);
+    tray.setSwatch(copied.swatch);
+    tray.setStyle(copied.style);
   };
   canvas.addEventListener('pointerdown', onCanvasDown, { capture: true });
 
   const sink: GestureSink = {
     use(x, y) {
       if (dismissing) return;
+      if (growth.active) return growth.skip();
+      if (copying) return copyAt(x, y);
       const seen = look(x, y);
       if (!seen) return;
       const length = heldLength();
@@ -372,6 +423,7 @@ export function createInterface(host: InterfaceHost): Interface {
     },
     erase(x, y) {
       if (dismissing) return;
+      if (growth.active) return growth.skip();
       const seen = look(x, y);
       if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) navigator.vibrate?.(12);
     },
@@ -393,7 +445,7 @@ export function createInterface(host: InterfaceHost): Interface {
       showCount();
     },
     runStart(x, y) {
-      if (dismissing || !paintsRuns(tray.state.item)) return false;
+      if (dismissing || growth.active || copying || !paintsRuns(tray.state.item)) return false;
       const seen = look(x, y);
       if (!seen) return false;
       const plan = planUse(tool(), seen.pick, seen.ctx);
@@ -428,6 +480,12 @@ export function createInterface(host: InterfaceHost): Interface {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
     const key = e.key.toLowerCase();
+    if (growth.active && !['shift', 'control', 'alt', 'meta'].includes(key)) {
+      // Any key finishes a growing town at once (and does nothing else).
+      e.preventDefault();
+      growth.skip();
+      return;
+    }
     if (e.metaKey || e.ctrlKey) {
       if (key === 'z') {
         e.preventDefault();
@@ -468,6 +526,7 @@ export function createInterface(host: InterfaceHost): Interface {
   };
   const openFile = async (file: File): Promise<void> => {
     const result = await readTownFile(file);
+    if (result.ok) growth.stop();
     if (result.ok) host.openTown(result.world);
     else feedback.toast(result.reason);
   };
@@ -495,7 +554,9 @@ export function createInterface(host: InterfaceHost): Interface {
     el: root,
     tray,
     feedback,
+    growth,
     frame() {
+      growth.tick(performance.now());
       markers.update(tray.state.item === 'change', game.world, game.terrain);
     },
     sync() {
@@ -509,6 +570,8 @@ export function createInterface(host: InterfaceHost): Interface {
       item: tray.state.item,
       drawer: tray.state.drawer,
       swatch: tray.state.swatch,
+      style: tray.state.style,
+      styles: tray.styles.isOpen,
       time: host.time.holding,
       ghost: ghost ? { show: [...ghost.show], shimmer: [...(ghost.shimmer ?? [])], refuse: ghost.refuse ?? null } : null,
       markers: markers.cells(),
@@ -517,6 +580,8 @@ export function createInterface(host: InterfaceHost): Interface {
       run: shownRun && ghost ? shownRun.edits.length : null,
     }),
     dispose() {
+      growth.stop();
+      tray.styles.dispose();
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);

@@ -459,6 +459,24 @@ Actors and motion. All read the signals in the design, section 13.
 - **L32 · 2 · Stranded** — a resident whose home links to no floor stays
   within 2 cells of the door: sits on the step, tends a pot.
 
+### Castle life (Derek's request, 2026-11-19)
+
+- **L36 · 2 · Garrison** — a castle (a keep, or a curtain wall of 8+ cells
+  with a gatehouse or turret) → a troop of 4–6 soldiers in matching tabards
+  and helmets, with pikes, who march in step in a column of twos on a patrol
+  round the outside of the walls (or round the keep if there are no walls),
+  following walkable ground. They halt and face front at the gate for a few
+  seconds each lap, change the guard at dawn and dusk, and go inside at
+  night leaving two sentries with torches at the gate. Residents step aside
+  for them. Troop size grows with the castle: 4 for a small one, 6 for a keep
+  with walls.
+- **L37 · 2 · Rider** — the same castle, if a street leads from its gate →
+  one mounted rider (a horse with a rider in the garrison's colours and a
+  pennant on a lance) who leaves by the gate a few times a day, trots a loop
+  along the streets to the square and back, and walks the horse through
+  crowds. The horse stands tethered by the gate between rides, flicking its
+  tail.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;
@@ -551,6 +569,6 @@ street cell.
 
 ## Counts
 
-Roles 46 · Joinery 28 · Decoration 32 · Life 34 · Urban fill 12 ·
-Feedback 8 = 160 rules here, plus 5 kind rules and 4 support rules in the
+Roles 46 · Joinery 28 · Decoration 32 · Life 36 · Urban fill 12 ·
+Feedback 8 = 162 rules here, plus 5 kind rules and 4 support rules in the
 design. 80 of the 160 are tier 1. Discovery passes add to every part.

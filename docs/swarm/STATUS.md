@@ -223,3 +223,21 @@ Bench on bench-2000 (machine at load 10, so approximate): frame rate 60 fps,
 rebuild speed, phone viewport pass, and the small-fix list (walls on
 pitched roofs, stepper 44 px flake, bunting glow, L20 rower, stale ART.md
 pictures). Also running: grow-town.
+
+**Two more requests from Derek, both specced in the design and launched on
+Opus 5.5:** house styles (`swarm/house-styles`: six named looks plus Random
+as the default, chosen from a flyout on the House tray button, stored as
+`Block.style`; Alt-click copies a look) and animation polish
+(`swarm/animation-polish`: doors that open, roof hatches, a watching pass
+over all motion, the gust front). Running now: grow-town, polish (speed),
+house-styles, animation-polish. Expect merge overlap in
+`src/parts/openings/door.part.ts` and `src/style/houses.ts`.
+
+**Grow a town merged** (`ffa1ee9`, Opus 5.5): `src/townmaker/`, menu entry
+with dice button, animated playback, one undo step. 62–66 distinct roles per
+grown town; every part-R role reached across seeds 1–5 except willow
+(islands 1–5 have no non-sand shore). Orchestrator added `town-hall` (new
+role from dressing depth) to the coverage list as PENDING. Full check green:
+1,343 tests. Published. Second pass sent to the same agent: town hall,
+denser centre, new dressing-depth rules, streets to summits, a viaduct.
+Running: polish (speed), house-styles, animation-polish, grow-town pass 2.

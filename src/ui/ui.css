@@ -296,6 +296,35 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* House styles: a card of tiles above the House button (design section 7, "House style"). */
+.lc-styles {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  padding: 5px 6px;
+}
+.lc-style {
+  width: 54px;
+  height: 60px;
+}
+.lc-style .lc-btn-icon {
+  width: 38px;
+  height: 38px;
+}
+.lc-style[aria-checked='true'] {
+  background: color-mix(in srgb, var(--lc-pick) 58%, white);
+  border-color: var(--lc-ink);
+  box-shadow: 1px 2px 0 var(--lc-shadow);
+}
+.lc-style[aria-checked='true'] .lc-btn-label {
+  opacity: 1;
+}
+.lc-style:focus-visible {
+  outline: 2px dashed var(--lc-ink);
+  outline-offset: 1px;
+}
+
 /* How many pieces the held run will place, beside the mouse. */
 .lc-count {
   position: fixed;
@@ -381,6 +410,19 @@
 .lc-menu-item .lc-btn-label {
   font-size: inherit;
   opacity: 1;
+}
+.lc-menu-row {
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+}
+.lc-menu-row > .lc-menu-item:first-child {
+  flex: 1;
+}
+.lc-menu-dice {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 5px 9px;
 }
 .lc-menu-rule {
   height: 0;
@@ -666,6 +708,16 @@
     width: 44px;
     height: 44px;
   }
+  .lc-styles {
+    display: grid;
+    grid-template-columns: repeat(4, 58px);
+    gap: 4px;
+    padding: 7px;
+  }
+  .lc-style {
+    width: 58px;
+    height: 62px;
+  }
   .lc-stepper {
     right: 12px;
     top: auto;
@@ -674,8 +726,12 @@
     padding: 2px 3px;
   }
   .lc-step {
+    /* Never let the flex row shave a fraction of a pixel off a touch target. */
+    flex: 0 0 44px;
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
   .lc-step .lc-btn-icon {
     width: 24px;
