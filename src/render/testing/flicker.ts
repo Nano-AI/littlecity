@@ -181,10 +181,11 @@ function cropPng(frames: Frame[], w: number, h: number, cx: number, cy: number, 
 }
 
 /**
- * Draws the open town from each pose (life time held still) and scores the run. `canvas` defaults to
+ * Draws the open town from each pose (`threshold` fixes T, to compare two versions of the view on
+ * exactly the same terms; by default it is set from the first frame) (life time held still) and scores the run. `canvas` defaults to
  * the probe's (the last canvas on the page).
  */
-export function sweepPoses(poses: CameraPose[]): SweepResult {
+export function sweepPoses(poses: CameraPose[], threshold?: number): SweepResult {
   const look = window.__look!;
   const cv = [...document.querySelectorAll('canvas')].at(-1)!;
   const gl = cv.getContext('webgl2')!;
@@ -213,7 +214,7 @@ export function sweepPoses(poses: CameraPose[]): SweepResult {
     lumOf(fr.rgba, n, fr.lum);
     if (f === 0) {
       const [lo, hi] = contrastOf(fr.lum);
-      T = Math.max(16, Math.min(T_MAX, Math.round((hi - lo) * 0.28)));
+      T = threshold ?? Math.max(16, Math.min(T_MAX, Math.round((hi - lo) * 0.28)));
       T_AREA = Math.max(8, T / 5.6);
       DARK = lo + (hi - lo) * 0.3;
     }
@@ -333,8 +334,8 @@ const api = {
   posesFor,
   sweepPoses,
   /** A sweep of `n` frames of one motion from `base`, in a view of `width` × `height` CSS pixels. */
-  sweep(base: CameraPose, motion: Motion, n: number, width: number, height: number, stepPx?: number): SweepResult {
-    return sweepPoses(posesFor(base, motion, n, width, height, stepPx));
+  sweep(base: CameraPose, motion: Motion, n: number, width: number, height: number, stepPx?: number, threshold?: number): SweepResult {
+    return sweepPoses(posesFor(base, motion, n, width, height, stepPx), threshold);
   },
 };
 

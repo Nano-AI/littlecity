@@ -7,7 +7,9 @@
 //
 //   node src/render/testing/flicker.mjs [--label before] [--only substring] [--frames 40] [--quick]
 //
-// --quick runs only the day cases at pixel ratio 1.
+// --quick runs only the day cases at pixel ratio 1. --against <label> uses that run's thresholds, so
+// two versions of the view are scored on exactly the same terms (the threshold is otherwise set from
+// each sweep's first frame, which the change under test may itself have moved).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +20,7 @@ const { flags } = parseArgs(process.argv.slice(2));
 const label = String(flags.label ?? 'run');
 const frames = Number(flags.frames ?? 40);
 const outDir = path.join(ROOT, '.context/flicker', label);
+const against = flags.against ? Object.fromEntries(JSON.parse(fs.readFileSync(path.join(ROOT, '.context/flicker', String(flags.against), 'scores.json'), 'utf8')).map((r) => [r.name, r.threshold])) : {};
 
 const E = { overview: { yaw: 45, pitch: 35, zoom: 1.6, target: [23.5, 1, 24.5] }, playing: { yaw: 45, pitch: 33, zoom: 3.4, target: [24, 1.5, 32] }, close: { yaw: 45, pitch: 28, zoom: 7.5, target: [24.5, 1.8, 31.5] } };
 const G = { overview: { yaw: 135, pitch: 35, zoom: 1.6, target: [24, 1, 24] }, playing: { yaw: 135, pitch: 32, zoom: 3.6, target: [24, 2, 24] }, close: { yaw: 135, pitch: 26, zoom: 8, target: [24, 2, 24] } };
@@ -65,12 +68,12 @@ try {
     await page.evaluate((t) => window.__look.time(t), c.time);
     for (const kv of styles) await page.evaluate(([m, k, v]) => window.__look.style(m, k, v), kv);
     const t0 = Date.now();
-    const r = await page.evaluate(([c, n]) => window.__flicker.sweep(c.pose, c.motion, n, c.width, c.height), [c, frames]);
     const name = nameOf(c);
+    const r = await page.evaluate(([c, n, t]) => window.__flicker.sweep(c.pose, c.motion, n, c.width, c.height, undefined, t ?? undefined), [c, frames, against[name] ?? null]);
     for (const old of fs.readdirSync(outDir)) if (old.startsWith(`${name}-`)) fs.rmSync(path.join(outDir, old));
     save(path.join(outDir, `${name}-heat.png`), r.heat);
     r.crops.forEach((cr, i) => save(path.join(outDir, `${name}-crop${i}-f${cr.frame}-x${cr.x}-y${cr.y}.png`), cr.png));
-    rows.push({ name, blink: r.blink, pop: r.pop, area: r.area, change: r.change, dark: r.dark });
+    rows.push({ name, blink: r.blink, pop: r.pop, area: r.area, change: r.change, dark: r.dark, threshold: r.threshold });
     console.log(`${name.padEnd(44)} blink ${r.blink.toFixed(3).padStart(7)}‰  pop ${r.pop.toFixed(3).padStart(7)}‰  area ${r.area.toFixed(2).padStart(6)}‰  change ${r.change.toFixed(3)}  ink ${(r.dark * 100).toFixed(1)}%  T ${r.threshold}  (${Date.now() - t0} ms)`);
   }
   fs.writeFileSync(path.join(outDir, 'scores.json'), JSON.stringify(rows, null, 1));

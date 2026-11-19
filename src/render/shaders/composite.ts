@@ -132,8 +132,12 @@ vec4 n3(vec3 p){
 vec4 penAt(vec2 uv, float t){
   vec2 r = 2.0 * uPR / uOut;
   float d = texture(tDepth, uv).x;
+#ifndef INK_TEX
+  // (Where the lines came from the half-resolution ink pass only the density is read here, and a
+  // density that differs either side of an outline does not show.)
   d = min(d, min(texture(tDepth, uv + vec2(r.x, 0.0)).x, texture(tDepth, uv - vec2(r.x, 0.0)).x));
   d = min(d, min(texture(tDepth, uv + vec2(0.0, r.y)).x, texture(tDepth, uv - vec2(0.0, r.y)).x));
+#endif
   vec2 ndc = uv * 2.0 - 1.0;
   vec3 p = uEye + uRight * ndc.x + uUp * ndc.y + uForward * (uNear + d * uDepthRange) + t;
   float lod = log2(max(uCss, 1e-3));
@@ -154,15 +158,27 @@ vec3 decN(vec4 s){ vec2 xy = s.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0
 
 // px is the pen's half-width for silhouettes; seams and creases, the lines inside a shape, are
 // drawn with a finer one (uInner of it), so a close-up keeps a delicate interior and a firm outline.
-float edgeAt(vec2 uv, vec2 px){
+// Seams and creases: the ink id changes or the normal turns between a point and its four neighbours.
+float surfaceEdgeAt(vec2 uv, vec2 px){
   vec4 s0 = texture(tId, uv);
   vec3 n0 = decN(s0);
   vec2 ox = vec2(px.x * uInner, 0.0), oy = vec2(0.0, px.y * uInner);
   vec4 sa = texture(tId, uv + ox), sb = texture(tId, uv - ox), sc = texture(tId, uv + oy), sd = texture(tId, uv - oy);
-  // Depth is read at whole texels, the same distance either side of the centre, so that the second
-  // difference is exactly zero across a flat surface at any slant and any zoom, and large across a jump.
-  // At the frame's edge the centre is pulled in until both sides exist: a missing side would read as a
-  // jump on any sloping surface (the sea running off the top of the picture) and draw a row of scribble.
+  float eId = step(0.5 / 255.0, abs(sa.z - s0.z) + abs(sa.w - s0.w));
+  eId = max(eId, step(0.5 / 255.0, abs(sb.z - s0.z) + abs(sb.w - s0.w)));
+  eId = max(eId, step(0.5 / 255.0, abs(sc.z - s0.z) + abs(sc.w - s0.w)));
+  eId = max(eId, step(0.5 / 255.0, abs(sd.z - s0.z) + abs(sd.w - s0.w)));
+  float turn = min(min(dot(n0, decN(sa)), dot(n0, decN(sb))), min(dot(n0, decN(sc)), dot(n0, decN(sd))));
+  float eN = 1.0 - smoothstep(0.8, 0.9, turn);
+  return max(eId * uWeights.y, eN * uWeights.z);
+}
+
+// Silhouettes: the depth jumps. Depth is read at whole texels, the same distance either side of the
+// centre, so that the second difference is exactly zero across a flat surface at any slant and any
+// zoom, and large across a jump. At the frame's edge the centre is pulled in until both sides exist: a
+// missing side would read as a jump on any sloping surface (the sea running off the top of the
+// picture) and draw a row of scribble.
+float depthEdgeAt(vec2 uv, vec2 px){
   ivec2 size = textureSize(tDepth, 0);
   ivec2 o = min(max(ivec2(1), ivec2(px * vec2(size) + 0.5)), (size - 1) / 2);
   ivec2 c = clamp(ivec2(floor(uv * vec2(size))), o, size - 1 - o);
@@ -170,25 +186,28 @@ float edgeAt(vec2 uv, vec2 px){
   float da = texelFetch(tDepth, c + ivec2(o.x, 0), 0).x, db = texelFetch(tDepth, c - ivec2(o.x, 0), 0).x;
   float dc = texelFetch(tDepth, c + ivec2(0, o.y), 0).x, dd = texelFetch(tDepth, c - ivec2(0, o.y), 0).x;
   float jump = max(abs(da + db - 2.0 * dm), abs(dc + dd - 2.0 * dm)) * uDepthRange;
+  vec4 s0 = texture(tId, uv);
   float drawn = step(0.5 / 255.0, s0.z + s0.w);   // bare paper has ink id 0 and no depth of its own
-  float eDepth = smoothstep(uDepthT, uDepthT * 2.0, jump) * drawn;
-  float eId = step(0.5 / 255.0, abs(sa.z - s0.z) + abs(sa.w - s0.w));
-  eId = max(eId, step(0.5 / 255.0, abs(sb.z - s0.z) + abs(sb.w - s0.w)));
-  eId = max(eId, step(0.5 / 255.0, abs(sc.z - s0.z) + abs(sc.w - s0.w)));
-  eId = max(eId, step(0.5 / 255.0, abs(sd.z - s0.z) + abs(sd.w - s0.w)));
-  float turn = min(min(dot(n0, decN(sa)), dot(n0, decN(sb))), min(dot(n0, decN(sc)), dot(n0, decN(sd))));
-  float eN = 1.0 - smoothstep(0.8, 0.9, turn);
-  return max(eDepth * uWeights.x, max(eId * uWeights.y, eN * uWeights.z));
+  return smoothstep(uDepthT, uDepthT * 2.0, jump) * drawn * uWeights.x;
 }
 
 // Four rotated sub-samples, a pixel's width apart: cheap anti-aliasing for the ink. With fewer (there
-// used to be two where the picture is not super-sampled: phones, and screens of 1.5x and up) a line a
-// pixel or less wide popped on and off as it crossed pixel centres while the camera moved.
+// used to be two where the picture is not super-sampled: phones, and screens of 1.5x and up) a seam or
+// crease a pixel or less wide popped on and off as it crossed pixel centres while the camera moved.
+// Where the picture is not super-sampled, silhouettes (the wider outline) keep two: the other two
+// would read the same depth texels. Where it is (FINE_DEPTH), each tap has depth texels of its own.
 float edge(vec2 uv, float thick){
   vec2 px = thick * uPR * 0.5 / uOut;
   vec2 q = 0.5 / uOut;
-  return 0.25 * (edgeAt(uv + vec2(q.x, 0.5 * q.y), px) + edgeAt(uv + vec2(-0.5 * q.x, q.y), px)
-               + edgeAt(uv + vec2(-q.x, -0.5 * q.y), px) + edgeAt(uv + vec2(0.5 * q.x, -q.y), px));
+  vec2 t1 = vec2(q.x, 0.5 * q.y), t2 = vec2(-0.5 * q.x, q.y), t3 = vec2(-q.x, -0.5 * q.y), t4 = vec2(0.5 * q.x, -q.y);
+#ifdef FINE_DEPTH
+  return 0.25 * (max(surfaceEdgeAt(uv + t1, px), depthEdgeAt(uv + t1, px)) + max(surfaceEdgeAt(uv + t2, px), depthEdgeAt(uv + t2, px))
+               + max(surfaceEdgeAt(uv + t3, px), depthEdgeAt(uv + t3, px)) + max(surfaceEdgeAt(uv + t4, px), depthEdgeAt(uv + t4, px)));
+#else
+  float surf = 0.25 * (surfaceEdgeAt(uv + t1, px) + surfaceEdgeAt(uv + t2, px) + surfaceEdgeAt(uv + t3, px) + surfaceEdgeAt(uv + t4, px));
+  float depth = 0.5 * (depthEdgeAt(uv + t1, px) + depthEdgeAt(uv + t3, px));
+  return max(surf, depth);
+#endif
 }
 
 void main(){

@@ -388,7 +388,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       depthTest: false,
       depthWrite: false,
     });
-  const compositeMaterial = post(halfInk ? { INK_TEX: 1 } : {});
+  const compositeMaterial = post(halfInk ? { INK_TEX: 1 } : superSample > 1 ? { FINE_DEPTH: 1 } : {});
   // The half-resolution ink mask shares the uniforms but has its own target size.
   const inkUniforms = { ...compositeUniforms, uOut: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
   const inkMaterial = halfInk
