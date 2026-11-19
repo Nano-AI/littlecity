@@ -247,6 +247,18 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M22 26 L22.4 18.4" stroke="${C.trunk}" stroke-width="2.4"/>` +
     `<path d="M15.6 15.4 Q16 9 22.2 8.6 Q28.6 8.4 29.4 14.6 Q29.6 19.6 22.6 19.8 Q16 19.8 15.6 15.4 Z" fill="${C.leaf}"/>` +
     sparkle(37.4, 12, 4.6, `fill="${C.yellow}" stroke-width="1.5"`),
+  // Grow a town: three little houses in a row with a sparkle.
+  grow:
+    `<path d="M5.6 38.6 L5.8 27.4 L11.4 21.6 L17.2 27.4 L17.2 38.6 Z" fill="${C.wall}"/>` +
+    `<path d="M15.8 38.6 L15.8 22.6 L23.6 14.6 L31.4 22.6 L31.4 38.6 Z" fill="${C.pink}"/>` +
+    `<path d="M30 38.6 L30.2 28.6 L35.8 23 L41.6 28.6 L41.6 38.6 Z" fill="${C.sea}"/>` +
+    `<path stroke-width="1.6" d="M21.6 38.4 L21.6 31.4 L25.6 31.4 L25.6 38.4"/><path d="M3.6 38.8 L44.4 38.6"/>` +
+    sparkle(39.6, 10.6, 5.2, `fill="${C.yellow}" stroke-width="1.5"`),
+  // A die showing five: grow a town on a new island.
+  dice:
+    `<path d="M9.4 11.2 Q9.6 8.8 12 8.8 L36.2 9 Q38.8 9.2 38.8 11.8 L38.6 36.4 Q38.4 39 35.8 39 L11.8 38.8 Q9.2 38.6 9.2 36 Z" fill="${C.white}"/>` +
+    `<g fill="${PALETTE.ink}" stroke="none"><circle cx="16.6" cy="16.4" r="2.6"/><circle cx="31.6" cy="16.6" r="2.6"/><circle cx="24" cy="24" r="2.6"/>` +
+    `<circle cx="16.4" cy="31.4" r="2.6"/><circle cx="31.4" cy="31.6" r="2.6"/></g>`,
   share:
     `<g stroke-width="2.6"><path d="M21 27 L27 21"/><path d="M19.6 20.6 L24 16.2 A6.2 6.2 0 0 1 32.8 25 L28.6 29.2"/>` +
     `<path d="M28.4 27.4 L24 31.8 A6.2 6.2 0 0 1 15.2 23 L19.4 18.8" transform="translate(0 0)"/></g>`,
