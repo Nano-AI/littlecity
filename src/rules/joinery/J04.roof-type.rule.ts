@@ -3,8 +3,8 @@
 //   the role names one            townhouse → stepped gable, manor → hip
 //   something stands or leads on  a path, plaza, garden, stairs or a piece on it → flat terrace
 //   1 deep against a taller wall  lean-to against that wall
-//   ≤ 2 wide                      gable, ridge along the long axis
-//   otherwise                     hip
+//   a rectangle ≤ 2 wide          gable, ridge along the long axis
+//   otherwise                     hip (wide rectangles; every L, T, U and ring, however narrow)
 //
 // Also here, because they are properties of the roof: J03's ridge offset
 // (touching houses of different colours get ridges at slightly different
@@ -44,10 +44,11 @@ export default defineRule<{ region: RoofRegion }>({
     const narrow = Math.min(region.width, region.depth);
 
     // Which ends of each axis are closed by a party wall or by a taller part: a ridge likes to run into those.
+    const inRegion = new Set(region.cells);
     const closed = (d: Dir4): number =>
       cells.filter((k) => {
         const n = neighbor(k, d);
-        return n !== NO_CELL && !region.cells.includes(n) && (solid(ctx.facts, n) || ctx.facts.structureAt.get(n) === structure);
+        return n !== NO_CELL && !inRegion.has(n) && (solid(ctx.facts, n) || ctx.facts.structureAt.get(n) === structure);
       }).length;
     const lift = inRow ? 0 : Math.round((rand(s.seed, 'roof-lift') * 2 - 1) * HOUSE.lift * 100) / 100;
 
@@ -60,11 +61,11 @@ export default defineRule<{ region: RoofRegion }>({
     else {
       // A lean-to: one cell deep, with the taller wall along its long side.
       const leanSides = region.againstTaller.filter((d) => (d === 0 || d === 2 ? region.depth === 1 : region.width === 1));
-      const full = leanSides.find((d) => cells.every((k) => ctx.facts.structureAt.get(neighbor(k, d)) === structure && !region.cells.includes(neighbor(k, d))));
+      const full = leanSides.find((d) => cells.every((k) => ctx.facts.structureAt.get(neighbor(k, d)) === structure && !inRegion.has(neighbor(k, d))));
       if (full !== undefined && !region.againstTaller.includes(opposite(full))) {
         variant = 'lean-to';
         against = full;
-      } else variant = narrow <= 2 ? 'gable' : 'hip';
+      } else variant = narrow <= 2 && region.rectangular ? 'gable' : 'hip';
     }
     if (variant === 'gable' || variant === 'stepped-gable') {
       if (region.longAxis) ridge = region.longAxis;

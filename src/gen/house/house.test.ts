@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { CELL_H, key } from '@/core/grid';
+import { rand } from '@/core/rand';
 import { findDuplicateFaces, inkGroups, validateMesh } from '@/gen/checks';
 import { allGenerators, allParts } from '@/gen/discover';
 import { meshBounds, PATTERN, triangleCount, type MeshData } from '@/gen/mesh';
@@ -11,7 +12,7 @@ import { resolveTown } from '@/resolve/index';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { flatTerrain, TerrainBuilder, TownBuilder } from '@/scenario';
 import { HOUSE } from '@/style/houses';
-import { emptyWorld } from '@/world/world';
+import { canApply, emptyWorld } from '@/world/world';
 
 const SEED = 77;
 const town = (build: (b: TownBuilder) => void, terrain = flatTerrain(SEED)): ShapePlan => {
@@ -135,6 +136,41 @@ describe('house shell', () => {
     // The stone goes down a whole storey on the west side.
     expect(meshBounds(m).min[1]).toBeLessThan(CELL_H + 0.01);
     expect(meshBounds(m).min[0]).toBeLessThan(10);
+  });
+
+  test('a random pile of houses, towers, docks and marble never breaks the generator', () => {
+    // Everything a player might stack: every structure must draw a sound mesh, whatever it touches.
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const t = new TerrainBuilder(seed).rect(4, 4, 43, 43, 1).rect(12, 4, 16, 43, 2).rect(14, 4, 15, 43, 4).water(4, 18, 43, 43);
+      const terrain = t.build();
+      const b = new TownBuilder(emptyWorld(seed), terrain);
+      const kinds = ['house', 'house', 'house', 'auto', 'tower', 'marble', 'windmill', 'house'] as const;
+      for (let i = 0; i < 260; i++) {
+        const x = 8 + Math.floor(rand(seed, 'x', i) * 12), z = 8 + Math.floor(rand(seed, 'z', i) * 13), y = Math.floor(rand(seed, 'y', i) * 5);
+        const kind = kinds[Math.floor(rand(seed, 'k', i) * kinds.length)]!;
+        const edit = { type: 'placeBlock' as const, cell: key(x, y, z), kind, color: Math.floor(rand(seed, 'c', i) * 3), from: null };
+        if (canApply(b.world, terrain, edit).ok) b.edit(edit);
+      }
+      for (let i = 0; i < 12; i++) {
+        const cell = key(8 + Math.floor(rand(seed, 'px', i) * 12), 1, 8 + Math.floor(rand(seed, 'pz', i) * 9));
+        const edit = { type: 'placeFloor' as const, cell, floor: (['path', 'plaza', 'garden'] as const)[i % 3]! };
+        if (canApply(b.world, terrain, edit).ok) b.edit(edit);
+      }
+      const plan = resolveTown(b.world, terrain).shape;
+      let drawn = 0;
+      for (const s of plan.structures.values()) {
+        if (s.kind !== 'house' && s.kind !== 'windmill') continue;
+        const out = allGenerators().build(s, plan, allParts());
+        expect(validateMesh(out.mesh), `seed ${seed}, ${s.kind} ${s.id}`).toEqual([]);
+        expect(findDuplicateFaces(out.mesh), `seed ${seed}, ${s.kind} ${s.id}`).toBe(0);
+        // Every socket a feature of this structure owns has a frame.
+        for (const f of plan.featuresByStructure.get(s.id) ?? []) {
+          for (const socket of plan.socketsByOwner.get(f.id) ?? []) expect(out.anchors[socket.id], `seed ${seed}: ${socket.id}`).toBeDefined();
+        }
+        drawn++;
+      }
+      expect(drawn).toBeGreaterThan(5);
+    }
   });
 
   test('the same structure draws the same mesh twice (no hidden chance)', () => {

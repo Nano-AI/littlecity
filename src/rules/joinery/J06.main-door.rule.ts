@@ -49,7 +49,7 @@ export default defineRule<{ at: Facade }>({
     const role = roleOf(ctx.plan, structure);
     const variant = role === 'chapel' || role === 'boathouse' ? 'double' : role === 'shop' ? 'shop' : 'plain';
     // A stoop spans one storey at most; a door higher than that (a mill on a tower) is reached from inside.
-    const steps = at.drop === 1 ? STEPS_PER_LEVEL : 0;
+    const steps = at.drop === 1 && at.water !== 1 ? STEPS_PER_LEVEL : 0; // and never down into the sea
     const door = out.feature({
       type: 'door',
       structure,

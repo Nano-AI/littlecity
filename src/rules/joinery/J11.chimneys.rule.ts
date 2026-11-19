@@ -10,12 +10,13 @@ import { solid } from '@/resolve/facts/lib';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
 import type { Structure } from '@/resolve/plan';
 import { houseFacts } from './houses.fact';
-import { featureAt, houseStructures, roleOf, roofOf } from './houses.lib';
+import { houseStructures, roleOf, roofOf } from './houses.lib';
 
 /** The least number of chimneys a role has, and the chance a small house of that role has one at all. */
 const MINIMUM: Partial<Record<Role, readonly [number, number]>> = {
   cottage: [1, 0.7],
   manor: [2, 1],
+  inn: [2, 1],
 };
 /** Roles that never have one. */
 const NONE: ReadonlySet<Role> = new Set<Role>(['chapel', 'greenhouse']);
@@ -32,6 +33,8 @@ export default defineRule<{ s: Structure }>({
     const role = roleOf(ctx.plan, s.id);
     const hf = houseFacts(ctx.facts);
     const eligible: CellKey[] = [];
+    const dormers = new Set<CellKey>();
+    for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) if (f.type === 'dormer' && f.cell !== undefined) dormers.add(f.cell);
     let roofCells = 0;
     for (const region of roofRegions(ctx.facts).byStructure.get(s.id) ?? []) {
       const roof = roofOf(ctx.plan, region);
@@ -40,7 +43,7 @@ export default defineRule<{ s: Structure }>({
       for (const k of region.cells) {
         if (pierced.has(k)) continue;
         roofCells++;
-        if (!featureAt(ctx.plan, s.id, 'dormer', k)) eligible.push(k); // a dormer has the cell already
+        if (!dormers.has(k)) eligible.push(k); // a dormer has the cell already
       }
     }
     if (eligible.length === 0 || (role && NONE.has(role))) return;
@@ -56,10 +59,9 @@ export default defineRule<{ s: Structure }>({
       });
     const tallest = (k: CellKey): number => Math.max(...([0, 1, 2, 3] as Dir4[]).map((d) => hf.wallBeside(k, d)));
     // Best first: beside a party wall, not under a wall too tall to clear, then by seed.
-    const ranked = [...eligible].sort((a, b) => score(b) - score(a) || a - b);
-    function score(k: CellKey): number {
-      return (party(k) ? 2 : 0) - (tallest(k) > 1 ? 4 : 0) + ctx.rand('where', k);
-    }
+    const score = new Map<CellKey, number>();
+    for (const k of eligible) score.set(k, (party(k) ? 2 : 0) - (tallest(k) > 1 ? 4 : 0) + ctx.rand('where', k));
+    const ranked = [...eligible].sort((a, b) => score.get(b)! - score.get(a)! || a - b);
     const chosen: CellKey[] = [];
     for (const k of ranked) {
       if (chosen.length >= count) break;
@@ -70,8 +72,9 @@ export default defineRule<{ s: Structure }>({
     for (const cell of chosen.sort((a, b) => a - b)) {
       const wall = tallest(cell);
       const pipe = role === 'stilt-house';
-      // One tall flue a house, and only past a wall one storey taller: more would be a factory.
-      const tall = !pipe && wall === 1 && flues++ === 0;
+      // At most one tall flue a house, only past a wall one storey taller, and not every time:
+      // more would be a factory.
+      const tall = !pipe && wall === 1 && ctx.rand('flue', cell) < 0.6 && flues++ === 0;
       const id = out.feature({
         type: 'chimney',
         structure: s.id,

@@ -51,19 +51,21 @@ export default defineGenerator({
         const y = k * CELL_H, r = radiusAt(y) + 0.012;
         b.with({ color: PALETTE.stoneShade, ink: `band${k}` }, () => b.lathe([[r + 0.02, y - 0.03], [r + 0.02, y + 0.03]], { segments: 16, capTop: true }));
       }
-      // Windows: one per storey, winding a quarter turn each, never on the door's side at the ground.
+      // Windows: two per storey on opposite sides, winding a quarter turn each storey, so every
+      // quarter of the compass sees some. Never where the door is, nor behind the sails.
       for (let k = 0; k < n; k++) {
-        const turnBy = (door?.dir ?? facing) + 1 + k;
-        const y = k * CELL_H + 0.4;
-        if (k === n - 1 && n > 1) continue; // the top storey is behind the sails
-        const d = (((turnBy % 4) + 4) % 4) as Dir4;
-        b.at(compose(rotationY(yawOf(d)), translation(0, y, radiusAt(y) - 0.012), rotationX(-lean)), () => {
-          b.with({ color: PALETTE.stoneShade, ink: `window${k}` }, () => {
-            b.box([-0.085, -0.11, 0], [0.085, 0.13, 0.045], { skip: ['n'] });
-            b.box([-0.11, -0.145, 0], [0.11, -0.11, 0.07], { skip: ['n'] });
-            b.with({ color: PALETTE.glass, pattern: PATTERN.glass }, () => b.quad([-0.05, -0.08, 0.049], [0.05, -0.08, 0.049], [0.05, 0.1, 0.049], [-0.05, 0.1, 0.049]));
+        const y = k * CELL_H + 0.42;
+        for (const side of [1, 3]) {
+          const d = (((((door?.dir ?? facing) + side + k) % 4) + 4) % 4) as Dir4;
+          if ((k === 0 && d === door?.dir) || (k === n - 1 && d === facing)) continue;
+          b.at(compose(rotationY(yawOf(d)), translation(0, y, radiusAt(y) - 0.012), rotationX(-lean)), () => {
+            b.with({ color: PALETTE.stoneShade, ink: `window${k}-${side}` }, () => {
+              b.box([-0.085, -0.11, 0], [0.085, 0.13, 0.045], { skip: ['n'] });
+              b.box([-0.11, -0.145, 0], [0.11, -0.11, 0.07], { skip: ['n'] });
+              b.with({ color: PALETTE.glass, pattern: PATTERN.glass }, () => b.quad([-0.05, -0.08, 0.049], [0.05, -0.08, 0.049], [0.05, 0.1, 0.049], [-0.05, 0.1, 0.049]));
+            });
           });
-        });
+        }
       }
       // J25: a raised mill gets a timber gallery under the cap.
       if (features.some((f) => f.type === 'gallery')) {
@@ -89,6 +91,8 @@ export default defineGenerator({
           b.at(compose(translation(0, 0.035, -0.03), scaling(1, 1, 1.22)), () =>
             b.lathe([[neck + 0.05, 0], [neck + 0.02, 0.13], [neck * 0.72, 0.25], [neck * 0.34, 0.33], [0, 0.36]], { segments: 14 }));
         });
+        // A ball on the crown.
+        b.with({ color: PALETTE.white, ink: 'crown' }, () => b.at(translation(0, 0.4, -0.03), () => b.lathe([[0, -0.045], [0.032, -0.032], [0.045, 0], [0.032, 0.032], [0, 0.045]], { segments: 8 })));
         // The windshaft: a stub out of the cap's face for the sails to sit on.
         b.with({ color: PALETTE.wood, ink: 'shaft' }, () =>
           b.at(compose(translation(0, 0.17, neck + 0.02), rotationX(Math.PI / 2 - 0.1)), () => b.lathe([[0.045, 0], [0.04, 0.16]], { segments: 8, capTop: true })));

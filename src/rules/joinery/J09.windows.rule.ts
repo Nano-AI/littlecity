@@ -19,7 +19,7 @@ import { structureInfo } from '@/resolve/facts/structure.fact';
 import type { Structure } from '@/resolve/plan';
 import { HOUSE, personalityOf } from '@/style/houses';
 import { houseFacts } from './houses.fact';
-import { cliffSide, farGableEnd, featureAt, houseStructures, isTerraceTop, roleOf, roofOf } from './houses.lib';
+import { cliffSide, farGableEnd, houseStructures, isTerraceTop, roleOf, roofOf } from './houses.lib';
 
 type WindowVariant = 'square' | 'tall' | 'arched' | 'shuttered' | 'pointed' | 'shopfront' | 'bay';
 
@@ -48,16 +48,20 @@ export default defineRule<{ s: Structure }>({
     };
 
     const all = facades(ctx.facts);
+    // Where the doors are, looked up once (a big house has hundreds of facade cells).
+    const doors = new Set<number>();
+    for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) if (f.type === 'door' && f.cell !== undefined && f.dir !== undefined) doors.add(f.cell * 4 + f.dir);
+    // Columns (and sides) of this house that stand over an alley.
+    const alleySides = new Set<number>();
+    for (const f of all.byStructure.get(s.id) ?? []) if (f.alley) alleySides.add((f.cell & 4095) * 4 + f.dir);
     for (const f of all.byStructure.get(s.id) ?? []) {
-      if (featureAt(ctx.plan, s.id, 'door', f.cell, f.dir)) continue;
+      if (doors.has(f.cell * 4 + f.dir)) continue;
       if (f.touching || (f.faces === 'structure' && f.dist === 1)) continue;
       const what = hf.outside(f.cell, f.dir);
       if (what === 'bridge') continue; // J26 puts a door here
       if (what === 'roof' && !isTerraceTop(ctx, below(neighbor(f.cell, f.dir)))) continue;
       // An alley side is the whole wall over the alley, not just its ground storey.
-      let foot = f.cell;
-      while (ctx.facts.structureAt.get(below(foot)) === s.id) foot = below(foot);
-      const alley = f.alley || (all.at(foot, f.dir)?.alley ?? false);
+      const alley = f.alley || alleySides.has((f.cell & 4095) * 4 + f.dir);
       if (alley && ctx.rand('alley', f.cell, f.dir) >= 0.5) continue;
 
       let variant: WindowVariant = persona.family;

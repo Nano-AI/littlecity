@@ -23,17 +23,22 @@ export default definePart({
     // so neighbouring trail cells agree exactly where they meet.
     const cell = item.cell ?? 0;
     const along0 = alongX ? keyX(cell) : keyZ(cell), cross = alongX ? keyZ(cell) : keyX(cell);
-    const half = (i: number, side: number): number => 0.15 + rand(seed, 'trail', along0 * 4 + i, cross, side) * 0.07;
+    // Each quarter-cell line has a half-width either side and a small sideways drift, all from its
+    // world position: a trodden line wanders and is never the same width twice.
+    const at = (i: number): { l: number; r: number } => {
+      const k = along0 * 4 + i;
+      const drift = (rand(seed, 'trail-drift', k, cross) - 0.5) * 0.1;
+      return { l: 0.11 + rand(seed, 'trail', k, cross, 0) * 0.07 - drift, r: 0.11 + rand(seed, 'trail', k, cross, 1) * 0.07 + drift };
+    };
     const n = 4;
     const y = 0.014;
     b.setColor(PALETTE.dirt).setPattern(PATTERN.dirt).setInk('trail');
     for (let i = 0; i < n; i++) {
-      const t0 = i / n, t1 = (i + 1) / n;
-      const a = -0.5 + t0, c = -0.5 + t1;
-      const l0 = half(i, 0), r0 = half(i, 1), l1 = half(i + 1, 0), r1 = half(i + 1, 1);
+      const a = -0.5 + i / n, c = -0.5 + (i + 1) / n;
+      const p0 = at(i), p1 = at(i + 1);
       const P = (along: number, across: number): Vec3 => (alongX ? [along, y, across] : [across, y, along]);
-      if (alongX) b.quad(P(a, r0), P(c, r1), P(c, -l1), P(a, -l0));
-      else b.quad(P(a, -l0), P(c, -l1), P(c, r1), P(a, r0));
+      if (alongX) b.quad(P(a, p0.r), P(c, p1.r), P(c, -p1.l), P(a, -p0.l));
+      else b.quad(P(a, -p0.l), P(c, -p1.l), P(c, p1.r), P(a, p0.r));
     }
     return { mesh: b.build() };
   },
