@@ -31,6 +31,12 @@ export interface World {
   version: 1;
   /** Terrain and all seeded chance. */
   seed: number;
+  /**
+   * Which island generator made the terrain from the seed: absent or 1 = the
+   * first, 2 = the second (design section 6, "Terrain, second generation").
+   * (Added 2026-11-19, docs/swarm/requests/terrain2.md.)
+   */
+  terrainGen?: 1 | 2;
   nextSeq: number;
   blocks: ReadonlyMap<CellKey, Block>;
   /** Key = the cell the floor lies in (the cell above the walkable top). */

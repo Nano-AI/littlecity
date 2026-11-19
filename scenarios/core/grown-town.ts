@@ -12,7 +12,7 @@ import { generateTerrain } from '@/terrain/terrain';
 import { planTown } from '@/townmaker/index';
 
 export function grownTown(n: number, seed: number) {
-  const terrain = generateTerrain(seed);
+  const terrain = generateTerrain(seed, 1);
   const plan = planTown(terrain, seed);
   const at = (name: string): [number, number] | null => {
     const d = plan.districts.find((x) => x.name === name);
@@ -65,6 +65,7 @@ export function grownTown(n: number, seed: number) {
     seed,
     about: `Grow a town on the generated island for seed ${seed}: the generator's whole town, every edit legal, district by district.`,
     terrain: 'generated',
+    terrainGen: 1, // pinned: this island must not move when generator 2 is tuned
     build(b) {
       for (const e of plan.edits) b.edit(e);
     },

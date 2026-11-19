@@ -29,8 +29,10 @@ import { isHouseStyle } from '@/style/houses';
 
 export type { Block, Edit, EditResult, Rot, World } from '@/core/world';
 
-export function emptyWorld(seed: number): World {
-  return { version: 1, seed, nextSeq: 1, blocks: new Map(), floors: new Map(), edges: new Map() };
+export function emptyWorld(seed: number, terrainGen: 1 | 2 = 1): World {
+  const w: World = { version: 1, seed, nextSeq: 1, blocks: new Map(), floors: new Map(), edges: new Map() };
+  // Generator 1 leaves the field out, so its worlds are exactly what they always were.
+  return terrainGen === 2 ? { ...w, terrainGen } : w;
 }
 
 // ───────────────────────────────────────────────────────── questions ──

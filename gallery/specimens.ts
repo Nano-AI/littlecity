@@ -184,6 +184,7 @@ export function layerSpecimen(layer: string, seed = 3): Scenario {
     seed,
     about: `Automatic specimen: the '${layer}' layer on a generated island.`,
     terrain: 'generated',
+    terrainGen: 1, // pinned: this island must not move when generator 2 is tuned
     startingTrees: true,
     build() {},
     cameras: [{ name: 'island', yaw: 45, pitch: 35, zoom: 1.5, target: [24, 1, 24] }],

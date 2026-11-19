@@ -16,6 +16,12 @@
 // still written as version 1, byte for byte as before, so links made before
 // styles and links to unstyled towns are the same; the decoder reads both.
 //
+// Version 3 (2026-11-19, the second island generator) is version 2 with one
+// byte after the seed: the generator that made the island (World.terrainGen,
+// 1 or 2). Only a town on generator 2 is written as version 3; a town on
+// generator 1 is written exactly as before (version 1 or 2), so every old
+// link and file still opens on the island it was built on.
+//
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
 // and the autosaver report storage trouble instead of failing (Focus 5).
@@ -34,6 +40,8 @@ export const SHARE_LINK_MAX = 6000;
 const VERSION_1 = 1;
 /** Version 1 plus a house style on blocks that have one. */
 const VERSION_2 = 2;
+/** Version 2 plus the island generator (a byte after the seed). */
+const VERSION_3 = 3;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -116,6 +124,7 @@ export function encodeTown(w: World): string {
   const version = codecVersion(w);
   const p = new Writer();
   p.u32(w.seed | 0);
+  if (version === VERSION_3) p.byte(w.terrainGen ?? 1);
   p.varint(w.nextSeq);
   // Blocks in placement order, each relative to the one placed before it:
   // towns grow in stacks and rows, so the steps are small and repetitive.
@@ -131,7 +140,7 @@ export function encodeTown(w: World): string {
     px = keyX(cell);
     py = keyY(cell);
     pz = keyZ(cell);
-    const styled = version === VERSION_2 && !!b.style;
+    const styled = version !== VERSION_1 && !!b.style;
     p.byte(PLACED.indexOf(b.kind) | (b.color << 4) | (styled ? 0x80 : 0));
     if (b.kind === 'stairs') p.byte(b.rot);
     if (styled) p.byte(b.style!);
@@ -165,8 +174,9 @@ export function encodeTown(w: World): string {
   return toBase64Url(all);
 }
 
-/** The codec version a town needs: 2 if any block has a house style, else 1. */
-export function codecVersion(w: World): 1 | 2 {
+/** The codec version a town needs: 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+export function codecVersion(w: World): 1 | 2 | 3 {
+  if (w.terrainGen === 2) return VERSION_3;
   for (const b of w.blocks.values()) if (b.style) return VERSION_2;
   return VERSION_1;
 }
@@ -190,7 +200,7 @@ function decode(code: string): DecodeResult {
   if (!bytes || bytes.length < 2 || bytes[0] !== 0x4c || bytes[1] !== 0x43) return { ok: false, reason: NOT_A_TOWN };
   if (bytes.length < 3) return { ok: false, reason: DAMAGED };
   const version = bytes[2];
-  if (version !== VERSION_1 && version !== VERSION_2) return { ok: false, reason: OTHER_VERSION };
+  if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3) return { ok: false, reason: OTHER_VERSION };
   if (bytes.length < 8) return { ok: false, reason: DAMAGED };
   const head = new Reader(bytes.subarray(3, 7));
   const sum = head.u32();
@@ -204,6 +214,12 @@ function decode(code: string): DecodeResult {
 
   const r = new Reader(payload);
   const seed = r.u32() | 0;
+  let terrainGen: 1 | 2 = 1;
+  if (version === VERSION_3) {
+    const g = r.byte();
+    if (g !== 1 && g !== 2) return { ok: false, reason: OTHER_VERSION };
+    terrainGen = g;
+  }
   const nextSeq = r.varint();
   if (nextSeq < 1) return { ok: false, reason: DAMAGED };
   const blocks = new Map<CellKey, Block>();
@@ -221,7 +237,7 @@ function decode(code: string): DecodeResult {
     if (blocks.has(cell) || seq >= nextSeq) return { ok: false, reason: DAMAGED };
     const kc = r.byte();
     const kind = PLACED[kc & 15];
-    const styled = version === VERSION_2 && (kc & 0x80) !== 0;
+    const styled = version !== VERSION_1 && (kc & 0x80) !== 0;
     const color = styled ? (kc >> 4) & 7 : kc >> 4;
     if (kind === undefined || color >= PALETTE_SIZE) return { ok: false, reason: DAMAGED };
     let rot: Rot = 0;
@@ -263,7 +279,8 @@ function decode(code: string): DecodeResult {
     edges.set(e, kind);
   }
   if (!r.done) return { ok: false, reason: DAMAGED };
-  return { ok: true, world: { version: 1, seed, nextSeq, blocks, floors, edges } };
+  const world: World = { version: 1, seed, nextSeq, blocks, floors, edges };
+  return { ok: true, world: terrainGen === 2 ? { ...world, terrainGen } : world };
 }
 
 /** The share code, and whether it is short enough for a link (else offer the town file). */

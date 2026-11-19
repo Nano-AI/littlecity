@@ -8,6 +8,7 @@ export default scenario({
   name: 'logic-island',
   seed: 1,
   terrain: 'generated',
+  terrainGen: 1, // pinned: this island must not move when generator 2 is tuned
   startingTrees: true,
   about: 'A new island for seed 1: beach, hill, cliff, cove, terraces and 6–14 starting trees.',
   build() {},

@@ -14,6 +14,7 @@ export function generatedScenario(n: number): Scenario {
     seed: LOOK_SEED + 2 + n,
     about: `The generated island for look seed ${n}, with its starting trees, from four sides.`,
     terrain: 'generated',
+    terrainGen: 1, // pinned: this island must not move when generator 2 is tuned
     startingTrees: true,
     build() {},
     cameras: [
