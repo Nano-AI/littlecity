@@ -1,13 +1,33 @@
-// STUB (Stage 0). Owner: Look (Stage 1). Final signature: createSignals.
+// Signals (Look, Stage 1): the dusk cycle, the wind and events. The one
+// place that turns frame time into "what time is it" and "how does the air
+// move". Everything that animates reads these; nothing else reads a clock.
 //
-// The stub runs the dusk cycle and clamps the time step; wind is a constant
-// light breeze. The Look owner adds the drifting direction and travelling
-// gusts (design section 13) and the test `signals clamp dt` (Review Focus 4).
+//   const signals = createSignals(world.seed);
+//   const dt = signals.advance(elapsedSeconds);   // clamped to TIME.maxStep
+//   signals.time.part                              // 'day' | 'dusk' | 'night' | 'dawn'
+//   signals.wind(x, z)                             // { dirX, dirZ, strength }
+//
+// Time: one loop is TIME.day + dusk + night + dawn seconds (8 minutes).
+// `hold(part)` parks the cycle at the middle of a part; life time
+// (`time.seconds`) keeps running either way, so held scenes still move.
+//
+// Wind: one town-wide direction that drifts slowly around a prevailing
+// bearing, a base strength that breathes, and gusts. A gust is a front: a
+// line across the map, at right angles to the wind, that sweeps downwind at
+// WIND.gustSpeed. Its leading edge is sharp and its tail long, so a flag
+// snaps and then settles. Everything samples the same field, so a gust is
+// seen crossing the town: first the far trees, then the laundry, then the
+// sails.
 
+import { SIZE_X, SIZE_Z } from '@/core/grid';
+import { rand } from '@/core/rand';
 import { TIME } from '@/style/time';
-import type { DayPart, SignalEvent, SignalEvents, SignalsDriver, TimeHold, TimeSignal } from './api';
+import { WIND } from '@/style/wind';
+import type { DayPart, SignalEvent, SignalEvents, SignalsDriver, TimeHold, TimeSignal, Wind } from './api';
 
 const PARTS: readonly DayPart[] = ['day', 'dusk', 'night', 'dawn'];
+/** Half the map's diagonal plus a margin: a front starts and ends this far from the centre. */
+const REACH = Math.hypot(SIZE_X, SIZE_Z) / 2 + 6;
 
 function loopSeconds(): number {
   return TIME.day + TIME.dusk + TIME.night + TIME.dawn;
@@ -26,7 +46,8 @@ export function partPhases(): Record<DayPart, { start: number; mid: number; end:
   return out;
 }
 
-function timeAt(phase: number, seconds: number): TimeSignal {
+/** The time signal at a phase of the loop. Pure. */
+export function timeAt(phase: number, seconds: number): TimeSignal {
   const phases = partPhases();
   const part = PARTS.find((p) => phase < phases[p].end) ?? 'dawn';
   const within = (phase - phases[part].start) / (phases[part].end - phases[part].start);
@@ -44,19 +65,79 @@ function timeAt(phase: number, seconds: number): TimeSignal {
   };
 }
 
-export function createSignals(_seed: number): SignalsDriver {
+/** One gust front, for the renderer's debug views and for tests. */
+export interface GustFront {
+  /** Signed distance of the front from the map centre along the wind, in columns. */
+  position: number;
+  /** Peak strength this gust adds. */
+  peak: number;
+}
+
+/** The whole wind field at one moment. `wind(x, z)` is a function of this. */
+export interface WindField {
+  dirX: number;
+  dirZ: number;
+  base: number;
+  fronts: GustFront[];
+}
+
+/** The wind field for a seed at a life time. Pure: the same seed and time give the same wind. */
+export function windFieldAt(seed: number, seconds: number): WindField {
+  const bearing = rand(seed, 'wind', 'bearing') * Math.PI * 2;
+  const p1 = rand(seed, 'wind', 'p1') * Math.PI * 2;
+  const p2 = rand(seed, 'wind', 'p2') * Math.PI * 2;
+  const p3 = rand(seed, 'wind', 'p3') * Math.PI * 2;
+  // Two slow sines of unrelated periods: the direction wanders and never visibly repeats.
+  const angle =
+    bearing + WIND.wander * (0.62 * Math.sin((seconds * Math.PI * 2) / 97 + p1) + 0.38 * Math.sin((seconds * Math.PI * 2) / 41 + p2));
+  const base = Math.max(
+    0,
+    WIND.base + WIND.breath * (0.65 * Math.sin((seconds * Math.PI * 2) / 23 + p3) + 0.35 * Math.sin((seconds * Math.PI * 2) / 7.3 + p1)),
+  );
+  // Gust k starts at k × gustEvery (jittered) and takes `crossing` seconds to sweep the map.
+  const every = Math.max(1, WIND.gustEvery);
+  const crossing = (2 * REACH + WIND.gustTail * 2) / Math.max(0.5, WIND.gustSpeed);
+  const fronts: GustFront[] = [];
+  const newest = Math.floor(seconds / every);
+  for (let k = newest; k >= 0 && k >= newest - Math.ceil(crossing / every) - 1; k--) {
+    const start = k * every + (rand(seed, 'gust', k, 't') - 0.5) * every * 0.66;
+    const age = seconds - start;
+    if (age < 0 || age > crossing) continue;
+    fronts.push({
+      position: -REACH + age * WIND.gustSpeed,
+      peak: WIND.gustPeak * (0.45 + 0.55 * rand(seed, 'gust', k, 'peak')),
+    });
+  }
+  return { dirX: Math.cos(angle), dirZ: Math.sin(angle), base, fronts };
+}
+
+/** Wind at a column of a field. */
+export function sampleWind(field: WindField, x: number, z: number): Wind {
+  const along = (x - SIZE_X / 2) * field.dirX + (z - SIZE_Z / 2) * field.dirZ;
+  let strength = field.base;
+  for (const f of field.fronts) {
+    const d = along - f.position; // > 0: the front has not arrived here yet
+    const shape = d > 0 ? Math.exp(-((d / WIND.gustLead) ** 2)) : Math.exp(-((d / WIND.gustTail) ** 2));
+    strength += f.peak * shape;
+  }
+  return { dirX: field.dirX, dirZ: field.dirZ, strength: Math.min(1.2, strength) };
+}
+
+export function createSignals(seed: number): SignalsDriver {
   let phase = 0;
   let seconds = 0;
   let holding: TimeHold = 'run';
   let time = timeAt(phase, seconds);
+  let field: WindField | null = null;
   const listeners = new Map<SignalEvent, Set<(payload: never) => void>>();
 
   return {
     get time() {
       return time;
     },
-    wind() {
-      return { dirX: 1, dirZ: 0, strength: 0.3 };
+    wind(x, z) {
+      field ??= windFieldAt(seed, seconds);
+      return sampleWind(field, x, z);
     },
     on(event, fn) {
       let set = listeners.get(event);
@@ -67,10 +148,12 @@ export function createSignals(_seed: number): SignalsDriver {
       };
     },
     advance(dt) {
+      // Review Focus 4: a sleeping tab or a frame that takes seconds never jumps time.
       const step = Math.min(Math.max(Number.isFinite(dt) ? dt : 0, 0), TIME.maxStep);
       seconds += step;
       if (holding === 'run') phase = (phase + step / loopSeconds()) % 1;
       time = timeAt(phase, seconds);
+      field = null;
       return step;
     },
     hold(mode) {
@@ -86,7 +169,8 @@ export function createSignals(_seed: number): SignalsDriver {
       time = timeAt(phase, seconds);
     },
     emit<E extends SignalEvent>(event: E, payload: SignalEvents[E]) {
-      for (const fn of listeners.get(event) ?? []) (fn as (p: SignalEvents[E]) => void)(payload);
+      // Copy first: a listener may unsubscribe (or subscribe) while it runs.
+      for (const fn of [...(listeners.get(event) ?? [])]) (fn as (p: SignalEvents[E]) => void)(payload);
     },
   };
 }

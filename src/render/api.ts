@@ -56,6 +56,13 @@ export interface ViewOptions {
   pixelRatio?: number;
   /** Keep the drawing buffer readable (screenshots, postcard export). Default false. */
   preserveDrawingBuffer?: boolean;
+  /**
+   * Added by Look (Stage 1). Where the ink lines are computed: 'full' at the
+   * canvas resolution, 'half' at half of it (softer lines, far cheaper; the
+   * phone fallback of design section 14). Default 'auto': 'half' on a small
+   * touch screen, 'full' elsewhere.
+   */
+  ink?: 'auto' | 'full' | 'half';
 }
 
 export interface TownView {
