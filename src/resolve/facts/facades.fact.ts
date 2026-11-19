@@ -6,7 +6,8 @@ import type { EdgeKind, Kind, StructureKind } from '@/core/kinds';
 import type { StructureId } from '../plan';
 import { FACTS } from '@/style/facts';
 import { alleys } from './alleys.fact';
-import { defineFact } from './api';
+import { defineFact, type Facts } from './api';
+import { contentKeys, regionKey, RegionMemo, registerMemo, saltKey } from './content-keys.fact';
 import { DIRS, edgeBetween } from './lib';
 import { BULKY, KIND_CODES, occupancy, SOLID, TERRAIN, type Occupancy } from './occupancy.fact';
 import { sunnySide } from './sun.fact';
@@ -91,100 +92,131 @@ function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): num
   }
 }
 
+// A structure's facades read the columns within facadeReach of it, straight
+// down each of them, and whether the cell outside is in an alley, which is
+// decided within alleyMin + 1 of that cell. Kept across resolves by the
+// content of the columns within that reach (see content-keys.fact.ts).
+const memo = registerMemo(new RegionMemo<Facade[]>());
+
 export const facades = defineFact<Facades>('facades', (f) => {
-  const occ = occupancy(f);
   const list: Facade[] = [];
   const byStructure = new Map<StructureId, Facade[]>();
-  const index = new Map<number, Facade>();
-  const sun = sunnySide(f);
-  const reach = FACTS.facadeReach;
+  const keys = contentKeys(f);
+  const k = regionKey();
+  const reach = Math.max(FACTS.facadeReach, FACTS.alleyMin + 1) + 1;
+  memo.begin();
+  let env: Env | null = null;
   const ids = [...f.structures.keys()].sort((a, b) => a - b);
-  const under = { drop: 0 };
   for (const id of ids) {
     const s = f.structures.get(id)!;
     if (!FACADE_KINDS.has(s.kind) || !s.cells.length) continue;
-    let minY = 99;
-    for (const c of s.cells) minY = Math.min(minY, keyY(c));
-    const mine: Facade[] = [];
-    for (const cell of s.cells) {
-      for (const dir of DIRS) {
-        const out = neighbor(cell, dir);
-        if (out === NO_CELL || occ.flags[out]! & SOLID || occ.structure[out] === id) continue;
-        const fc: Facade = {
-          structure: id,
-          kind: s.kind,
-          cell,
-          dir,
-          storey: keyY(cell) - minY + 1,
-          faces: 'open',
-          dist: 0,
-          street: undefined,
-          plaza: undefined,
-          garden: undefined,
-          water: undefined,
-          cliff: undefined,
-          ground: undefined,
-          other: undefined,
-          gap: undefined,
-          cliffRise: undefined,
-          touching: undefined,
-          edge: edgeBetween(f, cell, dir),
-          drop: 0,
-          alley: false,
-          sunny: sun.isSunny(dir),
-        };
-        const outKind = occ.kind[out]!;
-        if (outKind && !(occ.flags[out]! & BULKY)) fc.touching = KIND_CODES[outKind - 1];
-        let c = cell;
-        for (let k = 1; k <= reach; k++) {
-          c = neighbor(c, dir);
-          if (c === NO_CELL) break;
-          const fl = occ.flags[c]!;
-          if (fl & TERRAIN) {
-            if (fc.faces === 'open') {
-              fc.faces = 'cliff';
-              fc.dist = k;
-            }
-            fc.cliff = k;
-            fc.cliffRise = f.terrain.height[columnIndex(keyX(c), keyZ(c))]! - keyY(cell);
-            break;
+    saltKey(saltKey(keys.around(s.cells, reach, k), FACTS.facadeReach), FACTS.alleyMin);
+    let mine = memo.get(id, k);
+    if (!mine) memo.put(id, k, (mine = facadesOf(f, id, (env ??= envOf(f)))));
+    if (!mine.length) continue;
+    byStructure.set(id, mine);
+    for (const fc of mine) list.push(fc);
+  }
+  let index: Map<number, Facade> | null = null;
+  const at = (cell: CellKey, dir: Dir4): Facade | undefined => {
+    if (!index) {
+      index = new Map();
+      for (const fc of list) index.set(fc.cell * 4 + fc.dir, fc);
+    }
+    return index.get(cell * 4 + dir);
+  };
+  return { list, byStructure, at };
+});
+
+interface Env {
+  occ: Occupancy;
+  sun: ReturnType<typeof sunnySide>;
+  alleyCells: ReadonlyMap<CellKey, unknown>;
+}
+
+function envOf(f: Facts): Env {
+  return { occ: occupancy(f), sun: sunnySide(f), alleyCells: alleys(f).byCell };
+}
+
+function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
+  const { occ, sun } = env;
+  const reach = FACTS.facadeReach;
+  const under = { drop: 0 };
+  const s = f.structures.get(id)!;
+  let minY = 99;
+  for (const c of s.cells) minY = Math.min(minY, keyY(c));
+  const mine: Facade[] = [];
+  for (const cell of s.cells) {
+    for (const dir of DIRS) {
+      const out = neighbor(cell, dir);
+      if (out === NO_CELL || occ.flags[out]! & SOLID || occ.structure[out] === id) continue;
+      const fc: Facade = {
+        structure: id,
+        kind: s.kind,
+        cell,
+        dir,
+        storey: keyY(cell) - minY + 1,
+        faces: 'open',
+        dist: 0,
+        street: undefined,
+        plaza: undefined,
+        garden: undefined,
+        water: undefined,
+        cliff: undefined,
+        ground: undefined,
+        other: undefined,
+        gap: undefined,
+        cliffRise: undefined,
+        touching: undefined,
+        edge: edgeBetween(f, cell, dir),
+        drop: 0,
+        alley: env.alleyCells.has(out),
+        sunny: sun.isSunny(dir),
+      };
+      const outKind = occ.kind[out]!;
+      if (outKind && !(occ.flags[out]! & BULKY)) fc.touching = KIND_CODES[outKind - 1];
+      let c = cell;
+      for (let k = 1; k <= reach; k++) {
+        c = neighbor(c, dir);
+        if (c === NO_CELL) break;
+        const fl = occ.flags[c]!;
+        if (fl & TERRAIN) {
+          if (fc.faces === 'open') {
+            fc.faces = 'cliff';
+            fc.dist = k;
           }
-          if (fl & BULKY) {
-            const other = occ.structure[c]!;
-            if (other !== id) {
-              if (fc.faces === 'open') {
+          fc.cliff = k;
+          fc.cliffRise = f.terrain.height[columnIndex(keyX(c), keyZ(c))]! - keyY(cell);
+          break;
+        }
+        if (fl & BULKY) {
+          const other = occ.structure[c]!;
+          if (other !== id) {
+            if (fc.faces === 'open') {
               fc.faces = 'structure';
               fc.dist = k;
             }
-              fc.other = other;
-              fc.gap = k - 1;
-            }
-            break;
+            fc.other = other;
+            fc.gap = k - 1;
           }
-          const what = surfaceUnder(occ, c, under);
-          if (k === 1) fc.drop = under.drop;
-          if (what === ROOF) continue;
-          const name = SURFACE[what]!;
-          if (fc.faces === 'open') {
-              fc.faces = name;
-              fc.dist = k;
-            }
-          if (what === 1) fc.street ??= k;
-          else if (what === 2) fc.plaza ??= k;
-          else if (what === 3) fc.garden ??= k;
-          else if (what === 4) fc.water ??= k;
-          else fc.ground ??= k;
+          break;
         }
-        mine.push(fc);
-        list.push(fc);
-        index.set(cell * 4 + dir, fc);
+        const what = surfaceUnder(occ, c, under);
+        if (k === 1) fc.drop = under.drop;
+        if (what === ROOF) continue;
+        const name = SURFACE[what]!;
+        if (fc.faces === 'open') {
+          fc.faces = name;
+          fc.dist = k;
+        }
+        if (what === 1) fc.street ??= k;
+        else if (what === 2) fc.plaza ??= k;
+        else if (what === 3) fc.garden ??= k;
+        else if (what === 4) fc.water ??= k;
+        else fc.ground ??= k;
       }
+      mine.push(fc);
     }
-    if (mine.length) byStructure.set(id, mine);
   }
-  if (list.length) {
-    const al = alleys(f);
-    for (const fc of list) fc.alley = al.byCell.has(neighbor(fc.cell, fc.dir));
-  }
-  return { list, byStructure, at: (cell, dir) => index.get(cell * 4 + dir) };
-});
+  return mine;
+}

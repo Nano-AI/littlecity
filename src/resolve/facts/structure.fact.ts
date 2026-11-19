@@ -4,7 +4,8 @@
 import { above, below, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { isFloorKind, type StructureKind } from '@/core/kinds';
 import type { StructureId } from '../plan';
-import { defineFact } from './api';
+import { defineFact, type Facts } from './api';
+import { contentKeys, regionKey, RegionMemo, registerMemo } from './content-keys.fact';
 import { boxOf, DIRS, type Box } from './lib';
 
 export interface Touch {
@@ -38,50 +39,66 @@ export interface StructureInfo {
   touches: readonly Touch[];
 }
 
+// An entry reads the structure's own cells and their six neighbours: the
+// columns within 1 of it (see content-keys.fact.ts).
+const memo = registerMemo(new RegionMemo<StructureInfo>());
+const REACH = 1;
+
 /** Every block structure (not floor regions or edge-only runs), by id. */
 export const structureInfo = defineFact<ReadonlyMap<StructureId, StructureInfo>>('structureInfo', (f) => {
   const out = new Map<StructureId, StructureInfo>();
+  const keys = contentKeys(f);
+  const k = regionKey();
+  memo.begin();
   for (const s of f.structures.values()) {
     if (!s.cells.length || isFloorKind(s.kind)) continue;
-    const byLevel = new Map<number, number[]>();
-    const columns = new Set<number>();
-    const touches = new Map<StructureId, { sides: Set<Dir4>; above: boolean; below: boolean }>();
-    const touch = (n: CellKey): { sides: Set<Dir4>; above: boolean; below: boolean } | null => {
-      if (n === NO_CELL) return null;
-      const other = f.structureAt.get(n);
-      if (other === undefined || other === s.id) return null;
-      let t = touches.get(other);
-      if (!t) touches.set(other, (t = { sides: new Set(), above: false, below: false }));
-      return t;
-    };
-    for (const c of s.cells) {
-      const col = columnIndex(keyX(c), keyZ(c));
-      columns.add(col);
-      const list = byLevel.get(keyY(c));
-      if (list) list.push(col);
-      else byLevel.set(keyY(c), [col]);
-      for (const d of DIRS) touch(neighbor(c, d))?.sides.add(d);
-      const up = touch(above(c));
-      if (up) up.above = true;
-      const down = touch(below(c));
-      if (down) down.below = true;
-    }
-    const box = boxOf(s.cells);
-    out.set(s.id, {
-      id: s.id,
-      kind: s.kind,
-      cells: s.cells,
-      minY: box.y0,
-      maxY: box.y1,
-      storeys: box.y1 - box.y0 + 1,
-      footprint: columns.size,
-      footprintByLevel: byLevel,
-      groundFootprint: byLevel.get(box.y0)!.length,
-      box,
-      touches: [...touches]
-        .sort((a, b) => a[0] - b[0])
-        .map(([id, t]) => ({ id, kind: f.structures.get(id)!.kind, sides: [...t.sides].sort(), above: t.above, below: t.below })),
-    });
+    keys.around(s.cells, REACH, k);
+    let info = memo.get(s.id, k);
+    if (!info) memo.put(s.id, k, (info = infoOf(f, s.id)));
+    out.set(s.id, info);
   }
   return out;
 });
+
+function infoOf(f: Facts, id: StructureId): StructureInfo {
+  const s = f.structures.get(id)!;
+  const byLevel = new Map<number, number[]>();
+  const columns = new Set<number>();
+  const touches = new Map<StructureId, { sides: Set<Dir4>; above: boolean; below: boolean }>();
+  const touch = (n: CellKey): { sides: Set<Dir4>; above: boolean; below: boolean } | null => {
+    if (n === NO_CELL) return null;
+    const other = f.structureAt.get(n);
+    if (other === undefined || other === s.id) return null;
+    let t = touches.get(other);
+    if (!t) touches.set(other, (t = { sides: new Set(), above: false, below: false }));
+    return t;
+  };
+  for (const c of s.cells) {
+    const col = columnIndex(keyX(c), keyZ(c));
+    columns.add(col);
+    const list = byLevel.get(keyY(c));
+    if (list) list.push(col);
+    else byLevel.set(keyY(c), [col]);
+    for (const d of DIRS) touch(neighbor(c, d))?.sides.add(d);
+    const up = touch(above(c));
+    if (up) up.above = true;
+    const down = touch(below(c));
+    if (down) down.below = true;
+  }
+  const box = boxOf(s.cells);
+  return {
+    id: s.id,
+    kind: s.kind,
+    cells: s.cells,
+    minY: box.y0,
+    maxY: box.y1,
+    storeys: box.y1 - box.y0 + 1,
+    footprint: columns.size,
+    footprintByLevel: byLevel,
+    groundFootprint: byLevel.get(box.y0)!.length,
+    box,
+    touches: [...touches]
+      .sort((a, b) => a[0] - b[0])
+      .map(([id, t]) => ({ id, kind: f.structures.get(id)!.kind, sides: [...t.sides].sort(), above: t.above, below: t.below })),
+  };
+}

@@ -122,6 +122,18 @@ export interface RuleDef<D = undefined> {
   townWide?: boolean;
   /** One line for `npm run inspect`: the facts it reads and what it claims. */
   about?: string;
+  /**
+   * Shape stage only: apply() is local, so the engine may replay its last
+   * output instead of calling it. For a candidate naming a structure S, apply
+   * reads nothing but: the candidate (anchor, key, and data worked out from S
+   * alone); the world, terrain and facts within `local` columns of S and of
+   * the block structures with a cell within `local` columns of S (whole); the
+   * roles, tags, features and sockets of S and of those block structures; and
+   * style values. Not floor regions' or edge runs' outputs, not town-wide
+   * facts, not the plan's global lists. `local` must cover the reach of every
+   * fact it reads (facades: 4; roofRegions, structureInfo, houseFacts: 1).
+   */
+  local?: number;
   /** Pure. Where could this rule apply? */
   find(ctx: RuleContext): Candidate<D>[];
   /** Seeded chance per candidate, 0 < chance ≤ 1. Omitted means always. */

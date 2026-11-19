@@ -27,6 +27,7 @@ export default defineRule<{ s: Structure }>({
   part: 'joinery',
   tier: 1,
   priority: 890,
+  local: 1, // apply reads only its roof regions and the cells beside them (RuleDef.local)
   about: 'Reads: roofRegions, roof features, roles, walls beside the roof. Emits: chimney features with chimney-top sockets.',
   find: (ctx) => houseStructures(ctx).map((s) => ({ anchor: s.cells[0]!, structure: s.id, data: { s } })),
   apply(c, out, ctx) {

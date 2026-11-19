@@ -64,8 +64,12 @@ function fmix(h: number): number {
 interface HashIndex {
   supportsByCell: Map<CellKey, Support[]>;
   socketsByStructure: Map<number, Socket[]>;
-  stringCodes: Map<string, number>;
 }
+// String codes outlive a plan: feature and socket ids, types and variants
+// repeat from one resolve to the next. Bounded, in case a long session
+// sees a great many distinct ids.
+let stringCodes = new Map<string, number>();
+const MAX_CODES = 1 << 18;
 const indexes = new WeakMap<ShapePlan, HashIndex>();
 function indexOf(plan: ShapePlan): HashIndex {
   let ix = indexes.get(plan);
@@ -83,14 +87,17 @@ function indexOf(plan: ShapePlan): HashIndex {
       if (list) list.push(sock);
       else socketsByStructure.set(sock.structure, [sock]);
     }
-    ix = { supportsByCell, socketsByStructure, stringCodes: new Map() };
+    ix = { supportsByCell, socketsByStructure };
     indexes.set(plan, ix);
   }
   return ix;
 }
-function code(ix: HashIndex, s: string): number {
-  let c = ix.stringCodes.get(s);
-  if (c === undefined) ix.stringCodes.set(s, (c = hashString(s)));
+function code(_ix: HashIndex, s: string): number {
+  let c = stringCodes.get(s);
+  if (c === undefined) {
+    if (stringCodes.size >= MAX_CODES) stringCodes = new Map();
+    stringCodes.set(s, (c = hashString(s)));
+  }
   return c;
 }
 
