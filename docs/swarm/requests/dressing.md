@@ -28,32 +28,25 @@ commit and passes when run alone. It fails under load (the yaw has not moved
 yet when it is read). Interface: it needs a wait on the camera, not a fixed
 number of frames.
 
-## 2b. Urban-fill rules that need the Houses owner (not built)
+## 2b. Urban-fill rules that changed houses (built in Stage 4)
 
-Four catalogue rules change how a HOUSE is drawn, which only a shape-stage
-feature or a personality choice can do, and both live in Houses' files
-(`src/gen/house`, `src/parts/openings`, `src/style/houses.ts`). A dressing
-rule can only add props, so I did not fake them:
+U09, U10 (turret only), U11 and the edge half of U12 are built. To do it I
+edited these files of other owners, each as little as I could (all house
+fixtures stay green):
 
-- **U09 vista end**: the facade cell a straight street of 5+ runs into gets a
-  clock, a statue niche, a grand doorway or an oriel. Needs `window/oriel`,
-  a wall clock and a niche as features with parts, chosen by a joinery rule.
-  The cell is easy to find: `streets(facts).segments`, then
-  `facades(facts).at(cell, dir)` one step beyond the last cell.
-- **U10 corners**: a corner entrance with a chamfer, or a corner oriel. Needs
-  the house shell to cut a corner.
-- **U11 civic hall**: a role (`town-hall`) with an arcaded ground storey, a
-  balcony and a clock gable. Needs the role in the vocabulary and a generator
-  branch. D13 would then fly its flag from a `flag-mount` the hall declares.
-- **U12, the edge half**: thatch, timber and rough stone on houses more than
-  10 steps from any floor. `personalityOf` picks roof cover and wall finish;
-  a tag such as `rustic` read there would do it. The centre half IS built
-  (`src/rules/urban/U12.centre-and-edge.rule.ts`, a shape-stage rule that
-  tags `stone-ground`, which the house generator already draws).
+| File | Change |
+|---|---|
+| `src/gen/house/house.gen.ts` | frames for `vista`, `arcade` (wall plane) and `corner-oriel` (the cell's right-hand corner); rustic walls in `material()`; `personalityOf` gets the 'rustic' tag |
+| `src/style/houses.ts` | `personalityOf(..., rustic)`: town-hall (tall windows, panel door, bands); rustic thatch and walls (`Personality.rustic`) |
+| `src/parts/openings/lib.ts`, `door.part.ts`, `finial.part.ts` | persona sees 'rustic'; no canopy under a grand doorway; a vane may carry a rooster or a ship (`finial.figure`, D12) |
+| `src/rules/joinery/J04, J06, J09` | hall: hip roof, double door facing its square; J09 leaves a vista's wall bare and puts a tall window behind a balcony made earlier |
+| `src/gen/fence/fence.gen.ts` | leaves out edge pieces marked `run-bare` (J20-F, a fence round a pitched roof's eaves) |
+| `src/rules/life/L02.smoke.rule.ts` (Animation) | claims its chimney socket, so D14-T's stork nest chimney does not smoke |
+| `scenarios/rules/R-H03.mill-house.scenario.ts` | counts R-H99's sacks and cart (D25 adds more at the windmill) |
 
-Also for Houses: `R-H99.role-props` and D11 (doorsteps) both dress a door.
-D11 runs second and, where R-H99 put something at a door, adds only the mat
-(and no second lantern on an inn).
+**Ground:** walls (`src/gen/wall`) on a pitched roof still float; reading
+`run-bare` there as the fence generator does would fix it.
+**Houses:** U10's chamfered corner entrance needs the shell to cut a corner.
 
 ## 3. Reading of the catalogue worth a second opinion
 
