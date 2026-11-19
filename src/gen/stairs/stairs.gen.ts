@@ -39,6 +39,8 @@ import { FENCE, STAIRS } from '@/style/edges';
 import { PALETTE, rampColor } from '@/style/palette';
 
 type Side = 'merged' | 'wall' | 'open';
+/** The step that keeps a face off another in the same plane (docs/swarm/requests/steady-ink.md). */
+const TOP_LIFT = 0.004;
 
 export default defineGenerator({
   kind: 'stairs',
@@ -94,8 +96,9 @@ export default defineGenerator({
         let zf = 0.5, under = 0;
         for (let i = 0; i < n; i++) {
           const zb = i === n - 1 ? -0.5 : zf - depths[i]!;
-          // The top tread is exact: it meets the floor above. The others are a hair out, as laid stone is.
-          const h = (i + 1) * riser + (i < n - 1 ? (tr('h', i) - 0.5) * 2 * STAIRS.uneven : 0);
+          // The top tread meets the floor above, a hair (0.004) proud of it: the ground's lip reaches under
+          // it, and flush the two would trade pixels. The others are a little out, as laid stone is.
+          const h = (i + 1) * riser + (i < n - 1 ? (tr('h', i) - 0.5) * 2 * STAIRS.uneven : TOP_LIFT);
           const lip = Math.min(STAIRS.nosing, riser * 0.5);
           const zr = zf, low = under;
           b.with({ color: stone, pattern: PATTERN.stone, ink: 'steps' }, () =>
@@ -155,8 +158,9 @@ export default defineGenerator({
                 b.box([xc - w - 0.02, y1, zc - w - 0.02], [xc + w + 0.02, y1 + 0.04, zc + w + 0.02], { skip: ['bottom'] }),
               );
             };
-            if (footNewel) newel(0.5 - w, 0, yf + (style ? railH : STAIRS.newelRise));
-            if (headNewel) newel(-0.5 + w, solidAhead ? CELL_H : 0, yb + (style ? railH : STAIRS.newelRise * 0.5));
+            // A hair (0.004) proud of the flight's foot and head, which would otherwise share its end faces' planes.
+            if (footNewel) newel(0.5 - w + TOP_LIFT, 0, yf + (style ? railH : STAIRS.newelRise));
+            if (headNewel) newel(-0.5 + w - TOP_LIFT, solidAhead ? CELL_H : 0, yb + (style ? railH : STAIRS.newelRise * 0.5));
             if (style) {
               const posts: number[] = [];
               const predRailed = pred !== NO_CELL && rails.has(`${pred}:${side}`);

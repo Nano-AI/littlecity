@@ -106,7 +106,7 @@ describe('dock generator (J23)', () => {
     });
   }
 
-  test('the deck is one surface: one ink group across merged cells, its top exactly one cell high', () => {
+  test('the deck is one surface: one ink group across merged cells, its top one cell high (and a hair)', () => {
     const cells = SHAPES['a 2 × 3 block']!;
     const plan = town((b) => docks(b, cells));
     const s = at(plan, 10, 31);
@@ -115,9 +115,9 @@ describe('dock generator (J23)', () => {
     const planks = own.filter((t) => t.pattern === PATTERN.planks || t.pattern === PATTERN.planksAcross);
     expect(planks.length).toBeGreaterThan(0);
     expect(new Set(planks.map((t) => t.ink))).toEqual(new Set([deck]));
-    // Its top covers every cell at exactly CELL_H ...
+    // Its top covers every cell at CELL_H, a hair (0.004) over it: off the plane of the beach's lip ...
     const tops = planks.filter((t) => t.n[1] > 0.99);
-    for (const t of tops) for (const y of t.ys) expect(y).toBeCloseTo(CELL_H, 6);
+    for (const t of tops) for (const y of t.ys) expect(y).toBeCloseTo(CELL_H + 0.004, 6);
     for (const [x, z] of cells) expect(tops.some((t) => Math.abs(t.c[0] - (x + 0.5)) < 0.5 && Math.abs(t.c[2] - (z + 0.5)) < 0.5)).toBe(true);
     // ... and nothing of the deck or the frame stands between merged cells.
     const frame = inkOf(s, 'frame');

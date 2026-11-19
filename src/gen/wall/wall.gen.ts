@@ -181,7 +181,11 @@ export default defineGenerator({
             if (style === 'garden-wall') {
               // A saddle coping: two slopes meeting in a ridge.
               const lip = WALL.coping * 0.5, ridge = WALL.coping + 0.035;
-              b.box([a, H, -w], [c, H + lip, w], { only: ['n', 's'] });
+              // The lip's sides are as wide as a pier: they stop at its faces rather than run on into it
+              // in the plane of its sides.
+              const pw = WALL.pier / 2 - 0.02;
+              const la = a + (standsAt(seg.from) ? pw : 0), lc = c - (standsAt(seg.to) ? pw : 0);
+              if (lc - la > 0.01) b.box([la, H, -w], [lc, H + lip, w], { only: ['n', 's'] });
               b.quad([a, H + lip, w], [c, H + lip, w], [c, H + ridge, 0], [a, H + ridge, 0]);
               b.quad([c, H + lip, -w], [a, H + lip, -w], [a, H + ridge, 0], [c, H + ridge, 0]);
             } else {

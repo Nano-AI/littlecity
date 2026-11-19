@@ -1,8 +1,9 @@
 // Docks (J23): touching dock blocks are one timber deck on stilts.
 //
 //   deck    planks along the run, one ink group across every cell, no faces
-//           between merged cells. Its top is exactly CELL_H, flush with a
-//           beach and with a block standing on it. On open sides it overhangs
+//           between merged cells. Its top is CELL_H + 0.004: a hair over the
+//           beach, whose lip reaches under it, and a block standing on it
+//           sinks that hair into it. On open sides it overhangs
 //           its frame, and where plank ENDS are exposed each board stops at
 //           its own length (seeded), in step with the shader's plank lines.
 //   frame   a darker beam under the deck's open edges.
@@ -112,7 +113,8 @@ class Deck {
     readonly cells: Map<CellKey, DockCell>,
     readonly seed: number,
   ) {}
-  readonly yTop = CELL_H;
+  /** A hair (0.004) over the ground line: the bank's lip reaches under the deck's land side, in that plane. */
+  readonly yTop = CELL_H + 0.004;
   readonly yUnder = CELL_H - DOCK.deckThick;
 
   top(p: readonly [number, number], q: readonly [number, number], y = this.yTop): void {
