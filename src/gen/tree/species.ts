@@ -288,7 +288,7 @@ export function pine(b: MeshBuilder, r: Rng): number {
   const sway = swayTo(top);
   trunk(b, r, [[0, 0, 0], [0, y0 + 0.1, 0]], 0.05, sway);
   const color = vary(mixColor(PALETTE.leafDark, PALETTE.glass, 0.1), r('leaf'), 0.7);
-  const seg = 9;
+  const seg = 11;
   const step = h / (tiers + 0.6);
   b.with({ color, pattern: PATTERN.leaves, ink: 'crown', sway }, () => {
     for (let t = 0; t < tiers; t++) {
@@ -298,7 +298,7 @@ export function pine(b: MeshBuilder, r: Rng): number {
       const tw = r('tw', t) * 6.28;
       for (let j = 0; j < seg; j++) {
         const a = tw + (j / seg) * 6.28;
-        const rr = R * (j % 2 === 0 ? 1 : 0.8) * (0.93 + r('j', t, j) * 0.14);
+        const rr = R * (j % 2 === 0 ? 1 : 0.84) * (0.93 + r('j', t, j) * 0.14);
         ring.push([Math.cos(a) * rr, yb + (j % 2 === 0 ? -0.03 : 0.03), Math.sin(a) * rr]);
       }
       const apex: Vec3 = [0, Math.min(yt, top), 0];

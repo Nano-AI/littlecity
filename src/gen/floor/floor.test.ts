@@ -335,7 +335,7 @@ describe('gardens (R-G01)', () => {
     expect(hedgeAt(open, 21.5, 21.5)).toBe(false);
     const hedgeInks = new Set<number>();
     for (let v = 0; v < open.pattern.length; v++) if (open.pattern[v] === PATTERN.leaves && open.position[v * 3 + 1]! > CELL_H + 0.1) hedgeInks.add(open.inkId[v]!);
-    expect(hedgeInks.size).toBe(1);
+    expect(hedgeInks.size).toBe(2); // the hedge, and the balls clipped at its corners and gateway
   });
 
   test('wheat ripples: its ears sway and its foot does not; a field of six cells has a scarecrow', () => {

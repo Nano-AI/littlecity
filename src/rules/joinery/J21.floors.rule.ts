@@ -15,7 +15,7 @@
 //
 // Runs after J06, J07 and J26 (doors), J17 (carved steps) and J20 (gates).
 
-import { above, below, keyY, neighbor, NO_CELL, opposite, type CellKey, type Dir4 } from '@/core/grid';
+import { below, keyY, neighbor, NO_CELL, opposite, type CellKey, type Dir4 } from '@/core/grid';
 import { KINDS } from '@/core/kinds';
 import type { FeatureVariant } from '@/core/vocab';
 import { defineRule, type Candidate, type RuleContext } from '@/resolve/engine/api';
@@ -33,11 +33,11 @@ export interface FloorLink {
 export function floorLinks({ facts, plan }: RuleContext): FloorLink[] {
   const floors = facts.world.floors;
   // Doors by the cell they open onto and the side of that cell the door is on.
-  const doors = new Set<string>();
+  const doors = new Set<number>();
   for (const f of plan.features) {
     if (f.type !== 'door' || f.cell === undefined || f.dir === undefined) continue;
     const outside = neighbor(f.cell, f.dir);
-    if (outside !== NO_CELL) doors.add(`${outside}:${opposite(f.dir)}`);
+    if (outside !== NO_CELL) doors.add(outside * 4 + opposite(f.dir));
   }
   const solidBlock = (c: CellKey): boolean => {
     const k = c === NO_CELL ? undefined : facts.kinds.get(c);
@@ -60,23 +60,23 @@ export function floorLinks({ facts, plan }: RuleContext): FloorLink[] {
         continue;
       }
       if (other === 'path') continue;
-      if (doors.has(`${cell}:${d}`)) {
+      if (doors.has(cell * 4 + d)) {
         out.push({ cell, dir: d, structure, variant: 'door' });
         continue;
       }
       // The foot of a flight that climbs away from this cell, or the head of one that arrives in it.
-      const block = facts.world.blocks.get(n);
       const under = below(n);
-      const headBlock = under === NO_CELL ? undefined : facts.world.blocks.get(under);
-      const foot = facts.kinds.get(n) === 'stairs' && block?.rot === d;
-      const head = under !== NO_CELL && facts.kinds.get(under) === 'stairs' && headBlock?.rot === opposite(d) && above(under) === n;
+      const here = facts.kinds.get(n), beneath = under === NO_CELL ? undefined : facts.kinds.get(under);
+      if (here === undefined && beneath === undefined) continue; // open ground beside: nothing to meet
+      const foot = here === 'stairs' && facts.world.blocks.get(n)?.rot === d;
+      const head = beneath === 'stairs' && facts.world.blocks.get(under)?.rot === opposite(d);
       if (foot || head) {
         out.push({ cell, dir: d, structure, variant: 'stairs' });
         continue;
       }
       // A deck ahead: an empty, floorless cell on top of a solid block, and the path is heading straight
       // for it (it comes from the opposite side, or this is where the path starts).
-      if (keyY(n) > 0 && !facts.kinds.has(n) && solidBlock(below(n))) {
+      if (keyY(n) > 0 && here === undefined && solidBlock(under)) {
         const behind = neighbor(cell, opposite(d));
         const pathNeighbours = DIRS.filter((e) => floors.get(neighbor(cell, e)) === 'path').length;
         if ((behind !== NO_CELL && floors.get(behind) === 'path') || pathNeighbours === 0) out.push({ cell, dir: d, structure, variant: 'deck' });

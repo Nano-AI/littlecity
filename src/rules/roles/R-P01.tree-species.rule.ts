@@ -17,7 +17,7 @@ import type { RolesOf } from '@/core/vocab';
 import { MAT } from '@/core/world';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
-import { distToWater } from '@/resolve/facts/distance.fact';
+import { openWater } from '@/resolve/facts/lib';
 import { TREE } from '@/style/ground';
 
 type TreeRole = RolesOf<'tree'>;
@@ -68,7 +68,8 @@ export function treeSpecies(f: Facts, cell: CellKey, groves: ReadonlyMap<CellKey
   const col = columnIndex(x, z);
   const ground = f.terrain.height[col]!;
   const rooted = y === ground;
-  const nearWater = distToWater(f).at(x, z) <= 1;
+  // Within 1 of water: open water in a side-neighbouring column (asked directly: no distance field needed).
+  const nearWater = openWater(f, x, z - 1) || openWater(f, x + 1, z) || openWater(f, x, z + 1) || openWater(f, x - 1, z);
   if (rooted && nearWater && f.terrain.material[col] === MAT.sand) return 'palm';
   if (rooted && nearWater) return 'willow';
   if (rooted && ground >= TREE.pineLevel) return 'pine';
@@ -84,7 +85,7 @@ export default defineRule<{ role: TreeRole }>({
   part: 'roles',
   tier: 1,
   priority: 3990,
-  about: 'Reads: terrain height and material, distToWater, floors in and beside the cell, groups of touching trees. Claims: the tree’s role.',
+  about: 'Reads: terrain height and material, open water beside the column, floors in and beside the cell, groups of touching trees. Claims: the tree’s role.',
   find({ facts }) {
     const groves = groveSizes(facts);
     const out: Candidate<{ role: TreeRole }>[] = [];

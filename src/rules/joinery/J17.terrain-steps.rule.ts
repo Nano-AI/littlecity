@@ -30,9 +30,9 @@ export function terrainSteps(f: Facts): TerrainStep[] {
     if (structure === undefined) continue;
     for (const d of DIRS) {
       const n = neighbor(cell, d);
-      if (n === NO_CELL || y + 1 > 31) continue;
+      if (n === NO_CELL || y + 1 > 31 || ground(keyX(n), keyZ(n)) !== y + 1) continue;
       const up = key(keyX(n), y + 1, keyZ(n));
-      if (ground(keyX(n), keyZ(n)) === y + 1 && f.world.floors.get(up) === 'path' && f.floorAt.get(up) === structure) out.push({ cell, dir: d, structure });
+      if (f.world.floors.get(up) === 'path' && f.floorAt.get(up) === structure) out.push({ cell, dir: d, structure });
     }
   }
   return out.sort((a, b) => a.cell - b.cell || a.dir - b.dir);

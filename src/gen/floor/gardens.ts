@@ -361,6 +361,7 @@ export function parkLawn(c: GardenCtx, cell: CellKey): void {
       b.quad([x + a[3]!, y + 0.002, z + 1 - a[2]!], [x + 1 - a[1]!, y + 0.002, z + 1 - a[2]!], [x + 1 - a[1]!, y + 0.002, z + a[0]!], [x + a[3]!, y + 0.002, z + a[0]!]),
     );
   }
+  const balls: Pt[] = [];
   b.with({ color, pattern: PATTERN.leaves, ink: 'hedge' }, () => {
     for (const d of DIRS) {
       if (here(d)) continue;
@@ -392,11 +393,25 @@ export function parkLawn(c: GardenCtx, cell: CellKey): void {
         const gap = 0.5 - FLOOR.pathMargin + 0.04;
         piece(a, -gap, !joinsLeft, true);
         piece(gap, e, true, !joinsRight);
+        balls.push([cx + tx * -(gap + 0.07) + dx * (0.5 - off - hw / 2), cz + tz * -(gap + 0.07) + dz * (0.5 - off - hw / 2)]);
+        balls.push([cx + tx * (gap + 0.07) + dx * (0.5 - off - hw / 2), cz + tz * (gap + 0.07) + dz * (0.5 - off - hw / 2)]);
       } else {
         piece(a, e, !joinsLeft, !joinsRight);
       }
+      // Each outer corner of the hedge is clipped into a ball (the north and south hedges own the corners).
+      if (mine) {
+        if (!here(leftSide)) balls.push([cx + tx * -(0.5 - off - hw / 2) + dx * (0.5 - off - hw / 2), cz + tz * -(0.5 - off - hw / 2) + dz * (0.5 - off - hw / 2)]);
+        if (!here(rightSide)) balls.push([cx + tx * (0.5 - off - hw / 2) + dx * (0.5 - off - hw / 2), cz + tz * (0.5 - off - hw / 2) + dz * (0.5 - off - hw / 2)]);
+      }
     }
   });
+  for (const [bx, bz] of balls) {
+    const rad = hw * 0.78, by = y + hh + rad * 0.45;
+    b.with({ color, pattern: PATTERN.leaves, ink: 'topiary' }, () => lump(b, bx, by, bz, rad, rad * 0.95, rad, { seg: 8, rings: 4, normal: TONE.lit, facing: [0, 1, 0], cut: -0.55 }));
+    b.with({ color: mixColor(color, PALETTE.leafDark, 0.25), pattern: PATTERN.leaves, ink: 'topiary' }, () =>
+      lump(b, bx + SHADE_SIDE[0] * rad * 0.22, by - rad * 0.2, bz + SHADE_SIDE[1] * rad * 0.22, rad * 0.96, rad * 0.9, rad * 0.96, { seg: 8, rings: 4, normal: TONE.shade, facing: [SHADE_SIDE[0] * 0.6, -0.5, SHADE_SIDE[1] * 0.6], cut: -0.2 }),
+    );
+  }
   // Daisies in the grass: a few white dabs, not in every cell.
   const r = cellRng(s, cell);
   if (!occupied(c, cell) && r('daisies') < 0.45) {

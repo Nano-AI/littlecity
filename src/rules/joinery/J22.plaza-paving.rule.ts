@@ -10,7 +10,6 @@
 
 import { columnIndex, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
-import { plazas, type Plaza } from '@/resolve/facts/plazas.fact';
 import { FLOOR } from '@/style/ground';
 
 /** The north-west cell of the first largest square of a region (scanning level, then z, then x), and its side. */
@@ -39,16 +38,19 @@ interface Paving {
   motif: { cell: CellKey; size: number; variant: 'compass' | 'rings' } | null;
 }
 
-export function pavingOf(p: Plaza, standsOn: (c: CellKey) => boolean): Paving {
+export function pavingOf(cells: readonly CellKey[], standsOn: (c: CellKey) => boolean): Paving {
   let motif: Paving['motif'] = null;
-  if (p.largestSquare >= FLOOR.motifSquare) {
-    const sq = largestSquareAt(p.cells);
-    const half = Math.floor((sq.size - 1) / 2);
-    const cell = key(sq.x + half, sq.y, sq.z + half);
-    const odd = sq.size % 2 === 1;
-    motif = { cell, size: sq.size, variant: sq.size >= 7 && !(odd && standsOn(cell)) ? 'compass' : 'rings' };
+  // Only a region with enough cells to hold the square is worth searching for one.
+  if (cells.length >= FLOOR.motifSquare * FLOOR.motifSquare) {
+    const sq = largestSquareAt(cells);
+    if (sq.size >= FLOOR.motifSquare) {
+      const half = Math.floor((sq.size - 1) / 2);
+      const cell = key(sq.x + half, sq.y, sq.z + half);
+      const odd = sq.size % 2 === 1;
+      motif = { cell, size: sq.size, variant: sq.size >= 7 && !(odd && standsOn(cell)) ? 'compass' : 'rings' };
+    }
   }
-  return { border: p.area >= 4, motif };
+  return { border: cells.length >= 4, motif };
 }
 
 export default defineRule<Paving>({
@@ -56,11 +58,12 @@ export default defineRule<Paving>({
   part: 'joinery',
   tier: 2,
   priority: 780,
-  about: 'Reads: plazas (area, largest square), blocks on the centre cell. Emits: plaza-border and plaza-motif features.',
+  about: 'Reads: plaza regions (area, largest square), blocks on the centre cell. Emits: plaza-border and plaza-motif features.',
   find({ facts }) {
     const out: Candidate<Paving>[] = [];
-    for (const p of plazas(facts).list) {
-      const paving = pavingOf(p, (c) => facts.kinds.has(c));
+    for (const p of facts.structures.values()) {
+      if (p.kind !== 'plaza') continue;
+      const paving = pavingOf(p.cells, (c) => facts.kinds.has(c));
       if (paving.border || paving.motif) out.push({ anchor: p.cells[0]!, structure: p.id, data: paving });
     }
     return out;

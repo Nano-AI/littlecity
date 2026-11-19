@@ -81,6 +81,8 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
 
   const rails: Rail[] = [];
   for (const cell of [...places.keys()].sort((a, b) => a - b)) {
+    // The deepest drop a cell can have is its own level (down to the water): most floors lie too low to need a look.
+    if (keyY(cell) < FENCE.drop) continue;
     if (!standable(facts, cell)) continue;
     const kind = facts.kinds.get(cell);
     if (kind === 'fence' || kind === 'wall' || kind === 'stairs') continue;

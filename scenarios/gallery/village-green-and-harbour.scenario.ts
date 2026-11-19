@@ -75,8 +75,8 @@ export default scenario({
     // ── the upper town ──
     b.path([24, 18], [24, 13], [17, 13], [17, 9], [10, 9], [10, 8]); // up the terraces by carved steps
     b.house(27, 12, { w: 2, floors: 2, color: 2 });
-    b.garden(29, 12, 30, 13); // a kitchen garden, fenced on three sides (fenced all round it would be a courtyard)
-    b.fenceEdge(29, 12, 'N').fenceEdge(30, 12, 'N').fenceEdge(30, 12, 'E').fenceEdge(30, 13, 'E').fenceEdge(29, 13, 'S').fenceEdge(30, 13, 'S');
+    b.garden(29, 12, 30, 13); // a kitchen garden behind its picket fence
+    b.fenceAround(29, 12, 30, 13);
     b.house(21, 11, { floors: 1, color: 6 });
     b.put('tree', 8, 7).put('tree', 12, 7).put('tree', 7, 8).put('tree', 12, 8); // pines
     b.put('tree', 26, 6).put('tree', 30, 6); // willows over the north shore
