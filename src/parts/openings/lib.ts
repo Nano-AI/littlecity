@@ -9,6 +9,7 @@
 import { compose, rotationX, scaling, translation, type Vec3 } from '@/core/mat4';
 import type { PartContext } from '@/gen/api';
 import type { MeshBuilder } from '@/gen/mesh';
+import { structureStyle } from '@/resolve/structures';
 import { personalityOf, type Personality } from '@/style/houses';
 
 export type P2 = readonly [number, number];
@@ -17,7 +18,8 @@ export type P2 = readonly [number, number];
 export function personaOf(ctx: PartContext): Personality {
   const s = ctx.structure;
   if (!s) return personalityOf(ctx.seed, 5);
-  return personalityOf(s.seed, s.color, ctx.plan.roles.get(s.id)?.role, s.cells.length, ctx.plan.tags.get(s.id)?.has('rustic') ?? false);
+  const rustic = ctx.plan.tags.get(s.id)?.has('rustic') ?? false;
+  return personalityOf(s.seed, s.color, ctx.plan.roles.get(s.id)?.role, s.cells.length, rustic, structureStyle(ctx.plan.world, s));
 }
 
 /** A rectangle w × h standing on y0, centred on x = cx. Counter-clockwise seen from +Z. */

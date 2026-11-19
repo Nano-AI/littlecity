@@ -17,6 +17,7 @@ import { facades } from '@/resolve/facts/facades.fact';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
 import { structureInfo } from '@/resolve/facts/structure.fact';
 import type { Structure } from '@/resolve/plan';
+import { structureStyle } from '@/resolve/structures';
 import { HOUSE, personalityOf } from '@/style/houses';
 import { houseFacts } from './houses.fact';
 import { cliffSide, farGableEnd, houseStructures, isTerraceTop, roleOf, roofOf } from './houses.lib';
@@ -34,7 +35,7 @@ export default defineRule<{ s: Structure }>({
     const { s } = c.data;
     const role = roleOf(ctx.plan, s.id);
     if (role === 'greenhouse') return; // all glass already
-    const persona = personalityOf(s.seed, s.color, role, s.cells.length);
+    const persona = personalityOf(s.seed, s.color, role, s.cells.length, false, structureStyle(ctx.plan.world, s));
     const cliff = role === 'cliff-house' ? cliffSide(ctx, s) : null;
     let cliffBalcony = false;
     const hf = houseFacts(ctx.facts);

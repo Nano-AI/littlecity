@@ -6,6 +6,7 @@ import { above, below, columnIndex, DIR4, inColumnBounds, keyX, keyZ, neighbor, 
 import { ALL_KINDS } from '@/core/kinds';
 import { hashCombine, hashString } from '@/core/rand';
 import type { Actor, Anchor, DressingPlan, Prop, ShapePlan, Socket, Structure, Support } from '../plan';
+import { structureStyle } from '../structures';
 
 const KIND_CODE = new Map<string, number>(
   [...ALL_KINDS, 'path', 'plaza', 'garden'].map((k, i) => [k, i + 1] as const),
@@ -95,7 +96,7 @@ function code(ix: HashIndex, s: string): number {
 }
 
 /**
- * Content hash of one structure: its own data, its role, tags, features and
+ * Content hash of one structure: its own data (and its house style), its role, tags, features and
  * sockets, plus the local context a generator may read: for every member
  * cell, the block's rot, the six face neighbours (kind, colour, whether it is
  * the same structure), the floor in the cell, the terrain height of its own
@@ -108,6 +109,9 @@ export function hashStructure(s: Structure, plan: ShapePlan): number {
   const { world, terrain, kinds, structureAt, floorAt } = plan;
   const ix = indexOf(plan);
   let h = mix(mix(mix(mix(mix(mix(0x2f, code(ix, s.kind)), s.id), s.color), s.seed), s.cells.length), s.edges.length);
+  // The house style (its lowest-seq block's). Mixed in only when chosen, so a Random house hashes as before.
+  const style = structureStyle(world, s);
+  if (style !== 0) h = mix(mix(h, 0x5717), style);
   const neighbourCode = (n: CellKey): number => {
     if (n === NO_CELL) return 0;
     const kind = kinds.get(n);

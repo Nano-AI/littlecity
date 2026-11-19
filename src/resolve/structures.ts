@@ -54,6 +54,29 @@ export function structureSeed(worldSeed: number, id: StructureId): number {
   return hash(worldSeed, 'structure', id);
 }
 
+const styles = new WeakMap<Structure, number>();
+
+/**
+ * A block structure's house style (design section 7, "House style"): the
+ * style of its lowest-seq block, whose seq is the structure's id. 0 (Random)
+ * when that block has none, and for floor regions and edge-only runs.
+ */
+export function structureStyle(w: World, s: Structure): number {
+  let style = styles.get(s);
+  if (style === undefined) {
+    style = 0;
+    for (const c of s.cells) {
+      const b = w.blocks.get(c);
+      if (b?.seq === s.id) {
+        style = b.style ?? 0;
+        break;
+      }
+    }
+    styles.set(s, style);
+  }
+  return style;
+}
+
 class UnionFind {
   readonly parent: Int32Array;
   constructor(n: number) {

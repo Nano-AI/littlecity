@@ -18,6 +18,7 @@ import { compose, multiply, rotationY, rotationZ, scaling, transformPoint, trans
 import { rand } from '@/core/rand';
 import { roofRegions, type RoofRegion } from '@/resolve/facts/roofs.fact';
 import type { Feature, ShapePlan, Structure } from '@/resolve/plan';
+import { structureStyle } from '@/resolve/structures';
 import { HOUSE, mixColor, personalityOf, type Personality } from '@/style/houses';
 import { PALETTE, rampColor } from '@/style/palette';
 import { defineGenerator, placeFeatures, type PartRegistry } from '../api';
@@ -74,7 +75,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
   };
   const role = plan.roles.get(s.id)?.role;
   const tags = plan.tags.get(s.id);
-  const persona = personalityOf(s.seed, s.color, role, s.cells.length, tags?.has('rustic') ?? false);
+  const persona = personalityOf(s.seed, s.color, role, s.cells.length, tags?.has('rustic') ?? false, structureStyle(plan.world, s));
   const features = plan.featuresByStructure.get(s.id) ?? [];
   const wall = tags?.has('white-walls') ? PALETTE.white : rampColor('house', s.color);
 
