@@ -5,7 +5,9 @@
 
 import { translation, type Mat4Like } from '@/core/mat4';
 import { PATTERN, type ColorInput, type MeshBuilder } from '@/gen/mesh';
+import { rand } from '@/core/rand';
 import { PALETTE } from '@/style/palette';
+import { INTERIOR } from '../openings/door-leaf';
 import { ball, TAU } from './kit';
 
 type Vec3 = [number, number, number];
@@ -64,15 +66,32 @@ export function arrowSlit(b: MeshBuilder, id: string, stone: ColorInput): void {
  * The tower door: a round-headed plank door in a stone surround, with a
  * step. Origin: on the ground at the foot of the wall.
  */
-export function towerDoor(b: MeshBuilder, stone: ColorInput, leaf: ColorInput, steps = 0): Record<string, Mat4Like> {
+export function towerDoor(b: MeshBuilder, stone: ColorInput, leaf: ColorInput, steps = 0, moving = false): Record<string, Mat4Like> {
   b.with({ color: stone, pattern: PATTERN.none, ink: 'door-frame' }, () => roundHeadBlock(b, 0.34, 0.5, 0.045, 0, 0, 8));
-  b.with({ color: leaf, pattern: PATTERN.planksAcross, ink: 'door-leaf' }, () => b.polygon(roundHead(0.23, 0.435, 0.05, 0, 0, 7)));
-  b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'door-knob' }, () => ball(b, 0.06, 0.2, 0.058, 0.02, 0.02, 6));
+  // `moving`: the leaf is the 'door-leaf' actor's (it swings open); the wall shows a dark doorway.
+  if (moving) b.with({ color: INTERIOR, pattern: PATTERN.none, ink: 'doorway' }, () => b.polygon(roundHead(0.23, 0.435, 0.046, 0, 0, 7)));
+  else towerLeaf(b, leaf);
   b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'door-step' }, () => {
     b.boxAt([0, 0, 0.09], [0.42, 0.05, 0.18], { skip: ['bottom'] });
     for (let i = 1; i <= steps; i++) b.boxAt([0, -i * 0.1, 0.09 + i * 0.07], [0.42, 0.1, 0.18 + i * 0.14], { skip: ['bottom'] });
   });
   return { door: translation(0, 0, 0.24) };
+}
+
+/** The colours a tower's door leaf is painted (by the tower's seed: towerLeafColor). */
+const TOWER_DOORS = [PALETTE.redDark, PALETTE.wood, PALETTE.glass, PALETTE.leafDark];
+
+/** The leaf colour of a monument's door: a tower's by its seed, a lighthouse's glass blue, a keep's wood. */
+export function towerLeafColor(kind: string, seed: number): ColorInput {
+  if (kind === 'lighthouse') return PALETTE.glass;
+  if (kind === 'marble') return PALETTE.wood;
+  return TOWER_DOORS[Math.floor(rand(seed, 'door') * TOWER_DOORS.length)]!;
+}
+
+/** The tower door's leaf alone: round-headed planks and a knob (the 'door-leaf' actor draws it when it moves). */
+export function towerLeaf(b: MeshBuilder, leaf: ColorInput): void {
+  b.with({ color: leaf, pattern: PATTERN.planksAcross, ink: 'door-leaf' }, () => b.polygon(roundHead(0.23, 0.435, 0.05, 0, 0, 7)));
+  b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'door-knob' }, () => ball(b, 0.06, 0.2, 0.058, 0.02, 0.02, 6));
 }
 
 /** Height of a belfry's bell pivot (under its beam) over the belfry storey's floor: sill 0.14 + 0.3. */

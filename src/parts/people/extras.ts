@@ -1,10 +1,12 @@
 // Small things people have about them (People, Stage 3): the chat bubble
-// (L26) and the kite (L28). Meshes only; the people system places them.
+// (L26) and the kite (L28); and (animation polish) the tools of the trades in
+// their hands. Meshes only; the people system places them.
 
 import { rotationY, translation } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
+import { tube } from '@/parts/ground/kit';
 
 /**
  * A squiggle chat bubble: a white blob with a tail and three dots, the dots
@@ -69,5 +71,92 @@ export function lineMesh(): MeshData {
   const b = new MeshBuilder({ ink: 'kite-line' });
   b.setInk('line').setColor(PALETTE.ink).setPattern(PATTERN.none);
   b.box([0, -0.004, -0.004], [1, 0.004, 0.004]);
+  return b.build();
+}
+
+/**
+ * What a worker holds (animation polish: nobody works empty-handed).
+ *   broom   the shopkeeper sweeping       body frame: from the hands down to a brush on the ground ahead
+ *   rod     anyone fishing                body frame: from the hands out and up, a line hanging from its tip
+ *   can     a gardener tending            body frame: a watering can in the hands, by the bed
+ *   sack    the miller walking            body frame: a flour sack hugged to the chest
+ *   tray    the baker                     body frame: a tray of loaves on the forearms
+ *   pole    the lamplighter walking       right arm frame: held at its foot, standing up past the head
+ *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
+ * All in the figure's own units (the piece's matrix scales them with the person).
+ */
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance'];
+/** Which piece of the figure (PIECES order) a tool is held by. */
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0 };
+
+export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
+  const b = new MeshBuilder({ ink: `tool-${tool}` });
+  b.setInk('tool').setPattern(PATTERN.none);
+  switch (tool) {
+    case 'broom':
+      b.setColor(PALETTE.wood);
+      tube(b, [[0.01, 0.2, 0.09], [-0.01, 0.015, 0.25]], 0.006, { seg: 4 });
+      b.setInk('brush').setColor('#d9b25f').setPattern(PATTERN.planks);
+      b.box([-0.045, 0, 0.235], [0.025, 0.035, 0.27]);
+      break;
+    case 'rod':
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0, 0.16, 0.1], [0, 0.3, 0.32], [0, 0.36, 0.5]], [0.007, 0.005, 0.003], { seg: 4 });
+      b.setInk('line').setColor(PALETTE.ink);
+      b.box([-0.0015, 0.12, 0.498], [0.0015, 0.36, 0.502]);
+      break;
+    case 'can':
+      b.setColor('#6f9fae').setPattern(PATTERN.metal);
+      b.at(translation(0.0, 0.07, 0.15), () => {
+        b.lathe([[0, -0.03], [0.032, -0.03], [0.032, 0.03], [0, 0.03]], { segments: 8 });
+        tube(b, [[0, 0, 0.02], [0, -0.02, 0.08]], 0.006, { seg: 4 }); // the spout, tipped to pour
+      });
+      break;
+    case 'sack':
+      b.setColor('#efe7d2').setPattern(PATTERN.cloth);
+      b.at(translation(0, 0.19, 0.1), () => b.lathe([[0, -0.05], [0.042, -0.044], [0.046, 0.0], [0.034, 0.04], [0.012, 0.055], [0, 0.058]], { segments: 7 }));
+      break;
+    case 'tray':
+      b.setColor(PALETTE.wood);
+      b.box([-0.07, 0.15, 0.06], [0.07, 0.158, 0.16]);
+      b.setInk('loaves').setColor('#d79a55');
+      for (const x of [-0.04, 0, 0.04]) b.at(translation(x, 0.158, 0.11), () => b.lathe([[0, 0], [0.018, 0.002], [0.014, 0.016], [0, 0.02]], { segments: 6 }));
+      break;
+    case 'pole':
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0, -0.1, 0.022], [0, 0.42, 0.022]], 0.005, { seg: 4 });
+      b.setInk('wick').setColor(PALETTE.metal);
+      b.box([-0.008, 0.42, 0.014], [0.008, 0.45, 0.03]);
+      break;
+    case 'pike':
+      // L36: held upright at the right hand, butt on the ground, the head well over the helmet.
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0.085, 0.0, 0.05], [0.085, 0.66, 0.05]], 0.006, { seg: 4 });
+      b.setInk('pike-head').setColor('#b9bac4').setPattern(PATTERN.metal);
+      b.at(translation(0.085, 0.66, 0.05), () => b.lathe([[0, 0], [0.016, 0.018], [0, 0.07]], { segments: 4 }));
+      break;
+    case 'torch':
+      // L36: a sentry's torch, raised a little in the right hand.
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0.085, 0.12, 0.07], [0.085, 0.32, 0.09]], [0.007, 0.01], { seg: 4 });
+      b.setInk('flame').setColor(PALETTE.yellow).setPattern(PATTERN.glow);
+      b.at(translation(0.085, 0.33, 0.09), () => b.lathe([[0, 0], [0.022, 0.02], [0.012, 0.05], [0, 0.07]], { segments: 6 }));
+      break;
+    case 'lance':
+      // L37: the rider's lance, upright, with a pennant in the garrison's colour.
+      b.setColor(PALETTE.wood);
+      tube(b, [[0.09, 0.06, 0.06], [0.09, 0.8, 0.07]], 0.006, { seg: 4 });
+      b.setInk('pennant').setColor(colour).setPattern(PATTERN.cloth).setSway(0.6);
+      b.quad([0.09, 0.78, 0.072], [0.09, 0.7, 0.072], [0.09, 0.73, -0.12], [0.09, 0.76, -0.12]);
+      b.quad([0.09, 0.7, 0.068], [0.09, 0.78, 0.068], [0.09, 0.76, -0.12], [0.09, 0.73, -0.12]);
+      break;
+    case 'reach':
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0, -0.09, 0.012], [0, -0.5, 0.012]], 0.005, { seg: 4 });
+      b.setInk('wick').setColor(PALETTE.yellow);
+      b.box([-0.009, -0.53, 0.003], [0.009, -0.5, 0.021]);
+      break;
+  }
   return b.build();
 }

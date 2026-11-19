@@ -15,10 +15,9 @@ import { MONUMENTS } from '@/style/monuments';
 import { PALETTE, RAMPS, rampColor } from '@/style/palette';
 import { battlementCap, coneCap, domeCap, dovecoteCap, flatCap, pyramidCap, spireCap, type CapLook } from '@/parts/monuments/caps';
 import { ownSockets, wallFrame } from '@/parts/monuments/kit';
-import { arrowSlit, BELL_PIVOT, bellShape, clockFace, doveHoles, slitWindow, towerDoor } from '@/parts/monuments/openings';
+import { arrowSlit, BELL_PIVOT, bellShape, clockFace, doveHoles, slitWindow, towerDoor, towerLeafColor } from '@/parts/monuments/openings';
 import { profileSlab } from '@/parts/monuments/slab';
 
-const DOORS = [PALETTE.redDark, PALETTE.wood, PALETTE.glass, PALETTE.leafDark];
 
 export interface TowerShape {
   storeys: number;
@@ -203,8 +202,8 @@ export default defineGenerator({
           break;
         case 'door': {
           const y = Math.max(storeyOf(f) * CELL_H, foot);
-          const leaf = DOORS[Math.floor(rand(s.seed, 'door') * DOORS.length)]!;
-          draw(wall(f, y, 0.02), (mb) => towerDoor(mb, PALETTE.stoneShade, leaf, (f.params as { steps?: number } | undefined)?.steps ?? 0));
+          const leaf = towerLeafColor('tower', s.seed);
+          draw(wall(f, y, 0.02), (mb) => towerDoor(mb, PALETTE.stoneShade, leaf, (f.params as { steps?: number } | undefined)?.steps ?? 0, parts.has('actor', 'door-leaf')));
           break;
         }
         case 'clock-face':

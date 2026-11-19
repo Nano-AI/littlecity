@@ -96,7 +96,9 @@ void main(){
   if (sway > 0.0) {
     vec2 w = (textureLod(uWind, (p.xz + 8.0) / 64.0, 0.0).rg * 2.0 - 1.0) * 1.25;
     float st = length(w);
-    float ph = uTime * (1.3 + st * 1.6) + p.x * 0.9 + p.z * 1.3 + params.y;
+    // A fixed rate: a rate that followed the strength would spin the phase (uTime is large) and make
+    // everything shiver as a gust arrived, instead of leaning into it.
+    float ph = uTime * 2.1 + p.x * 0.9 + p.z * 1.3 + params.y;
     vec2 d = w * (0.55 + 0.45 * sin(ph)) + vec2(-w.y, w.x) * 0.25 * sin(ph * 1.7 + 1.3);
     p.xz += d * sway * uSway;
     p.y -= st * sway * uSway * 0.15 * (0.5 + 0.5 * sin(ph));

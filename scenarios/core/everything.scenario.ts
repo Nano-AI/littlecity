@@ -28,7 +28,8 @@
 //   the hill       a path up three flights of carved steps to an
 //                  observatory among pines
 //   the castle     a keep with a raised corner, grand steps, buttresses, a
-//                  curtain wall with four turrets and a gatehouse
+//                  curtain wall with four turrets and a gatehouse; its garrison
+//                  marching outside the walls and its rider (L36, L37)
 //   the north      a stone bridge over the creek, a manor in its park, a
 //                  greenhouse, a dovecote, a reed bed
 //   the west       a boardwalk over an inlet to a beach cottage, a watchtower
@@ -275,6 +276,9 @@ export default scenario({
     check.role(16, 1, 32, 'row-house');
     check.role(12, 2, 24, 'townhouse');
     check.role(36, 1, 18, 'mill-house');
+    // Castle life (L36, L37): a troop of six marches round the castle; a rider rides out of its gate.
+    check.equal(check.actors({ type: 'garrison' }).length, 1, 'the castle has its garrison');
+    check.equal(check.actors({ type: 'rider' }).length, 1, 'the castle has its rider');
     check.role(33, 1, 17, 'cliff-house');
     check.role(27, 1, 10, 'manor');
     check.role(33, 1, 11, 'greenhouse');

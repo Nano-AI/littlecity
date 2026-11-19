@@ -21,7 +21,7 @@ import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
 
 export type HairStyle = 'short' | 'bob' | 'bun' | 'long' | 'bald';
-export type HatStyle = 'none' | 'straw' | 'cap' | 'bobble';
+export type HatStyle = 'none' | 'straw' | 'cap' | 'bobble' | 'helmet';
 
 export interface Look {
   skin: string;
@@ -66,6 +66,15 @@ export function lookOf(seed: number, child = false): Look {
     scale: (PERSON.height / DESIGN_HEIGHT) * (child ? PERSON.child * (0.92 + r('size') * 0.16) : 0.95 + r('size') * 0.1),
     girth: 0.92 + r('girth') * 0.18,
   };
+}
+
+/**
+ * A soldier of a garrison (L36): every one of a troop wears the same tabard in the castle's colour over
+ * dark hose, and the same iron helmet; only the face under it is their own.
+ */
+export function soldierLook(seed: number, tabard: string): Look {
+  const look = lookOf(seed, false);
+  return { ...look, top: tabard, bottom: PALETTE.metal, hat: 'helmet', hatColor: '#8d8e99', dress: false, hairStyle: 'short', girth: 1, scale: PERSON.height / DESIGN_HEIGHT };
 }
 
 /**
@@ -193,6 +202,11 @@ function body(b: MeshBuilder, look: Look, rig: Rig): void {
     } else if (look.hat === 'cap') {
       tilt(0.16, () => b.lathe(arc(hr * 1.06, cy, 0, 1.25, 4), { segments: segs }));
       b.box([-r * 0.62, cy + r * 0.34, r * 0.5], [r * 0.62, cy + r * 0.46, r * 1.5]);
+    } else if (look.hat === 'helmet') {
+      // L36: a soldier's kettle hat: a round iron crown with a wide brim, and a little spike on top.
+      const y = cy + r * 0.18;
+      b.lathe([[r * 1.45, y], [r * 1.45, y + 0.01], [r * 1.08, y + 0.014], [r * 1.08, y + r * 0.55], [r * 0.7, top + 0.012], [0, top + 0.02]], { segments: segs, capBottom: true });
+      b.lathe([[0.008, top + 0.018], [0, top + 0.05]], { segments: 5 });
     } else {
       tilt(0.2, () => b.lathe([[hr * 1.08, cy + r * 0.28], [hr * 1.02, cy + r * 0.6], [hr * 0.6, top + 0.018], [0, top + 0.03]], { segments: segs }));
       b.setColor(PALETTE.white);

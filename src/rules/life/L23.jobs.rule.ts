@@ -2,7 +2,7 @@
 // structure: baker at the shop door at dawn; shopkeeper sweeping; miller
 // carrying sacks between windmill and mill house; keeper climbing the
 // lighthouse at dusk; fisher on the pier end; gardener watering; stall vendor
-// behind the stall; guard pacing a keep; bell ringer at dusk. And one
+// behind the stall; guard pacing a keep (where no garrison does, L36); bell ringer at dusk. And one
 // lamplighter for the town, who walks to each lamp at dusk in route order.
 //
 // A job is a place, not a new person: this rule marks the places with
@@ -28,6 +28,7 @@ import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { usableDoors } from '@/resolve/nav';
 import type { NavGraph, StructureId } from '@/resolve/plan';
 import { PEOPLE } from '@/style/people';
+import { findCastles } from './castle.lib';
 import { navOf, steps } from './people.lib';
 
 export type Job = 'baker' | 'shopkeeper' | 'miller' | 'keeper' | 'fisher' | 'gardener' | 'vendor' | 'guard' | 'bell-ringer' | 'lamplighter';
@@ -98,6 +99,8 @@ export default defineRule<Data>({
     const nav = navOf(ctx);
     if (!nav) return [];
     const { facts, plan, seed } = ctx;
+    // A keep with a garrison (L36) has its troop instead of a lone guard.
+    const garrisoned = new Set(findCastles(plan, nav).filter((c) => c.gate !== null).flatMap((c) => c.structures));
     const out: Candidate<Data>[] = [];
     const add = (cell: CellKey, data: Data): void => {
       if (cell !== NO_CELL && nav.nodeAt.has(cell)) out.push({ anchor: cell, key: `${data.job}|${data.order}|${data.ref}|${data.structure ?? ''}`, data });
@@ -124,7 +127,7 @@ export default defineRule<Data>({
         }
       } else if (s.kind === 'lighthouse') atDoor('keeper', s.id);
       else if (role === 'steeple' || role === 'campanile') atDoor('bell-ringer', s.id);
-      else if (role === 'keep') {
+      else if (role === 'keep' && !garrisoned.has(s.id)) {
         // The beat: the two cells of its top that lie farthest apart.
         const top = s.cells.map((c) => above(c)).filter((c) => c !== NO_CELL && nav.nodeAt.has(c) && nav.nodes[nav.nodeAt.get(c)!]!.rot === undefined);
         if (top.length === 0) continue;

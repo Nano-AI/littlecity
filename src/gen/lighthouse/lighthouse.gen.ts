@@ -142,7 +142,7 @@ export default defineGenerator({
         }
         case 'door': {
           const y = Math.max(storeyOf(f) * CELL_H, foot);
-          draw(f.id, wall(f, y, 0.025), (mb) => towerDoor(mb, PALETTE.white, PALETTE.glass, (f.params as { steps?: number } | undefined)?.steps ?? 0));
+          draw(f.id, wall(f, y, 0.025), (mb) => towerDoor(mb, PALETTE.white, PALETTE.glass, (f.params as { steps?: number } | undefined)?.steps ?? 0, parts.has('actor', 'door-leaf')));
           break;
         }
         default: {

@@ -22,7 +22,7 @@
 // sockets (L22, L25, L32), `arrival` and `way-out` sockets (L27),
 // `queue-point` sockets (L24).
 
-import { DIR4, keyX, keyY, keyZ, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, DIR4, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey, type Dir4 } from '@/core/grid';
 import { hash, rand } from '@/core/rand';
 import type { SocketType } from '@/core/vocab';
 import type { TimeSignal } from '@/life/api';
@@ -30,6 +30,8 @@ import type { PoseName } from '@/parts/people/pose';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavDoor, NavGraph, ShapePlan, StructureId } from '@/resolve/plan';
 import { PEOPLE, PERSON } from '@/style/people';
+import { DOORS } from '@/style/animation';
+import { createDoors, type DoorTable } from './doors';
 import { createRouter, type Router } from './route';
 import { buildWalk, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
@@ -101,8 +103,17 @@ export interface Person {
 
   mode: Mode;
   visible: boolean;
-  /** 0–1: fading in at the shore or out at the edge of the map. */
+  /** 0–1: coming into view at the shore or going out of it at the edge of the map. */
   fade: number;
+  /**
+   * Which way the water (or the map's edge) lies from where they come ashore or leave: they climb up out of
+   * it or step down into it while `fade` runs (drawn by people.system.ts). 0, 0 when there is none: then
+   * they fade.
+   */
+  edgeX: number;
+  edgeZ: number;
+  /** Seconds the coming into view or going out of it takes. */
+  fadeTime: number;
   x: number;
   y: number;
   z: number;
@@ -185,6 +196,8 @@ export interface CrowdOptions {
   /** The place and facing of a seat socket (world x, y, z and heading), if the stage knows it. */
   seatAt?(socket: string): { x: number; y: number; z: number; face: number } | null;
   events?: CrowdEvents;
+  /** L36, L37: bodies walkers wait for (soldiers, a horse), read each step. */
+  obstacles?(): readonly { x: number; y: number; z: number }[];
 }
 
 export interface Crowd {
@@ -195,6 +208,8 @@ export interface Crowd {
   readonly jobs: readonly Work[];
   /** Residents inside each home right now. */
   readonly atHome: ReadonlyMap<StructureId, number>;
+  /** Every door somebody has used, and how far open it is (L29). */
+  readonly doors: DoorTable;
   /** The town changed (or is shown for the first time). Does nothing until the dressing has arrived. */
   sync(shape: ShapePlan, dressing: DressingPlan | null, time: TimeSignal): void;
   step(dt: number, time: TimeSignal): void;
@@ -246,6 +261,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   /** Seconds since dusk began (0 by day): everyone has set off for home by PEOPLE.duskSpread. */
   let duskClock = 0;
   let planCursor = 0;
+  const doors = createDoors();
+  /** Shop doors (they stand open by day). */
+  let shopDoors: string[] = [];
 
   // ── small helpers ─────────────────────────────────────────────────────
   const r = (p: Person, what: string, n = p.trips): number => rand(p.seed, what, n);
@@ -389,7 +407,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           // Beside the door, back to the wall, looking out.
           if (h.dir !== undefined) {
             const [dx, dz] = DIR4[h.dir]!;
-            const side = r(p, 'side') < 0.5 ? -0.3 : 0.3;
+            // Not in front of a shop's door, which stands open by day (L29): by its window.
+            const side = door && shopDoors.includes(door.feature) ? -0.3 : r(p, 'side') < 0.5 ? -0.3 : 0.3;
             g.spot = { x: c.x - dx * 0.24 - dz * side, z: c.z - dz * 0.24 + dx * side };
             g.face = DIR_HEADING[h.dir]!;
           } else anywhere();
@@ -544,7 +563,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     let bestD = Infinity;
     for (const h of haunts) {
       if (h.type !== 'way-out' || nav.part[h.node] !== part) continue;
-      const d = Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here));
+      // Out over the water or off the map's edge, where they can step out of view, before a dead end.
+      const d = Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here)) + (edgeOf(h.node) ? 0 : 1000);
       if (d < bestD) {
         bestD = d;
         best = h;
@@ -553,6 +573,35 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (!best) return null;
     return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
   };
+
+  /** The side of a node's cell that gives onto open water or the map's edge, as a unit (x, z), or null. */
+  let terrain: ShapePlan['terrain'] | null = null;
+  let blocks: ShapePlan['structureAt'] | null = null;
+  const edgeOf = (node: number): [number, number] | null => {
+    if (!nav || !terrain || node < 0) return null;
+    const c = nav.nodes[node]!.cell;
+    const x = keyX(c), y = keyY(c), z = keyZ(c);
+    let best: [number, number] | null = null;
+    for (const [dx, dz] of DIR4) {
+      const nx = x + dx, nz = z + dz;
+      const off = nx < 0 || nz < 0 || nx >= SIZE_X || nz >= SIZE_Z;
+      if (!off) {
+        if (terrain.height[columnIndex(nx, nz)] !== 0) continue;
+        const n = key(nx, y, nz);
+        if (nav.nodeAt.has(n) || blocks?.has(n)) continue;
+      }
+      // Water before the map's edge.
+      if (!best || !off) best = [dx, dz];
+      if (!off) break;
+    }
+    if (!best) return null;
+    // How far out of view: off a dock's end it is a step down into a boat; down a beach, a wade.
+    const out = nav.nodes[node]!.surface === 'deck' ? 0.45 : terrain.height[columnIndex(x, z)] !== 0 && nav.nodes[node]!.surface === 'sand' ? 1.6 : 0.7;
+    return [best[0] * out, best[1] * out];
+  };
+
+  /** Seconds to walk the way out of view at the water or the map's edge, at a stroll. */
+  const edgeTime = (p: Person): number => Math.hypot(p.edgeX, p.edgeZ) / (p.speed * 0.8);
 
   // ── routes ────────────────────────────────────────────────────────────
   /** Plans the walk to `goal` and starts it. False if there is no route. */
@@ -650,6 +699,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.pose = 'wave';
       p.poseTime = 0;
       p.timer = PEOPLE.fade;
+      // Down into the water, or off the edge, if there is one: they walk on out of view.
+      const edge = edgeOf(p.node);
+      p.edgeX = edge?.[0] ?? 0;
+      p.edgeZ = edge?.[1] ?? 0;
+      if (edge) {
+        p.pose = 'walk';
+        p.timer = p.fadeTime = edgeTime(p);
+      }
     } else if (goal.door) {
       p.mode = 'visit';
       p.visible = false;
@@ -662,6 +719,23 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.seat = goal.seat;
       p.timer = goal.linger;
     }
+  };
+
+  // ── doors (L29) ───────────────────────────────────────────────────────
+  /** The doors this walker needs open now: the one they are in, about to reach, or just came out of. */
+  const claimDoors = (p: Person): void => {
+    if (p.mode !== 'walk' || !p.walk) return;
+    const walk = p.walk;
+    const cur = walk[p.at]!, next = walk[p.at + 1], prev = walk[p.at - 1];
+    if (cur.kind === 'door' && cur.door) {
+      doors.claim(cur.door.feature);
+      doors.passing(cur.door.feature, cur.enter);
+    }
+    if (next?.kind === 'door' && next.door) {
+      if (cur.kind === 'move' && (1 - p.t) * cur.length < DOORS.reach) doors.claim(next.door.feature);
+      else if (cur.kind === 'hide' && (1 - p.t) * cur.seconds < DOORS.lead) doors.claim(next.door.feature);
+    }
+    if (prev?.kind === 'door' && prev.door && !prev.enter && cur.kind === 'move' && p.t * cur.length < DOORS.clear) doors.claim(prev.door.feature);
   };
 
   // ── moving ────────────────────────────────────────────────────────────
@@ -701,6 +775,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         rate = speed / piece.length;
         if (piece.kind === 'move' && !mayEnter(p, piece)) {
           limit = WAIT_AT;
+          p.queued = true;
+        }
+        // L29: nobody steps into a doorway until its door is open, nor while somebody is coming the other way.
+        const next = walk[p.at + 1];
+        if (piece.kind === 'move' && next?.kind === 'door' && next.enter && next.door && (!doors.ready(next.door.feature) || doors.comingOut(next.door.feature) > 0)) {
+          limit = Math.min(limit, Math.max(p.t, 1 - DOORS.wait / piece.length));
+          p.queued = true;
+        } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && doors.goingIn(piece.door.feature) > 0))) {
+          limit = 0;
           p.queued = true;
         }
       }
@@ -756,6 +839,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   let now: TimeSignal | null = null;
   const onDutyNow = (p: Person): boolean => now !== null && (onDuty(p, now) || mustBeHome(p, now));
   const follow = (): void => {
+    const bodies = opts.obstacles?.() ?? null;
     for (const p of people) {
       p.slow = 1;
       if (p.mode !== 'walk' || !p.visible) continue;
@@ -791,6 +875,18 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const k = (ahead - PEOPLE.gap) / (PEOPLE.slowAt - PEOPLE.gap);
         const keep = k < 0 ? 0 : k;
         if (keep < p.slow) p.slow = keep;
+      }
+      // L36, L37: they wait for the garrison's column or the rider's horse to pass, without counting it as
+      // being held up (nobody steps round a soldier).
+      if (bodies) {
+        for (const o of bodies) {
+          const dx = o.x - p.x, dz = o.z - p.z;
+          if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(o.y - p.y) > 0.3) continue;
+          const ahead = dx * fx + dz * fz;
+          if (ahead <= 0 || ahead >= PEOPLE.slowAt || Math.abs(dx * fz - dz * fx) > 0.2) continue;
+          p.slow = 0;
+          p.stuck = 0;
+        }
       }
     }
   };
@@ -1046,6 +1142,12 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       return;
     }
     standAt(p, landing.node);
+    // Up out of the boat (or the shallows) on the water side of the landing.
+    const edge = edgeOf(landing.node);
+    p.edgeX = edge?.[0] ?? 0;
+    p.edgeZ = edge?.[1] ?? 0;
+    p.fadeTime = edge ? edgeTime(p) : PEOPLE.fade;
+    if (edge) p.heading = Math.atan2(-p.edgeX, -p.edgeZ);
     const c = nodeCentre(nav!, landing.node);
     p.x = c.x + (rand(p.seed, 'land-x') - 0.5) * 0.4;
     p.z = c.z + (rand(p.seed, 'land-z') - 0.5) * 0.4;
@@ -1070,7 +1172,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
       node: -1, cell: -1, walk: null, at: 0, t: 0,
       goal: null, want: null, timer: 0, held: -1, trips: 0, stuck: 0, slow: 1, queued: false,
-      inside: null, hop: null, leaving: false, startled: 0, startledFace: 0,
+      inside: null, hop: null, leaving: false, startled: 0, startledFace: 0, edgeX: 0, edgeZ: 0, fadeTime: PEOPLE.fade,
       jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
     };
   };
@@ -1090,12 +1192,18 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       return jobs;
     },
     atHome,
+    doors,
 
     sync(shape, dressing, time) {
       if (!dressing) return;
       const first = nav === null;
       const old = nav;
       seed = shape.world.seed;
+      terrain = shape.terrain;
+      blocks = shape.structureAt;
+      // L29: doors new to the town start as they should already be; shops stand open by day.
+      doors.settle();
+      shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
       nav = dressing.nav;
       router = createRouter(nav);
       runCount = new Int16Array(nav.runs.length);
@@ -1213,6 +1321,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       if (!nav) return;
       duskClock = time.isDusk || time.isNight ? duskClock + dt : 0;
       now = time;
+      for (const key of shopDoors) doors.stand(key, time.isDay, rand(seed, 'shop-door', key) * DOORS.shopSpread);
+      for (const p of people) claimDoors(p);
+      doors.step(dt);
       follow();
       let plans = Math.max(1, Math.round(PEOPLE.plansPerFrame));
       const n = people.length;
@@ -1250,7 +1361,12 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             p.timer -= dt;
             if (p.goal && !Number.isNaN(p.goal.face) && !p.flying) turnTo(p, p.goal.face, dt);
             if (p.goal?.kind === 'leave') {
-              p.fade = Math.max(0, p.timer / PEOPLE.fade);
+              p.fade = Math.max(0, p.timer / p.fadeTime);
+              if (p.edgeX !== 0 || p.edgeZ !== 0) {
+                turnTo(p, Math.atan2(p.edgeX, p.edgeZ), dt);
+                p.pose = 'walk';
+                p.stride += (dt * p.speed * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
+              }
               if (p.timer <= 0) remove(p);
               break;
             }
@@ -1292,6 +1408,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             break;
           }
           case 'wait':
+            // A newcomer climbs up out of the water first (L27), at a walk, then sets off home.
+            if (p.timer <= 0 && p.fade < 1 && (p.edgeX !== 0 || p.edgeZ !== 0) && !p.leaving) {
+              p.visible = true;
+              p.fade = Math.min(1, p.fade + dt / p.fadeTime);
+              turnTo(p, Math.atan2(-p.edgeX, -p.edgeZ), dt);
+              p.pose = p.child ? 'run' : 'walk';
+              p.stride += (dt * p.speed * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
+              break;
+            }
             p.poseTime += dt;
             p.timer -= dt;
             if (p.timer <= 0 && !p.want) {
@@ -1300,6 +1425,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
                 if (p.leaving) {
                   // Nowhere to walk off to: fade where they stand.
                   p.goal = { kind: 'leave', node: p.node, haunt: null, door: null, spot: null, face: NaN, pose: 'wave', linger: 0, seat: -1 };
+                  p.edgeX = p.edgeZ = 0;
                   p.mode = 'linger';
                   p.pose = 'wave';
                   p.timer = PEOPLE.fade;
@@ -1363,7 +1489,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       for (let k = 0; k < n && plans > 0; k++) {
         const p = people[(planCursor + k) % n]!;
         if (!p.want || p.mode === 'gone' || p.mode === 'hop') continue;
-        if (p.mode === 'wait' && p.timer > 0) continue;
+        if (p.mode === 'wait' && (p.timer > 0 || (p.fade < 1 && (p.edgeX !== 0 || p.edgeZ !== 0) && !p.leaving))) continue;
         if (p.mode === 'walk' && p.walk![p.at]!.kind !== 'move') continue; // not half-way through a door
         plans--;
         const goal = p.want;
