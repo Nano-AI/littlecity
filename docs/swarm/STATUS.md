@@ -29,3 +29,28 @@ Orchestrator's log. Newest stage at the bottom. Plan:
 Three owners in parallel worktrees, branches `swarm/logic` (Opus 5.5),
 `swarm/look` (Fable 5.2), `swarm/interface` (Fable 5.2). Look may make
 additive changes to `src/render/api.ts` and `LifeStage`.
+
+**Stage 1 — PASSED (03:15).** All three merged with no conflicts; 445 tests
+green. Two Look fixture tests were rewritten at the gate because Logic now
+merges a stack into one structure.
+
+- Logic `3f62149`: every placement rule, share codec (2,148 blocks → 1,940
+  characters), island generator checked on 200 seeds, K1–K5, S1–S4,
+  structures, 20 facts (`src/resolve/facts/README.md`). `resolveShape`
+  median 2.5 ms in the browser; p95 10–12 ms (suspected warm-up; over the
+  8 ms budget, revisit in Polish).
+- Interface `cb14ab5`: tray with four drawers and 40 drawn icons, all tools,
+  ghost, touch gestures, menus, gallery. Stairs `rot` = the direction the
+  stairs climb toward (Logic agrees).
+- Look `cbb6edd`: ink-and-paper renderer at 11 draw calls for 2,000 blocks,
+  terrain and sea, camera, dusk cycle, `docs/swarm/ART.md`.
+- Open look issues carried forward: a strip of stray ink along the top edge
+  of the frame when the sea runs off-screen; no contact shadows; trees read
+  as shaded balls; ghost has no ink; tuning panel does not refresh the
+  renderer's cache in-game.
+- Dev server for Derek: http://127.0.0.1:5173/ (restart at each gate).
+
+## Stage 2: The town — RUNNING (launched 03:20)
+
+Branches `swarm/houses`, `swarm/monuments`, `swarm/ground` (all Fable 5.2),
+plus the Look owner continuing on `swarm/look` with the open look issues.

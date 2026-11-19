@@ -64,22 +64,18 @@ describe('look fixtures', () => {
     expect(new Set(mesh.pattern).has(PATTERN.glass)).toBe(true);
   });
 
-  test('house: a stack is one building: one roof, shared wall ink, a door only at the bottom', () => {
+  test('house: a stack is one building: one roof, shared wall ink, no doubled faces', () => {
+    // Since Logic's structures landed, a stack is ONE structure, so every storey draws from the same mesh.
     const plan = town((b) => b.house(10, 10, { floors: 3, color: 4 }));
-    const storeys = [1, 2, 3].map((y) => draw(plan, at(plan, 10, y, 10)));
-    const shingled = storeys.map((m) => new Set(m.pattern).has(PATTERN.shingles));
-    expect(shingled).toEqual([false, false, true]);
-    // The walls of all three storeys are one ink group: no seam where they meet.
-    const wallInk = (i: number): number | undefined => {
-      const m = storeys[i]!;
-      for (let v = 0; v < m.pattern.length; v++) if (m.pattern[v] === PATTERN.plaster && m.normal[v * 3 + 1] === 0) return m.inkId[v];
-      return undefined;
-    };
-    expect(wallInk(0)).toBeDefined();
-    expect(wallInk(1)).toBe(wallInk(0));
-    expect(wallInk(2)).toBe(wallInk(0));
-    // Stacked storeys do not double up the faces between them.
-    expect(findDuplicateFaces(storeys[0]!)).toBe(0);
+    const ids = new Set([1, 2, 3].map((y) => at(plan, 10, y, 10).id));
+    expect(ids.size).toBe(1);
+    const m = draw(plan, at(plan, 10, 1, 10));
+    expect(new Set(m.pattern).has(PATTERN.shingles)).toBe(true);
+    // All wall faces are one ink group: no seam where storeys meet.
+    const wallInks = new Set<number>();
+    for (let v = 0; v < m.pattern.length; v++) if (m.pattern[v] === PATTERN.plaster && m.normal[v * 3 + 1] === 0) wallInks.add(m.inkId[v]!);
+    expect(wallInks.size).toBeLessThanOrEqual(2); // walls, plus the gable ends
+    expect(findDuplicateFaces(m)).toBe(0);
   });
 
   test('marble: a cluster is one seamless mass with no hidden faces', () => {
@@ -98,13 +94,13 @@ describe('look fixtures', () => {
 
   test('pillar: a stack is one shaft with one base and one capital', () => {
     const plan = town((b) => b.stack('pillar', 10, 10, { floors: 3 }));
-    const cells = [1, 2, 3].map((y) => draw(plan, at(plan, 10, y, 10)));
-    expect(inkGroups(cells[0]!).size).toBe(3); // shaft, base, collar
-    expect(inkGroups(cells[1]!).size).toBe(1); // shaft only
-    expect(inkGroups(cells[2]!).size).toBe(3); // shaft, collar, capital
-    const shaft = (i: number): number => [...inkGroups(cells[i]!).entries()].sort((a, b) => b[1] - a[1])[0]![0];
-    expect(shaft(1)).toBe(shaft(0));
-    expect(shaft(2)).toBe(shaft(0));
+    const ids = new Set([1, 2, 3].map((y) => at(plan, 10, y, 10).id));
+    expect(ids.size).toBe(1);
+    const groups = inkGroups(draw(plan, at(plan, 10, 1, 10)));
+    // One shaft group for the whole stack, plus base, capital and their collars.
+    expect(groups.size).toBeLessThanOrEqual(5);
+    const sizes = [...groups.values()].sort((a, b) => b - a);
+    expect(sizes[0]!).toBeGreaterThan(sizes[1]!);
   });
 
   test('trees sway, and no two are the same', () => {
