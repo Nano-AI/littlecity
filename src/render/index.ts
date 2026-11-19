@@ -204,6 +204,19 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const windTex = new THREE.DataTexture(windData, WIND_TEXELS, WIND_TEXELS, THREE.RGBAFormat, THREE.UnsignedByteType);
   windTex.minFilter = windTex.magFilter = THREE.LinearFilter;
   windTex.wrapS = windTex.wrapT = THREE.ClampToEdgeWrapping;
+  // The pen's noise (shaders/composite.ts): a tiling cube of fixed random values, filtered.
+  const noiseData = new Uint8Array(32 * 32 * 32 * 4);
+  for (let i = 0, h = 0x2545f491; i < noiseData.length; i++) {
+    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+    h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+    noiseData[i] = (h ^ (h >>> 15)) & 255;
+  }
+  const noiseTex = new THREE.Data3DTexture(noiseData, 32, 32, 32);
+  noiseTex.format = THREE.RGBAFormat;
+  noiseTex.minFilter = noiseTex.magFilter = THREE.LinearFilter;
+  noiseTex.wrapS = noiseTex.wrapT = noiseTex.wrapR = THREE.RepeatWrapping;
+  noiseTex.unpackAlignment = 1;
+  noiseTex.needsUpdate = true;
 
   // ── materials ────────────────────────────────────────────────────────────
   const v3 = (): { value: THREE.Vector3 } => ({ value: new THREE.Vector3() });
@@ -331,6 +344,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     tColor: { value: colorTex as THREE.Texture },
     tId: { value: idTex as THREE.Texture },
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
+    tNoise: { value: noiseTex as THREE.Texture },
     tInk: { value: (inkRT?.texture ?? null) as THREE.Texture | null },
     uOut: { value: new THREE.Vector2(1, 1) },
     uPR: { value: 1 },
@@ -1156,6 +1170,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       inkRT?.dispose();
       slotTex.dispose();
       windTex.dispose();
+      noiseTex.dispose();
       screenGeometry.dispose();
       for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       renderer.dispose();

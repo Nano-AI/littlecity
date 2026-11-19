@@ -69,12 +69,14 @@ void main(){
 export const compositeFragment = /* glsl */ `
 precision highp float;
 precision highp sampler2D;
+precision highp sampler3D;
 in vec2 vUv;
 out vec4 oColor;
 
 uniform sampler2D tColor;
 uniform sampler2D tId;
 uniform sampler2D tDepth;
+uniform sampler3D tNoise;
 #ifdef INK_TEX
 uniform sampler2D tInk;
 #endif
@@ -113,25 +115,12 @@ uniform float uHalo;
 ${NOISE}
 ${COLOR}
 
-// Value noise in 3D, four channels at once, from an integer hash: steady at any distance from the origin.
-vec4 hash4(ivec3 c){
-  uvec3 v = uvec3(c) * uvec3(1664525u, 1013904223u, 2654435761u);
-  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-  v ^= v >> 16u;
-  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-  uvec4 w = uvec4(v, v.x ^ v.y ^ v.z) * 747796405u;
-  w ^= w >> 15u;
-  return vec4(w & 0xffffu) / 65535.0;
-}
+// Value noise in 3D, four channels at once: a 32-cube of random values (index.ts) read with the
+// hardware's filtering at smoothed coordinates, so it is as smooth as computed value noise for one
+// texture read instead of eight hashes.
 vec4 n3(vec3 p){
   vec3 i = floor(p), f = p - i;
-  f = f * f * (3.0 - 2.0 * f);
-  ivec3 c = ivec3(i);
-  vec4 a = mix(hash4(c), hash4(c + ivec3(1, 0, 0)), f.x);
-  vec4 b = mix(hash4(c + ivec3(0, 1, 0)), hash4(c + ivec3(1, 1, 0)), f.x);
-  vec4 d = mix(hash4(c + ivec3(0, 0, 1)), hash4(c + ivec3(1, 0, 1)), f.x);
-  vec4 e = mix(hash4(c + ivec3(0, 1, 1)), hash4(c + ivec3(1, 1, 1)), f.x);
-  return mix(mix(a, b, f.y), mix(d, e, f.y), f.z);
+  return texture(tNoise, (i + f * f * (3.0 - 2.0 * f) + 0.5) / 32.0);
 }
 
 // The pen at this pixel: x, y the line's wobble (-0.5 to 0.5, CSS pixels), z its weight and w its

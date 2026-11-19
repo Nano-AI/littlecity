@@ -240,24 +240,21 @@ float hatchLayer(vec2 p, vec2 dir, float seed){
   return max(stroke, between) * smoothstep(0.3, 0.62, lifted);
 }
 
-// One layer of wave marks on the water: short dashes along r (level on the page), one to a cell of
-// the water C wide in the world, its centre moved by up to j. The four cells nearest the point are
-// enough: a dash reaches less than C - j from its centre.
+// One layer of wave marks on the water: a short dash along r (level on the page) in a cell of the
+// water C wide in the world, its centre moved by up to j. Only the cell the point is in is read: a
+// dash reaches no more than its taper's length past the cell (one cell is a quarter of the cost of
+// four, over the whole sea).
 float waveMarks(vec2 p, vec2 r, float C, float j, float seed, float lenA, float lenB, float taper,
                 float wFreq, float wAmp, float wSpeed, float lifeSpeed, float keep, float w, float fw){
-  vec2 base = floor(p / C - 0.5);
-  float m = 0.0;
-  for (int k = 0; k < 4; k++) {
-    vec2 id = base + vec2(float(k & 1), float(k >> 1));
-    float rr = h1(id + seed);
-    vec2 d = p - (id + 0.5) * C - (vec2(h1(id + seed + 1.7), h1(id + seed + 5.3)) - 0.5) * 2.0 * j;
-    vec2 lp = vec2(dot(d, r), dot(d, vec2(-r.y, r.x)));
-    float len = lenA + rr * lenB;
-    float wav = sin(lp.x * wFreq + rr * 6.0 + uTime * wSpeed) * wAmp;
-    float life = 0.5 + 0.5 * sin(uTime * lifeSpeed + rr * 40.0);
-    m = max(m, (1.0 - smoothstep(w - fw, w + fw, abs(lp.y - wav))) * smoothstep(len, len - taper, abs(lp.x)) * step(keep, rr) * smoothstep(0.25, 0.7, life));
-  }
-  return m;
+  vec2 id = floor(p / C);
+  float rr = h1(id + seed);
+  if (rr < keep) return 0.0;
+  vec2 d = p - (id + 0.5) * C - (vec2(h1(id + seed + 1.7), h1(id + seed + 5.3)) - 0.5) * 2.0 * j;
+  vec2 lp = vec2(dot(d, r), dot(d, vec2(-r.y, r.x)));
+  float len = lenA + rr * lenB;
+  float wav = sin(lp.x * wFreq + rr * 6.0 + uTime * wSpeed) * wAmp;
+  float life = 0.5 + 0.5 * sin(uTime * lifeSpeed + rr * 40.0);
+  return (1.0 - smoothstep(w - fw, w + fw, abs(lp.y - wav))) * smoothstep(len, len - taper, abs(lp.x)) * smoothstep(0.25, 0.7, life);
 }
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
@@ -426,11 +423,12 @@ void main(){
     vec2 r2 = normalize(uCamRight.xz);
     float fwq = fwidth(dot(vW.xz, vec2(-r2.y, r2.x))) * 1.2;   // from the unbroken coordinate: no hairline between cells
     float open = smoothstep(0.25, 0.5, sd);
-    float mark = waveMarks(vW.xz - uTime * 0.07, r2, 0.6, 0.25, 0.0, 0.11, 0.08, 0.05, 26.0, 0.014, 1.5, 0.7, 0.35, 0.011, fwq);
-    c = mix(c, uFoam, mark * 0.85 * fade(0.2) * open);
+    // Each layer is read only where it shows: near the shore neither, and at most zooms only one.
+    float near = fade(0.2) * open;
+    if (near > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.07, r2, 0.55, 0.1, 0.0, 0.11, 0.08, 0.05, 26.0, 0.014, 1.5, 0.7, 0.45, 0.011, fwq) * 0.85 * near);
     // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
-    float swell = waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.6, 31.0, 0.45, 0.5, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / uPx), fwq);
-    c = mix(c, uFoam, swell * 0.7 * (1.0 - fade(0.2)) * open);
+    float far = (1.0 - fade(0.2)) * open;
+    if (far > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.12, 31.0, 0.4, 0.4, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / uPx), fwq) * 0.7 * far);
     float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
     float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12);
