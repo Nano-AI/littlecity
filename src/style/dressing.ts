@@ -63,6 +63,8 @@ export const DRESSING = defineStyle(
     treeStreet: 6,
     /** U06: chance that an outward-facing rear wall at the town's edge has a woodpile or a vegetable plot. */
     edgeYard: 0.4,
+    /** U12: houses within this many column steps of a square are in the centre. */
+    centreReach: 4,
     /** U08: chance that a nook beside a stair or under a deck is furnished. */
     nook: 1,
     // ── U07 retaining walls ──
@@ -105,6 +107,7 @@ export const DRESSING = defineStyle(
     treeStreet: [3, 12, 1],
     edgeYard: [0, 1, 0.05],
     nook: [0, 1, 0.05],
+    centreReach: [0, 10, 1],
     wallMaxRise: [1, 5, 1],
     wallCreeper: [0, 1, 0.05],
     wallDrain: [0, 1, 0.05],
