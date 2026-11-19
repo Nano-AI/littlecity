@@ -72,11 +72,16 @@ void main(){
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
   float pat = color.a * 255.0;
-  bool over = abs(pat - 27.0) < 0.5 || params.x < -0.5;  // light beams and ghosts (glow < 0) belong to the overlay pass
-#ifdef OVERLAY
-  if (!over) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  // Three passes share this shader and each draws its own triangles: the page (everything solid),
+  // OVERLAY (light beams) and GHOST (the preview: slots whose glow is negative).
+  bool beam = abs(pat - 27.0) < 0.5;
+  bool ghost = params.x < -0.5;
+#if defined(GHOST)
+  if (!ghost || beam) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+#elif defined(OVERLAY)
+  if (!beam || ghost) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #else
-  if (over) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  if (beam || ghost) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #endif
   float len = length(n);
   n = len > 0.0 ? n / len : vec3(0.0, 1.0, 0.0);
@@ -153,14 +158,14 @@ uniform float uGround;    // strength of the whole effect
 uniform float uSlope;     // how steeply the light falls: lower is a longer cast shadow
 uniform float uCast;      // strength of the cast shadow
 
-#ifdef OVERLAY
+#if defined(OVERLAY) || defined(GHOST)
 uniform sampler2D tDepth;
 uniform vec2 uCanvas;
-uniform vec3 uTint;
-uniform vec3 uLift;
 uniform vec3 uStar;
 uniform vec3 uMagic;
 uniform vec3 uRed;
+#endif
+#ifdef OVERLAY
 out vec4 oColor;
 #else
 layout(location = 0) out vec4 oColor;
@@ -228,32 +233,30 @@ void main(){
   float hatchable = 1.0;
   vec3 col;
 
-#ifdef OVERLAY
-  // Hidden behind the finished drawing?
+#if defined(OVERLAY)
+  // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
+  if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
+  float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
+  oColor = vec4(uStar * a, 0.0);
+#elif defined(GHOST)
+  // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
+  // the ghost composite then outlines in pencil. Anything hidden behind the finished drawing is left out.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
   vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
-  if (pat == 27) {
-    // A shaft of light: edge runs 0 at the source to 1 at the tip.
-    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
-    oColor = vec4(uStar * a, 0.0);
-    return;
-  }
+  vec4 fill;
   if (vParams.z > 1.5) {            // an illegal target
-    oColor = vec4(uRed * 0.92, 0.92);
-    return;
-  }
-  if (vParams.z > 0.5) {            // an Auto neighbour that would change: a travelling glint
+    fill = vec4(uRed, 0.88);
+  } else if (vParams.z > 0.5) {     // an Auto neighbour that would change: a travelling glint
     float g = smoothstep(0.7, 1.0, sin((spx.x + spx.y) * 0.07 - uTime * 5.0));
-    float a = 0.16 + 0.4 * g;
-    oColor = vec4(mix(uMagic, vec3(1.0), g * 0.6) * a, a);
-    return;
+    fill = vec4(mix(uMagic, vec3(1.0), g * 0.6), 0.16 + 0.4 * g);
+  } else {
+    // The piece itself as a wash of its own colours, thinned with white and laid in loose strokes.
+    vec3 g = mix(toSrgb(shade(base, s)), vec3(1.0), 0.42);
+    float strokes = smoothstep(0.28, 0.5, abs(fract((spx.x - spx.y) / 6.0 + n2(spx * 0.05) * 0.6) - 0.5));
+    fill = vec4(g, 0.3 + 0.24 * strokes);
   }
-  // The ghost: the piece itself, pale and striped, so it reads as "not placed yet".
-  vec3 g = toSrgb(shade(base, s));
-  g = mix(g, vec3(1.0), 0.28) * uTint + uLift;
-  float stripe = smoothstep(0.35, 0.5, abs(fract((spx.x - spx.y) / 7.0) - 0.5));
-  float a = 0.5 + 0.22 * stripe;
-  oColor = vec4(g * a, a);
+  oColor = fill;
+  oId = vec4(normalize(vVN).xy * 0.5 + 0.5, vId);
 #else
 
   if (pat == 11 && top) {

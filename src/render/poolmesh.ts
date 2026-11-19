@@ -8,12 +8,11 @@ import { VertexPool, type Span } from './pool';
 export class PoolMesh {
   readonly pool = new VertexPool();
   readonly mesh: THREE.Mesh;
-  /** The same geometry, drawn by the overlay pass (light beams, ghosts). */
+  /** The same geometry, drawn by the overlay pass (light beams). */
   readonly overlay: THREE.Mesh;
-  /** Force the overlay mesh on (the dynamic pool, while a ghost is shown). */
-  wantOverlay = false;
   private geometry = new THREE.BufferGeometry();
   private generation = -1;
+  private readonly views: THREE.Mesh[] = [];
 
   constructor(material: THREE.Material, overlayMaterial: THREE.Material, private readonly cull: boolean) {
     this.mesh = new THREE.Mesh(this.geometry, material);
@@ -23,6 +22,15 @@ export class PoolMesh {
       m.frustumCulled = cull;
       m.visible = false;
     }
+  }
+
+  /** Another mesh on the same geometry, for a pass with its own material. The caller shows and hides it. */
+  addView(material: THREE.Material): THREE.Mesh {
+    const m = new THREE.Mesh(this.geometry, material);
+    m.matrixAutoUpdate = false;
+    m.frustumCulled = false;
+    this.views.push(m);
+    return m;
   }
 
   /** Brings the GPU buffers up to date with the pool. Call once per frame, before drawing. Returns whether anything changed. */
@@ -46,6 +54,7 @@ export class PoolMesh {
       this.geometry = g;
       this.mesh.geometry = g;
       this.overlay.geometry = g;
+      for (const v of this.views) v.geometry = g;
       pool.takeDirty();
     } else {
       const { data, slots } = pool.takeDirty();
@@ -65,7 +74,7 @@ export class PoolMesh {
     this.geometry.setDrawRange(0, pool.count);
     const live = pool.count - pool.garbage > 0;
     this.mesh.visible = live;
-    this.overlay.visible = live && (pool.beamEntries > 0 || this.wantOverlay);
+    this.overlay.visible = live && pool.beamEntries > 0;
     if (this.cull && live) {
       // Generous: lifted structures bounce and trees sway a little outside their rest bounds.
       const { min, max } = pool;
@@ -79,6 +88,7 @@ export class PoolMesh {
   dispose(): void {
     this.mesh.removeFromParent();
     this.overlay.removeFromParent();
+    for (const v of this.views) v.removeFromParent();
     this.geometry.dispose();
   }
 }

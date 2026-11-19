@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
-import { styleVersion } from '@/core/style';
+import { allStyles, styleVersion } from '@/core/style';
 import type { PartOutput } from '@/gen/api';
 import { createLayout, type Layout } from '@/gen/layout';
 import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
@@ -66,6 +66,16 @@ export const LIGHT: Vec3 = (() => {
   const len = Math.hypot(...v);
   return [v[0] / len, v[1] / len, v[2] / len] as const;
 })();
+
+/**
+ * Style modules that only the page reads, every frame (ink, grade, wind, the clock). A change to one
+ * of these needs no geometry; a change to any other style value (a palette colour, a proportion a
+ * generator reads) makes every cached mesh stale.
+ */
+const PAGE_STYLES = new Set(['look', 'grade', 'wind', 'time']);
+function geometryStyleKey(): string {
+  return JSON.stringify(allStyles().filter((m) => !PAGE_STYLES.has(m.name)).map((m) => [m.name, m.values]));
+}
 
 /** The wind texture covers the map plus this margin, at this many texels a side. */
 const WIND_MARGIN = 8;
@@ -125,6 +135,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const pixelRatio = opts.pixelRatio ?? Math.min(globalThis.devicePixelRatio ?? 1, 2);
   renderer.setPixelRatio(pixelRatio);
   renderer.autoClear = false;
+  renderer.setClearColor(0x000000, 0);
   renderer.info.autoReset = false;
 
   const halfInk = opts.ink === 'half' || ((opts.ink ?? 'auto') === 'auto' && looksLikePhone());
@@ -260,6 +271,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     depthTest: false,
     depthWrite: false,
   });
+  // The ghost preview is drawn into a buffer of its own, then outlined in pencil over the page.
+  const ghostMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { GHOST: 1 },
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+    blending: THREE.NoBlending,
+  });
   const paperUniforms = {
     uPaper: v3(),
     uInk: v3(),
@@ -331,6 +351,38 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       })
     : null;
 
+  let ghostRT: THREE.WebGLRenderTarget | null = null;
+  const ghostUniforms = { ...compositeUniforms, tColor: { value: null as THREE.Texture | null }, tId: { value: null as THREE.Texture | null }, tDepth: { value: null as THREE.Texture | null } };
+  const ghostComposite = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { INK_TAPS: 4, GHOST: 1 },
+    vertexShader: screenVertex,
+    fragmentShader: compositeFragment,
+    uniforms: ghostUniforms,
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+  });
+  /** Made the first time a ghost is shown (hover is a desktop thing; phones never pay for it). */
+  const ghostTarget = (): THREE.WebGLRenderTarget => {
+    const w = Math.max(1, Math.round(width * pixelRatio)), h = Math.max(1, Math.round(height * pixelRatio));
+    if (!ghostRT) {
+      ghostRT = new THREE.WebGLRenderTarget(w, h, { count: 2, type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, depthBuffer: true, stencilBuffer: false, colorSpace: THREE.NoColorSpace });
+      ghostRT.depthTexture = new THREE.DepthTexture(w, h, THREE.UnsignedIntType);
+      ghostRT.textures[0]!.minFilter = ghostRT.textures[0]!.magFilter = THREE.LinearFilter;
+      ghostUniforms.tColor.value = ghostRT.textures[0]!;
+      ghostUniforms.tId.value = ghostRT.textures[1]!;
+      ghostUniforms.tDepth.value = ghostRT.depthTexture;
+    } else if (ghostRT.width !== w || ghostRT.height !== h) ghostRT.setSize(w, h);
+    return ghostRT;
+  };
+
   // ── scenes ───────────────────────────────────────────────────────────────
   const screenGeometry = new THREE.BufferGeometry();
   screenGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -371,6 +423,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   for (const c of allChunks()) chunkPools.set(`${c.cx}:${c.cz}`, addPool(true));
   const dynamic = addPool(false);
+  const ghostScene = new THREE.Scene().add(dynamic.addView(ghostMaterial));
+  const ghostPostScene = new THREE.Scene().add(screenMesh(ghostComposite));
   const allPools = [...chunkPools.values(), dynamic];
   const chunkKeyOf = (x: number, z: number): string => `${Math.floor(x / CHUNK)}:${Math.floor(z / CHUNK)}`;
 
@@ -385,6 +439,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   let layout: Layout | null = null;
   let registries: Registries | null = null;
   let seenStyle = styleVersion();
+  let seenStyleKey = geometryStyleKey();
   let rebuildMs = 0;
   let spawnCounter = 0;
   let ghostKeys: string[] = [];
@@ -436,6 +491,27 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     items.clear();
   };
 
+  /**
+   * Marks every cached mesh stale without forgetting what is drawn: structures keep their lifts and
+   * props keep their slots and handles, so life carries on across a style change.
+   */
+  const invalidate = (): void => {
+    for (const d of structures.values()) d.hash = NaN;
+    for (const d of layers.values()) d.hash = NaN;
+    for (const it of items.values()) it.hash = NaN;
+    partOutputs.clear();
+    spawnOutputs.clear();
+  };
+  /** True if a style value that geometry depends on changed since the meshes were built. */
+  const styleChanged = (): boolean => {
+    if (styleVersion() === seenStyle) return false;
+    seenStyle = styleVersion();
+    const key = geometryStyleKey();
+    if (key === seenStyleKey) return false;
+    seenStyleKey = key;
+    return true;
+  };
+
   const structureChunk = (s: { cells: readonly number[]; edges: readonly number[] }): string => {
     const c = s.cells[0] ?? s.edges[0]! >> 1;
     return chunkKeyOf(keyX(c), keyZ(c));
@@ -443,12 +519,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
   const syncShape = (next: ShapePlan): void => {
     const reg = registriesFor(next);
-    if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts || styleVersion() !== seenStyle) {
-      // Other generators, or a style value changed: every cached mesh is stale.
+    if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts) {
+      // Other generators draw this town: nothing cached applies.
       dropAll();
       registries = reg;
-      seenStyle = styleVersion();
     }
+    // styleVersion() is part of every cache key (CONTRACTS section 14): a changed style value redraws.
+    if (styleChanged()) invalidate();
     const { generators, parts } = reg;
     for (const [id, d] of structures) {
       if (next.structures.has(id)) continue;
@@ -637,7 +714,6 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     for (const s of ghostSlots) slots.release(s);
     ghostKeys = [];
     ghostSlots = [];
-    dynamic.wantOverlay = false;
   };
   const ghostSlot = (kind: number): number => {
     const s = slots.alloc();
@@ -753,7 +829,6 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         }
         add(b.build(), ghostSlot(2));
       }
-      dynamic.wantOverlay = ghostKeys.length > 0;
     },
 
     getCamera: () => ({ ...goal, target: [...goal.target] as [number, number, number] }),
@@ -798,6 +873,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
 
     render(signals: Signals) {
+      // A style value changed (the tuning panel, the gallery's sliders): redraw the town with it,
+      // whether or not anyone calls setTown again.
+      if (shape && styleVersion() !== seenStyle) {
+        const t0 = performance.now();
+        syncShape(shape);
+        rebuildLayout();
+        if (dressing) syncDressing(dressing);
+        rebuildMs = performance.now() - t0;
+      }
       // Camera damping runs on life time, which is already clamped to 100 ms a step.
       const seconds = signals.time.seconds;
       const dt = lastSeconds === null ? 0 : seconds - lastSeconds;
@@ -928,6 +1012,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         renderer.clear(false, true, false);
         renderer.render(overlayScene, camera);
       }
+      if (ghostKeys.length > 0) {
+        renderer.setRenderTarget(ghostTarget());
+        renderer.clear(true, true, false);
+        renderer.render(ghostScene, camera);
+        renderer.setRenderTarget(null);
+        renderer.render(ghostPostScene, postCamera);
+      }
       drawCalls = renderer.info.render.calls;
       triangles = renderer.info.render.triangles;
     },
@@ -943,6 +1034,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       structures.clear();
       layers.clear();
       items.clear();
+      ghostRT?.depthTexture?.dispose();
+      ghostRT?.dispose();
       heightRT.depthTexture?.dispose();
       heightRT.dispose();
       shadeRT.dispose();
@@ -952,7 +1045,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       slotTex.dispose();
       windTex.dispose();
       screenGeometry.dispose();
-      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial]) m?.dispose();
+      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       renderer.dispose();
     },
   };

@@ -105,6 +105,15 @@ describe('the view', () => {
     expect(ghost.drawCalls).toBeGreaterThan(before.drawCalls);
     expect(ghost.drawCalls).toBeLessThanOrEqual(before.drawCalls + 2);
     expect(differ(ghost, before)).toBeGreaterThan(0.05);
+    // The ghost is a pencil sketch: with its lines switched off (zero ink width) it is fainter.
+    await look(`window.__look.style('look', 'inkWidth', 0.01)`);
+    await look(`window.__look.style('look', 'inkWidthFar', 0.01)`);
+    const unlined = await settled();
+    await look(`window.__look.ghost(false)`);
+    const unlinedBare = await settled();
+    await look(`window.__look.style()`);
+    await look(`window.__look.ghost(true)`);
+    expect(differ(ghost, before)).toBeGreaterThan(differ(unlined, unlinedBare) * 1.1);
     await look(`window.__look.ghost(false)`);
     const after = await settled();
     expect(after.thumb).toEqual(before.thumb);
@@ -147,6 +156,31 @@ describe('the view', () => {
     const duskBare = await settled();
     await look(`window.__look.style()`);
     expect(lum(duskBare.mean) - lum(dusk.mean)).toBeGreaterThan(lum(bare.mean) - lum(grounded.mean));
+    expect(errors).toEqual([]);
+  });
+
+  test('a changed style value redraws the town (the tuning panel), and life keeps its handles', async () => {
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    const before = await settled();
+    // A palette colour is baked into the meshes: the view rebuilds them by itself, with no setTown.
+    await look(`window.__look.style('palette', 'grass', '#e0503c')`);
+    const red = await settled();
+    expect(red.mean[0] - red.mean[1]).toBeGreaterThan(before.mean[0] - before.mean[1] + 15);
+    // Props kept their slots through the rebuild: the handles life holds still work.
+    expect(await look<number>(`window.__look.props(false)`)).toBeGreaterThan(3);
+    const hidden = await settled();
+    expect(differ(hidden, red)).toBeGreaterThan(0.01);
+    await look(`window.__look.props(true)`);
+    // Putting the value back gives exactly the first picture.
+    await look(`window.__look.style()`);
+    expect((await settled()).thumb).toEqual(before.thumb);
+    // A value only the page reads (ink width) changes the picture too, with no rebuild at all.
+    await look(`window.__look.style('look', 'inkWidth', 3)`);
+    await look(`window.__look.style('look', 'inkWidthFar', 3)`);
+    const thick = await settled();
+    expect(thick.dark).toBeGreaterThan(before.dark * 1.2);
+    await look(`window.__look.style()`);
+    expect((await settled()).thumb).toEqual(before.thumb);
     expect(errors).toEqual([]);
   });
 

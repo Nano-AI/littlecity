@@ -152,8 +152,17 @@ void main(){
   float e = texture(tInk, vUv).r;
 #endif
 
-#ifdef INK_ONLY
+#if defined(INK_ONLY)
   oColor = vec4(e, e, e, 1.0);
+#elif defined(GHOST)
+  // The ghost preview over the finished page: its wash, graded like the page, outlined in pencil
+  // (graphite: lighter than the pen, and the pressure comes and goes along the stroke).
+  vec4 c0 = texture(tColor, vUv);
+  vec3 wash = c0.rgb * uTint;
+  wash = mix(vec3(dot(wash, vec3(0.299, 0.587, 0.114))), wash, uSat) + uLift;
+  float pencil = clamp(e * 1.15, 0.0, 1.0) * (0.55 + 0.45 * n2(fw * 0.13 + 5.0 + t));
+  vec3 lead = mix(uInk, uTint * 0.7, 0.28);
+  oColor = vec4(mix(wash * c0.a, lead, pencil), 1.0 - (1.0 - c0.a) * (1.0 - pencil));
 #else
   vec4 c0 = texture(tColor, vUv);
   vec4 sid = texture(tId, vUv);

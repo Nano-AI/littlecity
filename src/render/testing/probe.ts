@@ -10,10 +10,13 @@
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import type { DayPart, InstanceHandle, SignalsDriver } from '@/life/api';
 import { createSignals } from '@/life/signals';
+import type { Edit } from '@/core/world';
+import type { ResolveOptions } from '@/resolve/engine/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
+import { applyEdit, canApply } from '@/world/world';
 import type { CameraPose, TownView, ViewOptions } from '../api';
 import { createTownView } from '../index';
 
@@ -42,6 +45,7 @@ let view: TownView | null = null;
 let signals: SignalsDriver | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let shape: ShapePlan | null = null;
+let options: ResolveOptions | null = null;
 let dressing: DressingPlan | null = null;
 let lifted: InstanceHandle | null = null;
 
@@ -111,7 +115,7 @@ const api = {
     view.resize(width, height);
     signals = createSignals(scn.seed);
     const built = buildScenario(scn);
-    const options = scenarioResolveOptions(scn);
+    options = scenarioResolveOptions(scn);
     shape = resolveShape(built.world, built.terrain, options);
     dressing = resolveDressing(shape, options);
     view.setTown(shape, dressing);
@@ -156,11 +160,24 @@ const api = {
     lifted?.release();
     lifted = null;
   },
-  /** Shows the first house as a ghost with a refused cell beside it, or clears the ghost. */
+  /**
+   * Shows what the game's hover would: a what-if plan with a two-storey house placed two cells east of
+   * the first house, that new house as the ghost, a shimmering cell and a refused cell beside it.
+   * `false` clears the ghost.
+   */
   ghost(on: boolean): void {
     if (!on) return view!.setGhost(null);
     const s = [...shape!.structures.values()].find((x) => x.kind === 'house')!;
-    view!.setGhost({ plan: shape!, show: [s.id], shimmer: [s.cells[0]! + 2], refuse: s.cells[0]! + 3 });
+    const base = Math.min(...s.cells);
+    const at = base + 2;
+    let world = shape!.world;
+    for (const cell of [at, at + (1 << 12)]) {
+      const edit: Edit = { type: 'placeBlock', cell, kind: 'house', color: 2, from: null };
+      if (canApply(world, shape!.terrain, edit).ok) world = applyEdit(world, shape!.terrain, edit);
+    }
+    const plan = resolveShape(world, shape!.terrain, options ?? {});
+    const id = plan.structureAt.get(at);
+    view!.setGhost({ plan, show: id === undefined ? [s.id] : [id], shimmer: [base + 4], refuse: base + 5 });
   },
   /** Hides every prop, or shows them again. Returns how many there are. */
   props(visible: boolean): number {
