@@ -1,25 +1,31 @@
-// R-H05 · tier 2 · Boathouse. A house whose ground storey is at level 1 or
-// below and looks straight onto water, or that touches a dock: plank walls,
+// R-H05 · tier 2 · Boathouse. A small house (a footprint of 4 cells or fewer,
+// at most 2 storeys) whose ground storey is at level 1 or below and looks
+// straight onto water, or that touches a dock: plank walls,
 // and wide double doors on the water side (J06 reads the role). The slipway
-// and the net on the wall are left to the dressing rules.
+// and the net on the wall are left to the dressing rules. A bigger house on
+// the shore is left to the town hall, inn and manor rules (2026-11-19).
 import { defineRule } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { structureInfo } from '@/resolve/facts/structure.fact';
 import { houseStructures } from '../joinery/houses.lib';
+
+/** A boathouse is a small house: no bigger than this. */
+const MAX_FOOTPRINT = 4;
+const MAX_STOREYS = 2;
 
 export default defineRule({
   id: 'R-H05.boathouse',
   part: 'roles',
   tier: 2,
   priority: 9950,
-  about: 'Reads: structureInfo (level, touches a dock), facades (water right outside). Claims: the role. Tags plank-walls.',
+  about: 'Reads: structureInfo (footprint, storeys, level, touches a dock), facades (water right outside). Claims: the role. Tags plank-walls.',
   find(ctx) {
     const info = structureInfo(ctx.facts);
     const all = facades(ctx.facts);
     return houseStructures(ctx)
       .filter((s) => {
         const i = info.get(s.id);
-        if (!i) return false;
+        if (!i || i.footprint > MAX_FOOTPRINT || i.storeys > MAX_STOREYS) return false;
         if (i.touches.some((t) => t.kind === 'dock' && t.sides.length > 0)) return true;
         return i.minY <= 1 && (all.byStructure.get(s.id) ?? []).some((f) => f.storey === 1 && f.water === 1);
       })
