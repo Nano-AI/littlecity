@@ -10,4 +10,15 @@ declare module '@/core/vocab' {
     // the dusk lamps system (which lights every 'bunting') makes the string glow softly at night.
     'bunting.bulbs': number;
   }
+  interface ActorVocab {
+    // L20: a rowboat with someone at the oars that waits by one pier end and now and then rows across
+    // to another, through open water. Free-roaming (at = null), home = the first pier. Its two
+    // waiting places, as water column centres: (ax, az) by the home pier, (bx, bz) by the other.
+    'rower': true;
+    'rower.look': number;
+    'rower.ax': number;
+    'rower.az': number;
+    'rower.bx': number;
+    'rower.bz': number;
+  }
 }
