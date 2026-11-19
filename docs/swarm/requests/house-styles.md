@@ -21,7 +21,7 @@ only changes the hand; Change and Paint keep the field as it is.
 - `src/style/houses.ts`: `HOUSE_STYLES` (six named looks, append only: the
   numbers are saved), `personalityOf(..., style)`. Style 0 runs the old
   function untouched (pinned by a digest over 21 120 personalities in
-  `src/style/house-styles.test.ts`). For 1–6 a role still wins for what it
+  `tests/house-styles.test.ts` (not beside the code: the tuning panel imports every file in `src/style` in the browser)). For 1–6 a role still wins for what it
   dictates (chapel, stilt house, greenhouse, boathouse, keeper's cottage,
   town hall), and the style's walls replace the rustic edge-of-town walls.
 - `src/resolve/structures.ts`: `structureStyle(world, structure)`, the style
