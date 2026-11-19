@@ -35,6 +35,8 @@ for (const [scn, cams] of [['everything', E], ['grown-town-1', G]]) {
     add(scn, cams, zoom, { ...phone, ratio: 2, ink: 'half' }, 'day', 'yaw');
   }
 }
+// Open sea, close: nothing but water and its wave marks, which used to slide over the sea as the view turned.
+add('everything', { sea: { yaw: 45, pitch: 32, zoom: 9, target: [39, 0, 39] } }, 'sea', { ...desk, ratio: 1, ink: 'full' }, 'day', 'yaw');
 const nameOf = (c) => `${c.scenario}-${c.zoom}-${c.motion}-${c.time}-${c.ink === 'half' ? 'phone' : `${c.ratio}x`}`;
 let wanted = cases;
 if (flags.quick) wanted = wanted.filter((c) => c.time === 'day' && c.ratio === 1);
