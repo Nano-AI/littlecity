@@ -13,6 +13,19 @@ declare module '@/core/vocab' {
     'fishing-boat.berthZ': number;
     'fishing-boat.berthYaw': number;
 
+    // L05. One per tree: a leaf (or a fruit tree's petal) that now and then lets go and flutters down.
+    'leaf': true;
+    'leaf/leaf': true;
+    'leaf/petal': true;
+    'leaf.height': number; //       how high over its cell the crown is, world units
+    'leaf.look': number;
+
+    // L35. Over gardens by day, and by flower boxes and beds.
+    'insect': true;
+    'insect/butterfly': true;
+    'insect/bee': true;
+    'insect.look': number;
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand
