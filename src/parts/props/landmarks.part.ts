@@ -31,6 +31,8 @@ export const storkNest = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 911));
+    // The socket is where smoke leaves, a little above the pots: the nest sits down on the cap.
+    b.translate(0, -0.11, 0);
     b.with({ color: vary(PALETTE.trunk, r('c')), pattern: PATTERN.thatch, ink: 'nest' }, () => {
       b.lathe([[0.1, -0.02], [0.17, 0.02], [0.175, 0.07], [0.12, 0.085], [0.09, 0.05]], { segments: 9 });
       // A few sticks poking out.
@@ -56,7 +58,7 @@ export const storkNest = definePart({
         for (const x of [-0.02, 0.02]) b.box([x - 0.006, 0.0, -0.006], [x + 0.006, 0.09, 0.006]);
       });
     });
-    return { mesh: b.build(), anchors: { perch: translation(0, 0.36, 0) } };
+    return { mesh: b.build(), anchors: { perch: translation(0, 0.25, 0) } };
   },
 });
 
