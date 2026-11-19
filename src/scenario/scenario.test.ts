@@ -64,7 +64,7 @@ describe('scenario builder', () => {
     ).terrain;
     expect(custom.height[columnIndex(11, 11)]).toBe(4);
     expect(custom.height[columnIndex(30, 30)]).toBe(0);
-    expect(custom.height[columnIndex(5, 5)]).toBe(6); // clamped to the tallest terrain
+    expect(custom.height[columnIndex(5, 5)]).toBe(10); // clamped to the tallest terrain (a steep island of generator 2)
     expect(new TerrainBuilder(1).build().height.every((h) => h === 0)).toBe(true);
     const generated = buildScenario(scenario({ name: 't-gen', seed: 5, terrain: 'generated', build() {} })).terrain;
     expect(generated.seed).toBe(5);

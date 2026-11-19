@@ -7,14 +7,15 @@
 //   K1 dock        y = 0 and the column is open water
 //   K2 arch        a valid span along x or z (≤ spanMax long, both ends anchored)
 //   K3 lighthouse  free run ≥ lighthouseRun, the cell above the run's top is
-//                  empty, open water within lighthouseWater columns
+//                  empty, open sea (not a river) within lighthouseWater columns
 //   K4 tower       free run ≥ towerRun
 //   K5 house       otherwise
 
-import { above, below, E, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, S, type CellKey, type Dir4 } from '@/core/grid';
+import { above, below, columnIndex, E, inColumnBounds, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, S, type CellKey, type Dir4 } from '@/core/grid';
 import { placedInfo, type Kind } from '@/core/kinds';
 import type { Terrain, World } from '@/core/world';
 import { AUTO } from '@/style/auto';
+import { MAT_RIVER } from '@/terrain/terrain2';
 import { groundAt, isSolid } from '@/world/world';
 
 export type AutoRule = 'K1' | 'K2' | 'K3' | 'K4' | 'K5';
@@ -90,7 +91,9 @@ export function spanAlong(w: World, t: Terrain, cell: CellKey, dir: typeof E | t
 function waterNear(t: Terrain, cell: CellKey, r: number): boolean {
   const x = keyX(cell);
   const z = keyZ(cell);
-  for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (groundAt(t, x + dx, z + dz) === 0) return true;
+  // The sea, not a river: generator 2 marks river columns (MAT_RIVER), and a lighthouse inland beside one is wrong.
+  const river = (cx: number, cz: number): boolean => inColumnBounds(cx, cz) && t.material[columnIndex(cx, cz)] === MAT_RIVER;
+  for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (groundAt(t, x + dx, z + dz) === 0 && !river(x + dx, z + dz)) return true;
   return false;
 }
 

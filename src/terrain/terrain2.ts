@@ -36,6 +36,12 @@ import { components, D4, distanceFrom, fbm, hAt, N, valueNoise } from './noise';
 
 export type IslandCharacter = 'gentle' | 'hilly' | 'steep' | 'archipelago';
 export const CHARACTERS: readonly IslandCharacter[] = ['gentle', 'hilly', 'steep', 'archipelago'];
+/**
+ * Material of a river column: open water (height 0) like the sea, marked so the mesh can draw it as a
+ * river and the rules can tell it from the sea. Not in the frozen MAT table; recorded in
+ * docs/swarm/requests/terrain2.md. Everything that asks "is this water" asks the height, as before.
+ */
+export const MAT_RIVER = 4;
 /** The highest terrain generator 2 makes. */
 export const MAX_HEIGHT_2 = 10;
 
@@ -269,6 +275,28 @@ function unpinch(h: Uint8Array, river: Uint8Array): void {
 
 // ────────────────────────────────────────────────────────────── ground ──
 
+/**
+ * No lone pillars or spurs: a column higher than three or four of its sides (a stump the rounded mesh
+ * draws as a cylinder, or the tip of a one-wide spur) comes down to the highest of them, repeatedly, so
+ * a spur is eaten back to the wall it sticks out of.
+ */
+function dePillar(h: Uint8Array, keep?: Uint8Array): void {
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    for (let i = 0; i < N; i++) {
+      if (h[i]! < 2 || keep?.[i]) continue;
+      const x = xOf(i), z = zOf(i);
+      const ns = D4.map(([dx, dz]) => hAt(h, x + dx, z + dz));
+      const lower = ns.filter((v) => v < h[i]!);
+      // Gentle slopes (one level a step) are left alone; only a stump with real drops round it goes.
+      if (lower.length < 3 || lower.filter((v) => h[i]! - v >= 2).length < 2) continue;
+      h[i] = Math.max(1, ...lower);
+      changed = true;
+    }
+    if (!changed) return;
+  }
+}
+
 /** Levels for the land: a height field by character, rounded to whole levels. */
 function sculpt2(s: number, ch: IslandCharacter, land: Uint8Array): { h: Uint8Array; peak: number; lowDir: number } {
   const h = new Uint8Array(N);
@@ -320,13 +348,15 @@ function sculpt2(s: number, ch: IslandCharacter, land: Uint8Array): { h: Uint8Ar
   let peakH: number;
   let lowDir = randRange(0, Math.PI * 2, s, 'lowDir');
   if (ch === 'gentle') {
-    const hills = rollHills(randInt(1, 2, s, 'hills'), [3, 5], [4.5, 8], 6, 9);
+    // Broad, low, round-shouldered rises: one level a step, wide treads, no table tops.
+    const hills = rollHills(randInt(1, 2, s, 'hills'), [2, 4], [7, 11], 5, 10);
+    for (const hl of hills) hl.steep *= 0.35;
     for (let i = 0; i < N; i++) {
       if (!land[i]) continue;
       const x = xOf(i), z = zOf(i);
+      // A rolling meadow: a broad, soft second level where a slow noise swells.
       let e = 1;
-      if (cd[i]! >= 3 && fbm(s, 'terr', x, z, 9) > 0.56) e = 2;
-      if (cd[i]! >= 5 && fbm(s, 'terr3', x, z, 7) > 0.7) e = 3;
+      if (cd[i]! >= 3 && fbm(s, 'terr', x, z, 10) > 0.63) e = 2;
       for (const hl of hills) e = Math.max(e, hillAt(hl, x, z));
       E[i] = Math.min(e, cd[i]! + 1);
     }
@@ -427,16 +457,7 @@ function sculpt2(s: number, ch: IslandCharacter, land: Uint8Array): { h: Uint8Ar
     if (lo > 0 && h[i]! > hi) h[i] = hi;
     else if (lo > 0 && h[i]! < lo) h[i] = lo;
   }
-  // No lone pillars: a column standing 2 or more above three of its sides comes down to the highest of them.
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 0; i < N; i++) {
-      if (!h[i]) continue;
-      const x = xOf(i), z = zOf(i);
-      const ns = D4.map(([dx, dz]) => hAt(h, x + dx, z + dz));
-      const below = ns.filter((v) => h[i]! - v >= 2);
-      if (below.length >= 3) h[i] = Math.max(1, ...below);
-    }
-  }
+  dePillar(h);
   if (ch !== 'steep') lowDir = Math.atan2(mz - cz0, mx - cx0);
   let top = 0;
   for (let i = 0; i < N; i++) top = Math.max(top, h[i]!);
@@ -520,7 +541,8 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
     tz = exit.seaZ + (exit.seaZ - mz) * 0.3;
   } else {
     // A source inland: past the middle a little, or short of it.
-    const f = randRange(-0.1, 0.45, s, tag, 'reach');
+    // The second river stops short of the middle, where the first one runs.
+    const f = k === 0 ? randRange(-0.1, 0.45, s, tag, 'reach') : randRange(-0.6, -0.25, s, tag, 'reach');
     tx = mx + (mx - mouth.landX) * f + randRange(-2, 2, s, tag, 'sx');
     tz = mz + (mz - mouth.landZ) * f + randRange(-2, 2, s, tag, 'sz');
   }
@@ -529,16 +551,15 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
   const total = path[path.length - 1]!.t;
   const wide = rand(s, tag, 'wide') < ISLAND2.wideShare;
   const pool = !through && rand(s, tag, 'pool') < ISLAND2.poolChance;
-  // Wider downstream: a one-wide river is two wide at the bends (r > 0.71 takes both cells of a diagonal step).
-  const mouthR = wide ? 1.4 : 1.15;
-  const sourceR = wide ? 0.95 : 0.7;
+  // Two wide is the norm (a one-wide stretch is widened below), three at the mouth and in a pool;
+  // never wider away from them, so a river never turns into a strait.
+  const baseR = wide ? 0.98 : 0.82;
   const mine = new Uint8Array(N);
   const radiusAt = (p: Sample): number => {
-    const down = through ? Math.min(p.t, total - p.t) / (total / 2) : p.t / total;
-    let r = mouthR + (sourceR - mouthR) * clamp01(down) + (valueNoise(s, tag + 'w', p.t, 0, 4) - 0.5) * 0.16;
-    r += 0.62 * clamp01(1 - p.t / 3.5);
-    if (through) r += 0.62 * clamp01(1 - (total - p.t) / 3.5);
-    if (pool) r = Math.max(r, 1.55 * clamp01(1 - (total - p.t) / 1.6) + 0.3);
+    let r = baseR + (valueNoise(s, tag + 'w', p.t, 0, 4) - 0.5) * 0.12;
+    r += 0.62 * clamp01(1 - p.t / 3);
+    if (through) r += 0.62 * clamp01(1 - (total - p.t) / 3);
+    if (pool) r = Math.max(r, 1.5 * clamp01(1 - (total - p.t) / 1.6) + 0.3);
     return r;
   };
   for (const p of path) {
@@ -550,6 +571,34 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
       }
     }
   }
+  // Widen one-wide stretches to two, on the side the river's line runs nearer.
+  const nearest = (x: number, z: number): Sample => {
+    let best = path[0]!, bd = Infinity;
+    for (const p of path) {
+      const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best;
+  };
+  const at = (x: number, z: number): boolean => inColumnBounds(x, z) && mine[columnIndex(x, z)] === 1;
+  const add: number[] = [];
+  for (let i = 0; i < N; i++) {
+    if (!mine[i]) continue;
+    const x = xOf(i), z = zOf(i);
+    const p = nearest(x, z);
+    if (!at(x - 1, z) && !at(x + 1, z) && (at(x, z - 1) || at(x, z + 1))) {
+      const nx = x + (p.x >= x ? 1 : -1);
+      if (inColumnBounds(nx, z)) add.push(columnIndex(nx, z));
+    }
+    if (!at(x, z - 1) && !at(x, z + 1) && (at(x - 1, z) || at(x + 1, z))) {
+      const nz = z + (p.z >= z ? 1 : -1);
+      if (inColumnBounds(x, nz)) add.push(columnIndex(x, nz));
+    }
+  }
+  for (const i of add) mine[i] = 1;
   // A small island in the stream, on low ground in the middle stretch.
   const islandCells: number[] = [];
   if (rand(s, tag, 'islet') < ISLAND2.riverIslandChance) {
@@ -572,11 +621,13 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
     }
   }
   // Rivers do not run into each other, except where both meet the sea.
+  // Nor side by side: a second river keeps three columns from the first, away from the sea.
   const ds = distanceFrom((i) => h[i] === 0 && !river[i]);
+  const dOther = distanceFrom((i) => river[i] === 1);
   let land = 0;
   for (let i = 0; i < N; i++) {
     if (!mine[i]) continue;
-    if (river[i] && ds[i]! > 2) return { ok: false, through };
+    if (dOther[i]! >= 0 && dOther[i]! < 4 && ds[i]! > 1) return { ok: false, through };
     if (h[i]! > 0) land++;
   }
   if (land < 8) return { ok: false, through };
@@ -591,6 +642,20 @@ function carveRiver(s: number, k: number, h: Uint8Array, low: Uint8Array, river:
     river[i] = 0;
     keep[i] = 1;
   }
+  // A sand spit off one side of the mouth: the river's silt, a bank that runs on a little into the sea.
+  if (rand(s, tag, 'spit') < 0.7) {
+    const p0 = path[0]!;
+    const ox = -Math.cos(p0.heading), oz = -Math.sin(p0.heading);
+    const side = rand(s, tag, 'spitSide') < 0.5 ? 1 : -1;
+    const px = -oz * side, pz = ox * side;
+    const len = randInt(1, 3, s, tag, 'spitLen');
+    for (let k = -1; k <= len; k++) {
+      const x = Math.round(p0.x + ox * k + px * 2.1), z = Math.round(p0.z + oz * k + pz * 2.1);
+      if (!inColumnBounds(x, z) || river[columnIndex(x, z)] || h[columnIndex(x, z)]! > 0) continue;
+      if (x < ISLAND2.border || z < ISLAND2.border || x >= SIZE_X - ISLAND2.border || z >= SIZE_Z - ISLAND2.border) continue;
+      h[columnIndex(x, z)] = 1;
+    }
+  }
   return { ok: true, through };
 }
 
@@ -604,10 +669,12 @@ function valleys(s: number, h: Uint8Array, low: Uint8Array, river: Uint8Array, g
       h[i] = Math.max(1, Math.min(h[i]!, cap));
       continue;
     }
-    // A gorge: mostly a narrow shelf a little above the water and tall walls behind it, so the river
-    // shows from above; here and there the wall drops sheer into the water.
-    if (fbm(s, 'sheerWall', xOf(i), zOf(i), 5) > 0.62) continue;
-    const cap = 2 + (dr[i]! - 1) * 3;
+    // A gorge: a low shelf either side of the water, then walls stepping up (4, then 8, then whatever the
+    // mountain is), so from above the river shows between them. Here and there the wall drops sheer into
+    // the water.
+    if (fbm(s, 'sheerWall', xOf(i), zOf(i), 5) > 0.74) continue;
+    if (dr[i]! > 3) continue;
+    const cap = [0, 1, 4, 8][dr[i]!]!;
     h[i] = Math.max(1, Math.min(h[i]!, cap));
   }
 }
@@ -630,7 +697,7 @@ function materials(s: number, ch: IslandCharacter, h: Uint8Array, river: Uint8Ar
     const x = xOf(i), z = zOf(i);
     const here = h[i]!;
     if (here === 0) {
-      mat[i] = MAT.water;
+      mat[i] = river[i] ? MAT_RIVER : MAT.water;
       continue;
     }
     mat[i] = MAT.grass;
@@ -714,7 +781,10 @@ function rollIsland(s: number, ch: IslandCharacter, wantRivers: number, throughW
     rivers++;
     if (r.through) through++;
   }
-  if (rivers) valleys(s, h, low, river, gorgeAbove, keep);
+  if (rivers) {
+    valleys(s, h, low, river, gorgeAbove, keep);
+    dePillar(h, keep);
+  }
   unpinch(h, river);
   tidy(h, 3, keep);
   // A river that split the land must leave pieces worth building on.
