@@ -308,6 +308,31 @@ runs can be stretched before they are placed.
   cell is illegal the click is refused. The whole run is one undo step and
   uses the first cell's colour throughout.
 
+**House style** (Derek's request, 2026-11-19). A house's look used to be
+random every time, which is annoying when you want several the same.
+
+- **Styles.** A style is a complete look for a house apart from its wall
+  colour: roof colour, window family, door, trim and chimney. There are six
+  named styles, chosen so they are easy to tell apart at playing zoom, plus
+  **Random**, which is the default and behaves exactly as the game did
+  before.
+- **Choosing.** Hovering the House button in the tray (long press on touch)
+  opens a small flyout above it: a dice tile for Random, then one tile per
+  style, each a tiny drawing of that house in the currently selected wall
+  colour. Clicking a tile selects it; the House button then shows that
+  style's drawing. The choice stays until changed, for the session. Wall
+  colour still comes from the Colour swatch (auto by default), so "all the
+  same" is: pick a style and pick a colour.
+- **Stored.** A placed block records its style (`Block.style`, 0 = random),
+  so styles survive saving and share links. A structure takes the style of
+  its lowest-`seq` block; with style 0 it rolls its look from its seed as
+  before. Merging is unchanged (touching, same kind, same colour). A role
+  that dictates part of the look (chapel windows, keeper's cottage colours,
+  greenhouse glass) still wins over the style for that part.
+- **Copy a look.** Alt-click (desktop) on any block copies its kind, wall
+  colour and style into the hand, so the next clicks place more of the same.
+- **Auto blocks** have no style; one that becomes a house rolls its look.
+
 **Placement rules**
 
 - The target cell must be inside the grid and hold no block. Because the
@@ -672,6 +697,14 @@ fence or wall is not a node unless J20 made it a gate. Links:
 People find routes with A* and prefer path and plaza over grass. They never
 cross anything the graph does not link. Movement costs, population caps (60
 on desktop, 30 on phone) and schedules are in the catalogue (L21–L27).
+
+**Doors and thresholds** (Derek's request, 2026-11-19). Nobody passes
+through a closed door or pops into view. A door swings open as a person
+reaches it and closes behind them; the person walks through the opening.
+Shop doors stand open by day. Coming up onto a roof terrace, a hatch lifts
+and the person climbs out. Where a person must appear or vanish with no
+door (arriving at the dock, leaving the map), they walk in or out of view
+rather than fading.
 
 **Feedback** (catalogue part F): landing bounce with squash and stretch and a
 dust ring, neighbours wobbling when their shape changes, Auto morph sparkle,
