@@ -213,6 +213,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uTime: { value: 0 },
     uSway: { value: 0 },
     uZStep: { value: Z_STEP },
+    uZOrigin: v3(),
+    uZAxis: v3(),
     uLight: { value: new THREE.Vector3(...LIGHT) },
     uPx: { value: 1 },
     uCss: { value: 1 },
@@ -987,6 +989,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uCss.value = css;
       su.uCamRight.value.set(...frame.right);
       su.uCamUp.value.set(...frame.up);
+      su.uZOrigin.value.set(...frame.target);
+      su.uZAxis.value.set(...frame.forward).multiplyScalar(2 / (CAMERA_FAR - CAMERA_NEAR));
       su.uPencil.value = LOOK.pencil;
       su.uHatch.value = LOOK.hatch;
       su.uHatchSpacing.value = LOOK.hatchSpacing;

@@ -46,6 +46,8 @@ uniform sampler2D uWind;
 uniform float uTime;
 uniform float uSway;
 uniform float uZStep;     // the coplanar tie-break: one level, in clip-space depth
+uniform vec3 uZOrigin;    // depth, worked out near the numbers it works on: the camera's target ...
+uniform vec3 uZAxis;      // ... and the way it looks, over half the depth range
 
 out vec3 vW;
 out vec3 vN;
@@ -113,6 +115,10 @@ void main(){
   float id = ink.x;
   vId = vec2(floor(id / 256.0), mod(id, 256.0)) / 255.0;
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  // The same depth as the matrices give (the camera is orthographic), but measured from the target
+  // rather than from the eye 200 units away, where a float's rounding is a whole step of the depth
+  // buffer: two surfaces in one plane then come out equal, not a step apart one way or the other.
+  gl_Position.z = dot(p - uZOrigin, uZAxis) * gl_Position.w;
   // Two surfaces in the same plane (a coping flush with a wall top, a floor laid on a terrace) would
   // otherwise trade pixels as the view turns, and where their ink ids differ every traded pixel draws
   // a seam: a scribble that flickers over the face. Each ink id is nudged toward the eye by its own
