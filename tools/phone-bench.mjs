@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global window, document, performance, requestAnimationFrame */
+/* global performance, requestAnimationFrame */
 // node tools/phone-bench.mjs [scenario ...] [--throttle 4] [--seconds 6] [--query 'a=b']
 //
 // Frame time of the real app on an EMULATED phone: headless Chromium with a
