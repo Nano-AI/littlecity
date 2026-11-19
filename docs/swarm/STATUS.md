@@ -406,3 +406,15 @@ between banks of unequal height; no viaduct or sky bridge between steep
 shelves; cog berth not built separately.
 Running: terrain2 follow-up (rivers from the overview), coplanar, ships,
 walk (preview only).
+
+**Terrain 2 follow-up merged** (`ce6a721`): rivers about two wide with
+stronger meanders, straight-cut diagonal banks, a river water material and
+shader pattern (teal tint, flow marks, bank line, shallows fan at the
+mouth), sand spits, visible gorges, calmer gentle islands, stump removal;
+K3 lighthouse counts sea water only (three lines in `src/resolve/kinds.ts`).
+GENERATOR-2 ISLANDS CHANGED FOR EXISTING SEEDS (public for a few hours):
+towns saved or shared on a generator-2 island since then may not fit their
+island. Full check green: 1,568 tests. Published.
+Open: terrain rebuild p95 30 ms on a steep island (budget 8); banks are
+angular, not curved; a free-standing 2×2 summit block can remain.
+Running: coplanar, ships, walk (preview only).
