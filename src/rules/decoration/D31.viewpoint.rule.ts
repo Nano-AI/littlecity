@@ -59,9 +59,24 @@ export default defineRule<View>({
       }
       best = { view: { cell: c, dir, bench }, y, drop };
     };
+    // Only the floors on the highest level any floor reaches, and the ground beside them, can win:
+    // try the levels from the top down, so the slower test runs on a handful of cells.
+    const byLevel = new Map<number, CellKey[]>();
     for (const c of facts.world.floors.keys()) {
-      consider(c);
-      for (const d of DIRS) consider(neighbor(c, d));
+      const list = byLevel.get(keyY(c));
+      if (list) list.push(c);
+      else byLevel.set(keyY(c), [c]);
+    }
+    const seen = new Set<CellKey>();
+    for (const y of [...byLevel.keys()].sort((a, b) => b - a)) {
+      for (const c of byLevel.get(y)!) {
+        for (const n of [c, ...DIRS.map((d) => neighbor(c, d))]) {
+          if (n === NO_CELL || seen.has(n)) continue;
+          seen.add(n);
+          consider(n);
+        }
+      }
+      if (best) break;
     }
     const found = best as { view: View } | null;
     return found ? [{ anchor: found.view.cell, key: 'view', data: found.view }] : [];
