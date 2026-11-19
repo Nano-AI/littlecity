@@ -1,8 +1,9 @@
 // L02 · Chimney smoke: every chimney puffs. One 'smoke' actor per
 // 'chimney-top' socket; the behaviour (src/life/wind/smoke.behaviour.ts)
-// leans the plume with the wind and thickens it at dawn and dusk.
+// leans the plume with the wind and thickens it at dawn and dusk. A chimney
+// a decoration rule has claimed (D14-T's stork nest) does not smoke.
 
-import { defineRule } from '@/resolve/engine/api';
+import { defineRule, slot } from '@/resolve/engine/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 
 export default defineRule<{ socket: string }>({
@@ -10,8 +11,9 @@ export default defineRule<{ socket: string }>({
   part: 'life',
   tier: 1,
   priority: 980,
-  about: 'Reads: chimney-top sockets. Emits: one smoke actor per chimney, at its socket.',
+  about: 'Reads: chimney-top sockets. Claims: the socket (a chimney with a stork nest on it does not smoke). Emits: one smoke actor per chimney, at its socket.',
   find: ({ facts }) => socketsOfType(facts, 'chimney-top').map((s) => ({ anchor: s.cell, structure: s.structure, key: s.id, data: { socket: s.id } })),
+  claims: (c) => [slot.socket(c.data.socket)],
   apply(c, out) {
     out.actor({ type: 'smoke', at: { socket: c.data.socket }, home: c.structure });
   },

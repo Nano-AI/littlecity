@@ -74,7 +74,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
   };
   const role = plan.roles.get(s.id)?.role;
   const tags = plan.tags.get(s.id);
-  const persona = personalityOf(s.seed, s.color, role, s.cells.length);
+  const persona = personalityOf(s.seed, s.color, role, s.cells.length, tags?.has('rustic') ?? false);
   const features = plan.featuresByStructure.get(s.id) ?? [];
   const wall = tags?.has('white-walls') ? PALETTE.white : rampColor('house', s.color);
 
@@ -88,6 +88,10 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
     if (tags?.has('glass-walls')) return { color: PALETTE.glass, pattern: PATTERN.glass };
     if (timbered.has(cell)) return { color: mixColor(wall, PALETTE.white, 0.45), pattern: PATTERN.timber };
     if (tags?.has('stone-ground') && solid(below(cell))) return { color: PALETTE.stoneShade, pattern: PATTERN.stone };
+    // U12 (edge half): a rustic house is half-timbered, boarded, or stands on a rough stone storey.
+    if (persona.rustic === 'timber') return { color: mixColor(wall, PALETTE.white, 0.45), pattern: PATTERN.timber };
+    if (persona.rustic === 'planks') return { color: wall, pattern: PATTERN.planks };
+    if (persona.rustic === 'stone' && solid(below(cell))) return { color: PALETTE.stoneShade, pattern: PATTERN.rock };
     if (tags?.has('plank-walls') || (persona.plankUpper && has(below(cell)))) return { color: wall, pattern: PATTERN.planks };
     return { color: wall, pattern: PATTERN.plaster };
   };
@@ -130,7 +134,11 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         return onWall(f, inset);
       case 'balcony':
       case 'portico':
+      case 'vista':
+      case 'arcade':
         return onWall(f, inset);
+      case 'corner-oriel':
+        return cornerFrame(f, inset);
       default:
         return undefined;
     }
@@ -142,6 +150,15 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
 function onWall(f: Feature, inset: number): Mat4Like | undefined {
   if (f.cell === undefined || f.dir === undefined) return undefined;
   return multiply(faceFrame(f.cell, f.dir), translation(0, 0, -inset));
+}
+
+/** U10: the corner to the right of a facade (facing it), where its wall plane meets the next one; +Z out of the corner. */
+function cornerFrame(f: Feature, inset: number): Mat4Like | undefined {
+  if (f.cell === undefined || f.dir === undefined) return undefined;
+  const d = f.dir as Dir4, r = rightOf(d);
+  const [dx, dz] = DIR4[d]!, [rx, rz] = DIR4[r]!;
+  const k = 0.5 - inset;
+  return facingFrame([keyX(f.cell) + 0.5 + (dx + rx) * k, keyY(f.cell) * CELL_H, keyZ(f.cell) + 0.5 + (dz + rz) * k], dx + rx, dz + rz);
 }
 
 /** A plain timber ladder down a wall (R-H04): from just above the floor to the water or the ground below. */

@@ -51,11 +51,20 @@ export default defineRule<{ s: Structure }>({
     // Where the doors are, looked up once (a big house has hundreds of facade cells).
     const doors = new Set<number>();
     for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) if (f.type === 'door' && f.cell !== undefined && f.dir !== undefined) doors.add(f.cell * 4 + f.dir);
+    // U09, U11-F: a clock, a niche or an oriel already fills the wall of some cells; a balcony
+    // put there first wants a tall window behind it.
+    const taken = new Set<number>();
+    const balconies = new Set<number>();
+    for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) {
+      if (f.cell === undefined || f.dir === undefined) continue;
+      if (f.type === 'vista' && f.variant !== 'doorway') taken.add(f.cell * 4 + f.dir);
+      if (f.type === 'balcony') balconies.add(f.cell * 4 + f.dir);
+    }
     // Columns (and sides) of this house that stand over an alley.
     const alleySides = new Set<number>();
     for (const f of all.byStructure.get(s.id) ?? []) if (f.alley) alleySides.add((f.cell & 4095) * 4 + f.dir);
     for (const f of all.byStructure.get(s.id) ?? []) {
-      if (doors.has(f.cell * 4 + f.dir)) continue;
+      if (doors.has(f.cell * 4 + f.dir) || taken.has(f.cell * 4 + f.dir)) continue;
       if (f.touching || (f.faces === 'structure' && f.dist === 1)) continue;
       const what = hf.outside(f.cell, f.dir);
       if (what === 'bridge') continue; // J26 puts a door here
@@ -83,6 +92,7 @@ export default defineRule<{ s: Structure }>({
         const balcony = out.feature({ type: 'balcony', structure: s.id, cell: f.cell, dir: f.dir, variant: 'timber' });
         out.socket({ type: 'perch', owner: balcony, structure: s.id, cell: f.cell, dir: f.dir });
       }
+      if (balconies.has(f.cell * 4 + f.dir)) variant = 'tall';
       window(f.cell, f.dir, variant);
     }
 

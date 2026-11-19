@@ -1,7 +1,9 @@
 // Fixture for D05 (laundry lines). West to east:
 //   an alley one cell wide between two three-storey rows   lines on the upper storeys
 //   two two-storey houses three cells apart                a long line across the gap
-//   two cottages a single cell apart                       a line at ground-floor head height
+//   two cottages a single cell apart                       none: it would cross the lane at head height
+//   two two-storey houses with a stair climbing between    none on the upper storey: the stair's top is
+//   them                                                   under it
 //   two houses four cells apart                            none: too far
 //   two houses with a plaza between them                   none: never over a plaza
 //   one house of two wings round a gap                     none: it is one structure
@@ -23,6 +25,10 @@ export default scenario({
     // Two cottages.
     b.house(22, 10, { color: 6 });
     b.house(22, 12, { color: 1 });
+    // A stair between two houses, climbing to the upper storey's level.
+    b.house(10, 18, { floors: 2, color: 3 });
+    b.house(10, 20, { floors: 2, color: 5 });
+    b.block('stairs', 10, 1, 19, { rot: 1 });
     // Too far.
     b.house(26, 9, { floors: 2, color: 5 });
     b.house(26, 14, { floors: 2, color: 0 });
@@ -57,11 +63,14 @@ export default scenario({
     for (let x = 8; x <= 11; x++) check.ok(alley.filter(([ax]) => ax >= x && ax <= x + 2).length <= 2, `at most 2 lines in the three cells from x = ${x}`);
     // The three-cell gap and the cottages.
     check.ok(at.some(([x, y]) => x === 18 && y === 2), 'a line across the three-cell gap, on the upper storey');
-    check.ok(at.some(([x, y]) => x === 22 && y === 1), 'a line between the two cottages');
+    check.ok(!at.some(([x]) => x === 22), 'no line across the lane between the two cottages');
+    check.ok(!at.some(([x, , z]) => x === 10 && z === 18), 'no line over the top of a stair');
     // Where there must be none.
     check.ok(!at.some(([x]) => x === 26), 'none across four cells');
     check.ok(!at.some(([x]) => x === 30), 'none over a plaza');
     check.ok(!at.some(([x]) => x >= 34), 'none between two wings of one house');
+    // Nothing walkable at the level of any line.
+    for (const [x, y] of at) check.ok(y >= 2 || x < 0, 'every line is above the ground storey');
     // Each line hangs between two anchors of its own, one on each wall.
     check.equal(dressing.sockets.filter((s) => s.type === 'line-anchor').length, lines.length * 2, 'line anchors');
     for (const p of lines) {

@@ -10,6 +10,10 @@
 //   field (U02)          6+ cells of grass shut in by placed fences or walls:
 //                        a park if 3+ trees stand in it, a walled garden if
 //                        walls alone enclose it, else a paddock
+//   courtyard (D17)      a leftover of 4 to 16 cells, two or more across both
+//                        ways, shut in by buildings alone (no fence, wall,
+//                        floor, cliff, water or tree on its bounds): cobbles,
+//                        and a tree or a well in the middle
 //   back yard (U04)      a leftover of up to 6 cells that touches houses and
 //                        no street or square
 //   pocket park (U01)    a leftover of 2 to DRESSING.parkMax cells that
@@ -65,6 +69,7 @@ export interface Patch {
 export type LandUse =
   | { use: 'front-garden'; garden: FrontGarden }
   | { use: 'field'; field: Field }
+  | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
   | { use: 'pocket-park'; patch: Patch };
 
@@ -73,8 +78,19 @@ export interface LandUses {
   byCell: ReadonlyMap<CellKey, LandUse>;
   frontGardens: readonly FrontGarden[];
   fields: readonly Field[];
+  courtyards: readonly Patch[];
   backYards: readonly Patch[];
   pocketParks: readonly Patch[];
+}
+
+/** D17: a courtyard is this many cells or more (and no more than COURT_MAX). */
+const COURT_MIN = 4;
+const COURT_MAX = 16;
+
+/** At least two cells across both ways: a court, not a strip behind a row of houses. */
+function wide(cells: readonly CellKey[]): boolean {
+  const xs = new Set(cells.map((c) => c & 63)), zs = new Set(cells.map((c) => (c >> 6) & 63));
+  return xs.size >= 2 && zs.size >= 2;
 }
 
 export const landUse = defineFact<LandUses>('landUse', (f) => {
@@ -117,6 +133,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
 
   // ── leftovers: fields, back yards, pocket parks ──
   const fields: Field[] = [];
+  const courtyards: Patch[] = [];
   const backYards: Patch[] = [];
   const pocketParks: Patch[] = [];
   for (const l of leftovers(f).list) {
@@ -133,6 +150,10 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
       const field: Field = { kind, cells, trees };
       fields.push(field);
       for (const c of cells) byCell.set(c, { use: 'field', field });
+    } else if (!l.streets.length && !l.plazas.length && built && trees === 0 && cells.length === l.cells.length && cells.length >= COURT_MIN && cells.length <= COURT_MAX && wide(cells) && [...l.bounds].every((b) => b === 'structure')) {
+      const patch: Patch = { cells, houses };
+      courtyards.push(patch);
+      for (const c of cells) byCell.set(c, { use: 'courtyard', patch });
     } else if (!l.streets.length && !l.plazas.length && houses.length && cells.length <= DRESSING.yardMax) {
       const patch: Patch = { cells, houses };
       backYards.push(patch);
@@ -144,5 +165,5 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     }
   }
 
-  return { byCell, frontGardens: gardens, fields, backYards, pocketParks };
+  return { byCell, frontGardens: gardens, fields, courtyards, backYards, pocketParks };
 });

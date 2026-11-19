@@ -9,10 +9,9 @@
 // tags belong to a structure's content hash, so they cannot be set while
 // dressing. Its fixture is scenarios/rules/U12.centre-and-edge.
 //
-// Not done here: the edge half of U12 (thatch, timber and rough stone on
-// houses far from any floor). Those are choices of a house's personality
-// (src/style/houses.ts), which is the Houses owner's; see
-// docs/swarm/requests/dressing.md.
+// The edge half (thatch, timber and rough stone on houses far from any
+// floor) is U12-E.edge-rustic: it depends on the nearest floor, which may be
+// far away, so it is a town-wide rule of its own.
 //
 // Stability: a house's tag depends on the plazas within centreReach of it.
 //

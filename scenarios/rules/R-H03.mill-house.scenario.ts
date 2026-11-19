@@ -29,7 +29,8 @@ export default scenario({
     // No window looks into the mill's wall.
     check.noFeature({ type: 'window', at: [13, 1, 12], dir: 3 });
     // Flour sacks and a hand cart by its door.
-    check.equal(check.props({ type: 'role-prop', variant: 'sacks' }).length, 1, 'piles of sacks');
-    check.equal(check.props({ type: 'role-prop', variant: 'cart' }).length, 1, 'carts');
+    // (D25 puts more of the same round the windmill's own foot: count the house's.)
+    check.equal(check.props({ type: 'role-prop', variant: 'sacks', rule: 'R-H99.role-props' }).length, 1, 'piles of sacks');
+    check.equal(check.props({ type: 'role-prop', variant: 'cart', rule: 'R-H99.role-props' }).length, 1, 'carts');
   },
 });

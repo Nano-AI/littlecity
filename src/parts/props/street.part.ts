@@ -7,7 +7,7 @@ import { compose, rotationY, translation, type Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
-import { lump, mixColor, rngOf, tube, vary, TONE } from './kit';
+import { dab, lump, mixColor, rngOf, tube, vary, TONE } from './kit';
 
 /** Raw ink id shared by the cells of a trail, so it is outlined once along its length. */
 const INK_TRAIL = 61020;
@@ -21,20 +21,37 @@ export const streetTree = definePart({
   prop: 'street-tree',
   build(item, ctx) {
     const b = ctx.mesh();
-    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 677));
-    const h = 0.34 + r('h') * 0.06, rad = 0.2 + r('rad') * 0.03;
+    const look = item.params?.look ?? 0;
+    const r = rngOf(ctx.seed ^ (look * 677));
+    // Three kinds a town plants, so a row is not one lollipop repeated: a round lime, a tall
+    // narrow poplar, and a cherry in blossom. The kind follows the look, so a row mixes them.
+    const kind = look % 5 === 0 ? 'cherry' : look % 3 === 0 ? 'poplar' : 'lime';
+    const h = (kind === 'poplar' ? 0.3 : 0.34) + r('h') * 0.06;
+    const rad = (kind === 'poplar' ? 0.15 : kind === 'cherry' ? 0.22 : 0.2) + r('rad') * 0.03;
     b.with({ color: PALETTE.dirtDark, pattern: PATTERN.dirt, ink: 'pit' }, () => b.box([-0.13, 0, -0.13], [0.13, 0.018, 0.13], { skip: ['bottom'] }));
     const lean = (r('lean') - 0.5) * 0.08;
     b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'trunk' }, () => tube(b, [[0, 0.018, 0], [lean * 0.5, h * 0.6, 0], [lean, h + 0.04, 0]], [0.03, 0.024, 0.02], { seg: 5 }));
-    const leaf = vary(PALETTE.leaf, r('leaf'));
-    const cy = h + rad * 0.72;
+    const leaf = kind === 'cherry' ? vary(mixColor(PALETTE.pink, PALETTE.white, 0.15), r('leaf'), 0.5) : kind === 'poplar' ? vary(PALETTE.leafDark, r('leaf')) : vary(PALETTE.leaf, r('leaf'));
+    const tall = kind === 'poplar' ? 1.9 : 0.92;
+    const cy = h + rad * (kind === 'poplar' ? 1.5 : 0.72);
+    const tilt = r('tilt') * Math.PI * 2;
     b.with({ pattern: PATTERN.leaves, ink: 'crown' }, () => {
-      b.setSway((_x, y) => Math.min(1, Math.max(0, (y - h) / (rad * 2))) * 0.8);
+      b.setSway((_x, y) => Math.min(1, Math.max(0, (y - h) / (rad * 2 * tall))) * 0.8);
       b.with({ color: leaf }, () => {
-        lump(b, lean, cy, 0, rad, rad * 0.92, rad, { seg: 8, rings: 5, normal: TONE.lit });
-        lump(b, lean + rad * 0.5, cy - rad * 0.2, rad * 0.35, rad * 0.55, rad * 0.5, rad * 0.55, { seg: 7, rings: 4, normal: TONE.lit, twist: 1 });
+        lump(b, lean, cy, 0, rad, rad * tall, rad, { seg: 8, rings: 5, normal: TONE.lit });
+        const ox = Math.cos(tilt) * rad * 0.5, oz = Math.sin(tilt) * rad * 0.35;
+        lump(b, lean + ox, cy - rad * 0.2 * tall, oz, rad * 0.55, rad * 0.5 * tall, rad * 0.55, { seg: 7, rings: 4, normal: TONE.lit, twist: 1 });
       });
-      b.with({ color: mixColor(leaf, PALETTE.leafDark, 0.45) }, () => lump(b, lean + rad * 0.3, cy - rad * 0.15, -rad * 0.62, rad * 0.62, rad * 0.55, rad * 0.5, { seg: 7, rings: 4, normal: TONE.shade }));
+      b.with({ color: mixColor(leaf, kind === 'cherry' ? PALETTE.redDark : PALETTE.leafDark, kind === 'cherry' ? 0.25 : 0.45) }, () => lump(b, lean + rad * 0.3, cy - rad * 0.15 * tall, -rad * 0.62, rad * 0.62, rad * 0.55 * tall, rad * 0.5, { seg: 7, rings: 4, normal: TONE.shade }));
+      if (kind === 'cherry') {
+        // Blossom: pale dabs over the crown.
+        b.with({ color: PALETTE.white }, () => {
+          for (let i = 0; i < 6; i++) {
+            const a = r('ba', i) * Math.PI * 2, e = 0.3 + r('be', i) * 0.9;
+            dab(b, lean + Math.cos(a) * Math.cos(e) * rad * 0.95, cy + Math.sin(e) * rad * 0.9, Math.sin(a) * Math.cos(e) * rad * 0.95, 0.03, TONE.lit, 5, 0.012);
+          }
+        });
+      }
       b.setSway(0);
     });
     return { mesh: b.build() };

@@ -138,23 +138,30 @@ export const espalier = definePart({
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 431));
     const tone = localTone((item.params?.face ?? 2) as Dir4);
     const z = LINE + 0.16;
+    // A fruit tree trained flat against the wall: a straight stem and three tiers of level arms,
+    // each arm a row of small leaf clumps with fruit hanging under it. Seen from any side it is a
+    // ladder of green bars, not a crown.
+    const tiers = [0.13, 0.25, 0.37];
     b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'tree' }, () => {
-      tube(b, [[0, 0, z], [0, 0.34, z]], [0.022, 0.014], { seg: 4 });
-      for (const y of [0.14, 0.27]) tube(b, [[-0.3, y + 0.02, z], [0, y, z], [0.3, y + 0.02, z]], 0.011, { seg: 3 });
+      tube(b, [[0, 0, z], [0, 0.43, z]], [0.022, 0.013], { seg: 4 });
+      for (const y of tiers) tube(b, [[-0.33, y + 0.015, z], [0, y, z], [0.33, y + 0.015, z]], 0.01, { seg: 3 });
     });
     const leaf = vary(PALETTE.leaf, r('leaf'));
-    b.with({ pattern: PATTERN.leaves, ink: 'tree', sway: 0.15 }, () => {
-      for (const [i, y] of [0.16, 0.29].entries()) {
+    b.with({ pattern: PATTERN.leaves, ink: 'tree', sway: 0.12 }, () => {
+      for (const [i, y] of tiers.entries()) {
         for (const side of [-1, 1]) {
-          b.with({ color: side > 0 ? leaf : mixColor(leaf, PALETTE.leafDark, 0.3) }, () =>
-            lump(b, side * 0.17, y + 0.02, z + 0.01, 0.15, 0.055, 0.04, { seg: 7, rings: 4, normal: side > 0 ? tone.lit : tone.mid, twist: i }),
-          );
+          for (let k = 0; k < 2; k++) {
+            const x = side * (0.1 + k * 0.14 + (r('lx', i, side, k) - 0.5) * 0.02);
+            b.with({ color: (k + i) % 2 ? leaf : mixColor(leaf, PALETTE.leafDark, 0.35) }, () =>
+              lump(b, x, y + 0.025, z + 0.012, 0.068, 0.036, 0.03, { seg: 5, rings: 3, normal: side > 0 ? tone.lit : tone.mid, twist: k }),
+            );
+          }
         }
       }
-      b.with({ color: leaf }, () => lump(b, 0, 0.37, z + 0.01, 0.09, 0.06, 0.04, { seg: 7, rings: 4, normal: tone.lit }));
+      b.with({ color: leaf }, () => lump(b, 0, 0.45, z + 0.01, 0.05, 0.04, 0.03, { seg: 6, rings: 3, normal: tone.lit }));
     });
     b.with({ color: r('fruit') < 0.5 ? PALETTE.red : PALETTE.yellow, pattern: PATTERN.none, ink: 'tree' }, () => {
-      for (let i = 0; i < 5; i++) dab(b, (r('fx', i) - 0.5) * 0.52, 0.15 + (i % 2) * 0.13 + r('fy', i) * 0.03, z + 0.052, 0.022, tone.lit, 5, 0.014);
+      for (let i = 0; i < 6; i++) dab(b, (i % 2 ? 1 : -1) * (0.1 + r('fx', i) * 0.2), tiers[i % 3]! - 0.025, z + 0.045, 0.02, tone.lit, 5, 0.012);
     });
     return { mesh: b.build() };
   },
@@ -191,14 +198,30 @@ export const grazer = definePart({
       const coat = cow ? (r('coat') < 0.5 ? PALETTE.trunk : PALETTE.white) : mixColor(PALETTE.white, PALETTE.stoneShade, r('coat') * 0.5);
       const dark = cow ? mixColor(PALETTE.trunk, PALETTE.metal, 0.4) : PALETTE.metal;
       b.with({ color: dark, pattern: PATTERN.none, ink: 'legs' }, () => {
-        for (const [x, z] of [[-0.075, -0.04], [-0.075, 0.04], [0.07, -0.04], [0.07, 0.04]] as const) b.boxAt([x * k, 0, z * k], [0.026 * k, 0.09 * k, 0.026 * k], { skip: ['bottom', 'top'] });
+        const legH = cow ? 0.09 : 0.075;
+        for (const [x, z] of [[-0.075, -0.04], [-0.075, 0.04], [0.07, -0.04], [0.07, 0.04]] as const) b.boxAt([x * k, 0, z * k], [0.026 * k, legH * k, 0.026 * k], { skip: ['bottom', 'top'] });
       });
-      b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
-        lump(b, 0, 0.135 * k, 0, 0.125 * k, 0.075 * k, 0.07 * k, { seg: 8, rings: 5 });
-        if (cow) b.with({ color: coat === PALETTE.white ? PALETTE.trunk : PALETTE.white }, () => lump(b, -0.03, 0.17 * k, 0.045, 0.06, 0.05, 0.04, { seg: 6, rings: 4 }));
-      });
-      // The head, down at the grass.
-      b.with({ color: cow ? coat : dark, pattern: PATTERN.none, ink: 'head' }, () => lump(b, 0.155 * k, 0.07 * k, 0, 0.05 * k, 0.04 * k, 0.036 * k, { seg: 6, rings: 4 }));
+      if (cow) {
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
+          lump(b, 0, 0.135 * k, 0, 0.125 * k, 0.075 * k, 0.07 * k, { seg: 8, rings: 5 });
+          b.with({ color: coat === PALETTE.white ? PALETTE.trunk : PALETTE.white }, () => lump(b, -0.03, 0.17 * k, 0.045, 0.06, 0.05, 0.04, { seg: 6, rings: 4 }));
+        });
+        // The head, down at the grass.
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'head' }, () => lump(b, 0.155 * k, 0.07 * k, 0, 0.05 * k, 0.04 * k, 0.036 * k, { seg: 6, rings: 4 }));
+      } else {
+        // A sheep is a cloud of wool on short dark legs: a few puffs in one outline, sitting low, so
+        // it reads as an animal and not a stool. Its black face pokes out in front.
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
+          const puffs: [number, number, number, number][] = [[0, 0.15, 0, 0.1], [-0.07, 0.135, 0.02, 0.075], [0.06, 0.14, -0.02, 0.075], [0.01, 0.13, 0.055, 0.07], [-0.01, 0.135, -0.055, 0.07]];
+          for (const [x, y, z, rr] of puffs) lump(b, x, y, z, rr, rr * 0.85, rr, { seg: 7, rings: 3, twist: r('tw', x) });
+        });
+        const graze = r('graze') < 0.6;
+        b.with({ color: dark, pattern: PATTERN.none, ink: 'head' }, () => {
+          lump(b, 0.135, graze ? 0.075 : 0.15, 0, 0.045, 0.04, 0.035, { seg: 6, rings: 3 });
+          // two little ears
+          for (const z of [-0.035, 0.035]) b.boxAt([0.115, graze ? 0.1 : 0.175, z], [0.02, 0.012, 0.03]);
+        });
+      }
     });
     return { mesh: b.build() };
   },

@@ -17,7 +17,7 @@ export type P2 = readonly [number, number];
 export function personaOf(ctx: PartContext): Personality {
   const s = ctx.structure;
   if (!s) return personalityOf(ctx.seed, 5);
-  return personalityOf(s.seed, s.color, ctx.plan.roles.get(s.id)?.role, s.cells.length);
+  return personalityOf(s.seed, s.color, ctx.plan.roles.get(s.id)?.role, s.cells.length, ctx.plan.tags.get(s.id)?.has('rustic') ?? false);
 }
 
 /** A rectangle w × h standing on y0, centred on x = cx. Counter-clockwise seen from +Z. */

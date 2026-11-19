@@ -56,7 +56,7 @@ export default defineRule<{ region: RoofRegion }>({
     let ridge: 'x' | 'z' | undefined;
     let against: Dir4 | undefined;
     if (role === 'townhouse') variant = 'stepped-gable';
-    else if (role === 'manor') variant = 'hip';
+    else if (role === 'manor' || role === 'town-hall') variant = 'hip';
     else if (region.floors.length > 0 || region.pieces.length > 0 || region.stairsOnto.length > 0) variant = 'flat';
     else {
       // A lean-to: one cell deep, with the taller wall along its long side.
