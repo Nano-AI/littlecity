@@ -76,22 +76,31 @@ function consoleBracket(b: MeshBuilder, x: number, wall: number, reach: number, 
   }
 }
 
-/** A timber bracket: a joist under the floor, a post down the wall and a brace between them. */
-function timberBracket(b: MeshBuilder, x: number, wall: number, reach: number, drop: number): void {
-  const w = 0.075;
-  b.box([x - w / 2, -w, wall - reach], [x + w / 2, 0, wall], { skip: ['top'] }); // joist
-  b.box([x - w / 2, -drop, wall - w], [x + w / 2, -w, wall], { skip: ['top'] }); // wall post
-  // The brace: a slanted bar from the foot of the post to the joist.
-  const z0 = wall - w, y0 = -drop + 0.03, z1 = wall - reach + 0.1, y1 = -w;
+/** A slanted bar in the (z, y) plane from (z0, y0) to (z1, y1), `w` thick and `t` wide along x, centred on x. */
+function strut(b: MeshBuilder, x: number, z0: number, y0: number, z1: number, y1: number, w: number, t: number): void {
   const len = Math.hypot(z1 - z0, y1 - y0);
-  const nz = (-(y1 - y0) / len) * (w * 0.45), ny = ((z1 - z0) / len) * (w * 0.45);
+  const nz = (-(y1 - y0) / len) * (w / 2), ny = ((z1 - z0) / len) * (w / 2);
   const a: Vec3 = [x, y0 - ny, z0 - nz], c: Vec3 = [x, y1 - ny, z1 - nz], d: Vec3 = [x, y1 + ny, z1 + nz], e: Vec3 = [x, y0 + ny, z0 + nz];
   const at = (p: Vec3, dx: number): Vec3 => [p[0] + dx, p[1], p[2]];
-  const h = w * 0.4;
+  const h = t / 2;
   b.quad(at(e, h), at(d, h), at(c, h), at(a, h));
   b.quad(at(a, -h), at(c, -h), at(d, -h), at(e, -h));
   b.quad(at(a, -h), at(a, h), at(c, h), at(c, -h));
   b.quad(at(e, h), at(e, -h), at(d, -h), at(d, h));
+}
+
+/**
+ * The timber frame under a jettied room: a joist and a brace at each side, and
+ * a beam under the room's outer edge, which is the part that shows from the front.
+ */
+function timberJetty(b: MeshBuilder, wall: number, drop: number): void {
+  const w = 0.09, side = 0.37, front = -0.4;
+  for (const x of [-side, side]) {
+    b.box([x - w / 2, -w, front], [x + w / 2, 0, wall], { skip: ['top'] }); // joist
+    b.box([x - w / 2, -drop, wall - w], [x + w / 2, -w, wall], { skip: ['top'] }); // wall post
+    strut(b, x, wall - w, -drop + 0.05, front + 0.12, -w, w * 0.85, w * 0.8);
+  }
+  b.box([-side - w / 2, -w - 0.02, front - w / 2], [side + w / 2, 0, front + w / 2], { skip: ['top'] }); // the beam under the outer edge
 }
 
 export const supportsLayer = defineLayer({
@@ -126,18 +135,22 @@ export const supportsLayer = defineLayer({
           const wall = 0.58; // a little past the cell's side, into the wall that carries it
           if (wood) {
             b.with({ color: PALETTE.wood, pattern: PATTERN.none, ink: `br${id}` }, () => {
-              for (const bx of [-0.27, 0.27]) timberBracket(b, bx, wall, 0.86, 0.5);
+              timberJetty(b, wall, 0.62);
               if (needsShelf) b.box([-0.44, -0.05, -0.44], [0.44, 0, 0.5], { skip: ['bottom'] });
             });
           } else {
             b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: `br${id}` }, () => {
-              for (const bx of [-0.27, 0.27]) consoleBracket(b, bx, wall, 0.8, 0.5, 0.15);
-              if (needsShelf) b.box([-0.46, -0.06, -0.46], [0.46, 0, 0.5], { skip: ['bottom'] });
+              for (const bx of [-0.3, 0.3]) consoleBracket(b, bx, wall, 0.98, 0.62, 0.2);
+              // A ledge course on the consoles, a little proud of the block it carries.
+              b.box([-0.52, -0.07, -0.52], [0.52, 0, wall], { skip: needsShelf ? ['bottom'] : ['bottom', 'top'] });
             });
           }
         });
         continue;
       }
+
+      // A block at sea level over water has nothing under it to draw: it stands in the sea on its own footing.
+      if (length <= 0) continue;
 
       if (s.type === 'stilts') {
         const w = MONUMENTS.stiltWidth, o = 0.37;

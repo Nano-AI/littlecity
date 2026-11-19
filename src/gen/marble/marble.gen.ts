@@ -1,18 +1,25 @@
 // Marble (J16): a merged mass draws only the faces that border something
-// else, as one seamless surface with soft veins and a bevel line under its
-// top edges. Where it stands on the ground it has a low base course; a
-// walkable top (R-M07, the terrace) is paved inside a marble coping.
+// else, as one seamless surface with soft veins. Where it stands on the
+// ground it has a low base course; under every top edge runs a cornice; a
+// walkable top is paved inside a marble coping (R-M07, the terrace).
 //
-// Role features (battlements, steps, pediments and the rest) are drawn by
-// the parts in src/parts/monuments through the registry.
+// By role: a keep's top edges carry battlements and its walls arrow slits
+// (R-M03); a temple has a frieze, pediments with a roof between them, and
+// steps at the foot of its pillars (R-M01); a quay wall has bollards, rings
+// and stairs to the water (R-M05); a plinth is a pedestal (R-M06).
 
 import { above, below, CELL_H, columnIndex, DIR4, inColumnBounds, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
-import type { Mat4Like } from '@/core/mat4';
-import { defineGenerator, placeFeatures } from '@/gen/api';
+import { compose, rotationY, translation, type Mat4Like } from '@/core/mat4';
+import { rand } from '@/core/rand';
+import { defineGenerator, placeFeature } from '@/gen/api';
+import { faceFrame, featureFrame } from '@/gen/frames';
 import { MeshBuilder, PATTERN, type BoxFace } from '@/gen/mesh';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { MONUMENTS } from '@/style/monuments';
-import { PALETTE, rampColor } from '@/style/palette';
+import { PALETTE, RAMPS, rampColor } from '@/style/palette';
+import { ownSockets } from '@/parts/monuments/kit';
+import { bollard, pedestal, pediment, quayStair } from '@/parts/monuments/marble-parts';
+import { arrowSlit } from '@/parts/monuments/openings';
 
 const FACE: readonly BoxFace[] = ['n', 'e', 's', 'w'];
 const COPING = 0.07;
@@ -59,16 +66,38 @@ export default defineGenerator({
     const anchors: Record<string, Mat4Like> = {};
     const mine = new Set(s.cells);
     const stone = rampColor('marble', s.color);
+    const role = plan.roles.get(s.id)?.role;
     const paved = plan.tags.get(s.id)?.has('top:paved') ?? false;
+    const features = plan.featuresByStructure.get(s.id) ?? [];
+
+    if (role === 'plinth' && s.cells.length === 1) {
+      const c = s.cells[0]!;
+      b.at(translation(keyX(c) + 0.5, keyY(c) * CELL_H, keyZ(c) + 0.5), () => pedestal(b, stone));
+      for (const sock of plan.sockets) {
+        if (sock.structure === s.id && sock.owner === undefined && sock.type === 'statue-base') anchors[sock.id] = translation(keyX(c) + 0.5, (keyY(c) + 1) * CELL_H, keyZ(c) + 0.5);
+      }
+      for (const f of features) {
+        const at = featureFrame(f);
+        if (at) placeFeature(b, anchors, f, at, { plan, structure: s, parts });
+      }
+      return { mesh: b.build(), anchors };
+    }
+
     const cells = marbleCells(s, plan);
     const byCell = new Map(cells.map((c) => [c.cell, c] as const));
-    const out = MONUMENTS.marbleBaseOut, baseH = MONUMENTS.marbleBase;
+    const battlements = new Set<number>();
+    const stylobates = new Map<CellKey, number>();
+    for (const f of features) {
+      if (f.type === 'battlement' && f.cell !== undefined && f.dir !== undefined) battlements.add(f.cell * 4 + f.dir);
+      if (f.type === 'stylobate' && f.cell !== undefined) stylobates.set(f.cell, (f.params as { depth?: number } | undefined)?.depth ?? 1);
+    }
+    const temple = role === 'temple';
 
     b.setColor(stone).setPattern(PATTERN.marble).setInk('mass');
     for (const c of cells) {
       const x = keyX(c.cell), y = keyY(c.cell) * CELL_H, z = keyZ(c.cell);
       const sides = FACE.filter((_, d) => c.open[d]);
-      if (sides.length) b.box([x, y, z], [x + 1, y + CELL_H, z + 1], { only: sides, bevelTop: c.topOpen });
+      if (sides.length) b.box([x, y, z], [x + 1, y + CELL_H, z + 1], { only: sides, bevelTop: c.topOpen && MONUMENTS.marbleCornice <= 0 });
       if (!c.topOpen) continue;
       const top = y + CELL_H;
       if (!(paved && c.walkable)) {
@@ -86,41 +115,115 @@ export default defineGenerator({
       if (edge(1)) b.quad([x1, top, z1], [x + 1, top, z1], [x + 1, top, z0], [x1, top, z0]);
     }
 
-    // The base course: one band round the foot of the mass wherever it meets level ground.
-    const banded = (cell: CellKey, d: number): boolean => byCell.get(cell)?.grounded[d] ?? false;
+    // A band that runs round the mass through every cell side `has` names, turning outer corners and
+    // stopping cleanly at inner ones. `reach` > 0 stands it out from the wall (base course, cornice);
+    // `inset` > 0 sets it back on top of the wall instead (a parapet), where its back shows too.
+    const band = (has: (c: MarbleCell, d: number) => boolean, y0: (c: MarbleCell) => number, h: number, reach: number, inset = 0): void => {
+      const at = (cell: CellKey, d: number): boolean => {
+        const c = byCell.get(cell);
+        return c !== undefined && has(c, d);
+      };
+      for (const c of cells) {
+        const x = keyX(c.cell), y = keyY(c.cell) * CELL_H, z = keyZ(c.cell);
+        for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+          if (!has(c, d)) continue;
+          const left = ((d + 3) & 3) as Dir4, right = ((d + 1) & 3) as Dir4;
+          // Along the band: does it carry on into the next cell, turn the corner, or run into a wall?
+          const end = (side: Dir4): { reach: number; face: boolean } => {
+            if (has(c, side)) return { reach, face: inset === 0 }; // an outer corner: this band covers it
+            const along = neighbor(c.cell, side);
+            if (along !== NO_CELL && mine.has(along)) {
+              const ahead = neighbor(along, d);
+              return { reach: 0, face: !(at(along, d) || (ahead !== NO_CELL && mine.has(ahead) && inset === 0)) };
+            }
+            return { reach: 0, face: true };
+          };
+          const l = end(left), r = end(right);
+          // Built facing south (+z), where the band's left end (side d − 1) is at +x; then turned to side d.
+          const skip: BoxFace[] = inset > 0 ? ['bottom'] : ['bottom', 'n'];
+          if (!l.face) skip.push('e');
+          if (!r.face) skip.push('w');
+          const yy = y0(c);
+          b.at(compose(translation(x + 0.5, y, z + 0.5), rotationY(Math.atan2(DIR4[d]![0], DIR4[d]![1]))), () =>
+            b.box([-0.5 - r.reach, yy, 0.5 - inset], [0.5 + l.reach, yy + h, 0.5 + reach], { skip }),
+          );
+        }
+      }
+    };
+    const out = MONUMENTS.marbleBaseOut, baseH = MONUMENTS.marbleBase;
     if (baseH > 0 && out > 0) {
-      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => {
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => band((c, d) => c.grounded[d]!, () => 0, baseH, out));
+    }
+    const corniceH = MONUMENTS.marbleCornice * (temple ? 1.5 : 1);
+    if (corniceH > 0) {
+      // A temple's is deeper and darker: its frieze.
+      b.with({ color: temple ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'cornice' }, () =>
+        band((c, d) => c.topOpen && c.open[d]! && !c.flush[d], () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
+      );
+    }
+    if (battlements.size) {
+      const wall = 0.11, low = 0.11, merlon = 0.14;
+      const has = (c: MarbleCell, d: number): boolean => battlements.has(c.cell * 4 + d);
+      b.with({ color: stone, pattern: PATTERN.none, ink: 'battlements' }, () => {
+        band(has, () => CELL_H, low, 0, wall);
+        // Two merlons to a cell, in step all the way round.
         for (const c of cells) {
-          const x = keyX(c.cell), y = keyY(c.cell) * CELL_H, z = keyZ(c.cell);
           for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
-            if (!c.grounded[d]) continue;
-            const left = ((d + 3) & 3) as Dir4, right = ((d + 1) & 3) as Dir4;
-            // Along the band: does it carry on into the next cell, turn the corner, or run into a wall?
-            const end = (side: Dir4): { reach: number; face: boolean } => {
-              if (c.grounded[side]) return { reach: out, face: true }; // an outer corner: this band covers it
-              const along = neighbor(c.cell, side);
-              if (along !== NO_CELL && mine.has(along)) {
-                const ahead = neighbor(along, d);
-                return { reach: 0, face: !(banded(along, d) || (ahead !== NO_CELL && mine.has(ahead))) };
-              }
-              return { reach: 0, face: true };
-            };
-            const l = end(left), r = end(right);
-            // Built facing south (+z), where the band's left end (side d − 1) is at +x; then turned to side d.
-            const skip: BoxFace[] = ['bottom', 'n'];
-            if (!l.face) skip.push('e');
-            if (!r.face) skip.push('w');
-            b.push();
-            b.translate(x + 0.5, y, z + 0.5).rotateY(Math.atan2(DIR4[d]![0], DIR4[d]![1]));
-            b.box([-0.5 - r.reach, 0, 0.5], [0.5 + l.reach, baseH, 0.5 + out], { skip });
-            b.pop();
+            if (!has(c, d)) continue;
+            b.at(compose(translation(keyX(c.cell) + 0.5, (keyY(c.cell) + 1) * CELL_H + low, keyZ(c.cell) + 0.5), rotationY(Math.atan2(DIR4[d]![0], DIR4[d]![1]))), () => {
+              for (const mx of [-0.25, 0.25]) b.box([mx - 0.13, 0, 0.5 - wall], [mx + 0.13, merlon, 0.5], { skip: ['bottom'] });
+            });
           }
         }
       });
     }
+    if (stylobates.size) {
+      // Steps at the foot of a temple's pillars: a slab under the whole footprint and a wider tread round it.
+      const has = (c: MarbleCell, d: number): boolean => {
+        if (!stylobates.has(c.cell)) return false;
+        const n = neighbor(c.cell, d as Dir4);
+        return n === NO_CELL || !stylobates.has(n);
+      };
+      const foot = (c: MarbleCell): number => -(stylobates.get(c.cell) ?? 0) * CELL_H;
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'stylobate' }, () => {
+        for (const c of cells) {
+          if (!stylobates.has(c.cell)) continue;
+          const x = keyX(c.cell), z = keyZ(c.cell), y = keyY(c.cell) * CELL_H + foot(c) + 0.11;
+          b.quad([x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z], [x, y, z]);
+        }
+        band(has, foot, 0.11, 0.0001);
+        band(has, foot, 0.055, 0.14);
+      });
+    }
 
-    placeFeatures(b, anchors, s, plan, parts);
+    // ── features ──
+    const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
+    for (const f of features) {
+      if (f.type === 'battlement' || f.type === 'stylobate') continue;
+      const face = f.cell !== undefined && f.dir !== undefined;
+      const sub = (): MeshBuilder => new MeshBuilder({ ink: f.id });
+      if (f.type === 'arrow-slit' && face) {
+        const mb = sub();
+        arrowSlit(mb, 'a', PALETTE.stoneShade);
+        b.add(mb, faceFrame(f.cell!, f.dir as Dir4, 0.24));
+      } else if (f.type === 'pediment' && face) {
+        const p = (f.params ?? {}) as { width?: number; offset?: number; depth?: number };
+        // The two halves of one temple's roof share their ink groups, so the ridge has no seam in the middle.
+        b.at(faceFrame(f.cell!, f.dir as Dir4, CELL_H), () => pediment(b, stone, roof, p.width ?? 1, p.offset ?? 0, p.depth ?? 1));
+      } else if (f.type === 'bollard' && face) {
+        const mb = sub();
+        const at = faceFrame(f.cell!, f.dir as Dir4, CELL_H);
+        ownSockets(plan, anchors, f.id, at, bollard(mb));
+        b.add(mb, at);
+      } else if (f.type === 'quay-stair' && face) {
+        const mb = sub();
+        quayStair(mb, keyY(f.cell!));
+        b.add(mb, faceFrame(f.cell!, f.dir as Dir4));
+      } else {
+        const at = featureFrame(f);
+        if (at) placeFeature(b, anchors, f, at, { plan, structure: s, parts });
+      }
+    }
     return { mesh: b.build(), anchors };
   },
 });
-

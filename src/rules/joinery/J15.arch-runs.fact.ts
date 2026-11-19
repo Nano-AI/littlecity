@@ -130,6 +130,9 @@ export const archRuns = defineFact<ArchRuns>('archRuns', (f: Facts) => {
       else if (bearing(neighbor(cell, N)) && bearing(neighbor(cell, S))) axis.set(cell, 'z');
       else if (floorOn(cell) && (floorOn(neighbor(cell, N)) || floorOn(neighbor(cell, S)))) axis.set(cell, 'x');
       else if (floorOn(cell) && (floorOn(neighbor(cell, W)) || floorOn(neighbor(cell, E)))) axis.set(cell, 'z');
+      // Something solid on one side only: span toward it, so a lone arch in the air hangs from it.
+      else if (bearing(neighbor(cell, W)) || bearing(neighbor(cell, E))) axis.set(cell, 'x');
+      else if (bearing(neighbor(cell, N)) || bearing(neighbor(cell, S))) axis.set(cell, 'z');
       else axis.set(cell, 'x');
     }
     // (Cells are in ascending key order, so a stack of lone arches resolves bottom-up.)
@@ -262,3 +265,24 @@ function shapeRun(f: Facts, structure: StructureId, axis: Axis, cells: CellKey[]
   openings.sort((a, b) => a.lo - b.lo);
   return { structure, axis, cells, standing, stretches, openings, piers };
 }
+
+export interface Hanging {
+  /** The solid cell the run hangs from, and the run's cell furthest from it. */
+  anchor: CellKey;
+  outer: CellKey;
+}
+
+/** If the structure is one run that is one stretch anchored at exactly one end: where it hangs from. */
+export function hangingRun(plan: { kinds: ReadonlyMap<CellKey, unknown> }, runs: readonly ArchRun[]): Hanging | null {
+  if (runs.length !== 1) return null;
+  const run = runs[0]!;
+  const n = run.cells.length;
+  const st = run.stretches[0];
+  if (run.stretches.length !== 1 || !st || st.from !== 0 || st.to !== n - 1 || st.anchoredLo === st.anchoredHi) return null;
+  if (run.cells.some((c) => plan.kinds.has(above(c)))) return null;
+  const low: Dir4 = run.axis === 'x' ? 3 : 0, high: Dir4 = run.axis === 'x' ? 1 : 2;
+  const anchor = st.anchoredLo ? neighbor(run.cells[0]!, low) : neighbor(run.cells[n - 1]!, high);
+  if (anchor === NO_CELL) return null;
+  return { anchor, outer: st.anchoredLo ? run.cells[n - 1]! : run.cells[0]! };
+}
+

@@ -15,7 +15,7 @@ describe('marble (J16, R-M07)', () => {
     expect(findDuplicateFaces(mesh)).toBe(0);
     const mass = new MeshBuilder({ ink: s.id }).inkOf('mass');
     const groups = inkGroups(mesh);
-    expect(groups.size).toBe(2); // the mass and its base course
+    expect(groups.size).toBe(3); // the mass, its base course and its cornice
     // 20 side quads, and a paved top of 6 cells each split into a field and its coping strips.
     expect(groups.get(mass)).toBeGreaterThanOrEqual(20 * 2 + 6 * 2);
     expect(triangleCount(mesh)).toBeLessThan(12 * 40);
@@ -34,18 +34,20 @@ describe('marble (J16, R-M07)', () => {
     expect(max[0]).toBeLessThan(11 + 0.05);
   });
 
-  test('top edges are marked for the bevel line; a walkable top is paved (terrace)', () => {
+  test('a cornice runs under the top edges; a walkable top is paved (terrace)', () => {
     const t = town((b) => b.put('marble', 10, 10).put('marble', 14, 10).block('marble', 14, 2, 10, { color: 3 }));
     const s = t.at(10, 1, 10);
     expect(t.plan.roles.get(s.id)?.role).toBe('terrace');
     expect(t.plan.tags.get(s.id)?.has('top:paved')).toBe(true);
     const mesh = t.draw(s);
-    let bevelled = 0, paved = 0;
-    for (let v = 0; v < mesh.edge.length; v++) {
-      if (mesh.edge[v]! < 1) bevelled++;
+    const cornice = new MeshBuilder({ ink: s.id }).inkOf('cornice');
+    let lowest = Infinity, paved = 0;
+    for (let v = 0; v < mesh.inkId.length; v++) {
+      if (mesh.inkId[v] === cornice) lowest = Math.min(lowest, mesh.position[v * 3 + 1]!);
       if (mesh.pattern[v] === PATTERN.paving) paved++;
     }
-    expect(bevelled).toBeGreaterThan(0);
+    expect(lowest).toBeGreaterThan(2 * CELL_H - 0.2); // only under the top edge
+    expect(lowest).toBeLessThan(2 * CELL_H - 0.05);
     expect(paved).toBe(6); // one quad on top
     // The lower block of the two-colour stack is covered: no paving, no walkable top.
     const covered = t.at(14, 1, 10);

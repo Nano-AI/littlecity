@@ -10,10 +10,10 @@ export const MONUMENTS = defineStyle(
   {
     // ── towers ──
     /** Radius of a round tower at its foot, and how much it narrows per storey. */
-    towerRadius: 0.37,
+    towerRadius: 0.4,
     towerBatter: 0.008,
     /** Half-width of a square tower. */
-    towerHalf: 0.38,
+    towerHalf: 0.4,
     /** The whole tower leans by up to this many radians (seeded), when nothing stands on it. */
     towerLean: 0.014,
     /** A band course every this many storeys. */
@@ -23,13 +23,13 @@ export const MONUMENTS = defineStyle(
     spireRise: 1.5,
     pyramidRise: 0.62,
     /** How far a roof's eave stands out from the wall. */
-    towerEave: 0.13,
+    towerEave: 0.12,
 
     // ── lighthouse ──
     lightRadiusFoot: 0.4,
     lightRadiusTop: 0.27,
     galleryOut: 0.11,
-    railHeight: 0.2,
+    railHeight: 0.17,
 
     // ── arches and bridges ──
     /** Half-width of the leg of a standing arch (two neighbours make one pier). */
@@ -65,6 +65,9 @@ export const MONUMENTS = defineStyle(
     /** The base course of a marble mass: height and how far it stands out. */
     marbleBase: 0.1,
     marbleBaseOut: 0.03,
+    /** The cornice under its top edges (0 for none: then the shader's bevel line is used instead). */
+    marbleCornice: 0.13,
+    marbleCorniceOut: 0.025,
   },
   {
     towerRadius: [0.28, 0.45, 0.01],
@@ -99,5 +102,7 @@ export const MONUMENTS = defineStyle(
     footingRise: [0.04, 0.3, 0.01],
     marbleBase: [0, 0.2, 0.01],
     marbleBaseOut: [0, 0.08, 0.005],
+    marbleCornice: [0, 0.2, 0.005],
+    marbleCorniceOut: [0, 0.08, 0.005],
   },
 );

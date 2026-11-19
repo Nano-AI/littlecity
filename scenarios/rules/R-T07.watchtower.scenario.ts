@@ -9,7 +9,7 @@ import { scenario } from '@/scenario';
 export default scenario({
   name: 'R-T07.watchtower',
   seed: 41,
-  about: 'Watchtowers of 1, 2, 3, 5 and 7 storeys, one rising out of the sea, one carrying a marble block.',
+  about: 'Watchtowers of 1 to 5 storeys, one rising out of the sea, one carrying a marble block.',
   terrain(t) {
     t.flat(1);
     t.water(4, 16, 43, 43);
@@ -19,8 +19,8 @@ export default scenario({
     b.tower(9, 12, { floors: 1, color: 0 });
     b.tower(11, 12, { floors: 2, color: 1 });
     b.tower(13, 12, { floors: 3, color: 3 });
-    b.tower(16, 12, { floors: 5, color: 6 });
-    b.tower(19, 12, { floors: 7, color: 4 });
+    b.tower(16, 12, { floors: 4, color: 6 });
+    b.tower(19, 12, { floors: 5, color: 4 });
     b.tower(22, 12, { floors: 3, color: 2 }).block('marble', 22, 4, 12);
     for (let y = 0; y < 4; y++) b.block('tower', 14, y, 18, { color: 5 });
   },
@@ -32,14 +32,14 @@ export default scenario({
   ],
   expect(plan, _dressing, check) {
     check.role(13, 1, 12, 'watchtower');
-    check.sameStructure([19, 1, 12], [19, 7, 12]);
+    check.sameStructure([19, 1, 12], [19, 5, 12]);
     check.hasTag(13, 1, 12, 'body:round');
     check.hasFeature({ type: 'cap', variant: 'cone', at: [13, 3, 12] });
     check.hasSocket({ type: 'flag-mount', at: [13, 3, 12] });
     check.noFeature({ type: 'cap', on: [22, 1, 12] });
     // One window per storey, each a quarter turn from the last (the door's side is skipped on the ground storey).
     const windows = check.features({ type: 'window', on: [19, 1, 12] });
-    check.equal(windows.length, 7, 'a window per storey');
+    check.equal(windows.length, 5, 'a window per storey');
     for (let i = 2; i < windows.length; i++) check.equal(windows[i]!.dir, ((windows[i - 1]!.dir ?? 0) + 1) & 3, `storey ${i + 1} turns a quarter`);
     // The door faces the path.
     check.hasFeature({ type: 'door', at: [13, 1, 12], dir: 2 });

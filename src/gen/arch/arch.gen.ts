@@ -59,6 +59,8 @@ export interface ArchCellShape {
   piers: Feature[];
   /** The cell's arch-opening feature, if J15 has run. */
   opening?: Feature;
+  /** What stands along the deck's edges: the stone parapet, a covered gallery's walls, or a loggia's balustrade. */
+  deck: 'parapet' | 'covered' | 'balcony';
 }
 
 /** What the generator works out per cell before drawing (all inside the structure hash). */
@@ -67,8 +69,11 @@ export function archCells(s: Structure, plan: ShapePlan): Map<CellKey, ArchCellS
   const features = plan.featuresByStructure.get(s.id) ?? [];
   const openingAt = new Map<CellKey, Feature>();
   const piersAt = new Map<CellKey, Feature[]>();
+  const deckAt = new Map<CellKey, 'covered' | 'balcony'>();
   for (const f of features) {
     if (f.cell === undefined) continue;
+    if (f.type === 'covered-gallery') deckAt.set(f.cell, 'covered');
+    if (f.type === 'loggia-rail') deckAt.set(f.cell, 'balcony');
     if (f.type === 'arch-opening') openingAt.set(f.cell, f);
     else if (f.type === 'pier') {
       const list = piersAt.get(f.cell);
@@ -116,6 +121,7 @@ export function archCells(s: Structure, plan: ShapePlan): Map<CellKey, ArchCellS
       sig: openings.map((o) => `${o.lo.toFixed(3)}:${o.hi.toFixed(3)}:${o.spring.toFixed(3)}`).join('|'),
       piers: piersAt.get(cell) ?? [],
       opening: f,
+      deck: deckAt.get(cell) ?? 'parapet',
     });
   }
   return out;
@@ -130,6 +136,9 @@ export default defineGenerator({
     const tags = plan.tags.get(s.id);
     const humped = tags?.has('deck:humped') ?? false;
     const gate = tags?.has('arch:gate') ?? false;
+    // A flying buttress is a slim rib, not a deck.
+    const slim = tags?.has('arch:buttress') ?? false;
+    const t0 = slim ? 0.31 : 0, t1 = slim ? 0.69 : 1;
     const stone = rampColor('arch', s.color);
     const H = CELL_H;
     const { cornice: cH, corniceOut: cOut, parapet: pH, parapetThick: pT, pierHalf: ph } = MONUMENTS;
@@ -148,7 +157,7 @@ export default defineGenerator({
         if (!o || o.axis !== c.axis) return false;
         return side === 'lo' || side === 'hi' ? true : o.sig === c.sig;
       };
-      const hidden = (side: Side): boolean => joined(side) || near[side].kind === 'marble';
+      const hidden = (side: Side): boolean => (slim && (side === 'front' || side === 'back') ? false : joined(side) || near[side].kind === 'marble');
       /** The hump of a stone bridge at `u` along this cell. */
       const hump = (u: number): number => (humped ? MONUMENTS.hump * Math.sin((Math.PI * Math.min(Math.max(c.at + u, 0), c.len)) / c.len) : 0);
 
@@ -156,7 +165,7 @@ export default defineGenerator({
         // ── the block and its openings ──
         b.with({ color: stone, pattern: PATTERN.stone, ink: 'body' }, () => {
           profileSlab(b, {
-            u0: 0, u1: 1, v0: 0, v1: H, z0: 0, z1: 1,
+            u0: 0, u1: 1, v0: 0, v1: H, z0: t0, z1: t1,
             openings: c.openings,
             front: !hidden('front'),
             back: !hidden('back'),
@@ -177,11 +186,19 @@ export default defineGenerator({
             const skip: ('n' | 's' | 'top' | 'bottom')[] = ['top', 'bottom'];
             if (same('front')) skip.push('s');
             if (same('back')) skip.push('n');
-            b.box([uc - ph, -depth, 0], [uc + ph, 0, 1], { skip });
+            b.box([uc - ph, -depth, t0], [uc + ph, 0, t1], { skip });
           }
         });
         // The deck.
-        if (c.topOpen) {
+        if (c.topOpen && slim) {
+          // A coping along the rib's back.
+          b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'cornice' }, () => {
+            const skip: ('bottom' | 'w' | 'e')[] = ['bottom'];
+            if (joined('lo')) skip.push('w');
+            if (joined('hi')) skip.push('e');
+            b.box([0, H - 0.07, t0 - 0.04], [1, H, t1 + 0.04], { skip });
+          });
+        } else if (c.topOpen) {
           b.with({ color: stone, pattern: c.walkable ? PATTERN.cobbles : PATTERN.none, ink: 'body' }, () =>
             b.quad([0, H, 1], [1, H, 1], [1, H, 0], [0, H, 0]),
           );
@@ -201,13 +218,13 @@ export default defineGenerator({
               const noseB = joined('back') ? [] : [[uc, -0.17] as [number, number]];
               b.extrude([[uc - ph - o, 0], ...noseB, [uc + ph + o, 0], [uc + ph + o, 1], ...noseF, [uc - ph - o, 1]], -depth, top, { cap: 'top' });
             } else if (depth > 0) {
-              b.box([uc - ph - o, -depth, -0.04], [uc + ph + o, -depth + 0.1, 1.04], { skip: ['bottom'] });
+              b.box([uc - ph - o, -depth, t0 - 0.05], [uc + ph + o, -depth + 0.1, t1 + 0.05], { skip: ['bottom'] });
             }
           });
         }
 
         // ── keystones ──
-        if (c.crown) {
+        if (c.crown && !slim) {
           const o = c.openings[0];
           if (o && (o.lo + o.hi) / 2 >= 0 && (o.lo + o.hi) / 2 < 1) {
             const uc = (o.lo + o.hi) / 2, top = o.spring + o.rise;
@@ -226,12 +243,16 @@ export default defineGenerator({
                 }
               });
             }
-            if (c.opening) ownSockets(plan, anchors, c.opening.id, c.frame, { 'arch-crown': translation(uc, top, 0.5) });
           }
+        }
+        // The crown's socket (for a hanging lantern), whether or not a keystone marks it.
+        if (c.crown && c.opening && c.openings[0]) {
+          const o = c.openings[0];
+          ownSockets(plan, anchors, c.opening.id, c.frame, { 'arch-crown': translation(Math.min(Math.max((o.lo + o.hi) / 2, 0), 1), o.spring + o.rise, 0.5) });
         }
 
         // ── the top course: cornice and parapet on every side that drops away ──
-        if (!c.topOpen) return;
+        if (!c.topOpen || slim) return;
         for (const side of SIDES) {
           if (!c.edge[side]) continue;
           // Work in a frame where this side runs along +X at z = 1 (the front), then turn it into place.
@@ -280,6 +301,19 @@ export default defineGenerator({
               if (capR && !cornerR) b.quad([1, H - cH, 1 + cOut], [1, H - cH, 1], [1, H, 1], [1, H, 1 + cOut]);
             });
             if (!c.walkable) return;
+            if (c.deck === 'covered' && along) return; // the gallery's own walls stand on these sides
+            if (c.deck === 'balcony') {
+              // A loggia: an open balustrade. Rail, plinth and balusters are one object.
+              b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'balustrade' }, () => {
+                const zc = 1 - pT / 2, top = H + 0.27;
+                b.box([cornerL ? 0 : 0, H, 1 - pT], [1, H + 0.04, 1], { skip: ['bottom', ...(stopL ? [] : ['w' as const]), ...(stopR ? [] : ['e' as const])] });
+                b.box([0, top - 0.05, 1 - pT - 0.01], [1, top, 1 + 0.01], { skip: [...(stopL ? [] : ['w' as const]), ...(stopR ? [] : ['e' as const])] });
+                for (const bx of [0.125, 0.375, 0.625, 0.875]) {
+                  b.at(translation(bx, H + 0.04, zc), () => b.lathe([[0.022, 0], [0.036, 0.06], [0.02, 0.13], [0.026, 0.18]], { segments: 6 }));
+                }
+              });
+              return;
+            }
             b.with({ color: stone, pattern: PATTERN.stone, ink: 'parapet' }, () => {
               for (let i = 0; i < n; i++) {
                 const a = xs[i]!, d = xs[i + 1]!;
@@ -304,7 +338,7 @@ export default defineGenerator({
     for (const f of plan.featuresByStructure.get(s.id) ?? []) {
       if (f.type === 'arch-opening' || f.type === 'pier') continue;
       const c = f.cell === undefined ? undefined : cells.get(f.cell);
-      if (c && archExtras(b, anchors, f, c, { plan, stone, humped })) continue;
+      if (c && archExtras(b, anchors, f, c, { plan, stone, humped, cells })) continue;
       if (c && f.type === 'railing' && f.dir !== undefined) {
         // A railing where the parapet already stands would double it.
         const side = SIDES.find((sd) => c.dir[sd] === f.dir);

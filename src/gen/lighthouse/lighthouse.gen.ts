@@ -57,8 +57,8 @@ function gallery(b: MeshBuilder, wallR: number, out: number): Record<string, Mat
   );
   // Posts and rail are one object: eight posts read as a rail, not as eight outlines.
   b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'rail' }, () => {
-    around(b, 8, R - 0.03, Math.PI / 8, () => b.boxAt([0, 0, 0], [0.03, h, 0.03], { skip: ['bottom', 'top'] }));
-    ring(b, R - 0.03, h - 0.005, 0.04, 0.035, 18);
+    around(b, 8, R - 0.025, Math.PI / 8, () => b.boxAt([0, 0, 0], [0.026, h, 0.026], { skip: ['bottom', 'top'] }));
+    ring(b, R - 0.025, h - 0.005, 0.034, 0.03, 18);
   });
   return {
     'flag-mount': compose(rotationY(Math.PI * 0.75), translation(0, h + 0.03, R - 0.03)),
@@ -121,17 +121,17 @@ export default defineGenerator({
         case 'cap': {
           if (f.variant !== 'lantern-room') break;
           draw(f.id, translation(0, deck, 0), (mb) => {
-            const r = Math.min(0.2, RT - 0.05);
-            mb.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'kerb' }, () => mb.lathe([[r + 0.03, 0], [r + 0.03, 0.08], [r, 0.08]], { segments: 12 }));
+            const r = Math.min(0.2, RT - 0.06);
+            mb.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'kerb' }, () => mb.lathe([[r + 0.035, 0], [r + 0.035, 0.11], [r, 0.11]], { segments: 12 }));
             // The glass and its glazing bars are one object: the bars read by colour.
             mb.setInk('lantern');
-            mb.with({ color: PALETTE.yellow, pattern: PATTERN.glow }, () => mb.lathe([[r, 0.08], [r, 0.36]], { segments: 12 }));
-            mb.with({ color: PALETTE.metal, pattern: PATTERN.none }, () => around(mb, 6, r, 0, () => mb.box([-0.016, 0.08, 0], [0.016, 0.36, 0.012], { skip: ['bottom', 'top', 'n'] })));
+            mb.with({ color: PALETTE.yellow, pattern: PATTERN.glow }, () => mb.lathe([[r, 0.11], [r, 0.42]], { segments: 12 }));
+            mb.with({ color: PALETTE.metal, pattern: PATTERN.none }, () => around(mb, 6, r, 0, () => mb.box([-0.014, 0.11, 0], [0.014, 0.42, 0.01], { skip: ['bottom', 'top', 'n'] })));
             mb.with({ color: PALETTE.red, pattern: PATTERN.none, ink: 'roof' }, () =>
-              mb.lathe([[r, 0.36], [r + 0.09, 0.345], [r + 0.09, 0.375], [(r + 0.09) * 0.55, 0.52], [0, 0.66]], { segments: 14 }),
+              mb.lathe([[r, 0.42], [r + 0.1, 0.4], [r + 0.1, 0.43], [(r + 0.1) * 0.58, 0.55], [0, 0.7]], { segments: 14 }),
             );
-            mb.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'finial' }, () => ball(mb, 0, 0.69, 0, 0.04, 0.04, 8));
-            return { lantern: translation(0, 0.22, 0), 'tower-top': translation(0, 0.73, 0), 'flag-mount': translation(0, 0.73, 0) };
+            mb.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'finial' }, () => ball(mb, 0, 0.73, 0, 0.04, 0.04, 8));
+            return { lantern: translation(0, 0.27, 0), 'tower-top': translation(0, 0.77, 0), 'flag-mount': translation(0, 0.77, 0) };
           });
           break;
         }

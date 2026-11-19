@@ -3,8 +3,9 @@
 // lighthouse's) body:
 //   - its shape and cap by role (round with a cone for a watchtower, square
 //     with a spire for a steeple, and so on), when nothing stands on it;
-//   - small windows spiralling a quarter turn per storey, skipping sides
-//     another block touches, the belfry and the lantern stage;
+//   - small windows spiralling a quarter turn per storey (arrow slits on a
+//     castle turret), skipping sides another block touches, the belfry, the
+//     clock and dove-hole storeys and the lantern stage;
 //   - a door on the ground storey if no door rule (J06) gave it one;
 //   - the tag 'footing:water' when it rises straight out of the sea.
 
@@ -57,6 +58,8 @@ export default defineRule({
         const cap = out.feature({ type: 'cap', variant: look.cap, structure: s.id, cell: top });
         out.socket({ type: 'tower-top', owner: cap, cell: top, structure: s.id });
         out.socket({ type: 'flag-mount', owner: cap, cell: top, structure: s.id });
+        if (look.cap === 'dome') out.socket({ type: 'telescope', owner: cap, cell: top, structure: s.id });
+        if (look.cap === 'battlements' || look.cap === 'dovecote') out.socket({ type: 'perch', owner: cap, cell: top, structure: s.id });
       }
     }
 
@@ -98,9 +101,10 @@ export default defineRule({
     }
 
     // Windows: one per storey, a quarter turn on from the one below.
-    if (!have.some((f) => f.type === 'window')) {
+    if (!have.some((f) => f.type === 'window' || f.type === 'arrow-slit')) {
       const skip = new Set<CellKey>();
-      for (const f of have) if (f.type === 'belfry' && f.cell !== undefined) skip.add(f.cell);
+      for (const f of have) if ((f.type === 'belfry' || f.type === 'clock-face' || f.type === 'dove-holes') && f.cell !== undefined) skip.add(f.cell);
+      const slits = plan.roles.get(s.id)?.role === 'castle-turret';
       if (have.some((f) => f.type === 'cap' && f.variant === 'lantern-room') && n > 1) skip.add(top);
       let turn = doorDir !== undefined ? (doorDir + 1) & 3 : start;
       for (const cell of s.cells) {
@@ -108,8 +112,11 @@ export default defineRule({
           for (let k = 0; k < 4; k++) {
             const d = ((turn + k) & 3) as Dir4;
             if (!free(cell, d) || (cell === bottom && d === doorDir)) continue;
-            const w = out.feature({ type: 'window', variant: 'slit', structure: s.id, cell, dir: d });
-            out.socket({ type: 'window', owner: w, cell, dir: d, structure: s.id });
+            if (slits) out.feature({ type: 'arrow-slit', structure: s.id, cell, dir: d });
+            else {
+              const w = out.feature({ type: 'window', variant: 'slit', structure: s.id, cell, dir: d });
+              out.socket({ type: 'window', owner: w, cell, dir: d, structure: s.id });
+            }
             break;
           }
         }

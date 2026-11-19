@@ -47,8 +47,8 @@ function roundCorbel(b: MeshBuilder, r: number, out: number, drop = 0.13): void 
 
 /** Watchtower: a cone roof with a bell-cast eave on a corbel table. */
 export function coneCap(b: MeshBuilder, r: number, look: CapLook, rise = MONUMENTS.coneRise): Sockets {
-  const out = 0.05;
-  roundCorbel(b, r, out);
+  const out = 0.06;
+  roundCorbel(b, r, out, 0.16);
   const eave = r + MONUMENTS.towerEave + look.vary * 0.02;
   const h = rise * (0.94 + look.vary * 0.14);
   b.with({ color: look.roof, pattern: PATTERN.shingles, ink: 'roof' }, () =>

@@ -41,6 +41,10 @@ declare module '@/core/vocab' {
     'pediment': true;
     'pediment.width': number; //      in cells, across the end
     'pediment.offset': number; //     in cells, from this cell's centre to the gable's centre (to the viewer's right)
+    'pediment.depth': number; //      in cells: how far back from this end its half of the roof runs
+    // The stepped platform a temple's pillars stand on (R-M01). `cell` = a lowest cell of the temple.
+    'stylobate': true;
+    'stylobate.depth': number; //     in cells, from the cell's foot down to the foot of the pillars
     // Broad steps cut into one marble cell (R-M04). cell + dir = downhill. Owns socket 'seat'.
     'broad-steps': true;
     // A narrow stair down a quay face to the water (R-M05). cell + dir = toward the water.
@@ -70,5 +74,6 @@ declare module '@/core/vocab' {
     'deck:humped': true; //      stone bridge (R-A01)
     'deck:covered': true; //     sky bridge (R-A02)
     'arch:gate': true; //        gateway (R-A04)
+    'arch:buttress': true; //    flying buttress (R-A03): a slim rib, not a deck
   }
 }
