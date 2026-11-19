@@ -59,5 +59,121 @@ declare module '@/core/vocab' {
     'retaining-wall.look': number;
     'retaining-wall.drain': 0 | 1;
     'retaining-wall.face': number; //  the anchor's `face` (Dir4), so the creeper's flat tones come out right
+
+    // ── urban fill (part U) ─────────────────────────────────────────────
+
+    // U01, U02, D03, D31. At a floor slot, +Z the way the sitters face. Owns two 'seat' sockets
+    // named 'seat-0' and 'seat-1'.
+    'bench': true;
+    'bench/wood': true;
+    'bench/stone': true;
+    'bench.look': number;
+
+    // U01: a low clipped hedge along one side of a cell, on the cell line (frame as garden-fence).
+    // Ends: 0 runs on into the next piece, 1 a rounded end. The 'gap' variant has a way through.
+    'hedge': true;
+    'hedge/run': true;
+    'hedge/gap': true;
+    'hedge.from': number;
+    'hedge.to': number;
+    'hedge.look': number;
+
+    // U01, U02. A shrub at a floor slot (square to the world).
+    'shrub': true;
+    'shrub/round': true;
+    'shrub/flowering': true;
+    'shrub.look': number;
+    'shrub.flowers': number;
+
+    // U02 park: one cell of a path worn into the grass. `mask` has bit d set if it runs on to side d.
+    'worn-track': true;
+    'worn-track.mask': number;
+    'worn-track.look': number;
+
+    // U02 walled garden: a fruit tree trained flat against a wall. Edge slot, +Z away from the wall.
+    'espalier': true;
+    'espalier.look': number;
+    'espalier.face': number;
+
+    // U02 paddock.
+    'trough': true;
+    'grazer': true; //                 a grazing animal, standing still (an animal that walks is Animation's)
+    'grazer/sheep': true;
+    'grazer/cow': true;
+    'grazer.turn': number; //          eighths of a turn
+    'grazer.look': number;
+
+    // U08 nooks, D15.
+    'goods-stack': true;
+    'goods-stack/crates': true;
+    'goods-stack/barrels': true;
+    'goods-stack/cat': true; //        a crate with a cat asleep on it
+    'goods-stack.look': number;
+    'wall-fountain': true; //          edge slot against a wall, +Z out
+    'cart': true;
+    'cart.look': number;
+    'kiosk': true;
+    'kiosk.color': number;
+
+    // U04 back yards, U06.
+    'shed': true; //                   edge slot, its back to the boundary, +Z into the yard
+    'shed.look': number;
+    'veg-patch': true;
+    'veg-patch.look': number;
+    'washing-pole': true;
+    'washing-pole.look': number;
+    'woodpile': true; //               edge slot against a wall, +Z out
+    'woodpile.look': number;
+
+    // U05.
+    'street-tree': true;
+    'street-tree.look': number;
+
+    // U06.
+    'signpost': true;
+    'signpost.look': number;
+    'signpost.arms': number;
+    'dirt-trail': true; //             one cell of a trail fraying out of a street's end; square to the world
+    'dirt-trail.dir': number; //       Dir4 it runs toward
+    'dirt-trail.fade': 0 | 1; //       1 on the last cell: it tapers away into the grass
+    'dirt-trail.look': number;
+
+    // ── more decoration (part D) ────────────────────────────────────────
+
+    // D04. On a line between two sockets (wall anchors or lamp heads). Flutters.
+    'bunting': true;
+    'bunting.look': number;
+    'bunting.drop': number; //         hung this far below the line between its two ends (from lamp heads)
+
+    // D06: a lantern on a wall bracket (at a 'line-anchor' socket on a cell face).
+    'hanging-lantern/bracket': true;
+
+    // D08. At a floor slot. Owns 'seat' sockets 'seat-0' and 'seat-1'.
+    'cafe-table': true;
+    'cafe-table.color': number;
+    'cafe-table.look': number;
+
+    // D10. At an edge slot of the ground cell outside the wall, +Z away from the wall.
+    'creeper': true;
+    'creeper.storeys': number; //      1 or 2
+    'creeper.look': number;
+    'creeper.face': number;
+
+    // D11. At a 'door' socket. One prop holds everything on the doorstep.
+    'doorstep': true;
+    'doorstep.steps': number; //       the door's stoop steps (the wall is that much farther back)
+    'doorstep.pots': 0 | 1;
+    'doorstep.barrel': 0 | 1;
+    'doorstep.bicycle': 0 | 1;
+    'doorstep.lantern': 0 | 1; //      owns socket 'lamp-head' when 1
+    'doorstep.flowers': number;
+    'doorstep.look': number;
+
+    // D15.
+    'rope-coil': true;
+    'lobster-pot': true;
+    'lobster-pot.look': number;
+    'net-rack': true;
+    'net-rack.look': number;
   }
 }

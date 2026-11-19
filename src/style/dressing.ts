@@ -49,6 +49,22 @@ export const DRESSING = defineStyle(
     beachFind: 0.09,
     reeds: 0.5,
     lilyPads: 0.22,
+    // ── urban fill: what a leftover patch becomes ──
+    /** U01: a leftover of this many cells (inclusive) touching a street or plaza is a pocket park. */
+    parkMin: 2,
+    parkMax: 16,
+    /** U02: grass shut in by placed fences or walls, from this many cells; a park from this many trees. */
+    fieldMin: 6,
+    parkTrees: 3,
+    /** U04: a leftover behind houses up to this many cells is back yards. */
+    yardMax: 6,
+    /** U05: a street tree on every nth verge cell of a straight street at least this long. */
+    treeEvery: 3,
+    treeStreet: 6,
+    /** U06: chance that an outward-facing rear wall at the town's edge has a woodpile or a vegetable plot. */
+    edgeYard: 0.4,
+    /** U08: chance that a nook beside a stair or under a deck is furnished. */
+    nook: 0.85,
     // ── U07 retaining walls ──
     /** The tallest bank a retaining wall will face, in levels. */
     wallMaxRise: 3,
@@ -80,6 +96,15 @@ export const DRESSING = defineStyle(
     beachFind: [0, 0.5, 0.01],
     reeds: [0, 1, 0.05],
     lilyPads: [0, 1, 0.05],
+    parkMin: [1, 6, 1],
+    parkMax: [4, 30, 1],
+    fieldMin: [2, 16, 1],
+    parkTrees: [1, 8, 1],
+    yardMax: [2, 12, 1],
+    treeEvery: [2, 6, 1],
+    treeStreet: [3, 12, 1],
+    edgeYard: [0, 1, 0.05],
+    nook: [0, 1, 0.05],
     wallMaxRise: [1, 5, 1],
     wallCreeper: [0, 1, 0.05],
     wallDrain: [0, 1, 0.05],
