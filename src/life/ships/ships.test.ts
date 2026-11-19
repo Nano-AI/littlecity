@@ -13,6 +13,9 @@ import { hullClear, obstacleColumns, seaField } from '@/rules/life/ship-routes';
 import { resolveScenario } from '@/scenario';
 import { applyEdit } from '@/world/world';
 import scn from '../../../scenarios/rules/L38.galleon.scenario';
+import passScn from '../../../scenarios/rules/L42.passing-sails.scenario';
+import bargeScn from '../../../scenarios/rules/L41.river-barge.scenario';
+import { lowObstacles } from '@/rules/life/L41.river-barge.rule';
 import { createLife } from '../runtime';
 import { createSignals, partPhases } from '../signals';
 import { recordingStage } from '../testing/stage';
@@ -206,5 +209,57 @@ describe('big ships (L38–L40)', () => {
     expect(checked).toBeGreaterThan(100);
     // A small boat's half-length is under half a column.
     expect(closest, worstAt).toBeGreaterThan(0.45);
+  });
+
+  test('L42: a tall ship crosses far out once in a while, over open water all the way, and never calls', () => {
+    const town = resolveScenario(passScn);
+    const rec = recordingStage(town);
+    const signals = createSignals(passScn.seed);
+    signals.setPhase(partPhases().day.start + 0.02);
+    const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem] });
+    life.sync(town);
+    const harbour = harbourOf(rec.stage)!;
+    const field = solid(town.shape);
+    let crossings = 0, crossing = false, hits = 0, worstLand = Infinity;
+    for (let t = 0; t < 500; t += 1 / 20) {
+      life.update(signals.advance(1 / 20));
+      const p = harbour.passers[0]!;
+      if (p.phase === 'crossing' && !crossing) crossings++;
+      crossing = p.phase === 'crossing';
+      for (const n of bigShipsOf(rec.stage)) {
+        if (n.halfBeam < 0.7) continue;
+        worstLand = Math.min(worstLand, field.at(n.x, n.z));
+        if (!hullClear(field, hullSize('galleon'), n.x, n.z, n.yaw, 0)) hits++;
+      }
+    }
+    expect(harbour.ships.length).toBe(0);
+    expect(crossings).toBeGreaterThanOrEqual(2);
+    expect(hits).toBe(0);
+    // Far out: well beyond the small boats' lane (three columns off the land).
+    expect(worstLand).toBeGreaterThan(5);
+  });
+
+  test('L41: the barge is poled between its two river docks and back, never onto a bank or a dock', () => {
+    const town = resolveScenario(bargeScn);
+    const rec = recordingStage(town);
+    const signals = createSignals(bargeScn.seed);
+    const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem] });
+    life.sync(town);
+    const harbour = harbourOf(rec.stage)!;
+    expect(harbour.barges.length).toBe(1);
+    const bg = harbour.barges[0]!;
+    const field = seaField(lowObstacles(town.shape.facts));
+    let minZ = Infinity, maxZ = -Infinity, hits = 0;
+    for (let t = 0; t < 160; t += 1 / 20) {
+      life.update(signals.advance(1 / 20));
+      minZ = Math.min(minZ, bg.z);
+      maxZ = Math.max(maxZ, bg.z);
+      if (!hullClear(field, hullSize('barge'), bg.x, bg.z, bg.yaw, -0.05)) hits++;
+    }
+    expect(minZ).toBeLessThan(10.5);
+    expect(maxZ).toBeGreaterThan(25.5);
+    expect(hits).toBe(0);
+    // Back again toward the first dock by the end.
+    expect(bg.z).toBeLessThan(maxZ - 1);
   });
 });

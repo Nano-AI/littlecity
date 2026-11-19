@@ -49,6 +49,7 @@ import { swellAt, hullRing, wakeRing, type Swell } from '../boats/afloat';
 import { angleDelta, clamp01, easeInOut, easeOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
+import { Barge } from './barge';
 import { ShipBody, type ShipWind } from './body';
 import { Crew, LeftGoods, type Gangway, type Spot } from './crew';
 import { Escort } from './escort';
@@ -107,8 +108,30 @@ export interface Ship {
   m: Mat4;
 }
 
+/** L42: a tall ship crossing far out along one edge, never calling. */
+export interface Passer {
+  id: string;
+  kind: ShipKind;
+  look: number;
+  from: [number, number];
+  to: [number, number];
+  orphan: boolean;
+  phase: 'idle' | 'crossing';
+  due: number;
+  s: number;
+  body: ShipBody | null;
+  scale: number;
+  swell: Swell;
+  phaseSeed: number;
+  drawn: number;
+  wake: number;
+  m: Mat4;
+}
+
 export interface Harbour {
   readonly ships: readonly Ship[];
+  readonly passers: readonly Passer[];
+  readonly barges: readonly Barge[];
   sync(shape: ShapePlan, dressing: DressingPlan, calls: readonly CallInfo[]): void;
   update(dt: number, signals: Signals): void;
   dispose(): void;
@@ -195,7 +218,9 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     const [lo, hi] = GAP[ship.kind]();
     return lo + (hi - lo) * r(ship, 'gap');
   };
-  const atSea = (): boolean => ships.some((s) => s.phase === 'arriving' || s.phase === 'leaving');
+  const passers: Passer[] = [];
+  const barges: Barge[] = [];
+  const atSea = (): boolean => ships.some((s) => s.phase === 'arriving' || s.phase === 'leaving') || passers.some((p) => p.phase === 'crossing');
   const berthBusy = (ship: Ship): boolean => ships.some((s) => s !== ship && s.phase !== 'idle' && s.phase !== 'arriving' && s.phase !== 'fading' && s.phase !== 'leaving' && s.berth.key === ship.berth.key) || ships.some((s) => s !== ship && s.phase === 'arriving' && s.berth.key === ship.berth.key);
 
   const spawnBody = (ship: Ship, set: number): void => {
@@ -581,8 +606,48 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     }
   };
 
+  const stepPasser = (p: Passer, dt: number, signals: Signals): void => {
+    if (p.phase === 'idle') {
+      p.due -= dt;
+      return;
+    }
+    const [x0, z0] = p.from, [x1, z1] = p.to;
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    p.s = Math.min(len, p.s + SHIPS.passSpeed * dt);
+    const x = x0 + ((x1 - x0) * p.s) / len, z = z0 + ((z1 - z0) * p.s) / len, yaw = Math.atan2(x1 - x0, z1 - z0);
+    const grow = SHIPS.rise * SHIPS.passSpeed;
+    p.scale = easeOut(clamp01(Math.min(p.s / grow, (len - p.s) / grow)));
+    if (p.s >= len) {
+      p.body?.release();
+      p.body = null;
+      p.phase = 'idle';
+      p.due = SHIPS.passGapMin + (SHIPS.passGapMax - SHIPS.passGapMin) * rand(seed, 'pass-gap', p.id, Math.floor(signals.time.seconds));
+      return;
+    }
+    const wind = signals.wind(x, z);
+    const sn = Math.sin(yaw), cs = Math.cos(yaw);
+    const w: ShipWind = { lee: wind.dirX * cs - wind.dirZ * sn, along: wind.dirX * sn + wind.dirZ * cs, strength: wind.strength };
+    const now = onTwos(signals.time.seconds, p.phaseSeed);
+    if (now !== p.drawn) {
+      p.drawn = now;
+      swellAt(now, p.phaseSeed, 2, wind.strength, p.swell);
+      p.body!.trim(1 / 12, w, SHIPS.sailTime);
+    }
+    const heel = -SHIPS.heel * Math.min(1, wind.strength) * w.lee;
+    fly(x, SEA_Y + p.swell.heave * 0.5 * p.scale, z, yaw, p.swell.pitch * 0.3, p.swell.roll * 0.3 + heel, Math.max(0.001, p.scale), p.m);
+    p.body!.pose(p.m, Math.atan2(wind.dirX, wind.dirZ), p.scale);
+    p.wake += SHIPS.passSpeed * dt;
+    if (p.wake > 1.2 && p.scale > 0.4) {
+      p.wake = 0;
+      wakeRing(stage, x - sn * 2.4 * p.scale, z - cs * 2.4 * p.scale, 0.4 * p.scale, 2.6, 2.4);
+    }
+    news.ships.push({ x, z, yaw, stern: -2.85 * p.scale, bow: 3.55 * p.scale, halfBeam: 0.75 * p.scale, speed: SHIPS.passSpeed });
+  };
+
   const harbour: Harbour = {
     ships,
+    passers,
+    barges,
     sync(nextShape, _dressing, calls) {
       const changed = nextShape !== shape;
       shape = nextShape;
@@ -590,7 +655,37 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       const berths = findBerths(nextShape.facts);
       const seen = new Set<string>();
       for (const c of calls) {
-        if (c.kind === 'barge') continue;
+        if (c.call.variant === 'passing') {
+          seen.add(c.id);
+          const p = c.call.params ?? {};
+          let ps = passers.find((q) => q.id === c.id);
+          const look = Math.abs(Math.round(p.look ?? 0));
+          if (!ps) {
+            ps = { id: c.id, kind: look % 3 === 0 ? 'cog' : 'galleon', look, from: [p.x ?? 0, p.z ?? 0], to: [p.x2 ?? 0, p.z2 ?? 0], orphan: false, phase: 'idle', due: SHIPS.passGapMin * 0.4, s: 0, body: null, scale: 0, swell: { heave: 0, roll: 0, pitch: 0 }, phaseSeed: rand(seed, 'pass-phase', c.id), drawn: NaN, wake: 0, m: new Array<number>(16).fill(0) };
+            passers.push(ps);
+          } else if (ps.phase === 'idle') {
+            ps.from = [p.x ?? 0, p.z ?? 0];
+            ps.to = [p.x2 ?? 0, p.z2 ?? 0];
+          }
+          ps.orphan = false;
+          continue;
+        }
+        if (c.kind === 'barge') {
+          seen.add(c.id);
+          const p = c.call.params ?? {};
+          const a: [number, number] = [p.x ?? 0, p.z ?? 0], b: [number, number] = [p.x2 ?? 0, p.z2 ?? 0];
+          let bg = barges.find((q) => q.id === c.id && !q.fading);
+          if (bg && (bg.a[0] !== a[0] || bg.a[1] !== a[1] || bg.b[0] !== b[0] || bg.b[1] !== b[1])) {
+            bg.fading = true;
+            bg = undefined;
+          }
+          if (!bg) {
+            bg = new Barge(stage, seed, c.id, Math.abs(Math.round(p.look ?? 0)), a, b);
+            barges.push(bg);
+            bg.sync(nextShape);
+          } else if (changed) bg.sync(nextShape);
+          continue;
+        }
         seen.add(c.id);
         const berth = berthOfCall(c.call, berths);
         if (!berth) continue;
@@ -617,6 +712,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         } else ship.orphan = false;
       }
       for (const s of ships) if (!seen.has(s.id)) s.orphan = true;
+      for (const p of passers) if (!seen.has(p.id)) p.orphan = true;
+      for (const bg of barges) if (!seen.has(bg.id)) bg.fading = true;
       // A town opened with a port: the first ship is already in.
       const first = !opened;
       opened = true;
@@ -662,6 +759,16 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       news.small = [];
       // Calls that are due, one at a time at sea, never two at one berth.
       if (!atSea()) {
+        // A tall ship far out goes by when nothing else is at sea.
+        const pass = passers.find((p) => p.phase === 'idle' && !p.orphan && p.due <= 0);
+        if (pass) {
+          pass.phase = 'crossing';
+          pass.s = 0;
+          pass.scale = 0;
+          pass.body = new ShipBody(stage, pass.kind, pass.look, HIDDEN, 1);
+        }
+      }
+      if (!atSea()) {
         const due = ships.filter((s) => s.phase === 'idle' && !s.orphan && s.due <= 0 && !berthBusy(s)).sort((a, b) => a.due - b.due || FIRST[a.kind] - FIRST[b.kind]);
         if (due[0] && shape) begin(due[0]);
       }
@@ -691,6 +798,19 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
           ships.splice(i, 1);
         }
       }
+      for (const p of passers) stepPasser(p, dt, signals);
+      for (let i = barges.length - 1; i >= 0; i--) {
+        const bg = barges[i]!;
+        news.ships.push(bg.update(dt, signals));
+        if (!bg.alive) {
+          bg.release();
+          barges.splice(i, 1);
+        }
+      }
+      for (let i = passers.length - 1; i >= 0; i--) {
+        const p = passers[i]!;
+        if (p.orphan && p.phase === 'idle') passers.splice(i, 1);
+      }
       for (let i = left.length - 1; i >= 0; i--) if (!left[i]!.update(dt)) left.splice(i, 1);
     },
     dispose() {
@@ -703,6 +823,10 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         if (s.crew) for (const g of s.crew.landed) g.release();
       }
       ships.length = 0;
+      for (const p of passers) p.body?.release();
+      passers.length = 0;
+      for (const bg of barges) bg.release();
+      barges.length = 0;
       for (const l of left) l.release();
       left.length = 0;
       news.ships.length = 0;

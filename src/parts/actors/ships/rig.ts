@@ -281,7 +281,8 @@ function barge(look: number): ShipRig {
     halfBeam: spec.beam / 2,
     masts: [main],
     sails: [{ kind: 'square', mast: 0, at: onMast(main, 1.45), head: 0.8, foot: 0.95, drop: 0.95, belly: 0.16, order: 0 }],
-    pennant: { at: onMast(main, main.head - 0.01), length: 0.45 },
+    // No pennant: the mast comes down under bridges.
+    pennant: null,
     ensign: null,
     gangway: [hull.outer(0.5, spec.rail(0.5)), spec.rail(0.5), 0],
     lanterns: [[0.3, spec.rail(0.95) + 0.25, hull.z(0.95, 0.3)]],

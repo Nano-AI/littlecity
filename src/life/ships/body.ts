@@ -60,6 +60,10 @@ export class ShipBody {
   /** The oars: 0 shipped (tossed up), 1 rowing; and where in the stroke they are (0–1). */
   rowing = 0;
   stroke = 0;
+  /** A barge's mast lowered aft to pass under a bridge: 0 up, 1 down along the deck. */
+  lower = 0;
+  private hinge: Mat4 = new Array<number>(16).fill(0);
+  private hingeLocal: Mat4 = new Array<number>(16).fill(0);
   private local: Mat4 = new Array<number>(16).fill(0);
   private world: Mat4 = new Array<number>(16).fill(0);
   private tmp: Mat4 = new Array<number>(16).fill(0);
@@ -126,7 +130,8 @@ export class ShipBody {
         m.fill(0);
         m[0] = c; m[2] = -sn; m[5] = 1; m[8] = sn; m[10] = c; m[15] = 1;
         m[12] = def.at[0]; m[13] = def.at[1]; m[14] = def.at[2];
-        s.yard.setMatrix(mulInto(this.world, hull, m));
+        const base = this.lower > 0 ? this.hinged(def.mast, hull) : hull;
+        s.yard.setMatrix(mulInto(this.world, base, m));
         const shown = s.set > FURLED ? 0 : -1;
         this.show(s, shown);
         if (shown >= 0) {
@@ -134,7 +139,7 @@ export class ShipBody {
           // · S(1, set, fill)
           m[4] = 0; m[5] = k; m[6] = 0;
           m[8] = sn * this.fill; m[10] = c * this.fill;
-          s.cloth[0]!.setMatrix(mulInto(this.world, hull, m));
+          s.cloth[0]!.setMatrix(mulInto(this.world, base, m));
         }
       } else {
         const L = lateenFrame(def);
@@ -165,6 +170,20 @@ export class ShipBody {
     if (this.pennant) this.flag(this.pennant, rig.pennant!.at, hull, downwind, scale);
     if (this.ensign) this.flag(this.ensign, rig.ensign!.at, hull, downwind, scale);
     if (this.oars.length) this.poseOars(hull);
+  }
+
+  /** hull · T(foot) · Rx(−lower) · T(−foot): the mast `mast` turned down aft about its foot. */
+  private hinged(mast: number, hull: Mat4Like): Mat4 {
+    const ms = this.rig.masts[mast]!;
+    const a = -easeInOut(clamp01(this.lower)) * 1.45;
+    const c = Math.cos(a), s = Math.sin(a);
+    const y = ms.foot, z = ms.z;
+    const h = this.hingeLocal;
+    h.fill(0);
+    h[0] = 1; h[5] = c; h[6] = s; h[9] = -s; h[10] = c; h[15] = 1;
+    h[13] = y - (c * y - s * z);
+    h[14] = z - (s * y + c * z);
+    return mulInto(this.hinge, hull, h);
   }
 
   private flag(h: InstanceHandle, at: readonly number[], hull: Mat4Like, yaw: number, scale: number): void {
