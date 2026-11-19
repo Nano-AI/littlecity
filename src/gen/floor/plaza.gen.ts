@@ -29,34 +29,53 @@ function ring(b: MeshBuilder, cx: number, cz: number, r0: number, r1: number, y:
   }
 }
 
-/** The centre motif: a stone ring, a pale disc, a darker ring and (compass) an eight-pointed star. */
+/**
+ * The centre motif: rings of paving in the plaza's own two stone tones, with
+ * one thin course of brick between them and radial joints in the outer
+ * ring. Quiet on purpose: it is the floor of the square, not a target. The
+ * compass variant adds a small eight-pointed star in the two stone tones.
+ * All in the plaza's ink group and all facing up: tone only, no lines.
+ */
 function motif(b: MeshBuilder, f: Feature, y: number): void {
   const size = (f.params as { size?: number } | undefined)?.size ?? 5;
   const cell = f.cell!;
   const even = size % 2 === 0;
   const cx = keyX(cell) + (even ? 1 : 0.5), cz = keyZ(cell) + (even ? 1 : 0.5);
   const R = Math.min(size * 0.34, 2.4);
-  const seg = 28;
-  // All in the plaza's own ink group and all facing up: colour only, no lines of their own.
-  b.with({ color: PALETTE.stoneShade, pattern: PATTERN.cobbles }, () => ring(b, cx, cz, R * 0.86, R, y, seg));
-  b.with({ color: PALETTE.sand, pattern: PATTERN.none }, () => ring(b, cx, cz, R * 0.5, R * 0.86, y, seg));
-  b.with({ color: PALETTE.brick, pattern: PATTERN.none }, () => ring(b, cx, cz, R * 0.42, R * 0.5, y, seg));
-  b.with({ color: PALETTE.stone, pattern: PATTERN.none }, () => {
+  const seg = 32;
+  const course = Math.min(0.1, R * 0.05);
+  // Outer ring: setts (the darker tone), cut by radial joints into sixteen stones.
+  b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none }, () => ring(b, cx, cz, R * 0.8, R, y, seg));
+  b.with({ color: PALETTE.plaza, pattern: PATTERN.none }, () => {
+    const joints = 16, half = 0.012 / R;
+    for (let i = 0; i < joints; i++) {
+      const a = ((i + 0.5) / joints) * Math.PI * 2;
+      const p = (r: number, t: number): [number, number, number] => [cx + Math.cos(t) * r, y + 0.001, cz + Math.sin(t) * r];
+      upTri(b, p(R * 0.8, a - half), p(R, a - half), p(R, a + half));
+      upTri(b, p(R * 0.8, a - half), p(R, a + half), p(R * 0.8, a + half));
+    }
+  });
+  // The one accent: a thin course of brick.
+  b.with({ color: PALETTE.brick, pattern: PATTERN.none }, () => ring(b, cx, cz, R * 0.8 - course, R * 0.8, y, seg));
+  // Inside it: the paving's own tone, then a second, narrower ring of setts round the middle.
+  b.with({ color: PALETTE.plaza, pattern: PATTERN.paving }, () => ring(b, cx, cz, R * 0.42, R * 0.8 - course, y, seg));
+  b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none }, () => ring(b, cx, cz, R * 0.34, R * 0.42, y, seg));
+  b.with({ color: PALETTE.plaza, pattern: PATTERN.none }, () => {
     const disc: Pt[] = [];
-    for (let i = 0; i < seg; i++) disc.push([cx + Math.cos((i / seg) * Math.PI * 2) * R * 0.42, cz + Math.sin((i / seg) * Math.PI * 2) * R * 0.42]);
+    for (let i = 0; i < seg; i++) disc.push([cx + Math.cos((i / seg) * Math.PI * 2) * R * 0.34, cz + Math.sin((i / seg) * Math.PI * 2) * R * 0.34]);
     fan(b, [cx, cz], disc, y, true);
   });
   if (f.variant !== 'rings') {
-    // The star: eight points, long ones on the grid axes, in two tones so it reads as folded.
-    const yy = y + 0.003;
+    // The star: eight points, long ones on the grid axes, each folded in the two stone tones.
+    const yy = y + 0.002;
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      const len = R * (i % 2 === 0 ? 0.8 : 0.56), half = R * 0.11;
+      const len = R * (i % 2 === 0 ? 0.76 : 0.5), half = R * 0.09;
       const tip: [number, number, number] = [cx + Math.cos(a) * len, yy, cz + Math.sin(a) * len];
       const l: [number, number, number] = [cx + Math.cos(a + Math.PI / 2) * half, yy, cz + Math.sin(a + Math.PI / 2) * half];
       const r: [number, number, number] = [cx - Math.cos(a + Math.PI / 2) * half, yy, cz - Math.sin(a + Math.PI / 2) * half];
       b.with({ color: PALETTE.white, pattern: PATTERN.none }, () => upTri(b, [cx, yy, cz], l, tip));
-      b.with({ color: PALETTE.yellow, pattern: PATTERN.none }, () => upTri(b, [cx, yy, cz], tip, r));
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none }, () => upTri(b, [cx, yy, cz], tip, r));
     }
   }
 }

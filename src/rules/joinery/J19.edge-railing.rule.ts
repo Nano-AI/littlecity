@@ -63,17 +63,23 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
     const floor = facts.floorAt.get(cell);
     if (floor !== undefined) places.set(cell, floor);
   }
+  // A door or a stair head rails a BUILT edge (a deck, a terrace, a block top). On bare ground beside a
+  // cliff it gets nothing: one cell of fence at the top of a cliff is worse than none.
+  const built = (cell: CellKey): boolean => {
+    const under = below(cell);
+    return under !== NO_CELL && facts.kinds.has(under);
+  };
   for (const f of plan.features) {
     if (f.type !== 'door' || f.cell === undefined) continue;
     const outside = f.dir === undefined ? f.cell : neighbor(f.cell, f.dir as Dir4);
-    if (outside !== NO_CELL && !places.has(outside)) places.set(outside, f.structure);
+    if (outside !== NO_CELL && !places.has(outside) && built(outside)) places.set(outside, f.structure);
   }
   for (const [cell, kind] of facts.kinds) {
     if (kind !== 'stairs') continue;
     const ahead = neighbor(cell, (facts.world.blocks.get(cell)?.rot ?? 0) as Dir4);
     const head = ahead === NO_CELL ? NO_CELL : above(ahead);
     const stairs = facts.structureAt.get(cell);
-    if (head !== NO_CELL && stairs !== undefined && !places.has(head)) places.set(head, stairs);
+    if (head !== NO_CELL && stairs !== undefined && !places.has(head) && built(head)) places.set(head, stairs);
   }
 
   const railed = new Set<string>();
@@ -86,6 +92,9 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
     if (!standable(facts, cell)) continue;
     const kind = facts.kinds.get(cell);
     if (kind === 'fence' || kind === 'wall' || kind === 'stairs') continue;
+    // A house draws a parapet round its own flat roof: a railing as well would be two barriers.
+    const under = below(cell);
+    if (under !== NO_CELL && facts.kinds.get(under) === 'house') continue;
     const sides = dropSides(facts, cell);
     if (sides.length === 0) continue;
     const variant = railVariantAt(facts, cell);

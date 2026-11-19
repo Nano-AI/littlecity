@@ -151,3 +151,22 @@ export function profileSlab(b: MeshBuilder, s: SlabSpec): void {
   if (s.endHi) b.quad([s.u1, s.v0 + hHi, s.z1], [s.u1, s.v0 + hHi, s.z0], [s.u1, s.v1, s.z0], [s.u1, s.v1, s.z1]);
   if (s.top) b.quad([s.u0, s.v1, s.z1], [s.u1, s.v1, s.z1], [s.u1, s.v1, s.z0], [s.u0, s.v1, s.z0]);
 }
+
+/**
+ * The voussoir ring round the slab's openings: a band `depth` wide following
+ * every jamb and curve, drawn flat, `proud` of the front (or back) face.
+ * Uses the builder's current colour, pattern and ink group.
+ */
+export function openingRing(b: MeshBuilder, s: SlabSpec, depth: number, proud: number, face: 'front' | 'back'): void {
+  const z = face === 'front' ? s.z1 + proud : s.z0 - proud;
+  for (const run of lowerEdge(s)) {
+    if (run[0]!.kind === 'foot') continue;
+    for (let i = 0; i + 1 < run.length; i++) {
+      const p = run[i]!, q = run[i + 1]!;
+      const a: Vec3 = [p.u, s.v0 + p.v, z], c: Vec3 = [q.u, s.v0 + q.v, z];
+      const a2: Vec3 = [p.u - p.nu * depth, s.v0 + p.v - p.nv * depth, z], c2: Vec3 = [q.u - q.nu * depth, s.v0 + q.v - q.nv * depth, z];
+      if (face === 'front') b.quad(a, c, c2, a2);
+      else b.quad(c, a, a2, c2);
+    }
+  }
+}

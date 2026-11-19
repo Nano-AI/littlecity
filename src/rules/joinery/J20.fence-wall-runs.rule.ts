@@ -25,7 +25,14 @@ import { blocked, cellsBeyond, edgeEndIsFree, joinedArms, type Town } from './ed
 
 type Data =
   | { what: 'gate'; structure: StructureId; kind: EdgeKind; cell?: CellKey; edge?: EdgeKey; dir: Dir4 }
-  | { what: 'butt'; structure: StructureId; edge: EdgeKey; end: 0 | 1 };
+  | { what: 'butt'; structure: StructureId; edge: EdgeKey; end: 0 | 1 }
+  | { what: 'inset'; structure: StructureId; edge: EdgeKey; side: 0 | 1 };
+
+/** The cell stands on a house roof: a house block under it and no block in it. */
+function onHouseRoof(t: Town, c: CellKey): boolean {
+  if (c === NO_CELL || t.kinds.has(c) || keyY(c) === 0) return false;
+  return t.kinds.get(c - (1 << 12)) === 'house';
+}
 
 /** A path lies beside `cell` on side `d`: at its level, or one level up or down (a path up a terrace). */
 function pathBeside(t: Town, cell: CellKey, d: Dir4): boolean {
@@ -59,7 +66,7 @@ export default defineRule<Data>({
   part: 'joinery',
   tier: 1,
   priority: 800,
-  about: 'Reads: fence and wall runs, path floors under and beside them, what stands beyond the free ends of edge pieces. Emits: gate features; run-end features where an edge run meets a structure.',
+  about: 'Reads: fence and wall runs, path floors under and beside them, what stands beyond the free ends of edge pieces. Emits: gate features; run-end features where an edge run meets a structure; run-inset features where a fence edge piece stands on the edge of a house roof.',
   find({ facts }) {
     const out: Candidate<Data>[] = [];
     for (const s of facts.structures.values()) {
@@ -73,6 +80,11 @@ export default defineRule<Data>({
         const [a, b] = edgeCells(edge);
         if (b !== NO_CELL && facts.world.floors.get(a) === 'path' && facts.world.floors.get(b) === 'path') {
           out.push({ anchor: a, key: `gate${edge & 1}`, data: { what: 'gate', structure: s.id, kind, edge, dir: (edge & 1 ? 2 : 1) as Dir4 } });
+        }
+        if (kind === 'fence') {
+          // On the edge of a house roof (the roof on one side only): the piece stands on the wall head.
+          const ra = onHouseRoof(facts, a), rb = onHouseRoof(facts, b);
+          if (ra !== rb) out.push({ anchor: a, key: `inset${edge & 1}`, data: { what: 'inset', structure: s.id, edge, side: ra ? 0 : 1 } });
         }
         for (const end of [0, 1] as const) {
           if (!edgeEndIsFree(facts, edge, end, kind)) continue;
@@ -90,6 +102,8 @@ export default defineRule<Data>({
       const variant = d.kind === 'fence' ? 'picket' : 'arched';
       if (d.cell !== undefined) out.feature({ type: 'gate', structure: d.structure, cell: d.cell, dir: d.dir, variant });
       else out.feature({ type: 'gate', structure: d.structure, edge: d.edge, dir: d.dir, variant });
+    } else if (d.what === 'inset') {
+      out.feature({ type: 'run-inset', structure: d.structure, edge: d.edge, params: { side: d.side } });
     } else {
       out.feature({ type: 'run-end', structure: d.structure, edge: d.edge, variant: 'butt', params: { end: d.end } });
     }

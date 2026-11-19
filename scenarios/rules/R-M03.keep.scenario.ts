@@ -1,6 +1,6 @@
 // R-M03: marble at least 3 tall whose footprint holds a 2 × 2 is a keep:
 // battlements along every exposed edge of its walkable tops, arrow slits in
-// its upper walls. A thin wall or a low block is not.
+// its walls and glazed windows on its top storey. A thin wall or a low block is not.
 
 import { scenario } from '@/scenario';
 
@@ -22,7 +22,10 @@ export default scenario({
     check.hasFeature({ type: 'battlement', at: [11, 3, 11] }, 2);
     check.equal(check.features({ type: 'battlement', at: [10, 4, 10] }).length, 4, 'all four edges of the raised corner');
     check.noFeature({ type: 'battlement', at: [10, 3, 10] }); // under the raised corner
-    check.noFeature({ type: 'arrow-slit', at: [11, 1, 11] }); // none on the ground storey
+    check.hasFeature({ type: 'arrow-slit', at: [11, 1, 11] }); // slits on the lower storeys, one to every two cells of wall
+    check.noFeature({ type: 'arrow-slit', at: [11, 2, 11] }); // staggered from storey to storey
+    check.hasFeature({ type: 'window', at: [11, 3, 11] }, 2); // glazed windows on the top storey
+    check.hasSocket({ type: 'window', at: [11, 3, 11] });
     check.hasTag(10, 1, 10, 'top:paved');
     check.role(16, 1, 10, 'terrace');
     check.noFeature({ type: 'battlement', on: [16, 1, 10] });

@@ -92,7 +92,8 @@ export function clockFace(b: MeshBuilder, id: string, radius: number, hour: numb
   });
   // The dial, its ticks and its hands share one group: they read by colour.
   b.setInk(`${id}-dial`);
-  b.with({ color: PALETTE.white, pattern: PATTERN.none }, () => b.polygon(disc(radius - 0.035, 0.045)));
+  // The dial is lit from behind after dark.
+  b.with({ color: PALETTE.white, pattern: PATTERN.glow }, () => b.polygon(disc(radius - 0.035, 0.045)));
   b.with({ color: PALETTE.metal, pattern: PATTERN.none }, () => {
     const hand = (angle: number, len: number, w: number): void => {
       const c = Math.sin(angle), s = Math.cos(angle); // 0 = twelve o'clock, clockwise

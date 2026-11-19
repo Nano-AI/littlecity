@@ -13,6 +13,13 @@ declare module '@/core/vocab' {
     'run-end/butt': true; //        runs into a structure or a cliff: no post, the run goes into it
     'run-end.end': 0 | 1;
 
+    // An EDGE piece of a fence run that stands on the edge of a house roof (J20): it is drawn
+    // on the wall head, FENCE.roofInset inside the cell line. `edge` = the edge piece;
+    // `run-inset.side` = which of the two cells it separates is the roof: 0 the edge's own
+    // cell (west of an E edge, north of an S edge), 1 the cell beyond.
+    'run-inset': true;
+    'run-inset.side': 0 | 1;
+
     // How each end of an edge railing (J19) finishes, so neighbours meet with one post and no
     // gap. `from` is the −X end of its face frame, `to` the +X end:
     //   0 nothing (the neighbour draws the post)   1 a post on the line
@@ -27,5 +34,17 @@ declare module '@/core/vocab' {
     // A stairs cell that starts with a landing: a deep first tread, with newel posts on its
     // open sides (J18). `cell` = the stairs cell.
     'stair-landing': true;
+  }
+  interface TagVocab {
+    // R-E02: the stone of a curtain wall is the stone of the tower or marble it touches
+    // (the palette index of that block: RAMPS.stone), so a castle is one material.
+    'stone:0': true;
+    'stone:1': true;
+    'stone:2': true;
+    'stone:3': true;
+    'stone:4': true;
+    'stone:5': true;
+    'stone:6': true;
+    'stone:7': true;
   }
 }
