@@ -95,6 +95,20 @@ once, `people-town` row landing, `everything` lamplighter at dusk
 - **Gust texture**: the wind texture is 32 × 32 (two columns a texel), so the
   front's 2-column leading edge is no longer blurred away.
 
+- **A keep on its own had no garrison** (no door or passage made a gate).
+  Now a castle with no gate halts its troop at the foot of the side facing
+  the nearest street, or else the most open side; the troop marches round
+  the keep. A lone keep keeps its L23 guard on top too; a walled castle's
+  keep does not. Tests: troop.test.ts, "a keep on its own"; L37 fixture.
+- **The rider was drawn only where there was a plaza.** Every garrisoned
+  castle now keeps a rider (L37). With a street from the gate and a square
+  it can reach, it rides to the square and back; with a street and no
+  square, along the street to its far end or the first crossing four or more
+  cells on, and back; with no street, the horse stands tethered by the gate.
+  Tests: rider.test.ts, "a rider for every castle"; the L37 fixture has all
+  three. Guide entries `garrison` and `rider` say so, with recipes for each
+  case, and their pictures are re-rendered.
+
 ### Watched and fine
 - Eight separate houses landing in one go, and a block landing on a roof
   (the building under it bounces as one; its props are carried).

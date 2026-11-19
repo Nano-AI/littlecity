@@ -9,7 +9,7 @@
 // into a sharp turn (its speed falls with how far its heading is off the
 // track's), and its heading follows the track at a horse's turning rate.
 
-import { keyX, keyZ } from '@/core/grid';
+import { CELL_H, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { rand } from '@/core/rand';
 import type { TimeSignal } from '@/life/api';
 import type { NavGraph } from '@/resolve/plan';
@@ -49,6 +49,14 @@ export function rideOf(nav: NavGraph, router: Router, castle: Castle, squares: r
   const gate = castle.gate?.node;
   if (gate === undefined) return null;
   const gc = nav.nodes[gate]!.cell;
+  // Only where a street leads from the gate (its own cell or one beside it); else the horse stays tethered.
+  const onStreet = (n: number): boolean => nav.nodes[n]!.surface === 'path' || nav.nodes[n]!.surface === 'plaza';
+  let street = onStreet(gate);
+  for (let k = nav.linkStart[gate]!; k < nav.linkStart[gate + 1]! && !street; k++) {
+    const l = nav.links[nav.linkOf[k]!]!;
+    street = onStreet(l.a === gate ? l.b : l.a);
+  }
+  if (!street) return null;
   const dist = (n: number): number => Math.abs(keyX(nav.nodes[n]!.cell) - keyX(gc)) + Math.abs(keyZ(nav.nodes[n]!.cell) - keyZ(gc));
   const order = [...squares].filter((n) => nav.part[n] === nav.part[gate]).sort((a, b) => dist(a) - dist(b) || a - b);
   for (const a of order.slice(0, 6)) {
@@ -71,15 +79,75 @@ export function rideOf(nav: NavGraph, router: Router, castle: Castle, squares: r
     const t = trackOf(nav, cross ? [there, cross, back] : [there, back], false);
     if (t) return t;
   }
-  return null;
+  return streetRide(nav, router, gate);
 }
 
-export function createRide(castle: Castle, track: Track | null, seed: number, time: TimeSignal): Ride {
+/** No square to ride to: along the street from the gate to its far end, or the first crossing a few cells on, and back. */
+function streetRide(nav: NavGraph, router: Router, gate: number): Track | null {
+  const street = (n: number): boolean => nav.nodes[n]!.surface === 'path' || nav.nodes[n]!.surface === 'plaza';
+  const next = (n: number): number[] => {
+    const out: number[] = [];
+    for (let k = nav.linkStart[n]!; k < nav.linkStart[n + 1]!; k++) {
+      const l = nav.links[nav.linkOf[k]!]!;
+      if (l.via === 'interior') continue;
+      const m = l.a === n ? l.b : l.a;
+      if (street(m)) out.push(m);
+    }
+    return out.sort((a, b) => a - b);
+  };
+  // Breadth-first along street cells from the gate (or the street beside it).
+  const start = street(gate) ? gate : next(gate)[0];
+  if (start === undefined) return null;
+  const depth = new Map<number, number>([[start, 0]]);
+  const queue = [start];
+  let far = start;
+  for (let h = 0; h < queue.length; h++) {
+    const u = queue[h]!;
+    const d = depth.get(u)!;
+    if (d > depth.get(far)!) far = u;
+    // A crossing four or more cells on is far enough.
+    if (d >= 4 && next(u).length >= 3) {
+      far = u;
+      break;
+    }
+    if (d >= 14) continue;
+    for (const v of next(u)) {
+      if (depth.has(v)) continue;
+      depth.set(v, d + 1);
+      queue.push(v);
+    }
+  }
+  if (depth.get(far)! < 3) return null;
+  const way = outdoorRoute(nav, router, gate, far);
+  if (!way || way.nodes.length < 4) return null;
+  const tether = way.nodes[1]!;
+  const there = outdoorRoute(nav, router, tether, far);
+  const back = outdoorRoute(nav, router, far, tether);
+  return there && back ? trackOf(nav, [there, back], false) : null;
+}
+
+/** Where the horse stands when it has nowhere to ride: a cell out from the gate. */
+export function tetherOf(nav: NavGraph, castle: Castle): { x: number; y: number; z: number; node: number } | null {
+  const gate = castle.gate;
+  if (!gate) return null;
+  const c = nav.nodes[gate.node]!.cell;
+  const x = keyX(c) + gate.dx, z = keyZ(c) + gate.dz;
+  const out = x >= 0 && z >= 0 && x < SIZE_X && z < SIZE_Z ? nav.nodeAt.get(key(x, keyY(c), z)) : undefined;
+  const node = out ?? gate.node;
+  const cell = nav.nodes[node]!.cell;
+  return { x: keyX(cell) + 0.5, y: keyY(cell) * CELL_H, z: keyZ(cell) + 0.5, node };
+}
+
+export function createRide(castle: Castle, track: Track | null, seed: number, time: TimeSignal, tether: { x: number; y: number; z: number; node: number } | null = null): Ride {
   const gate = castle.gate!;
   const pt: TrackPoint = { x: 0, y: 0, z: 0, dx: 0, dz: 1, node: -1 };
   // Tethered beside the gate, side on to it.
   const rest = (): void => {
-    if (!track) return;
+    if (!track) {
+      // Nowhere to ride: it stands by the gate all day.
+      if (tether) [ride.x, ride.y, ride.z, ride.node] = [tether.x, tether.y, tether.z, tether.node];
+      return;
+    }
     trackAt(track, 0, pt);
     ride.x = pt.x;
     ride.z = pt.z;
@@ -112,7 +180,11 @@ export function createRide(castle: Castle, track: Track | null, seed: number, ti
     phase: 0,
     node: -1,
     step(dt, now, crowded) {
-      if (!track) return;
+      if (!track) {
+        ride.gait = 'stand';
+        ride.phase += dt;
+        return;
+      }
       if (!riding) {
         ride.gait = 'stand';
         ride.phase += dt;

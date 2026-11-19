@@ -768,7 +768,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'garrison',
     group: 'town',
     name: 'Garrison',
-    how: 'Ring a yard with castle walls and a gatehouse or castle turret, or put a gateway beside a keep: a troop of soldiers marches round it.',
+    how: 'Build a keep, or ring a yard with castle walls and a gatehouse or castle turret: a troop of soldiers marches round it.',
     proof: { actor: { rule: 'L36.garrison', type: 'garrison' } },
     seed: 7704,
     build: smallCastle,
@@ -782,6 +782,8 @@ export const ENTRIES: readonly GuideEntry[] = [
         },
       },
       { build: keepAndGate },
+      // A keep on its own: its troop marches round its foot.
+      { build: (b) => void b.fill('marble', 19, 19, 20, 20, { floors: 3 }) },
     ],
     view: FRONT,
     pad: 0.2,
@@ -792,11 +794,17 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'rider',
     group: 'town',
     name: 'Rider',
-    how: 'Lay a path from the gate of a castle with a garrison to a plaza: a rider on horseback waits by the gate and rides out to the plaza.',
+    how: 'Every castle with a garrison keeps a rider, whose horse waits by the gate. Lay a path from the gate and the rider rides out along it, to the plaza if it reaches one.',
     proof: { actor: { rule: 'L37.rider', type: 'rider' } },
     seed: 7705,
     build: keepGateAndPlaza,
-    also: [{ build: (b) => void (smallCastle(b), b.plaza(19, 26, 21, 27)) }],
+    also: [
+      { build: (b) => void (smallCastle(b), b.plaza(19, 26, 21, 27)) },
+      // A path and no plaza: it rides along the path and back.
+      { build: keepAndGate },
+      // No path: the horse stands tethered by the keep.
+      { build: (b) => void b.fill('marble', 19, 19, 20, 20, { floors: 3 }) },
+    ],
     view: FRONT,
     pad: 0.2,
     life: { settle: 64 },

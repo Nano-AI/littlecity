@@ -8,6 +8,7 @@ import { findCastles } from '@/rules/life/castle.lib';
 import { GARRISON } from '@/style/people';
 import everything from '../../../scenarios/core/everything.scenario';
 import garrisonTown from '../../../scenarios/rules/L36.garrison.scenario';
+import riderTown from '../../../scenarios/rules/L37.rider.scenario';
 import { clock, scenarioTown } from './testing';
 import { createTroop, patrolOf } from './troop';
 
@@ -105,5 +106,27 @@ describe('the garrison (L36)', () => {
     expect(laps).toBeGreaterThanOrEqual(2);
     expect(halts).toBeGreaterThanOrEqual(laps - 1);
     expect(halts).toBeLessThanOrEqual(laps + 1);
+  });
+
+  test('a keep on its own: the troop marches round its foot and halts at the side facing the town', () => {
+    const t = scenarioTown(riderTown);
+    const keep = findCastles(t.shape, t.nav).find((c) => c.columns.has(columnIndex(37, 35)))!;
+    expect(keep.keep).not.toBeNull();
+    expect(keep.wallCells).toBe(0);
+    // Its gate is right at its foot.
+    const g = t.nav.nodes[keep.gate!.node]!.cell;
+    expect(keep.columns.has(columnIndex(keyX(g) - keep.gate!.dx, keyZ(g) - keep.gate!.dz))).toBe(true);
+    const track = patrolOf(t.nav, keep)!;
+    expect(track.loop).toBe(true);
+    const c = clock(t.world.seed, 'day');
+    const troop = createTroop(t.nav, keep, track, c.time);
+    let halts = 0, was = troop.mode;
+    for (let i = 0; i < 30 * 90; i++) {
+      troop.step(c.tick(1 / 30), c.time);
+      if (troop.mode === 'halt' && was !== 'halt') halts++;
+      was = troop.mode;
+      for (const s of troop.soldiers) expect(keep.columns.has(columnIndex(Math.floor(s.x), Math.floor(s.z)))).toBe(false);
+    }
+    expect(halts).toBeGreaterThan(0);
   });
 });

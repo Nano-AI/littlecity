@@ -18,7 +18,7 @@ import { findCastles, type Castle } from '@/rules/life/castle.lib';
 import type { ShapePlan, DressingPlan } from '@/resolve/plan';
 import { PERSON } from '@/style/people';
 import { crowdOf, setObstacles, type Obstacle } from '../doors/table';
-import { createRide, rideOf, type Ride } from './rider';
+import { createRide, rideOf, tetherOf, type Ride } from './rider';
 import { createRouter } from './route';
 import { createTroop, patrolOf, type Troop } from './troop';
 
@@ -153,8 +153,10 @@ function build(shape: ShapePlan, dressing: DressingPlan, seed: number, time: Par
       });
     } else {
       const track = rideOf(nav, router, castle, squares);
-      if (!track) continue;
-      g.ride = createRide(castle, track, seed ^ castle.id, time);
+      // Nowhere to ride (no street from the gate): the horse still stands tethered by it.
+      const tether = tetherOf(nav, castle);
+      if (!track && !tether) continue;
+      g.ride = createRide(castle, track, seed ^ castle.id, time, tether);
       const look = soldierLook(seed * 37 + castle.id, colour);
       g.rider = { look, rig: rigOf(look), fig: null, lance: null };
       g.horseLook = Number((a.params as { look?: number } | undefined)?.look ?? 0);

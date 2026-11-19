@@ -99,8 +99,9 @@ export default defineRule<Data>({
     const nav = navOf(ctx);
     if (!nav) return [];
     const { facts, plan, seed } = ctx;
-    // A keep with a garrison (L36) has its troop instead of a lone guard.
-    const garrisoned = new Set(findCastles(plan, nav).filter((c) => c.gate !== null).flatMap((c) => c.structures));
+    // A walled castle's keep has its troop (L36) instead of a lone guard; a keep standing on its own keeps its
+    // guard on top, watching over the troop that marches round its foot.
+    const garrisoned = new Set(findCastles(plan, nav).filter((c) => c.gate !== null && c.wallCells > 0).flatMap((c) => c.structures));
     const out: Candidate<Data>[] = [];
     const add = (cell: CellKey, data: Data): void => {
       if (cell !== NO_CELL && nav.nodeAt.has(cell)) out.push({ anchor: cell, key: `${data.job}|${data.order}|${data.ref}|${data.structure ?? ''}`, data });
