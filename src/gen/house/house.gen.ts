@@ -52,6 +52,12 @@ export interface House {
 
 const edgeId = (cell: CellKey, dir: Dir4): number => cell * 4 + dir;
 
+/**
+ * A foundation's top above the floor line: off the plane of the ground beside it, and 0.004 over a
+ * dock's deck (itself 0.004 over the ground line, src/gen/dock/dock.gen.ts) that its ledge reaches over.
+ */
+const FOUNDATION_LIFT = 0.008;
+
 /** The edge that continues this one past its left or right end (round a corner, or straight on). */
 function partner(e: WallEdge, side: 'left' | 'right'): [CellKey, Dir4] {
   const lateral = side === 'left' ? leftOf(e.dir) : rightOf(e.dir);
@@ -276,8 +282,22 @@ function shell(h: House): void {
         // J24: a stone foundation down to the lower ground on this side.
         const depth = foundation.get(edgeId(cell, d));
         if (depth !== undefined) {
+          // Its top stands a hair above the floor line, where the ground or a deck it borders lies;
+          // and it stops at the cell line where another building stands beside it, whose own
+          // foundation would otherwise lap over this one in the same plane.
+          const beside = (lateral: Dir4): boolean => {
+            const n = neighbor(cell, lateral);
+            return n !== NO_CELL && !has(n) && h.plan.kinds.get(n) !== undefined;
+          };
+          const L = beside(leftOf(d)) && e.left === 1, R = beside(rightOf(d)) && e.right === 1;
+          const cap = caps(e, foundOn);
           b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'plinth' }, () =>
-            band(b, e, -HOUSE.foundationOut, inset - proud, -depth * CELL_H - 0.03, 0, caps(e, foundOn)));
+            band(b, e, -HOUSE.foundationOut, inset - proud, -depth * CELL_H - 0.03, FOUNDATION_LIFT, {
+              capLeft: cap.capLeft || L,
+              capRight: cap.capRight || R,
+              ...(L ? { left: 0 as const } : {}),
+              ...(R ? { right: 0 as const } : {}),
+            }));
         }
       });
     }

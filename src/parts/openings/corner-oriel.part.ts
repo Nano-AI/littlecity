@@ -34,7 +34,8 @@ export default definePart({
       // The body, in the house's own wall colour, with a white band at each floor.
       b.with({ color: wall, pattern: PATTERN.plaster, ink: 'turret' }, () => b.lathe([[r, y0], [r, y1]], { segments: seg }));
       b.with({ color: p.trim, pattern: PATTERN.none, ink: 'turret-band' }, () => {
-        for (let k = 1; k < storeys; k++) b.lathe([[r + 0.02, k * CELL_H - 0.05], [r + 0.02, k * CELL_H]], { segments: seg, capTop: true });
+        // A floor band's top stands a hair (0.004) over the floor line, where the house's own belt lies.
+        for (let k = 1; k < storeys; k++) b.lathe([[r + 0.02, k * CELL_H - 0.05], [r + 0.02, k * CELL_H + 0.004]], { segments: seg, capTop: true });
         b.lathe([[r + 0.03, y1 - 0.045], [r + 0.03, y1]], { segments: seg, capTop: true });
       });
       // A window on each storey, looking down each of the two streets (±45° from the corner) and one out of the corner.

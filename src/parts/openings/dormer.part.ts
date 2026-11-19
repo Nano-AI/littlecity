@@ -4,7 +4,7 @@
 //
 // Frame: origin on the roof surface at the middle of the dormer's front,
 // +Y up, +Z looking out (down the slope). Everything runs back along −Z far
-// enough to disappear into the roof behind, whatever the pitch.
+// enough to disappear into the roof behind at the house pitches (0.6 and up).
 
 import type { Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
@@ -28,7 +28,9 @@ export default definePart({
     }
     const s = ctx.structure;
     const wall = s && !ctx.plan.tags.get(s.id)?.has('white-walls') ? rampColor('house', s.color) : PALETTE.white;
-    const hw = 0.185, top = 0.26, peak = 0.41, foot = -0.16, back = -0.8, over = 0.04;
+    // It runs back 0.69: 0.01 short of the far side of its cell (its front stands 0.2 out from the
+    // cell's middle), so two dormers back to back across a ridge do not share their cheeks' planes.
+    const hw = 0.185, top = 0.26, peak = 0.41, foot = -0.16, back = -0.69, over = 0.04;
     b.with({ color: wall, pattern: PATTERN.plaster, ink: 'dormer' }, () => {
       b.polygon([[-hw, foot, 0], [hw, foot, 0], [hw, top, 0], [0, peak, 0], [-hw, top, 0]]);
       b.quad([hw, foot, 0], [hw, foot, back], [hw, top, back], [hw, top, 0]);
