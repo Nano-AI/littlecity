@@ -151,8 +151,12 @@ export interface Person {
   lastMet: Person | null;
   chatWith: Person | null;
   bubble: boolean;
+  /** Seconds until they will stop for another chat. */
+  chatRest: number;
   /** A pose that overrides `pose` while a reaction lasts (a look, a hop, a chat), else null. */
   react: PoseName | null;
+  /** L28: a child flying a kite right now (at a kite spot, with the wind up). */
+  flying: boolean;
 }
 
 export interface CrowdEvents {
@@ -174,6 +178,8 @@ export interface CrowdOptions {
   cap?: number;
   /** Where a door's threshold is, if known more exactly than the middle of its face. */
   doorAt?: DoorPlace;
+  /** The wind at a column, for kites (L28). Without it nobody flies one. */
+  wind?(x: number, z: number): { dirX: number; dirZ: number; strength: number };
   /** The place and facing of a seat socket (world x, y, z and heading), if the stage knows it. */
   seatAt?(socket: string): { x: number; y: number; z: number; face: number } | null;
   events?: CrowdEvents;
@@ -208,6 +214,8 @@ const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
 /** Where a walker waiting for a single-file stretch stops in their cell (0 = where they came in, 1 = the far edge). */
 const WAIT_AT = 0.42;
 const TURN_RATE = 9;
+/** L28: how much a child prefers somewhere to play over anywhere else (a square weighs 4). */
+const PLAY_WEIGHT = 9;
 /** L26: the small hop after turning to look: how long, how high. */
 const JUMP = 0.36;
 const JUMP_HEIGHT = 0.12;
@@ -435,6 +443,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         }
         break;
       }
+      case 'haunt-play':
+        anywhere();
+        g.linger = h.name === 'kite' ? 15 + r(p, 'linger') * 15 : 1 + r(p, 'linger') * 1.5;
+        break;
       case 'haunt-stoop':
         if (h.name === 'step') {
           facing(-0.3); // back against the house, on the step
@@ -464,6 +476,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       let w: number;
       if (strandedHome) w = h.type === 'haunt-stoop' && h.structure === p.home ? 1 : 0;
       else if (night) w = h.type === 'haunt-night' && p.owl ? 1 : 0;
+      else if (h.type === 'haunt-play') w = p.child ? PLAY_WEIGHT : 0;
       else w = h.type === 'haunt-visit' && h.structure === p.home ? 0 : (KIND_WEIGHT[h.type] ?? 0);
       if (w <= 0) continue;
       open.push(h);
@@ -566,6 +579,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.pose = p.child ? 'run' : 'walk';
     p.seat = -1;
     p.stuck = 0;
+    p.flying = false;
     p.carrying = goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker');
     enterPiece(p);
     return true;
@@ -751,10 +765,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           p.lastMet = q;
           q.lastMet = p;
           const open = (w: Person): boolean =>
-            w.chat <= 0 && w.startled <= 0 && w.held < 0 && !w.queued && !w.leaving && !w.carrying && w.fade >= 1 && w.walk![w.at]!.kind === 'move' && !onDutyNow(w);
+            w.chat <= 0 && w.chatRest <= 0 && w.startled <= 0 && w.held < 0 && !w.queued && !w.leaving && !w.carrying && w.fade >= 1 && w.walk![w.at]!.kind === 'move' && !onDutyNow(w);
           if (open(p) && open(q) && rand(p.seed, 'chat', q.seed, p.trips) < PEOPLE.chat) {
             const t = PEOPLE.chatTime * (0.6 + 0.4 * rand(p.seed, 'chat-time', q.seed, p.trips));
             p.chat = q.chat = t;
+            p.chatRest = q.chatRest = t + PEOPLE.chatRest;
             p.chatWith = q;
             q.chatWith = p;
             p.chatFace = Math.atan2(dx, dz);
@@ -1049,7 +1064,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       node: -1, cell: -1, walk: null, at: 0, t: 0,
       goal: null, want: null, timer: 0, held: -1, trips: 0, stuck: 0, slow: 1, queued: false,
       inside: null, hop: null, leaving: false, startled: 0, startledFace: 0,
-      jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, react: null,
+      jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
     };
   };
 
@@ -1226,7 +1241,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           case 'linger': {
             p.poseTime += dt;
             p.timer -= dt;
-            if (p.goal && !Number.isNaN(p.goal.face)) turnTo(p, p.goal.face, dt);
+            if (p.goal && !Number.isNaN(p.goal.face) && !p.flying) turnTo(p, p.goal.face, dt);
             if (p.goal?.kind === 'leave') {
               p.fade = Math.max(0, p.timer / PEOPLE.fade);
               if (p.timer <= 0) remove(p);
@@ -1291,6 +1306,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         // Reactions (L26). `react` is the pose shown while one lasts.
         p.react = null;
         p.bubble = false;
+        if (p.chatRest > 0) p.chatRest -= dt;
+        // A child at a kite spot flies a kite while the wind is up (L28), facing downwind to watch it.
+        if (p.child && p.mode === 'linger' && opts.wind && p.goal?.haunt?.type === 'haunt-play' && p.goal.haunt.name === 'kite') {
+          const wind = opts.wind(p.x, p.z);
+          p.flying = wind.strength > PEOPLE.kiteWind * (p.flying ? 0.75 : 1);
+          if (p.flying) {
+            turnTo(p, Math.atan2(wind.dirX, wind.dirZ), dt);
+            p.react = 'kite';
+          }
+        } else p.flying = false;
         if (p.startled > 0) {
           p.startled -= dt;
           if (p.seat < 0) {

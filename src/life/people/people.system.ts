@@ -13,7 +13,7 @@ import { DIR4, keyX, keyZ } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
 import type { MeshData } from '@/gen/mesh';
-import { bubbleMesh } from '@/parts/people/extras';
+import { bubbleMesh, kiteMesh, lineMesh } from '@/parts/people/extras';
 import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
@@ -30,12 +30,15 @@ interface Drawn {
   last: Float32Array;
   /** The chat bubble over their head while they talk. */
   bubble: InstanceHandle | null;
+  /** A child's kite and its line (L28). */
+  kite: { kite: InstanceHandle; line: InstanceHandle } | null;
 }
 
 interface State {
   crowd: Crowd;
   drawn: Map<Person, Drawn>;
   bubbleMesh: MeshData | null;
+  lineMesh: MeshData | null;
   /** The plan's own resident instances, kept hidden. */
   standIns: InstanceHandle[];
   unsubscribe: () => void;
@@ -129,6 +132,7 @@ export default defineSystem<State>({
     const crowd = createCrowd({
       cap: residentCap(),
       doorAt,
+      wind: (x, z) => ctx.signals.wind(x, z),
       seatAt(socket) {
         const m = ctx.stage.socket(socket);
         if (!m || (m[12] === 0 && m[13] === 0 && m[14] === 0)) return null;
@@ -150,12 +154,14 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null });
         },
         removed(p) {
           const d = drawn.get(p);
           if (d?.handles) for (const h of d.handles) h.release();
           d?.bubble?.release();
+          d?.kite?.kite.release();
+          d?.kite?.line.release();
           drawn.delete(p);
         },
       },
@@ -163,7 +169,7 @@ export default defineSystem<State>({
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
-    return { crowd, drawn, bubbleMesh: null, standIns: [], unsubscribe };
+    return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], unsubscribe };
   },
   sync(state, next, _prev, ctx) {
     if (!next.dressing) return;
@@ -199,6 +205,36 @@ export default defineSystem<State>({
         d.bubble.release();
         d.bubble = null;
       }
+      // A kite (L28): downwind and up, weaving a little; its line from the raised hand.
+      if (p.flying && p.visible) {
+        if (!d.kite) {
+          state.lineMesh ??= lineMesh();
+          d.kite = { kite: ctx.stage.spawnMesh(kiteMesh(p.look % 10), IDENTITY), line: ctx.stage.spawnMesh(state.lineMesh, IDENTITY) };
+        }
+        const wind = signals.wind(p.x, p.z);
+        const t = signals.time.seconds;
+        const weave = Math.sin(t * 1.3 + p.rank * 20) * 0.2, bob = Math.sin(t * 0.9 + p.rank * 11) * 0.1;
+        const pull = Math.min(1.3, 0.7 + wind.strength);
+        const kx = p.x + wind.dirX * PEOPLE.kiteOut * pull - wind.dirZ * weave;
+        const ky = p.y + PEOPLE.kiteUp + bob;
+        const kz = p.z + wind.dirZ * PEOPLE.kiteOut * pull + wind.dirX * weave;
+        const hx = p.x + Math.sin(p.heading) * 0.05, hy = p.y + 0.44 * d.look.scale, hz = p.z + Math.cos(p.heading) * 0.05;
+        // The kite faces back toward the child, tipped up into the wind.
+        const zx = -wind.dirX * 0.8, zy = 0.6, zz = -wind.dirZ * 0.8;
+        const xl = Math.hypot(zz, zx) || 1;
+        const xx = zz / xl, xz = -zx / xl;
+        d.kite.kite.setMatrix([xx, 0, xz, 0, zy * xz, zz * xx - zx * xz, -zy * xx, 0, zx, zy, zz, 0, kx, ky, kz, 1]);
+        // The line: its mesh runs one unit along +X, so the X column is the whole span.
+        const lx = kx - hx, ly = ky - hy, lz = kz - hz;
+        const ll = Math.hypot(lx, ly, lz) || 1;
+        const sx = lz / (Math.hypot(lx, lz) || 1), sz = -lx / (Math.hypot(lx, lz) || 1);
+        const ux = (-ly * sz) / ll, uy = (sz * lx - sx * lz) / ll, uz = (ly * sx) / ll; // S × L: right-handed
+        d.kite.line.setMatrix([lx, ly, lz, 0, ux, uy, uz, 0, sx, 0, sz, 0, hx, hy, hz, 1]);
+      } else if (d.kite) {
+        d.kite.kite.release();
+        d.kite.line.release();
+        d.kite = null;
+      }
     }
   },
   dispose(state) {
@@ -206,6 +242,8 @@ export default defineSystem<State>({
     for (const d of state.drawn.values()) {
       if (d.handles) for (const h of d.handles) h.release();
       d.bubble?.release();
+      d.kite?.kite.release();
+      d.kite?.line.release();
     }
     state.drawn.clear();
   },

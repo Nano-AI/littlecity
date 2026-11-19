@@ -11,6 +11,7 @@ import { emptyWorld } from '@/world/world';
 import bench from '../../../scenarios/bench/bench-2000.scenario';
 import peopleTown from '../../../scenarios/people/people-town.scenario';
 import jobsTown from '../../../scenarios/rules/L23.jobs.scenario';
+import childrenTown from '../../../scenarios/rules/L28.children.scenario';
 import { createCrowd } from './crowd';
 import { clock, resolved, run, scenarioTown, townOf, watch } from './testing';
 
@@ -390,6 +391,51 @@ describe('reactions (L26)', () => {
     expect(chats).toBeGreaterThan(100);
     expect(bubbles).toBeGreaterThan(50);
     expect(talkers.size).toBeGreaterThan(1);
+  });
+});
+
+describe('children (L28)', () => {
+  const town = scenarioTown(childrenTown);
+  const play = (strength: number) => {
+    const c = clock(town.world.seed);
+    const crowd = createCrowd({ wind: () => ({ dirX: 1, dirZ: 0, strength }) });
+    crowd.sync(town.shape, town.dressing, c.time);
+    const w = watch(crowd);
+    let flying = 0, facing = 0;
+    const fliers = new Set<string>();
+    for (let i = 0; i < 30 * 300; i++) {
+      crowd.step(c.tick(1 / 30), c.time);
+      w.check();
+      for (const p of crowd.people) {
+        if (!p.flying) continue;
+        flying++;
+        fliers.add(p.id);
+        expect(p.child && p.mode === 'linger' && p.goal?.haunt?.name === 'kite').toBe(true);
+        if (Math.sin(p.heading) > 0.9) facing++; // downwind is east
+      }
+    }
+    return { crowd, w, flying, facing, fliers };
+  };
+
+  test('children run, play where the grown-ups do not, and fly kites when the wind is up', () => {
+    const { crowd, w, flying, facing, fliers } = play(0.6);
+    expect(w.problems).toEqual([]);
+    const children = crowd.people.filter((p) => p.child);
+    expect(children.length).toBeGreaterThan(1);
+    expect(children.every((p) => p.speed > PEOPLE.speed * 1.2)).toBe(true);
+    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(5); // two children, five minutes
+    expect(crowd.haunts.filter((h) => h.type === 'haunt-play' && h.user).every((h) => h.user!.child)).toBe(true);
+    expect(flying).toBeGreaterThan(300);
+    expect(fliers.size).toBeGreaterThan(0);
+    // Once turned, they watch the kite.
+    expect(facing / flying).toBeGreaterThan(0.8);
+  });
+
+  test('with no wind they still play, but no kite goes up', () => {
+    const { w, flying } = play(0.1);
+    expect(w.problems).toEqual([]);
+    expect(flying).toBe(0);
+    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(5); // two children, five minutes
   });
 });
 

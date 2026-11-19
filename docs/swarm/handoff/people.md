@@ -6,16 +6,16 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - Walking graph `src/resolve/nav.ts` (types reshaped in `src/resolve/plan.ts`, listed in `docs/swarm/requests/people.md`), 21 tests in `nav.test.ts`.
 - Routing `src/life/people/route.ts` (A*, cached), the walked line `walk.ts`, the simulation `crowd.ts`, drawing `people.system.ts`, the census for window lights `home.ts`.
 - The person: `src/parts/people/{person,pose}.ts`, parts `resident`, `figure`.
-- Rules with fixtures in `scenarios/rules/`: L21, L22, L23 (jobs, includes the L08 lamplighter round and the `lampReached` / `bellRung` events), L24, L25, L27, L32.
+- Rules with fixtures in `scenarios/rules/`: L21, L22, L23 (jobs, includes the L08 lamplighter round and the `lampReached` / `bellRung` events), L24, L25, L27, L28 (children, kites, pigeon spots), L32.
+- L26 reactions (look, hop, chat bubble, hand to hat) are runtime only in `crowd.ts` / `people.system.ts`: no rule file, by design.
 - Watched (stairs, viaduct, roof hatch, square, dusk) and benchmarked: see README "How to watch".
 
 ## In progress
 - Nothing half-done at the last commit. If this line is stale, `git status` is the truth.
 
 ## Next, in order
-1. L26 reactions (stop-and-look exists in `crowd.blockLanded`; still to do: hop p=0.3, hand to hat in a gust, chat bubbles).
-2. L28 children (child variant, running and smaller size exist; kites and pigeon-chasing do not).
-3. Merge `yaoderek/bloom-s-monkey-city-builder` into the branch, `npm run check` green, final report.
+1. Merge `yaoderek/bloom-s-monkey-city-builder` into the branch, `npm run check` green, final report.
+2. Nice-to-have after that: props in workers' hands (broom, rod, sack), a drawn roof hatch (Houses), seats once Dressing's benches exist.
 
 ## Decisions and gotchas
 - The worktree guard refuses compound shell commands (`mkdir` + heredoc, `for` loops, `cat > file`). One plain command per call; write files with the Write tool.
@@ -29,6 +29,7 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - `src/resolve/engine/run.test.ts` had one assertion loosened (it pinned an empty nav graph).
 - A job is a `workplace` socket (`name` = `job|order|ref`), not a new actor; the crowd assigns residents (live-in first, then nearest). Workers carry no props (no broom, rod or sack is drawn).
 - `scenarioTown()` in `testing.ts` resolves with the scenario's own rules (the L23 fixture brings its own lamps; D01 is Dressing's).
+- After a chat both rest 40 s (`PEOPLE.chatRest`); without it a pair on a busy street chatted for minutes.
 - Timing assertions flake under load: assert means loosely, never a worst case.
 
 ## How walking is verified

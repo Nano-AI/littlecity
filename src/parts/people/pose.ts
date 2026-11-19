@@ -26,9 +26,10 @@ export type PoseName =
   | 'hop' //     both feet off the ground, arms up
   | 'hat' //     a hand on the hat in a gust
   | 'carry' //   arms forward, holding something (sack, watering can)
-  | 'sweep'; //  both hands on a broom, swinging
+  | 'sweep' //   both hands on a broom, swinging
+  | 'kite'; //   an arm up holding a line, with a tug now and then
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -159,6 +160,14 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       p.outR = -0.2;
       p.lean = -0.04;
       break;
+    case 'kite': {
+      const k = beat(8, 2);
+      p.armR = k === 5 ? 2.0 : 2.45;
+      p.outR = 0.3;
+      p.armL = k === 5 ? 1.6 : 0.3;
+      p.lean = k === 5 ? -0.2 : -0.1;
+      break;
+    }
     case 'sweep': {
       const k = beat(4, 2.5);
       const sw = [0.25, 0, -0.25, 0][k]!;

@@ -29,6 +29,7 @@ declare module '@/core/vocab' {
     'figure/hat': true;
     'figure/carry': true;
     'figure/sweep': true;
+    'figure/kite': true;
     'figure.look': number;
     'figure.phase': number;
     'figure.child': 0 | 1;
@@ -47,6 +48,8 @@ declare module '@/core/vocab' {
     'haunt-fountain': true; //   beside a fountain, facing it
     'haunt-viewpoint': true; //  a high, open cell with a drop in front: look out
     'haunt-visit': true; //      another house's door: go in for a while
+    // L28: where children play. `name` is 'kite' (a square or a viewpoint) or 'pigeons' (a pigeon's cell).
+    'haunt-play': true;
     // L25: where the few who stay out at night go (the viewpoint, a fishing spot).
     'haunt-night': true;
     // L32: within two cells of a stranded home's door; `structure` is that home.
