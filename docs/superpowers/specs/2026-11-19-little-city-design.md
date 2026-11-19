@@ -333,6 +333,35 @@ random every time, which is annoying when you want several the same.
   colour and style into the hand, so the next clicks place more of the same.
 - **Auto blocks** have no style; one that becomes a house rolls its look.
 
+**The guide** (Derek's request, 2026-11-19). Nothing in the game tells a
+player that a house beside a tower becomes a chapel. The guide does.
+
+- **Where.** A book button under the menu button opens a panel on the right
+  side of the screen (a full-height sheet on phones). The town stays visible
+  and playable beside it on desktop. It closes with the button, Escape, or a
+  swipe down on phones.
+- **What it lists.** Only the special buildings: things a player would not
+  guess. About 35–45 entries in groups: Houses (chapel, shop, inn, town hall,
+  manor, townhouse, row house, stilt house, boathouse, cliff house,
+  greenhouse, mill house, keeper's cottage, lookout cottage), Towers
+  (steeple, clock tower, castle turret, campanile, observatory, dovecote,
+  lighthouse), Stone (temple, keep, gatehouse, grand steps, quay wall,
+  plinth and statue), Bridges (stone bridge, sky bridge, viaduct, gateway,
+  loggia, flying buttress), Waterfront (pier, quay, boardwalk), Green (wheat
+  field, park, walled garden, paddock, pocket park, herb garden), and Town
+  (street lamps, laundry lines, a garrison). Plain variants (which window a
+  house gets) are left out.
+- **Each entry** has a picture of the building as the game draws it, its
+  name, and one plain sentence saying how to get it ("A house with gardens
+  on three sides." "Marble resting on four or more pillars."). Entries the
+  current town already contains show a small tick.
+- **Never wrong.** Each entry owns a tiny recipe town. The picture is a
+  render of that recipe, and a test builds the recipe and checks the rules
+  really produce that building, so the guide cannot drift from the rules.
+- **The Auto block** gets a short entry at the top: what it turns into and
+  when (dock on water; arch across a gap; tower when three stacked; a
+  lighthouse when four stacked near the sea; otherwise a house).
+
 **Placement rules**
 
 - The target cell must be inside the grid and hold no block. Because the
