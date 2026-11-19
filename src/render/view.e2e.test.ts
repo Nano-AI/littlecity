@@ -227,9 +227,10 @@ describe('the view', () => {
     const walking = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('spawned', 30)`);
     expect(walking.drawCalls).toBeGreaterThanOrEqual(rest);
     expect(walking.drawCalls).toBeLessThanOrEqual(rest + 1);
-    // A prop stands in the picture (it throws shade), so moving one redraws it, every other frame at most.
+    // A prop stands in the picture (it throws shade), so moving one redraws it: every fourth frame since
+    // the life-depth pass (it was every other frame), so the mean rises by a quarter of a scene pass or more.
     const sliding = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('prop', 30)`);
-    expect(sliding.drawCalls).toBeGreaterThan(rest + 3);
+    expect(sliding.drawCalls).toBeGreaterThan(rest + 1.5);
     expect(sliding.drawCalls).toBeLessThanOrEqual(rest + 1 + (rest + 2) / 2 + 1);
     expect(errors).toEqual([]);
   });
