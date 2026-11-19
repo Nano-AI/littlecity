@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global process, console, window */
+/* global process, console, window, document */
 // Motion cannot be judged from one screenshot. This renders a SEQUENCE: the
 // real app, with its clock taken over so every frame is exactly 1/60 s, an
 // optional edit, and N frames laid out as one contact sheet you can read
@@ -72,7 +72,9 @@ try {
     if (m.type() === 'error') errors.push(m.text());
   });
   await page.clock.install({ time: 0 });
-  await page.goto(`${server.url}/?scenario=${encodeURIComponent(scenario)}`, { waitUntil: 'load' });
+  // A scenario name, or seed:N for a fresh island of that seed.
+  const query = scenario.startsWith('seed:') ? `seed=${Number(scenario.slice(5))}` : `scenario=${encodeURIComponent(scenario)}`;
+  await page.goto(`${server.url}/?${query}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__lc !== undefined, null, { timeout: 60_000 });
   // The interface is not what is being looked at.
   await page.addStyleTag({ content: 'body > *:not(#town) { display: none !important; }' });
@@ -181,6 +183,15 @@ try {
       }
       return done;
     }, list);
+
+  // --grow [ms]: start Grow a town from the menu (on a seed:N island), then play that long into it.
+  if (flags.grow !== undefined) {
+    await page.evaluate(() => {
+      document.querySelector('[data-ui="menu-button"]')?.click();
+      document.querySelector('[data-menu="grow"]')?.click();
+    });
+    await play(flags.grow === true ? 1500 : Number(flags.grow));
+  }
 
   const first = parseEdits(flags.edit);
   const second = parseEdits(flags.then);

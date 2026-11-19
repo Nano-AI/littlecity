@@ -123,14 +123,31 @@ describe('what an edit does', () => {
     expect(rec.spawned.every((s) => !s.visible)).toBe(true);
   });
 
+  test('F01: a run of cells landing on one mass every 40 ms (Grow a town) carries its bounce on, not back to the top each time', () => {
+    const { rec, life, signals, edit } = setup((b) => b.house(10, 10, { w: 3, floors: 1, color: 2 }));
+    edit((b) => b.house(10, 10, { w: 3, floors: 1, color: 2 }).block('house', 13, 1, 10, { color: 2 }));
+    const id = () => rec.lifted.keys().next().value!;
+    const top = positionOf(rec.of(`structure:${id()}`).matrix)[1];
+    for (let k = 0; k < 4; k++) {
+      step(life, signals, 0.04);
+      edit((b) => {
+        b.house(10, 10, { w: 3, floors: 1, color: 2 });
+        for (let i = 0; i <= k + 1; i++) b.block('house', 13 + i, 1, 10, { color: 2 });
+      });
+      // A new cell did not throw it back to the top of its drop.
+      expect(positionOf(rec.of(`structure:${id()}`).matrix)[1]).toBeLessThan(top - 0.01);
+    }
+  });
+
   test('F01: a big merged house moves less than a single block', () => {
     const { rec, edit } = setup((b) => b.house(10, 10, { w: 3, d: 3, floors: 2, color: 2 }));
     const { next } = edit((b) => b.house(10, 10, { w: 3, d: 3, floors: 2, color: 2 }).block('house', 13, 1, 10, { color: 2 }));
     const id = next.shape.structureAt.get(key(13, 1, 10))!;
     expect(next.shape.structures.get(id)!.cells.length).toBe(19);
     const lift = positionOf(rec.of(`structure:${id}`).matrix)[1];
-    expect(lift).toBeGreaterThan(0.1);
-    expect(lift).toBeLessThan(FEEDBACK.landDrop * CELL_H * 0.6);
+    // Still seen to drop, but a hand's breadth, not the whole terrace jumping when one cell is added.
+    expect(lift).toBeGreaterThan(0.05);
+    expect(lift).toBeLessThan(FEEDBACK.landDrop * CELL_H * 0.25);
   });
 
   test('F02: a neighbour whose shape changed rocks away from the edit and settles; far structures stay put', () => {
