@@ -5,6 +5,7 @@
 // Frame: centred on the origin, 1 tall (the long points run along Y);
 // whoever spawns it scales and spins it.
 
+import { airborne } from '@/gen/airborne';
 import { definePart } from '@/gen/api';
 import { PATTERN } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
@@ -15,7 +16,7 @@ export default definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const look = Math.abs(Math.round(item.params?.look ?? 0)) % 2;
-    b.setColor(look === 0 ? PALETTE.yellow : PALETTE.magic).setPattern(PATTERN.glow).setInk('star');
+    b.setColor(look === 0 ? PALETTE.yellow : PALETTE.magic).setPattern(airborne(PATTERN.glow)).setInk('star');
     const w = 0.13; // half-width of the waist
     const s = 0.34; // reach of the short points
     for (const turn of [0, 1]) {

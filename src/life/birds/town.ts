@@ -1,7 +1,7 @@
 // What a bird needs to know about the town it flies over, read straight
 // off the shape plan (pure; worked out when the town changes, never per frame).
 
-import { CELL_H, columnIndex, inColumnBounds, key, keyX, keyY, keyZ, SEA_Y } from '@/core/grid';
+import { CELL_H, columnIndex, inColumnBounds, key, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Kind } from '@/core/kinds';
 import { hash } from '@/core/rand';
 import type { ShapePlan } from '@/resolve/plan';
@@ -76,6 +76,30 @@ export function tallestNear(shape: ShapePlan, cx: number, cz: number, radius: nu
     if (x < x0 || x > x1 || z < z0 || z > z1) continue;
     if (except !== undefined && shape.structureAt.get(cell) === except) continue;
     top = Math.max(top, (keyY(cell) + 1) * CELL_H + (ABOVE[kind] ?? 0.1));
+  }
+  return top;
+}
+
+const TOPS = new WeakMap<ShapePlan, Float32Array>();
+/** The height of the tallest thing in each column (land, sea or building, roofs included), worked out once per town. */
+export function columnTops(shape: ShapePlan): Float32Array {
+  let tops = TOPS.get(shape);
+  if (tops) return tops;
+  tops = new Float32Array(SIZE_X * SIZE_Z);
+  for (let z = 0; z < SIZE_Z; z++) for (let x = 0; x < SIZE_X; x++) tops[columnIndex(x, z)] = Math.max(SEA_Y, shape.terrain.height[columnIndex(x, z)]! * CELL_H);
+  for (const [cell, kind] of shape.kinds) {
+    const i = columnIndex(keyX(cell), keyZ(cell));
+    tops[i] = Math.max(tops[i]!, (keyY(cell) + 1) * CELL_H + (ABOVE[kind] ?? 0.1));
+  }
+  TOPS.set(shape, tops);
+  return tops;
+}
+
+/** The tallest top under a disc of radius `r` round (x, z), from columnTops. */
+export function topUnder(tops: Float32Array, x: number, z: number, r: number): number {
+  let top = SEA_Y;
+  for (let j = Math.floor(z - r); j <= Math.floor(z + r); j++) {
+    for (let i = Math.floor(x - r); i <= Math.floor(x + r); i++) if (inColumnBounds(i, j)) top = Math.max(top, tops[columnIndex(i, j)]!);
   }
   return top;
 }

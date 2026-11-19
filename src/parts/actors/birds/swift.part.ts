@@ -6,14 +6,16 @@
 // stands; its 'sit' drawing is the bird with its wings shut.
 
 import { scaling } from '@/core/mat4';
+import { airborne } from '@/gen/airborne';
 import { definePart } from '@/gen/api';
+import { PATTERN } from '@/gen/mesh';
 import { ball } from '../kit';
 import { birdColors, bodyScale, sheet } from './kit';
 
 export default definePart({
   actor: 'swift',
   build(_item, ctx) {
-    const b = ctx.mesh();
+    const b = ctx.mesh().setPattern(airborne(PATTERN.none)); // in the air: no shade on the ground (src/gen/airborne.ts)
     const c = birdColors();
     b.setInk('body');
     b.at(scaling(bodyScale('swift')), () => {
