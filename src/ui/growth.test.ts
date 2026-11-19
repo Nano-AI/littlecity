@@ -30,7 +30,7 @@ describe('growth playback', () => {
     game.undo();
     expect(game.world).toBe(world);
     expect(game.canUndo).toBe(false);
-  });
+  }, 240_000);
 
   test('skip puts the rest down at once and shows it once', () => {
     const { game, edits, shows } = setup();

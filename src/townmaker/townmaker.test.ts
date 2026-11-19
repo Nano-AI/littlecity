@@ -72,7 +72,7 @@ describe('grow a town', () => {
       expect(edits.length, `seed ${seed}`).toBeGreaterThan(300);
       expect(() => build(t, edits), `seed ${seed}`).not.toThrow();
     }
-  });
+  }, 240_000);
 
   test('deterministic per seed, different between seeds', () => {
     const t = generateTerrain(7);

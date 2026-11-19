@@ -265,3 +265,14 @@ fountains (D33 needs none). Orchestrator fixed `L10.fireflies` (negative
 seeds gave a negative index) and the stepper test (it measured a button
 mid-press, scaled to 0.97). Full check green: 1,370 tests. Published.
 Running: polish (speed), animation-polish, guide, steady-ink.
+
+**Animation polish merged** (`27c6c6d`, Opus 5.5): door leaves that open
+(`L29.door-leaves`), roof hatches, shore arrivals and leavers, workers'
+tools, gust shiver fix, castle garrison (L36) and rider with a horse (L37).
+Full run: 1,401 of 1,403 passed; the two failures were 30 s timeouts on
+heavy generator tests with the machine at load 23 (both pass alone; their
+timeouts are now 240 s). Published. The watching pass is only partly done:
+`docs/swarm/animation-polish.md` lists what is still unwatched (benches,
+birds, boats, smoke, beam, sails, flags, clock, lamps, windows, bounce,
+wobble, pop-in). Second pass sent to the same agent.
+Running: polish (speed), guide, steady-ink, animation-polish pass 2.
