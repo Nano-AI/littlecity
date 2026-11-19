@@ -48,7 +48,7 @@ export default defineRule<{ type: 'mailbox' | 'postbox'; cell: CellKey; pos: Cel
         if (n === NO_CELL || facts.world.floors.get(n) !== 'path') continue;
         const pos = cornerPos(opposite(d), opposite(lateral));
         if (!clear.free(n, pos) || !clear.headroom(n, pos) || clear.doorFronts.has(n)) continue;
-        out.push({ anchor: front, key: 'mailbox', data: { type: 'mailbox', cell: n, pos, face: d } });
+        out.push({ anchor: front, key: `mailbox${d}`, data: { type: 'mailbox', cell: n, pos, face: d } });
         break;
       }
     }
