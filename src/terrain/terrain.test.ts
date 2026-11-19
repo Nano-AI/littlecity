@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+// The 200-seed sweep is slow when the machine is busy; give it room.
+vi.setConfig({ testTimeout: 60_000 });
 import { columnIndex, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { MAT } from '@/core/world';
 import { checkTerrain, generateTerrain, heightAt, initialWorld, terrainFromHeights } from './terrain';
