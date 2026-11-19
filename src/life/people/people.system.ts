@@ -48,7 +48,7 @@ export function residentCap(): number {
   return PEOPLE.cap;
 }
 
-function emit<E extends 'personPassed' | 'residentHome'>(signals: Signals, event: E, payload: Parameters<SignalsDriver['emit']>[1]): void {
+function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellRung'>(signals: Signals, event: E, payload: Parameters<SignalsDriver['emit']>[1]): void {
   (signals as Partial<SignalsDriver>).emit?.(event, payload as never);
 }
 
@@ -67,6 +67,11 @@ function draw(p: Person, d: Drawn, stage: LifeStage): void {
   }
   const walking = p.pose === 'walk' || p.pose === 'run';
   const pose = poseOf(p.pose, walking ? p.stride : p.poseTime, p.rank);
+  if (walking && p.carrying) {
+    // Arms full: a sack, a tray.
+    pose.armL = pose.armR = 1.25;
+    pose.outL = pose.outR = -0.2;
+  }
   const sitting = p.pose === 'sit' && p.seat >= 0;
   const scale = d.look.scale * (0.35 + 0.65 * p.fade);
   rigMatrices(d.look, pose, local, sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
@@ -125,6 +130,12 @@ export default defineSystem<State>({
         },
         passed(cell) {
           emit(ctx.signals, 'personPassed', cell);
+        },
+        lamp(lamp) {
+          emit(ctx.signals, 'lampReached', { lamp });
+        },
+        bell(structure) {
+          emit(ctx.signals, 'bellRung', structure);
         },
         added(p) {
           const look = lookOf(p.look, p.child);

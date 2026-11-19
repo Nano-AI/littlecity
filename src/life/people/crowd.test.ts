@@ -10,6 +10,7 @@ import { PEOPLE } from '@/style/people';
 import { emptyWorld } from '@/world/world';
 import bench from '../../../scenarios/bench/bench-2000.scenario';
 import peopleTown from '../../../scenarios/people/people-town.scenario';
+import jobsTown from '../../../scenarios/rules/L23.jobs.scenario';
 import { createCrowd } from './crowd';
 import { clock, resolved, run, scenarioTown, townOf, watch } from './testing';
 
@@ -251,6 +252,79 @@ describe('routes people take', () => {
     expect(crowd.people[0]!.mode).toBe('home');
     expect(crowd.people[0]!.visible).toBe(false);
     expect(w.mostOut).toBe(0);
+  });
+});
+
+describe('jobs (L23) and the lamplighter (L08)', () => {
+  const town = scenarioTown(jobsTown);
+  const start = (part: 'day' | 'dusk' = 'day') => {
+    const c = clock(town.world.seed, part);
+    const lamps: string[] = [];
+    const bells: number[] = [];
+    const crowd = createCrowd({ events: { lamp: (id) => void lamps.push(id), bell: (s) => void bells.push(s) } });
+    crowd.sync(town.shape, town.dressing, c.time);
+    const w = watch(crowd);
+    const step = (seconds: number): void => {
+      for (let i = 0; i < seconds * 30; i++) {
+        crowd.step(c.tick(1 / 30), c.time);
+        w.check();
+      }
+    };
+    return { c, crowd, w, step, lamps, bells };
+  };
+
+  test('every job goes to one grown-up resident, and nobody has two', () => {
+    const { crowd } = start();
+    const kinds = ['baker', 'bell-ringer', 'fisher', 'gardener', 'guard', 'keeper', 'lamplighter', 'miller', 'shopkeeper', 'vendor'];
+    expect([...new Set(crowd.jobs.map((j) => j.job))].sort()).toEqual(kinds);
+    for (const kind of kinds) expect(crowd.jobs.some((j) => j.job === kind && j.worker !== null), kind).toBe(true);
+    const workers = crowd.jobs.map((j) => j.worker).filter((p) => p !== null);
+    expect(workers.length).toBeGreaterThanOrEqual(12);
+    expect(workers.every((p) => !p.child && !p.shutIn)).toBe(true);
+    expect(new Set(workers).size).toBe(workers.length);
+    // A shopkeeper lives over the shop.
+    for (const j of crowd.jobs) if ((j.job === 'shopkeeper' || j.job === 'baker') && j.worker) expect(j.worker.home).toBe(j.structure);
+  });
+
+  test('a working day: people are at their stations, the guard is up on the keep, the miller goes to and fro', () => {
+    const { crowd, w, step } = start();
+    const guard = crowd.jobs.find((j) => j.job === 'guard')!.worker!;
+    const miller = crowd.jobs.find((j) => j.job === 'miller')!.worker!;
+    let onKeep = 0, carrying = 0;
+    for (let i = 0; i < 300; i++) {
+      step(1);
+      if (guard.visible && keyY(guard.cell) === 4) onKeep++;
+      if (miller.carrying && miller.visible) carrying++;
+    }
+    expect(w.problems).toEqual([]);
+    expect(w.byHaunt.get('workplace') ?? 0).toBeGreaterThan(30);
+    expect(onKeep).toBeGreaterThan(60);
+    expect(carrying).toBeGreaterThan(10);
+  });
+
+  test('at dusk the lamplighter walks to every lamp in order, the bell is rung, and the keeper goes up for the night', () => {
+    const { c, crowd, w, step, lamps, bells } = start();
+    step(20);
+    expect(lamps).toEqual([]);
+    c.hold('dusk');
+    step(150);
+    const round = crowd.jobs.find((j) => j.job === 'lamplighter')!;
+    expect(lamps).toEqual(round.refs);
+    expect(lamps).toHaveLength(8);
+    expect(bells).toEqual([crowd.jobs.find((j) => j.job === 'bell-ringer')!.structure]);
+    c.hold('night');
+    step(60);
+    const keeper = crowd.jobs.find((j) => j.job === 'keeper')!;
+    expect(keeper.worker!.mode).toBe('visit');
+    expect(keeper.worker!.inside!.structure).toBe(keeper.structure);
+    // Everybody else is in (this town has no night owls: a tenth of 19 is one, and they have nowhere to go but the pier).
+    expect(crowd.people.filter((p) => p.visible).length).toBeLessThanOrEqual(1);
+    expect(w.problems).toEqual([]);
+    // Day again: the keeper comes down, and tomorrow's round starts afresh.
+    c.hold('day');
+    step(30);
+    expect(keeper.worker!.mode).not.toBe('visit');
+    expect(round.worker!.round).toBe(0);
   });
 });
 

@@ -6,17 +6,16 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - Walking graph `src/resolve/nav.ts` (types reshaped in `src/resolve/plan.ts`, listed in `docs/swarm/requests/people.md`), 21 tests in `nav.test.ts`.
 - Routing `src/life/people/route.ts` (A*, cached), the walked line `walk.ts`, the simulation `crowd.ts`, drawing `people.system.ts`, the census for window lights `home.ts`.
 - The person: `src/parts/people/{person,pose}.ts`, parts `resident`, `figure`.
-- Rules with fixtures in `scenarios/rules/`: L21, L22, L24, L25, L27, L32.
+- Rules with fixtures in `scenarios/rules/`: L21, L22, L23 (jobs, includes the L08 lamplighter round and the `lampReached` / `bellRung` events), L24, L25, L27, L32.
 - Watched (stairs, viaduct, roof hatch, square, dusk) and benchmarked: see README "How to watch".
 
 ## In progress
 - Nothing half-done at the last commit. If this line is stale, `git status` is the truth.
 
 ## Next, in order
-1. L08 lamplighter + L23 jobs (expose `lampReached` event; type already declared in `home.ts`).
-2. L26 reactions (stop-and-look exists in `crowd.blockLanded`; still to do: hop p=0.3, hand to hat in a gust, chat bubbles).
-3. L28 children (child variant, running and smaller size exist; kites and pigeon-chasing do not).
-4. Merge `yaoderek/bloom-s-monkey-city-builder` into the branch, `npm run check` green, final report.
+1. L26 reactions (stop-and-look exists in `crowd.blockLanded`; still to do: hop p=0.3, hand to hat in a gust, chat bubbles).
+2. L28 children (child variant, running and smaller size exist; kites and pigeon-chasing do not).
+3. Merge `yaoderek/bloom-s-monkey-city-builder` into the branch, `npm run check` green, final report.
 
 ## Decisions and gotchas
 - The worktree guard refuses compound shell commands (`mkdir` + heredoc, `for` loops, `cat > file`). One plain command per call; write files with the Write tool.
@@ -28,6 +27,8 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - A sky bridge (R-A02) is a covered gallery: people crossing it are hidden, correctly. No lookout is placed there.
 - Frame drops with walkers come from the renderer's ground-shade redraw (every other frame while anything moves), not from the crowd (0.03 ms a step). Raised with Look in the requests file.
 - `src/resolve/engine/run.test.ts` had one assertion loosened (it pinned an empty nav graph).
+- A job is a `workplace` socket (`name` = `job|order|ref`), not a new actor; the crowd assigns residents (live-in first, then nearest). Workers carry no props (no broom, rod or sack is drawn).
+- `scenarioTown()` in `testing.ts` resolves with the scenario's own rules (the L23 fixture brings its own lamps; D01 is Dressing's).
 - Timing assertions flake under load: assert means loosely, never a worst case.
 
 ## How walking is verified

@@ -48,6 +48,17 @@ export interface Haunt {
   user: Person | null;
 }
 
+/** A job (L23, L08): its stations in round order, and the resident who has it. */
+export interface Work {
+  key: string;
+  job: string;
+  structure: StructureId | undefined;
+  stations: Haunt[];
+  /** Per station: the lamp prop's id (lamplighter), else ''. */
+  refs: string[];
+  worker: Person | null;
+}
+
 export interface Goal {
   kind: 'home' | 'haunt' | 'leave';
   node: number;
@@ -77,6 +88,14 @@ export interface Person {
   owl: boolean;
   /** Their house has no door they can use: at home for good (resident/indoors). */
   shutIn: boolean;
+  /** Their job, if they have one, the station they were last sent to, and how far through tonight's round they are. */
+  work: Work | null;
+  station: number;
+  round: number;
+  /** The part of the day they last saw, to notice dusk falling. */
+  part: string;
+  /** Walking with their arms full (a miller's sack, a baker's tray). */
+  carrying: boolean;
 
   mode: Mode;
   visible: boolean;
@@ -129,6 +148,10 @@ export interface CrowdEvents {
   home?(home: StructureId, count: number): void;
   /** A walker stepped into a new cell. */
   passed?(cell: CellKey, person: Person): void;
+  /** L08: the lamplighter reached a lamp (the lamp prop's id). */
+  lamp?(lamp: string, person: Person): void;
+  /** L23: the bell ringer went in to ring. */
+  bell?(structure: StructureId, person: Person): void;
   /** Somebody was added or removed (the drawing must follow). */
   added?(person: Person): void;
   removed?(person: Person): void;
@@ -149,6 +172,7 @@ export interface Crowd {
   readonly nav: NavGraph | null;
   readonly router: Router | null;
   readonly haunts: readonly Haunt[];
+  readonly jobs: readonly Work[];
   /** Residents inside each home right now. */
   readonly atHome: ReadonlyMap<StructureId, number>;
   /** The town changed (or is shown for the first time). Does nothing until the dressing has arrived. */
@@ -172,6 +196,8 @@ const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
 /** Where a walker waiting for a single-file stretch stops in their cell (0 = where they came in, 1 = the far edge). */
 const WAIT_AT = 0.42;
 const TURN_RATE = 9;
+/** A keeper's stay in the lighthouse: all night (they come down when it is day). */
+const KEEPER_NIGHT = 1e9;
 /** A walker more than this far (radians) from the way they are to go turns on the spot before stepping off. */
 const FACE_FIRST = 1;
 const DIR_HEADING = [Math.PI, Math.PI / 2, 0, -Math.PI / 2] as const; // N E S W as headings (0 faces +z)
@@ -188,6 +214,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   let haunts: Haunt[] = [];
   let hauntById = new Map<string, Haunt>();
   let stranded = new Set<StructureId>();
+  let jobs: Work[] = [];
   let seed = 0;
   let runCount = new Int16Array(0);
   let runSense = new Int8Array(0);
@@ -230,9 +257,20 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   };
 
   // ── choosing where to go (L22, L25, L32) ───────────────────────────────
+  /** Work that keeps somebody out when the rest go in: the lamplighter's round, the ringer's bell, the keeper's light, the baker's dawn. */
+  const onDuty = (p: Person, time: TimeSignal): boolean => {
+    const w = p.work;
+    if (!w) return false;
+    if (w.job === 'lamplighter') return (time.isDusk || time.isNight) && p.round < w.stations.length;
+    if (w.job === 'bell-ringer') return time.isDusk && p.round === 0;
+    if (w.job === 'keeper') return time.isDusk || time.isNight;
+    if (w.job === 'baker') return time.isDawn;
+    return false;
+  };
   const mustBeHome = (p: Person, time: TimeSignal): boolean => {
     if (p.leaving) return false;
     if (time.isDay) return false;
+    if (onDuty(p, time)) return false;
     if (time.isDawn) return p.rank > 0.35; // the early risers are out at dawn
     if (p.owl) return false;
     return duskClock >= p.rank * PEOPLE.duskSpread;
@@ -274,7 +312,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const door = h.structure !== undefined ? usableDoors(nav!, h.structure).find((d) => d.node === h.node) : undefined;
         if (door && r(p, 'go-in') < 0.5) g.door = door;
         else {
-          facing(0.2);
+          facing(door ? 0.2 : 0.1);
           g.pose = r(p, 'pose') < 0.5 ? 'chat' : 'stand';
         }
         break;
@@ -317,6 +355,71 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         g.pose = h.name === 'fisher' ? 'fish' : 'look';
         g.linger = 30 + r(p, 'linger') * 30;
         break;
+      case 'workplace': {
+        const [job, , ref] = (h.name ?? '').split('|');
+        // The door they go in at: the workplace's, or for a miller's far station the windmill's.
+        const building = job === 'miller' && ref ? Number(ref) : h.structure;
+        const door = nav!.doors.find((d) => d.node === h.node && d.structure === building);
+        const beside = (pose: PoseName, lo: number, hi: number): void => {
+          // Beside the door, back to the wall, looking out.
+          if (h.dir !== undefined) {
+            const [dx, dz] = DIR4[h.dir]!;
+            const side = r(p, 'side') < 0.5 ? -0.3 : 0.3;
+            g.spot = { x: c.x - dx * 0.24 - dz * side, z: c.z - dz * 0.24 + dx * side };
+            g.face = DIR_HEADING[h.dir]!;
+          } else anywhere();
+          g.pose = pose;
+          g.linger = lo + r(p, 'linger') * (hi - lo);
+        };
+        switch (job) {
+          case 'shopkeeper':
+            beside('sweep', 14, 30);
+            break;
+          case 'baker':
+            beside('carry', 14, 30);
+            break;
+          case 'miller':
+            if (door) g.door = door;
+            g.linger = 3 + r(p, 'linger') * 3;
+            break;
+          case 'keeper':
+            if (door) g.door = door;
+            g.linger = KEEPER_NIGHT; // until day (the visit case lets them out)
+            break;
+          case 'bell-ringer':
+            if (door) g.door = door;
+            g.linger = 8;
+            break;
+          case 'fisher':
+            facing(0.3);
+            g.pose = 'fish';
+            g.linger = 30 + r(p, 'linger') * 30;
+            break;
+          case 'gardener':
+            anywhere();
+            g.pose = 'tend';
+            g.linger = 12 + r(p, 'linger') * 14;
+            break;
+          case 'vendor':
+            facing(0.16);
+            g.pose = r(p, 'pose') < 0.5 ? 'chat' : 'stand';
+            g.linger = 30 + r(p, 'linger') * 30;
+            break;
+          case 'guard':
+            g.spot = { x: c.x, z: c.z };
+            g.face = r(p, 'face') * Math.PI * 2;
+            g.linger = 2 + r(p, 'linger') * 3;
+            break;
+          case 'lamplighter':
+            g.spot = { x: c.x + (r(p, 'lx') - 0.5) * 0.2, z: c.z + (r(p, 'lz') - 0.5) * 0.2 };
+            g.pose = 'wave'; // an arm up to the lamp
+            g.linger = 0.9;
+            break;
+          default:
+            anywhere();
+        }
+        break;
+      }
       case 'haunt-stoop':
         if (h.name === 'step') {
           facing(-0.3); // back against the house, on the step
@@ -360,10 +463,39 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const near = of.map((h) => 1 / (6 + Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here))));
     return of[pickIndex(near, r(p, 'place'))]!;
   };
+  /** Where their job wants them now, if anywhere. */
+  const workGoal = (p: Person, time: TimeSignal): Goal | null => {
+    const w = p.work;
+    if (!w || !nav || p.node < 0 || w.stations.length === 0) return null;
+    const to = (i: number): Goal | null => {
+      const h = w.stations[i]!;
+      if (nav!.part[h.node] !== nav!.part[p.node]) return null;
+      p.station = i;
+      return hauntGoal(p, h);
+    };
+    switch (w.job) {
+      case 'lamplighter':
+        return onDuty(p, time) ? to(p.round) : null;
+      case 'bell-ringer':
+      case 'keeper':
+        return onDuty(p, time) ? to(0) : null;
+      case 'baker':
+        if (time.isDawn) return to(0);
+        break;
+      default:
+    }
+    if (!time.isDay) return null;
+    // By day: mostly at work, sometimes off like anybody else. A guard and a miller keep to their round.
+    const keen = w.job === 'guard' || w.job === 'miller' ? 0.92 : 0.7;
+    if (r(p, 'work') >= keen) return null;
+    return to(w.stations.length > 1 ? (p.station + 1) % w.stations.length : 0);
+  };
   /** What a person does next, as a goal waiting for its route. Null: nothing to do, stay. */
   const nextGoal = (p: Person, time: TimeSignal, fromHome: boolean): Goal | null => {
     p.trips++;
     if (p.leaving) return leaveGoal(p);
+    const work = workGoal(p, time);
+    if (work) return work;
     if (mustBeHome(p, time)) return fromHome ? null : homeGoal(p);
     // Out and about: mostly on to another place, sometimes home for a while.
     if (!fromHome && r(p, 'home') < 0.28) return homeGoal(p);
@@ -419,6 +551,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.pose = p.child ? 'run' : 'walk';
     p.seat = -1;
     p.stuck = 0;
+    p.carrying = goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker');
     enterPiece(p);
     return true;
   };
@@ -456,6 +589,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const arrive = (p: Person): void => {
     const goal = p.goal;
     clearWalk(p);
+    p.carrying = false;
+    if (goal?.haunt?.type === 'workplace' && p.work) {
+      if (p.work.job === 'lamplighter') {
+        events.lamp?.(p.work.refs[p.station] ?? '', p);
+        p.round = Math.max(p.round, p.station + 1);
+      } else if (p.work.job === 'bell-ringer') {
+        p.round = 1;
+        if (p.work.structure !== undefined) events.bell?.(p.work.structure, p);
+      }
+    }
     if (!goal) {
       p.mode = 'linger';
       p.timer = 2;
@@ -639,7 +782,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     hauntById = new Map();
     stranded = new Set();
     for (const s of dressing.sockets) {
-      if (!s.type.startsWith('haunt-') && s.type !== 'arrival' && s.type !== 'way-out') continue;
+      if (!s.type.startsWith('haunt-') && s.type !== 'arrival' && s.type !== 'way-out' && s.type !== 'workplace') continue;
       const node = nav!.nodeAt.get(s.cell);
       if (node === undefined) continue;
       const user = old.get(s.id)?.user ?? null;
@@ -656,6 +799,57 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       haunts.push(h);
       hauntById.set(h.id, h);
       if (h.type === 'haunt-stoop' && h.structure !== undefined) stranded.add(h.structure);
+    }
+    // Jobs: the workplace sockets grouped by job and workplace (one lamplighter for the whole town).
+    const byKey = new Map<string, { h: Haunt; order: number; ref: string }[]>();
+    for (const h of haunts) {
+      if (h.type !== 'workplace') continue;
+      const [job = '', order = '0', ref = ''] = (h.name ?? '').split('|');
+      const key = job === 'lamplighter' ? job : `${job}:${h.structure ?? h.cell}`;
+      const list = byKey.get(key);
+      if (list) list.push({ h, order: Number(order), ref });
+      else byKey.set(key, [{ h, order: Number(order), ref }]);
+    }
+    const before = new Map(jobs.map((j) => [j.key, j.worker] as const));
+    jobs = [...byKey]
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([key, list]) => {
+        list.sort((a, b) => a.order - b.order);
+        const worker = before.get(key) ?? null;
+        return { key, job: key.split(':')[0]!, structure: list[0]!.h.structure, stations: list.map((e) => e.h), refs: list.map((e) => e.ref), worker: worker && worker.mode !== 'gone' ? worker : null };
+      });
+  };
+  /** Gives every job to one resident: whoever lives at the workplace, else whoever lives nearest. Those who have one keep it. */
+  const assignJobs = (): void => {
+    const free = (p: Person): boolean => p.mode !== 'gone' && !p.shutIn && !p.child && !p.leaving;
+    for (const p of people) p.work = null;
+    for (const j of jobs) {
+      if (j.worker && free(j.worker) && !j.worker.work) j.worker.work = j;
+      else j.worker = null;
+    }
+    // Those who live at their workplace first (a shopkeeper over the shop), then whoever lives nearest.
+    for (const liveIn of [true, false]) {
+      for (const j of jobs) {
+        if (j.worker) continue;
+        const at = j.stations[0]!;
+        let best: Person | null = null;
+        let bestD = Infinity;
+        for (const p of people) {
+          if (!free(p) || p.work || (liveIn && p.home !== j.structure)) continue;
+          const door = homeDoor(p);
+          if (!door || nav!.part[door.node] !== nav!.part[at.node]) continue;
+          const d = Math.abs(keyX(door.cell) - keyX(at.cell)) + Math.abs(keyZ(door.cell) - keyZ(at.cell));
+          if (d < bestD || (d === bestD && best !== null && p.id < best.id)) {
+            bestD = d;
+            best = p;
+          }
+        }
+        if (best) {
+          j.worker = best;
+          best.work = j;
+          best.station = -1;
+        }
+      }
     }
   };
   /** Points a goal at the new graph's nodes, doors and haunts. False if what it was for is gone. */
@@ -815,6 +1009,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       speed: PEOPLE.speed * (1 + (rand(s, 'speed') * 2 - 1) * PEOPLE.speedVary) * (child ? PEOPLE.childSpeed : 1),
       owl: false,
       shutIn: false,
+      work: null, station: -1, round: 0, part: '', carrying: false,
       mode: 'home', visible: false, fade: 1,
       x: 0, y: 0, z: 0, heading: rand(s, 'heading') * 6.28,
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
@@ -834,6 +1029,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     },
     get haunts() {
       return haunts;
+    },
+    get jobs() {
+      return jobs;
     },
     atHome,
 
@@ -947,7 +1145,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const ranked = people.filter((p) => p.mode !== 'gone' && !p.leaving && !p.shutIn).sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : 1));
       for (const p of people) p.owl = false;
       ranked.forEach((p, i) => (p.owl = i < owls));
+      assignJobs();
       for (const p of fresh) {
+        p.part = time.part;
         if (first) warmStart(p, time);
         else arriveFromShore(p, order++);
       }
@@ -961,6 +1161,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const n = people.length;
       for (let i = 0; i < n; i++) {
         const p = people[i]!;
+        if (p.part !== time.part) {
+          const was = p.part;
+          p.part = time.part;
+          if (time.isDay) p.round = 0;
+          // Duty calls: whatever they were doing, they set off (a moment apart, by rank).
+          if (was !== '' && onDuty(p, time)) {
+            if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit') p.timer = Math.min(p.timer, p.rank * 2);
+            else if (p.mode === 'walk' && !p.want && p.goal?.kind === 'haunt' && p.walk![p.at]!.kind === 'move') p.want = workGoal(p, time);
+          }
+        }
         switch (p.mode) {
           case 'home':
             p.timer -= dt;
@@ -971,6 +1181,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             break;
           case 'visit':
             p.timer -= dt;
+            // The keeper comes down when it is day.
+            if (p.goal?.linger === KEEPER_NIGHT) p.timer = time.isDay || time.isDawn ? Math.min(p.timer, 0) : 1;
             if (p.timer <= 0 && !p.want) {
               p.want = nextGoal(p, time, false);
               if (!p.want) p.timer = 4;

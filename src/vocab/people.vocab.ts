@@ -11,9 +11,6 @@ declare module '@/core/vocab' {
     // A resident of a house whose door opens onto nothing walkable: at home for good, never drawn,
     // not counted toward the cap. They still light the windows.
     'resident/indoors': true;
-    // L23: the job this resident does (they are still a resident of `home`), and the structure they work at.
-    'resident.job': string;
-    'resident.work': number;
 
     // A little person standing still in one pose. No rule of the game emits
     // it: it is for gallery sheets and for looking at poses.
@@ -54,6 +51,9 @@ declare module '@/core/vocab' {
     'haunt-night': true;
     // L32: within two cells of a stranded home's door; `structure` is that home.
     'haunt-stoop': true;
+    // L23, L08: one station of a job. `name` is `<job>|<order>|<ref>` (ref: the lamp prop's id for the
+    // lamplighter; the windmill's structure id for a miller's second station); `structure` is the workplace.
+    'workplace': true;
     // L24: the open end of a single-file stretch (a narrow flight, carved steps, a gate): people wait here.
     'queue-point': true;
     // L27: where newcomers to `structure` (a home) come ashore: the nearest dock or beach cell with a route to its door.

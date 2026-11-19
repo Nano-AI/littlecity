@@ -26,6 +26,8 @@ declare module '@/life/api' {
     residentHome: { home: StructureId; count: number };
     /** L08: the lamplighter reached a lamp. `lamp` is the lamp prop's id. */
     lampReached: { lamp: string };
+    /** L23: the bell ringer went in to ring at dusk. The steeple, campanile or chapel. */
+    bellRung: StructureId;
   }
 }
 

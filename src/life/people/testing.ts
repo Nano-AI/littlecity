@@ -18,7 +18,7 @@ import type { TimeSignal } from '@/life/api';
 import { createSignals } from '@/life/signals';
 import { resolveTown } from '@/resolve/index';
 import type { DressingPlan, NavGraph, ShapePlan } from '@/resolve/plan';
-import { buildScenario, flatTerrain, TownBuilder, type Scenario } from '@/scenario';
+import { flatTerrain, resolveScenario, TownBuilder, type Scenario } from '@/scenario';
 import type { Terrain, World } from '@/core/world';
 import { emptyWorld } from '@/world/world';
 import { createCrowd, type Crowd, type CrowdOptions, type Person } from './crowd';
@@ -40,9 +40,10 @@ export function townOf(build: (b: TownBuilder) => void, terrain: Terrain = flatT
   build(b);
   return resolved(b.world, terrain);
 }
+/** A scenario's town, resolved with the discovered rules and the scenario's own. */
 export function scenarioTown(s: Scenario): TestTown {
-  const built = buildScenario(s);
-  return resolved(built.world, built.terrain);
+  const r = resolveScenario(s);
+  return { world: r.world, terrain: r.terrain, shape: r.shape, dressing: r.dressing, nav: r.dressing.nav };
 }
 
 export interface Clock {
