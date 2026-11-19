@@ -303,7 +303,7 @@ export default defineGenerator({
       }
     }
 
-    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' ? null : undefined));
+    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' ? null : undefined));
     return { mesh: b.build(), anchors };
   },
 });

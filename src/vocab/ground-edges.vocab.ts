@@ -13,6 +13,13 @@ declare module '@/core/vocab' {
     'run-end/butt': true; //        runs into a structure or a cliff: no post, the run goes into it
     'run-end.end': 0 | 1;
 
+    // An EDGE piece of a fence run that stands on the edge of a house roof (J20): it is drawn
+    // on the wall head, FENCE.roofInset inside the cell line. `edge` = the edge piece;
+    // `run-inset.side` = which of the two cells it separates is the roof: 0 the edge's own
+    // cell (west of an E edge, north of an S edge), 1 the cell beyond.
+    'run-inset': true;
+    'run-inset.side': 0 | 1;
+
     // How each end of an edge railing (J19) finishes, so neighbours meet with one post and no
     // gap. `from` is the −X end of its face frame, `to` the +X end:
     //   0 nothing (the neighbour draws the post)   1 a post on the line

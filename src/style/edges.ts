@@ -34,6 +34,13 @@ export const FENCE = defineStyle(
     drop: 2,
     /** How far a rope sags between two posts. */
     sag: 0.07,
+    /** Iron railing: bars to a cell, their width, the width of a post, and how much lighter than `metal` the iron is drawn. */
+    ironBars: 6,
+    ironBar: 0.015,
+    ironPost: 0.03,
+    ironLight: 0.3,
+    /** A fence edge piece on a house roof stands on the wall head: this far inside the cell line (the house's wall inset). */
+    roofInset: 0.07,
   },
   {
     height: [0.2, 0.6, 0.01],

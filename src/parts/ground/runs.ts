@@ -81,14 +81,39 @@ export function buildRun(s: Structure, plan: ShapePlan): RunGraph {
   const gateCells = new Map<CellKey, Feature>();
   const gateEdges = new Map<EdgeKey, Feature>();
   const butts = new Set<string>();
+  const insets = new Map<EdgeKey, [number, number]>();
   for (const f of plan.featuresByStructure.get(s.id) ?? []) {
     if (f.type === 'gate') {
       if (f.cell !== undefined) gateCells.set(f.cell, f);
       else if (f.edge !== undefined) gateEdges.set(f.edge, f);
     } else if (f.type === 'run-end' && f.edge !== undefined) {
       butts.add(`${f.edge}:${(f.params as { end?: number } | undefined)?.end ?? 0}`);
+    } else if (f.type === 'run-inset' && f.edge !== undefined) {
+      // On a house roof the piece stands on the wall head: its line moves toward the roof.
+      const toward = (f.params as { side?: number } | undefined)?.side === 1 ? 1 : -1;
+      insets.set(f.edge, edgeLine(f.edge).axis === 'z' ? [toward * FENCE.roofInset, 0] : [0, toward * FENCE.roofInset]);
     }
   }
+  // A corner moves by every distinct shift of the inset pieces that meet there, so two pieces in a
+  // line stay in line and two round a corner still meet (on both axes).
+  const cornerShifts = new Map<number, [number, number][]>();
+  for (const [e, shift] of insets) {
+    for (const p of edgeLine(e).ends) {
+      const k = nodeKey(p[0], p[1]);
+      const list = cornerShifts.get(k) ?? [];
+      if (!list.some((q) => q[0] === shift[0] && q[1] === shift[1])) list.push(shift);
+      cornerShifts.set(k, list);
+    }
+  }
+  const moved = (e: EdgeKey, p: readonly [number, number]): [number, number] => {
+    if (!insets.has(e)) return [p[0], p[1]];
+    let x = p[0], z = p[1];
+    for (const q of cornerShifts.get(nodeKey(p[0], p[1])) ?? []) {
+      x += q[0];
+      z += q[1];
+    }
+    return [x, z];
+  };
   const drafts = new Map<number, Draft>();
   const at = (x: number, z: number): Draft => {
     const k = nodeKey(x, z);
@@ -121,7 +146,7 @@ export function buildRun(s: Structure, plan: ShapePlan): RunGraph {
   for (const e of s.edges) {
     const line = edgeLine(e);
     level = line.y;
-    const [p0, p1] = line.ends;
+    const p0 = moved(e, line.ends[0]), p1 = moved(e, line.ends[1]);
     const a = at(p0[0], p0[1]), b = at(p1[0], p1[1]);
     const mid = at((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2);
     const gate = gateEdges.get(e);

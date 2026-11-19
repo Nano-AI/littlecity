@@ -11,20 +11,15 @@ No forks. Commit after each note. Finish with `npm run check` green.
 - **G3 curtain wall: done.** Batter, corbel course, parapet band, merlons
   wider than gaps, slits; stone tint from the tower it touches (tag
   `stone:N` pinned by R-E02).
-- **Next:** G4 iron
-  railing (`src/parts/ground/edge-draw.ts`, `railing.part.ts`, J19, J20),
-  G5 plaza motif (`src/gen/floor/plaza.gen.ts`, function `motif`).
+- **G4 iron railing: done.** Thin flat-toned bars, six a cell, lighter iron
+  (`FENCE.iron*`); on a house roof edge J20 pins `run-inset` per edge and
+  `buildRun` moves the line 0.07 inward (corners move on both axes). J19
+  skips cells on a house roof (the house draws a parapet) and doors or
+  stair heads on bare terrain.
+- **Next:** G5 plaza motif (`src/gen/floor/plaza.gen.ts`, function `motif`),
+  then seams against real buildings, then `npm run check`, then report.
 
 ## What each remaining note needs
-- G3: continuous parapet band 0.12 high, 0.03 overhang on a corbel course,
-  merlons 0.24 wide with 0.14 gaps, batter at the foot, a slit every third
-  cell; tower stone: `rampColor('tower', color)` + `PATTERN.stone`, bands
-  `PALETTE.stoneShade` (see `src/gen/tower/`, read-only).
-- G4: bars 0.015, posts 0.03 with ball finial, six bars a cell, top rail and
-  one low rail, one ink group; on a house roof inset 0.07 (`HOUSE.inset`) to
-  the wall head. An edge-only run's hash covers only its edge keys, so a rule
-  (J20) must pin "which side is the roof" as a feature. J19 must not rail a
-  side of a cell standing on a house roof (the house draws a parapet there).
 - G5: rings in `PALETTE.plaza` and `stoneShade` with a thin `brick` course,
   radial joints, accent no wider than 0.1. No red ring, no yellow disc.
 

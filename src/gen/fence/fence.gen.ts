@@ -61,7 +61,7 @@ export default defineGenerator({
       }
     }
     // Gates and run ends are drawn above; anything else on the run is drawn by its part.
-    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' ? null : undefined));
+    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' ? null : undefined));
     return { mesh: b.build(), anchors };
   },
 });

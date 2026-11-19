@@ -81,11 +81,17 @@ function picket(b: MeshBuilder, x: number, y: number, w: number, t: number, h: n
   b.quad([xa, yh, za], [xa, yh, zb], [x, yt, zb], [x, yt, za], FLAT4);
 }
 
-/** An upright square bar with no ends. */
+/** An upright square bar with no ends, in one flat tone: thin iron is a line, not a shaded box. */
 function bar(b: MeshBuilder, x: number, y0: number, y1: number, w: number): void {
   const s = w / 2;
-  b.box([x - s, y0, -s], [x + s, y1, s], { skip: ['top', 'bottom'] });
+  b.quad([x - s, y0, s], [x + s, y0, s], [x + s, y1, s], [x - s, y1, s], FLAT4);
+  b.quad([x + s, y0, -s], [x - s, y0, -s], [x - s, y1, -s], [x + s, y1, -s], FLAT4);
+  b.quad([x + s, y0, s], [x + s, y0, -s], [x + s, y1, -s], [x + s, y1, s], FLAT4);
+  b.quad([x - s, y0, -s], [x - s, y0, s], [x - s, y1, s], [x - s, y1, -s], FLAT4);
 }
+
+/** Wrought iron, drawn a little lighter than `metal` so a railing does not mass into black at playing zoom. */
+const IRON = (): ColorInput => mixColor(PALETTE.metal, PALETTE.stoneShade, FENCE.ironLight);
 
 const ROPE = (): ColorInput => mixColor(PALETTE.sand, PALETTE.wood, 0.45);
 const ROPE_POST = (): ColorInput => mixColor(PALETTE.wood, PALETTE.trunk, 0.45);
@@ -118,9 +124,10 @@ export function drawPost(b: MeshBuilder, style: FenceStyle, x: number, y: number
     );
   } else if (style === 'iron-railing') {
     const h = (FENCE.postHeight + tall) * k;
-    b.with({ color: PALETTE.metal, pattern: PATTERN.metal }, () => {
-      bar(b, x, y, y + h, 0.055);
-      lump(b, x, y + h + 0.025, 0, 0.042, 0.042, 0.042, { seg: 6, rings: 3 });
+    b.with({ color: IRON(), pattern: PATTERN.none }, () => {
+      bar(b, x, y, y + h, FENCE.ironPost);
+      // A small ball finial.
+      lump(b, x, y + h + 0.018, 0, 0.026, 0.026, 0.026, { seg: 6, rings: 3, normal: FLAT });
     });
   } else {
     const h = (FENCE.postHeight - 0.02 + tall) * k;
@@ -143,7 +150,7 @@ export function drawSpan(b: MeshBuilder, style: FenceStyle, o: SpanOptions): voi
   const yAt = (x: number): number => (rise * x) / L;
   const phase = o.phase ?? 0;
   const H = FENCE.height * k;
-  const postHalf = style === 'picket-fence' ? FENCE.post / 2 : style === 'iron-railing' ? 0.03 : style === 'rope-fence' ? 0.055 : 0.085;
+  const postHalf = style === 'picket-fence' ? FENCE.post / 2 : style === 'iron-railing' ? FENCE.ironPost / 2 : style === 'rope-fence' ? 0.055 : 0.085;
   // Members repeated along the run stand at fixed places in the world (so two spans in a line agree)
   // and keep clear of posts.
   const repeat = (perCell: number, margin: number, each: (x: number, i: number) => void): void => {
@@ -186,10 +193,12 @@ export function drawSpan(b: MeshBuilder, style: FenceStyle, o: SpanOptions): voi
       }
     });
   } else if (style === 'iron-railing') {
-    b.with({ color: PALETTE.metal, pattern: PATTERN.metal }, () => {
-      beam(b, 0, H - 0.03, L, H - 0.03 + rise, 0, 0.034, 0.034);
-      beam(b, 0, 0.05 * k, L, 0.05 * k + rise, 0, 0.026, 0.026);
-      repeat(FENCE.perCell, 0.014, (x) => bar(b, x, yAt(x) + 0.05 * k, yAt(x) + H - 0.03, 0.026));
+    // A top rail, one low rail, and thin bars between them: six to a cell.
+    b.with({ color: IRON(), pattern: PATTERN.none }, () => {
+      const w = FENCE.ironBar;
+      beam(b, 0, H - 0.022, L, H - 0.022 + rise, 0, 0.024, 0.022, { flat: true });
+      beam(b, 0, 0.06 * k, L, 0.06 * k + rise, 0, w + 0.004, w + 0.004, { flat: true });
+      repeat(FENCE.ironBars, w / 2, (x) => bar(b, x, yAt(x) + 0.06 * k, yAt(x) + H - 0.022, w));
     });
   } else {
     b.with({ color: o.stone ?? PALETTE.stone, pattern: PATTERN.none }, () => {
@@ -225,7 +234,7 @@ export function drawGate(b: MeshBuilder, style: FenceStyle, o: PostOptions): voi
   // The leaf hangs on one post and stands open by a seeded angle, to one side or the other.
   const hingeLeft = o.r('hinge') < 0.5;
   const open = (0.3 + o.r('open') * 0.45) * (o.r('way') < 0.5 ? 1 : -1);
-  const postW = style === 'picket-fence' ? FENCE.post : 0.055;
+  const postW = style === 'picket-fence' ? FENCE.post : FENCE.ironPost;
   const leaf = 2 * half - postW - 0.05;
   const hx = (hingeLeft ? -1 : 1) * (half - postW / 2 - 0.01);
   // Rotation about Y by θ turns +X toward −Z; a left-hung leaf points along +X, a right-hung one along −X.
