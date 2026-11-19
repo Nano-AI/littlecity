@@ -310,3 +310,19 @@ Running: steady-ink, animation-polish pass 2.
 - Fireflies removed entirely → animation-polish agent.
 Running: steady-ink, animation-polish pass 2, house-styles fix, terrain2.
 Not started: discovery rounds (Stage 5), final art pass (Stage 6).
+
+**Animation polish pass 2 merged** (`aca629f`): calmer Grow-a-town
+playback, rows no longer jump, door glass follows who is home, pigeons land
+cleanly, fishing boat banks, troop reads as two files, rider sits astride,
+lone keep gets its troop, rider cases for no plaza and no street. The agent
+is still running on the night-windows and fireflies items.
+**Steady ink merged** (`7224daf`): flicker on camera motion cut (mean blink
+score 0.103 → 0.015): coplanar tie-break per ink group, tighter near and far
+planes, four samples for thin lines, pen wobble anchored to the drawing,
+wave marks fixed to the water. Costs about 1 ms a frame at 1280 × 800 at 2×.
+Tools: `node src/render/testing/flicker.mjs`, `coplanar.mjs`. Remaining
+coplanar overlaps listed in `docs/swarm/requests/steady-ink.md` → new Opus
+agent `swarm/coplanar`.
+Full check green: 1,500 tests. Published.
+Running: animation-polish (night windows, fireflies), house-styles fix,
+terrain2, coplanar.
