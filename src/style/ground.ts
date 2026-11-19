@@ -55,17 +55,21 @@ export const FLOOR = defineStyle(
     /** Radius of a path's rounded end and outer corners. */
     pathRound: 0.3,
     /** Radius of the fillet in a path's inner corners. */
-    pathFillet: 0.15,
+    pathFillet: 0.12,
     /** How far a path's edge wanders (seeded, smooth). */
     pathWobble: 0.03,
     /** Height of a path, a plaza and a garden bed above the top they lie on. */
     pathLift: 0.012,
     plazaLift: 0.03,
     gardenLift: 0.02,
+    /** Chance of a clump of grass, a stone or flowers beside each closed side of a path cell. */
+    verge: 0.3,
     /** The margin of a path where it widens at a door. */
     doorMargin: 0.04,
     /** Width of the kerb where a path meets a plaza. */
     kerb: 0.07,
+    /** Width of a plaza's border course (J22). */
+    plazaBorder: 0.14,
     /** Rounded outer corners of a plaza and of a garden. */
     plazaRound: 0.06,
     gardenRound: 0.16,
@@ -87,8 +91,10 @@ export const FLOOR = defineStyle(
     pathLift: [0.004, 0.04, 0.002],
     plazaLift: [0.004, 0.06, 0.002],
     gardenLift: [0.004, 0.06, 0.002],
+    verge: [0, 1, 0.05],
     doorMargin: [0, 0.15, 0.01],
     kerb: [0.03, 0.15, 0.01],
+    plazaBorder: [0.05, 0.3, 0.01],
     plazaRound: [0, 0.3, 0.01],
     gardenRound: [0, 0.4, 0.01],
     hedgeHeight: [0.1, 0.4, 0.01],
