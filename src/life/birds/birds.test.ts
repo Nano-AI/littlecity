@@ -194,6 +194,26 @@ describe('pigeons (L12) and the scatter (L16)', () => {
     }
   });
 
+  test('a pigeon comes down without a jump: no frame of its landing moves it more than flying does', () => {
+    const { signals, life, of, pos } = live(pigeonsScenario);
+    step(life, signals, 3);
+    signals.emit('blockLanded', key(22, 1, 21));
+    const birds = of('pigeon');
+    let last = birds.map(pos);
+    let most = 0;
+    for (let i = 0; i < 30 * 9; i++) {
+      step(life, signals, 1 / 30);
+      const now = birds.map(pos);
+      now.forEach((p, k) => {
+        const q = last[k]!;
+        // Only the moment of touching down: low over the ground and coming down (the take-off is a burst, on purpose).
+        if (p[1] < CELL_H + 0.15 && p[1] <= q[1]) most = Math.max(most, Math.hypot(p[0] - q[0], p[2] - q[2]));
+      });
+      last = now;
+    }
+    expect(most).toBeLessThan(0.08);
+  });
+
   test('a frightened flock wheels clear of every roof round its square (the showcase town)', () => {
     const scn = findScenario('everything')!;
     const { town, signals, life, of, pos } = live(scn);
