@@ -726,8 +726,12 @@
     padding: 2px 3px;
   }
   .lc-step {
+    /* Never let the flex row shave a fraction of a pixel off a touch target. */
+    flex: 0 0 44px;
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
   .lc-step .lc-btn-icon {
     width: 24px;
