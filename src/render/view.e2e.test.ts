@@ -130,6 +130,22 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('no stray ink along the edge of the frame where the sea runs off-screen', async () => {
+    // The depth test reads either side of each pixel. At the frame's edge one side used to be missing,
+    // which read as a jump in depth on any sloping surface and drew a row of scribble along the edge.
+    // Here the whole frame is open sea: there is nothing to outline, so there must be no ink at all.
+    for (const [ink, ratio] of [['full', 1], ['full', 2], ['half', 2]] as const) {
+      await look(`window.__look.open('look-primitives', { ink: '${ink}', pixelRatio: ${ratio} })`);
+      for (const pose of ['{ pitch: 32, yaw: 45 }', '{ pitch: 25, yaw: 225 }', '{ pitch: 75, yaw: 300 }']) {
+        await look(`window.__look.camera({ ...${pose}, zoom: 9, target: [39, 0, 39] })`);
+        const f = await look<FrameSummary>(`window.__look.frame(2)`);
+        expect(f.border, `${ink} @${ratio}x ${pose}: frame edge`).toBeLessThan(0.002);
+        expect(f.dark, `${ink} @${ratio}x ${pose}: whole frame`).toBeLessThan(0.002);
+      }
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('orbit, pan and zoom glide: the pose moves toward the goal over a few frames', async () => {
     await look(`window.__look.open('look-primitives', { ink: 'full' })`);
     const still = await look<FrameSummary>(`window.__look.frame(0.1)`);

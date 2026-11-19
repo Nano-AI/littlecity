@@ -27,6 +27,8 @@ export interface FrameSummary {
   dark: number;
   /** Pixels that are bright and warm: lit windows and lamps. */
   warm: number;
+  /** Share of ink-dark pixels in the outermost three rows and columns of the frame. */
+  border: number;
   /** The four corner pixels (bare paper in most views). */
   corners: [number, number, number][];
   /** A coarse copy of the picture (COLS × ROWS cells, rgb), for comparing two frames. */
@@ -47,7 +49,7 @@ function summary(): FrameSummary {
   const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
   const px = new Uint8Array(w * h * 4);
   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
-  let r = 0, g = 0, b = 0, dark = 0, warm = 0;
+  let r = 0, g = 0, b = 0, dark = 0, warm = 0, border = 0, borderDark = 0;
   const thumb = new Float64Array(COLS * ROWS * 3);
   const counts = new Float64Array(COLS * ROWS);
   for (let y = 0; y < h; y++) {
@@ -58,7 +60,12 @@ function summary(): FrameSummary {
       r += pr;
       g += pg;
       b += pb;
-      if (0.299 * pr + 0.587 * pg + 0.114 * pb < 95) dark++;
+      const isDark = 0.299 * pr + 0.587 * pg + 0.114 * pb < 95;
+      if (isDark) dark++;
+      if (x < 3 || y < 3 || x >= w - 3 || y >= h - 3) {
+        border++;
+        if (isDark) borderDark++;
+      }
       if (pr > 225 && pg > 185 && pb < 170 && pr - pb > 70) warm++;
       const cell = row * COLS + Math.min(COLS - 1, Math.floor((x / w) * COLS));
       thumb[cell * 3] += pr;
@@ -81,6 +88,7 @@ function summary(): FrameSummary {
     mean: [r / n, g / n, b / n],
     dark: dark / n,
     warm,
+    border: borderDark / Math.max(1, border),
     corners: [at(2, 2), at(w - 3, 2), at(2, h - 3), at(w - 3, h - 3)],
     thumb: [...thumb].map((v, i) => Math.round(v / counts[Math.floor(i / 3)]!)),
   };
