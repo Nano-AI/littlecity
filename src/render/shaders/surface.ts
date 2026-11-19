@@ -45,6 +45,9 @@ uniform sampler2D uSlots;
 uniform sampler2D uWind;
 uniform float uTime;
 uniform float uSway;
+uniform float uZStep;     // the coplanar tie-break: one level, in clip-space depth
+uniform vec3 uZOrigin;    // depth, worked out near the numbers it works on: the camera's target ...
+uniform vec3 uZAxis;      // ... and the way it looks, over half the depth range
 
 out vec3 vW;
 out vec3 vN;
@@ -114,6 +117,15 @@ void main(){
   float id = ink.x;
   vId = vec2(floor(id / 256.0), mod(id, 256.0)) / 255.0;
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  // The same depth as the matrices give (the camera is orthographic), but measured from the target
+  // rather than from the eye 200 units away, where a float's rounding is a whole step of the depth
+  // buffer: two surfaces in one plane then come out equal, not a step apart one way or the other.
+  gl_Position.z = dot(p - uZOrigin, uZAxis) * gl_Position.w;
+  // Two surfaces in the same plane (a coping flush with a wall top, a floor laid on a terrace) would
+  // otherwise trade pixels as the view turns, and where their ink ids differ every traded pixel draws
+  // a seam: a scribble that flickers over the face. Each ink id is nudged toward the eye by its own
+  // few depth steps (index.ts, Z_STEP), so one of the two always wins, whichever way the camera looks.
+  gl_Position.z -= floor(fract(id * 0.6180339) * 24.0) * uZStep * gl_Position.w;
 }
 `;
 
@@ -228,6 +240,23 @@ float hatchLayer(vec2 p, vec2 dir, float seed){
   // The pencil lifts here and there: patches of strokes, not a ruled screen.
   float lifted = mix(n2(vec2(hv * 0.9 + seed, ha * 0.2)), n2(vec2(hv * 1.8 + seed, ha * 0.4)), fr);
   return max(stroke, between) * smoothstep(0.3, 0.62, lifted);
+}
+
+// One layer of wave marks on the water: a short dash along r (level on the page) in a cell of the
+// water C wide in the world, its centre moved by up to j. Only the cell the point is in is read: a
+// dash reaches no more than its taper's length past the cell (one cell is a quarter of the cost of
+// four, over the whole sea).
+float waveMarks(vec2 p, vec2 r, float C, float j, float seed, float lenA, float lenB, float taper,
+                float wFreq, float wAmp, float wSpeed, float lifeSpeed, float keep, float w, float fw){
+  vec2 id = floor(p / C);
+  float rr = h1(id + seed);
+  if (rr < keep) return 0.0;
+  vec2 d = p - (id + 0.5) * C - (vec2(h1(id + seed + 1.7), h1(id + seed + 5.3)) - 0.5) * 2.0 * j;
+  vec2 lp = vec2(dot(d, r), dot(d, vec2(-r.y, r.x)));
+  float len = lenA + rr * lenB;
+  float wav = sin(lp.x * wFreq + rr * 6.0 + uTime * wSpeed) * wAmp;
+  float life = 0.5 + 0.5 * sin(uTime * lifeSpeed + rr * 40.0);
+  return (1.0 - smoothstep(w - fw, w + fw, abs(lp.y - wav))) * smoothstep(len, len - taper, abs(lp.x)) * smoothstep(0.25, 0.7, life);
 }
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
@@ -396,37 +425,17 @@ void main(){
     c = mix(c, uSeaDeep, (1.0 - smoothstep(0.5, 1.5, abs(sd2 - 1.3) / fw2)) * 0.55 * step(vEdge, 3.0));
     c = mix(c, uShallow, (1.0 - smoothstep(0.0, 0.62, sd)) * 0.7);
     c *= uSeaKeep;       // the sea keeps its blue through a warm dusk (index.ts)
-    // Wave marks lie level on the page whichever way the island is turned.
+    // Wave marks lie level on the page whichever way the island is turned, each at its own place on
+    // the water (waveMarks), so turning the view turns no mark out of its place.
     vec2 r2 = normalize(uCamRight.xz);
-    vec2 q = vec2(dot(vW.xz, r2), dot(vW.xz, vec2(-r2.y, r2.x)));
-    float fwq = fwidth(q.y) * 1.2;      // from the unbroken coordinate: no hairline where the cells meet
-    q.x += uTime * 0.1;
+    float fwq = fwidth(dot(vW.xz, vec2(-r2.y, r2.x))) * 1.2;   // from the unbroken coordinate: no hairline between cells
     float open = smoothstep(0.25, 0.5, sd);
-    {
-      vec2 cell = vec2(0.9, 0.34);
-      vec2 id = floor(q / cell); vec2 f = fract(q / cell) - 0.5;
-      float r = h1(id);
-      vec2 lp = (f - (vec2(h1(id + 1.7), h1(id + 5.3)) - 0.5) * vec2(0.35, 0.3)) * cell;
-      float len = 0.11 + r * 0.08;
-      float wav = sin(lp.x * 26.0 + r * 6.0 + uTime * 1.5) * 0.014;
-      float life = 0.5 + 0.5 * sin(uTime * 0.7 + r * 40.0);
-      float mark = (1.0 - smoothstep(0.011 - fwq, 0.011 + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.05, abs(lp.x)) * step(0.45, r) * smoothstep(0.25, 0.7, life);
-      c = mix(c, uFoam, mark * 0.85 * fade(0.2) * open);
-    }
-    {
-      // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
-      vec2 cell = vec2(3.1, 1.05);
-      vec2 qq = q + vec2(uTime * 0.12, 0.0);
-      vec2 id = floor(qq / cell); vec2 f = fract(qq / cell) - 0.5;
-      float r = h1(id + 31.0);
-      vec2 lp = (f - (vec2(h1(id + 2.9), h1(id + 6.1)) - 0.5) * vec2(0.4, 0.45)) * cell;
-      float len = 0.45 + r * 0.5;
-      float wav = sin(lp.x * 5.5 + r * 6.0 + uTime * 0.9) * 0.05;
-      float life = 0.5 + 0.5 * sin(uTime * 0.45 + r * 40.0);
-      float w = max(0.03, 0.75 / uPx);
-      float mark = (1.0 - smoothstep(w - fwq, w + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.2, abs(lp.x)) * step(0.4, r) * smoothstep(0.2, 0.7, life);
-      c = mix(c, uFoam, mark * 0.7 * (1.0 - fade(0.2)) * open);
-    }
+    // Each layer is read only where it shows: near the shore neither, and at most zooms only one.
+    float near = fade(0.2) * open;
+    if (near > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.07, r2, 0.55, 0.1, 0.0, 0.11, 0.08, 0.05, 26.0, 0.014, 1.5, 0.7, 0.45, 0.011, fwq) * 0.85 * near);
+    // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
+    float far = (1.0 - fade(0.2)) * open;
+    if (far > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.12, 31.0, 0.4, 0.4, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / uPx), fwq) * 0.7 * far);
     float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
     float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12);

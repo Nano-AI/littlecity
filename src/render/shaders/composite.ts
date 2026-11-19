@@ -16,8 +16,9 @@
 //
 // The pen: line position wanders by up to about half a CSS pixel and the
 // weight and ink density swell and thin slowly along the stroke. The noise
-// is anchored to the world, so lines do not crawl when the view pans, and it
-// is static unless LOOK.boil is on.
+// lives on the things drawn (see penAt), so a line keeps its own wobble when
+// the view pans, orbits or zooms instead of crawling through a noise field
+// fixed to the screen, and it is static unless LOOK.boil is on.
 //
 // Then the dusk grade (grade.ts), lit windows with a warm halo, stars on
 // the bare paper, and last the paper grain, added after everything so that
@@ -68,12 +69,14 @@ void main(){
 export const compositeFragment = /* glsl */ `
 precision highp float;
 precision highp sampler2D;
+precision highp sampler3D;
 in vec2 vUv;
 out vec4 oColor;
 
 uniform sampler2D tColor;
 uniform sampler2D tId;
 uniform sampler2D tDepth;
+uniform sampler3D tNoise;
 #ifdef INK_TEX
 uniform sampler2D tInk;
 #endif
@@ -81,6 +84,12 @@ uniform vec2 uOut;         // this pass's target size, device pixels
 uniform float uPR;         // device pixels per CSS pixel in this target
 uniform vec2 uOrigin;      // the world origin on screen, CSS pixels from the bottom left
 uniform float uTime;
+uniform vec3 uEye;         // the camera: centre of its plane, right and up times the half size,
+uniform vec3 uRight;       // the way it looks, and the near plane's distance (world units)
+uniform vec3 uUp;
+uniform vec3 uForward;
+uniform float uNear;
+uniform float uCss;        // CSS pixels per world unit
 uniform float uThick;      // line width of a silhouette, CSS pixels
 uniform float uInner;      // width of seams and creases, as a share of it
 uniform float uDepthRange; // far - near, world units
@@ -106,19 +115,70 @@ uniform float uHalo;
 ${NOISE}
 ${COLOR}
 
+// Value noise in 3D, four channels at once: a 32-cube of random values (index.ts) read with the
+// hardware's filtering at smoothed coordinates, so it is as smooth as computed value noise for one
+// texture read instead of eight hashes.
+vec4 n3(vec3 p){
+  vec3 i = floor(p), f = p - i;
+  return texture(tNoise, (i + f * f * (3.0 - 2.0 * f) + 0.5) / 32.0);
+}
+
+// The pen at this pixel: x, y the line's wobble (-0.5 to 0.5, CSS pixels), z its weight and w its
+// ink density (0 to 1, slow). The noise is read at the world point under the pixel, so it travels
+// with the drawing. Across an outline the two sides lie far apart, so it is read at the nearest
+// surface within two pixels: both sides of a line, and the line itself, share one point. Its scale
+// follows the zoom in powers of two, blended (as the hatching's spacing is), so the wobble stays
+// about five pixels long at every zoom and nothing jumps while zooming.
+vec4 penAt(vec2 uv, float t){
+  vec2 r = 2.0 * uPR / uOut;
+  float d = texture(tDepth, uv).x;
+#ifndef INK_TEX
+  // (Where the lines came from the half-resolution ink pass only the density is read here, and a
+  // density that differs either side of an outline does not show.)
+  d = min(d, min(texture(tDepth, uv + vec2(r.x, 0.0)).x, texture(tDepth, uv - vec2(r.x, 0.0)).x));
+  d = min(d, min(texture(tDepth, uv + vec2(0.0, r.y)).x, texture(tDepth, uv - vec2(0.0, r.y)).x));
+#endif
+  vec2 ndc = uv * 2.0 - 1.0;
+  vec3 p = uEye + uRight * ndc.x + uUp * ndc.y + uForward * (uNear + d * uDepthRange) + t;
+  float lod = log2(max(uCss, 1e-3));
+  float o = floor(lod), fr = lod - o, s = exp2(o);
+  // Each pair of octaves spans a factor of two on the page around the pen's own scale: about five
+  // pixels for the wobble (0.21 a pixel) and a few dozen for weight and density (0.04).
+  // The finer octave of one zoom is the coarser of the next, offset and all, so there is no seam.
+  vec2 slow = mix(n3(p * s * 0.04 + 41.0).zw, n3(p * s * 0.08 + 41.0).zw, fr);
+#ifdef INK_TEX
+  return vec4(0.0, 0.0, slow);          // the lines were found in the ink pass; only the density is left
+#else
+  vec2 wob = mix(n3(p * s * 0.21).xy, n3(p * s * 0.42).xy, fr);
+  return vec4(wob - 0.5, slow);
+#endif
+}
+
 vec3 decN(vec4 s){ vec2 xy = s.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
 
 // px is the pen's half-width for silhouettes; seams and creases, the lines inside a shape, are
 // drawn with a finer one (uInner of it), so a close-up keeps a delicate interior and a firm outline.
-float edgeAt(vec2 uv, vec2 px){
+// Seams and creases: the ink id changes or the normal turns between a point and its four neighbours.
+float surfaceEdgeAt(vec2 uv, vec2 px){
   vec4 s0 = texture(tId, uv);
   vec3 n0 = decN(s0);
   vec2 ox = vec2(px.x * uInner, 0.0), oy = vec2(0.0, px.y * uInner);
   vec4 sa = texture(tId, uv + ox), sb = texture(tId, uv - ox), sc = texture(tId, uv + oy), sd = texture(tId, uv - oy);
-  // Depth is read at whole texels, the same distance either side of the centre, so that the second
-  // difference is exactly zero across a flat surface at any slant and any zoom, and large across a jump.
-  // At the frame's edge the centre is pulled in until both sides exist: a missing side would read as a
-  // jump on any sloping surface (the sea running off the top of the picture) and draw a row of scribble.
+  float eId = step(0.5 / 255.0, abs(sa.z - s0.z) + abs(sa.w - s0.w));
+  eId = max(eId, step(0.5 / 255.0, abs(sb.z - s0.z) + abs(sb.w - s0.w)));
+  eId = max(eId, step(0.5 / 255.0, abs(sc.z - s0.z) + abs(sc.w - s0.w)));
+  eId = max(eId, step(0.5 / 255.0, abs(sd.z - s0.z) + abs(sd.w - s0.w)));
+  float turn = min(min(dot(n0, decN(sa)), dot(n0, decN(sb))), min(dot(n0, decN(sc)), dot(n0, decN(sd))));
+  float eN = 1.0 - smoothstep(0.8, 0.9, turn);
+  return max(eId * uWeights.y, eN * uWeights.z);
+}
+
+// Silhouettes: the depth jumps. Depth is read at whole texels, the same distance either side of the
+// centre, so that the second difference is exactly zero across a flat surface at any slant and any
+// zoom, and large across a jump. At the frame's edge the centre is pulled in until both sides exist: a
+// missing side would read as a jump on any sloping surface (the sea running off the top of the
+// picture) and draw a row of scribble.
+float depthEdgeAt(vec2 uv, vec2 px){
   ivec2 size = textureSize(tDepth, 0);
   ivec2 o = min(max(ivec2(1), ivec2(px * vec2(size) + 0.5)), (size - 1) / 2);
   ivec2 c = clamp(ivec2(floor(uv * vec2(size))), o, size - 1 - o);
@@ -126,26 +186,27 @@ float edgeAt(vec2 uv, vec2 px){
   float da = texelFetch(tDepth, c + ivec2(o.x, 0), 0).x, db = texelFetch(tDepth, c - ivec2(o.x, 0), 0).x;
   float dc = texelFetch(tDepth, c + ivec2(0, o.y), 0).x, dd = texelFetch(tDepth, c - ivec2(0, o.y), 0).x;
   float jump = max(abs(da + db - 2.0 * dm), abs(dc + dd - 2.0 * dm)) * uDepthRange;
+  vec4 s0 = texture(tId, uv);
   float drawn = step(0.5 / 255.0, s0.z + s0.w);   // bare paper has ink id 0 and no depth of its own
-  float eDepth = smoothstep(uDepthT, uDepthT * 2.0, jump) * drawn;
-  float eId = step(0.5 / 255.0, abs(sa.z - s0.z) + abs(sa.w - s0.w));
-  eId = max(eId, step(0.5 / 255.0, abs(sb.z - s0.z) + abs(sb.w - s0.w)));
-  eId = max(eId, step(0.5 / 255.0, abs(sc.z - s0.z) + abs(sc.w - s0.w)));
-  eId = max(eId, step(0.5 / 255.0, abs(sd.z - s0.z) + abs(sd.w - s0.w)));
-  float turn = min(min(dot(n0, decN(sa)), dot(n0, decN(sb))), min(dot(n0, decN(sc)), dot(n0, decN(sd))));
-  float eN = 1.0 - smoothstep(0.8, 0.9, turn);
-  return max(eDepth * uWeights.x, max(eId * uWeights.y, eN * uWeights.z));
+  return smoothstep(uDepthT, uDepthT * 2.0, jump) * drawn * uWeights.x;
 }
 
-// A few rotated sub-samples: cheap anti-aliasing for the ink.
+// Four rotated sub-samples, a pixel's width apart: cheap anti-aliasing for the ink. With fewer (there
+// used to be two where the picture is not super-sampled: phones, and screens of 1.5x and up) a seam or
+// crease a pixel or less wide popped on and off as it crossed pixel centres while the camera moved.
+// Where the picture is not super-sampled, silhouettes (the wider outline) keep two: the other two
+// would read the same depth texels. Where it is (FINE_DEPTH), each tap has depth texels of its own.
 float edge(vec2 uv, float thick){
   vec2 px = thick * uPR * 0.5 / uOut;
   vec2 q = 0.5 / uOut;
-#if INK_TAPS == 4
-  return 0.25 * (edgeAt(uv + vec2(q.x, 0.5 * q.y), px) + edgeAt(uv + vec2(-0.5 * q.x, q.y), px)
-               + edgeAt(uv + vec2(-q.x, -0.5 * q.y), px) + edgeAt(uv + vec2(0.5 * q.x, -q.y), px));
+  vec2 t1 = vec2(q.x, 0.5 * q.y), t2 = vec2(-0.5 * q.x, q.y), t3 = vec2(-q.x, -0.5 * q.y), t4 = vec2(0.5 * q.x, -q.y);
+#ifdef FINE_DEPTH
+  return 0.25 * (max(surfaceEdgeAt(uv + t1, px), depthEdgeAt(uv + t1, px)) + max(surfaceEdgeAt(uv + t2, px), depthEdgeAt(uv + t2, px))
+               + max(surfaceEdgeAt(uv + t3, px), depthEdgeAt(uv + t3, px)) + max(surfaceEdgeAt(uv + t4, px), depthEdgeAt(uv + t4, px)));
 #else
-  return 0.5 * (edgeAt(uv + vec2(0.5 * q.x, 0.25 * q.y), px) + edgeAt(uv + vec2(-0.5 * q.x, -0.25 * q.y), px));
+  float surf = 0.25 * (surfaceEdgeAt(uv + t1, px) + surfaceEdgeAt(uv + t2, px) + surfaceEdgeAt(uv + t3, px) + surfaceEdgeAt(uv + t4, px));
+  float depth = 0.5 * (depthEdgeAt(uv + t1, px) + depthEdgeAt(uv + t3, px));
+  return max(surf, depth);
 #endif
 }
 
@@ -155,10 +216,10 @@ void main(){
   float t = uBoil * floor(uTime * 2.0) * 17.31;
   float steady = min(uWobble, 1.0);
 
+  vec4 pen = penAt(vUv, t);
 #ifndef INK_TEX
-  vec2 w = vec2(n2(fw * 0.21 + t), n2(fw * 0.21 + 31.7 + t)) - 0.5;
-  float weight = mix(1.0, 0.72 + 0.56 * n2(fw * 0.03 + 11.0 + t), steady);
-  float e = edge(vUv + w * uWobble * uPR / uOut, uThick * weight);
+  float weight = mix(1.0, 0.72 + 0.56 * pen.z, steady);
+  float e = edge(vUv + pen.xy * uWobble * uPR / uOut, uThick * weight);
 #else
   float e = texture(tInk, vUv).r;
 #endif
@@ -240,7 +301,7 @@ void main(){
     }
   }
 
-  float dens = mix(1.0, 0.8 + 0.2 * n2(fw * 0.07 + 3.0 + t), steady);
+  float dens = mix(1.0, 0.8 + 0.2 * pen.w, steady);
   g = mix(g, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);
 
   // Paper grain, after everything: per-pixel tooth, short fibres, soft mottling, the odd fleck.

@@ -30,7 +30,9 @@ export default definePart({
     b.with({ color: PALETTE.stone, pattern: PATTERN.stone, ink: 'steps' }, () => {
       for (let i = 0; i < STEPS; i++) {
         const z0 = -RUN + i * tread, z1 = i === STEPS - 1 ? LAP : z0 + tread;
-        const top = (i + 1) * rise + (i === STEPS - 1 ? 0.012 : (ctx.rand('wear', i) - 0.5) * 0.012);
+        // The top tread sits a hair (0.004) proud of the upper path it laps onto (FLOOR.pathLift):
+        // flush, the two traded pixels as the camera moved and their seam flickered (steady ink).
+        const top = (i + 1) * rise + (i === STEPS - 1 ? FLOOR.pathLift + 0.004 : (ctx.rand('wear', i) - 0.5) * 0.012);
         // Only what can be seen: the top, the riser (toward −Z), and the two ends.
         b.box([-half, 0, z0], [half, top, z1], { skip: i === STEPS - 1 ? ['bottom'] : ['bottom', 's'] });
       }

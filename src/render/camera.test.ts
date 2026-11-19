@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { CELL_H, SIZE_X, SIZE_Z } from '@/core/grid';
+import { CELL_H, SIZE_X, SIZE_Y, SIZE_Z } from '@/core/grid';
 import type { CameraPose } from './api';
-import { clampPose, easePose, frameOf, panPose, PITCH_MAX, PITCH_MIN, pixelsPerUnit, project, rayAt, zoomMin, ZOOM_MAX, zoomPose } from './camera';
+import { CAMERA_FAR, CAMERA_NEAR, clampPose, easePose, frameOf, panPose, PITCH_MAX, PITCH_MIN, pixelsPerUnit, project, rayAt, zoomMin, ZOOM_MAX, zoomPose } from './camera';
 
 const W = 1280, H = 800;
 const pose: CameraPose = { yaw: 45, pitch: 35, zoom: 2, target: [24, 1, 24] };
@@ -14,6 +14,26 @@ function groundUnder(p: CameraPose, x: number, y: number, planeY: number): [numb
 }
 
 describe('camera', () => {
+  test('nothing that can be drawn is cut by the near or far plane, from any legal pose', () => {
+    // The map, the paper under it, the tallest stack, and clouds out to where they come back in
+    // (src/life/sky/cloud.behaviour.ts: 44 units from the centre, lobes up to ~18 units long).
+    const reach = 66;
+    let nearest = Infinity, farthest = -Infinity;
+    for (const tx of [-3, SIZE_X + 3]) for (const tz of [-3, SIZE_Z + 3]) for (const ty of [0, SIZE_Y]) {
+      for (let yaw = 0; yaw < 360; yaw += 15) for (const pitch of [PITCH_MIN, 35, PITCH_MAX]) {
+        const f = frameOf(clampPose({ yaw, pitch, zoom: 2, target: [tx, ty, tz] }, 1.6), W, H);
+        for (let a = 0; a < 360; a += 10) for (const y of [-4, SIZE_Y * CELL_H + 14]) {
+          const p = [SIZE_X / 2 + reach * Math.cos((a * Math.PI) / 180), y, SIZE_Z / 2 + reach * Math.sin((a * Math.PI) / 180)];
+          const depth = (p[0]! - f.eye[0]) * f.forward[0] + (p[1]! - f.eye[1]) * f.forward[1] + (p[2]! - f.eye[2]) * f.forward[2];
+          nearest = Math.min(nearest, depth);
+          farthest = Math.max(farthest, depth);
+        }
+      }
+    }
+    expect(nearest).toBeGreaterThan(CAMERA_NEAR + 5);
+    expect(farthest).toBeLessThan(CAMERA_FAR - 5);
+  });
+
   test('tilt is clamped so you cannot look from under the island; zoom and target stay in range', () => {
     expect(clampPose({ ...pose, pitch: -40 }, 1.6).pitch).toBe(PITCH_MIN);
     expect(clampPose({ ...pose, pitch: 120 }, 1.6).pitch).toBe(PITCH_MAX);

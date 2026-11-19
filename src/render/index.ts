@@ -88,6 +88,16 @@ function geometryStyleKey(): string {
   return JSON.stringify(allStyles().filter((m) => !PAGE_STYLES.has(m.name)).map((m) => [m.name, m.values]));
 }
 
+/**
+ * The coplanar tie-break (shaders/surface.ts): each ink id is drawn 0 to 23 of these nearer the eye,
+ * in clip-space depth. One and a half steps of the 24-bit depth buffer (2.3e-5 units over the
+ * camera's range): more than the rounding that makes two surfaces in one plane fight, so of two such
+ * surfaces the same one wins every frame, unless their ids land on the same level (1 in 24). The
+ * largest nudge, 5.3e-4 units, is less than the depth between a detail and the face it sits on for
+ * every gap parts leave on purpose (0.004 and up at any pitch; 0.002 from 16 degrees up; the odd
+ * 0.001, from 32 degrees up or when the two levels are close).
+ */
+const Z_STEP = 1.5 * (2 / 2 ** 24);
 /** The wind texture covers the map plus this margin, at this many texels a side. */
 const WIND_MARGIN = 8;
 // Two columns a texel: a gust front's leading edge is about two columns, and coarser texels blurred it away.
@@ -195,6 +205,19 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const windTex = new THREE.DataTexture(windData, WIND_TEXELS, WIND_TEXELS, THREE.RGBAFormat, THREE.UnsignedByteType);
   windTex.minFilter = windTex.magFilter = THREE.LinearFilter;
   windTex.wrapS = windTex.wrapT = THREE.ClampToEdgeWrapping;
+  // The pen's noise (shaders/composite.ts): a tiling cube of fixed random values, filtered.
+  const noiseData = new Uint8Array(32 * 32 * 32 * 4);
+  for (let i = 0, h = 0x2545f491; i < noiseData.length; i++) {
+    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+    h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+    noiseData[i] = (h ^ (h >>> 15)) & 255;
+  }
+  const noiseTex = new THREE.Data3DTexture(noiseData, 32, 32, 32);
+  noiseTex.format = THREE.RGBAFormat;
+  noiseTex.minFilter = noiseTex.magFilter = THREE.LinearFilter;
+  noiseTex.wrapS = noiseTex.wrapT = noiseTex.wrapR = THREE.RepeatWrapping;
+  noiseTex.unpackAlignment = 1;
+  noiseTex.needsUpdate = true;
 
   // ── materials ────────────────────────────────────────────────────────────
   const v3 = (): { value: THREE.Vector3 } => ({ value: new THREE.Vector3() });
@@ -203,6 +226,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uWind: { value: windTex as THREE.Texture },
     uTime: { value: 0 },
     uSway: { value: 0 },
+    uZStep: { value: Z_STEP },
+    uZOrigin: v3(),
+    uZAxis: v3(),
     uLight: { value: new THREE.Vector3(...LIGHT) },
     uPx: { value: 1 },
     uCss: { value: 1 },
@@ -319,11 +345,18 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     tColor: { value: colorTex as THREE.Texture },
     tId: { value: idTex as THREE.Texture },
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
+    tNoise: { value: noiseTex as THREE.Texture },
     tInk: { value: (inkRT?.texture ?? null) as THREE.Texture | null },
     uOut: { value: new THREE.Vector2(1, 1) },
     uPR: { value: 1 },
     uOrigin: { value: new THREE.Vector2() },
     uTime: { value: 0 },
+    uEye: v3(),
+    uRight: v3(),
+    uUp: v3(),
+    uForward: v3(),
+    uNear: { value: CAMERA_NEAR },
+    uCss: { value: 1 },
     uThick: { value: 1.5 },
     uInner: { value: 1 },
     uDepthRange: { value: CAMERA_FAR - CAMERA_NEAR },
@@ -346,7 +379,6 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uStars: { value: 0 },
     uHalo: { value: 0 },
   };
-  const inkTaps = superSample > 1 ? 4 : 2;
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -357,13 +389,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       depthTest: false,
       depthWrite: false,
     });
-  const compositeMaterial = post(halfInk ? { INK_TAPS: inkTaps, INK_TEX: 1 } : { INK_TAPS: inkTaps });
+  const compositeMaterial = post(halfInk ? { INK_TEX: 1 } : superSample > 1 ? { FINE_DEPTH: 1 } : {});
   // The half-resolution ink mask shares the uniforms but has its own target size.
   const inkUniforms = { ...compositeUniforms, uOut: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
   const inkMaterial = halfInk
     ? new THREE.RawShaderMaterial({
         glslVersion: THREE.GLSL3,
-        defines: { INK_TAPS: 2, INK_ONLY: 1 },
+        defines: { INK_ONLY: 1 },
         vertexShader: screenVertex,
         fragmentShader: compositeFragment,
         uniforms: inkUniforms,
@@ -376,7 +408,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const ghostUniforms = { ...compositeUniforms, tColor: { value: null as THREE.Texture | null }, tId: { value: null as THREE.Texture | null }, tDepth: { value: null as THREE.Texture | null } };
   const ghostComposite = new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
-    defines: { INK_TAPS: 4, GHOST: 1 },
+    defines: { GHOST: 1 },
     vertexShader: screenVertex,
     fragmentShader: compositeFragment,
     uniforms: ghostUniforms,
@@ -972,6 +1004,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uCss.value = css;
       su.uCamRight.value.set(...frame.right);
       su.uCamUp.value.set(...frame.up);
+      su.uZOrigin.value.set(...frame.target);
+      su.uZAxis.value.set(...frame.forward).multiplyScalar(2 / (CAMERA_FAR - CAMERA_NEAR));
       su.uPencil.value = LOOK.pencil;
       su.uHatch.value = LOOK.hatch;
       su.uHatchSpacing.value = LOOK.hatchSpacing;
@@ -1000,6 +1034,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const origin = project(frame, [0, 0, 0], width, height);
       cu.uOrigin.value.set(origin[0], height - origin[1]);
       cu.uTime.value = seconds;
+      cu.uEye.value.copy(pu.uEye.value);
+      cu.uRight.value.copy(pu.uRight.value);
+      cu.uUp.value.copy(pu.uUp.value);
+      cu.uForward.value.copy(pu.uForward.value);
+      cu.uCss.value = css;
       // Line weight by zoom. Out at the overview every line is the thin far width. Coming in, the
       // outline grows toward inkWidth; the lines inside a shape follow it to playing zoom and then
       // ease back to inkWidthInner, so a close-up is a pen drawing and not a sticker.
@@ -1132,6 +1171,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       inkRT?.dispose();
       slotTex.dispose();
       windTex.dispose();
+      noiseTex.dispose();
       screenGeometry.dispose();
       for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       renderer.dispose();
