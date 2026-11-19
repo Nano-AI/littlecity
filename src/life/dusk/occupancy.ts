@@ -31,17 +31,30 @@ export function clearOccupancy(stage: LifeStage): void {
   byStage.delete(stage);
 }
 
-const glows = new WeakMap<LifeStage, Map<StructureId, number>>();
+const glows = new WeakMap<LifeStage, Map<StructureId, { level: number; dark: number }>>();
 
-/** L07: how lit a house's windows are now (0–1); the window behaviour writes it, the door leaves' glass follows it. */
-export function setHouseGlow(stage: LifeStage, house: StructureId, level: number): void {
+/**
+ * L07: how lit a house's windows are now (0–1), and how many storeys from the ground are dark. The window
+ * behaviour writes it; the door leaves' glass and the silhouettes in windows follow it.
+ */
+export function setHouseGlow(stage: LifeStage, house: StructureId, level: number, dark = 0): void {
   let t = glows.get(stage);
   if (!t) glows.set(stage, (t = new Map()));
-  t.set(house, level);
+  const g = t.get(house);
+  if (g) {
+    g.level = level;
+    g.dark = dark;
+  } else t.set(house, { level, dark });
 }
 
 /** 1 (as the time of day says) unless the window behaviour has said otherwise. */
 export function houseGlowOf(stage: LifeStage, house: StructureId | undefined): number {
   if (house === undefined) return 1;
-  return glows.get(stage)?.get(house) ?? 1;
+  return glows.get(stage)?.get(house)?.level ?? 1;
+}
+
+/** Storeys from the ground whose windows are dark (downstairs gone to bed). */
+export function houseDarkOf(stage: LifeStage, house: StructureId | undefined): number {
+  if (house === undefined) return 0;
+  return glows.get(stage)?.get(house)?.dark ?? 0;
 }

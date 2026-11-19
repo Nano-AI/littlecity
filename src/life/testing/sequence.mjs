@@ -225,7 +225,8 @@ try {
   // --follow re-aims it before every frame.
   const aim = async () => {
     const at = await page.evaluate((expr) => (0, eval)(expr), String(flags.aim));
-    if (Array.isArray(at)) await page.evaluate((p) => window.__lc.view.setCamera({ target: [p[0], p[1] + 0.25, p[2]] }), at);
+    // [x, y, z] aims; a fourth number also turns the camera to that yaw (degrees).
+    if (Array.isArray(at)) await page.evaluate((p) => window.__lc.view.setCamera({ target: [p[0], p[1] + 0.25, p[2]], ...(p.length > 3 ? { yaw: p[3] } : {}) }), at);
   };
   if (flags.aim) await aim();
 

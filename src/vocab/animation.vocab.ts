@@ -22,7 +22,12 @@ declare module '@/core/vocab' {
 
     // L07. One per house: the structure's windows as a whole (the page lights the panes one by one;
     // the behaviour decides whether anyone is home and when the house goes to bed).
-    'window-light.bedtime': number; // 0–1 through the night; above 1 = stays lit until dawn
+    'window-light.bedtime': number; // 0–1 through the night: when a home goes to bed (L07: the first half of the night)
+    'window-light.inn': 0 | 1; //     an inn: lit all night
+    'window-light.baker': 0 | 1; //   the bakery: lights first, before dawn
+    'window-light.owl': 0 | 1; //     up late: lit through the night, now and then going out for a while
+    'window-light.early': number; //  0–1 through dawn when an early riser lights up; above 1 = sleeps in
+    'window-light.storeys': number; // storeys of the house (upstairs goes dark last)
     'window-light.windows': number; // how many windows the house has
     'window-light.look': number; //    changes when the house's shop windows do (so the panes are redrawn)
 
@@ -68,10 +73,6 @@ declare module '@/core/vocab' {
     'boat-sail/jib': true;
     'boat-sail.look': number;
     'mooring-line': true; //           a unit length of rope along +X; the behaviour stretches it
-
-    // L10. A firefly over a garden or a grove tree at dusk: at a floor slot of the cell it keeps to.
-    'firefly': true;
-    'firefly.index': number;
 
     // Run-time effects (spawned by feedback and wind behaviours, never by rules).
     'dust-ring.size': number;

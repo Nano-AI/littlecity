@@ -3,10 +3,10 @@
 Read `src/life/MOTION.md` first (the motion style), then this.
 
 ## Done and committed (each looked at in sequences and unit-tested)
-- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L03 sails and vanes, L07, L09, L10 fireflies, birds L11–L16, boats L06/L17/L19.
+- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L03 sails and vanes, L07, L09, birds L11–L16 (L10 fireflies were removed at the owner's request, 2026-11-19: do not add them back), boats L06/L17/L19.
 - L02 smoke is MIST: 3 soft puffs a chimney (4 at dawn/dusk, fuller; dimmer at night), drifting with the wind where each puff is.
 - Renderer: `src/gen/airborne.ts` (AIRBORNE bit, MIST). Air stays out of the grounding picture and never makes it stale; items redraw it every 4th frame, lifted structures every other.
-- Flaws fixed: pigeons wheel clear of roofs; birds airborne (no shade smear); beam fades toward the camera; fireflies are warm points of light; shop panes lead at dusk (param c).
+- Flaws fixed: pigeons wheel clear of roofs; birds airborne (no shade smear); beam fades toward the camera; shop panes lead at dusk (param c).
 - L03 cap turns to the wind (sails follow via `capTurnOf`); L29 bells, clock hands (game time), fountain jets, hanging signs. Generators skip the moving piece when its part exists.
 - L05 leaves/petals, L10 moon and shooting stars (composite shader), L14 sparrows, L15 doves/stork/owl/crow/duck, L18 fishing boat (gulls trail it home), L30 balloon, L31 clouds with shadows, L33 cats, L34 sheep/hens/paddock grazers, L35 butterflies/bees. F06 sound (`src/life/sound/`).
 
@@ -23,6 +23,11 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - Troop: one body on a track (`track.ts`, a route sampled with walk.ts at lane 0): ranks `GARRISON.spacing` apart, files `GARRISON.file` either side, so corners wheel; one stride from the distance marched, so in step. Patrol: round the walls within 3 cells of them, else there and back along the longest stretch. Halts at the gate each lap; at dusk and dawn longer, the files facing each other; at night two sentries with torches at the gate and the rest file in through it.
 - Rider (every garrisoned castle): tethered a cell out from the gate; where a street leads from the gate, `RIDER.rides` rides a day: gate → nearest square → across it → back, or with no square along the street to its end (or a crossing 4+ cells on) and back; with no street it stays tethered. Trots, walks into sharp turns and through crowds. Horse: `src/parts/people/horse.ts` (walk and trot on twos, legs stepping with the ground, tail flicks).
 - Residents wait for soldiers and the horse (`obstacles` in crowd options; `src/life/doors/table.ts` shares the crowd, the door table and those bodies per stage). L23 places no lone guard on a garrisoned keep. Debug: `window.__lcGarrison`.
+
+### L07 windows through the night
+- `window-light.behaviour.ts`: `windowLight(house, time, occupied)` is the whole plan (pure): dusk ramp, bedtimes in the first half of the night (downstairs first: param d is a height below which the house's panes are dark), owls (one home in six, chosen in the rule), inns all night, shops dark at night, bakery before dawn, early risers at dawn; owl-off and wake-up spells of `DUSKY.nightSpell` seconds of life time, so a held night still changes. Published per house with `setHouseGlow(stage, house, level, dark)` (occupancy.ts) for door glass and silhouettes.
+- `silhouette.system.ts`: 4 slots of acts (cross, pause, curtain) at lit house windows; meshes in `src/parts/people/extras.ts`. Debug: `window.__lcSilhouettes`.
+- Fireflies are gone (owner's request): do not add them back.
 
 ## Not done
 - L20 rower. L10 bunting glow (Dressing's bunting part has no `PATTERN.glow` bulbs; add them, then add 'bunting' to `LAMP_TYPES`).

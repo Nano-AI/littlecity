@@ -154,11 +154,17 @@ export const DUSKY = defineStyle(
   {
     /** L07: shop windows come on over this many seconds, as soon as the page lets anything glow. */
     shopRamp: 4,
-    /** L07: the share of homes that keep a light on until dawn. */
-    nightOwls: 0.16,
-    /** L07: homes go to bed between these fractions of the night. */
-    bedFrom: 0.3,
-    bedTo: 0.85,
+    /** L07: the share of homes that stay up through the night (about one in six), and of early risers lit at dawn. */
+    nightOwls: 0.167,
+    earlyRisers: 0.3,
+    /** L07: homes go to bed between these fractions of the night (the first half); downstairs goes dark first, upstairs this much later. */
+    bedFrom: 0.04,
+    bedTo: 0.42,
+    upstairsLater: 0.06,
+    /** L07: an owl's light goes out for a while about this share of the time; a sleeper's comes on for a while about this share (seconds-long spells, changing through the night). */
+    owlOff: 0.22,
+    wakeUp: 0.04,
+    nightSpell: 24,
     /** Seconds a house takes to fade when it goes to bed or someone comes home. */
     houseFade: 0.5,
     /** Lamps: seconds between one lamp and the next along a street, and how late the last street may start. */
@@ -177,6 +183,11 @@ export const DUSKY = defineStyle(
   {
     shopRamp: [0, 12, 0.5],
     nightOwls: [0, 1, 0.01],
+    earlyRisers: [0, 1, 0.01],
+    upstairsLater: [0, 0.3, 0.01],
+    owlOff: [0, 1, 0.01],
+    wakeUp: [0, 0.5, 0.01],
+    nightSpell: [4, 120, 1],
     bedFrom: [0, 1, 0.01],
     bedTo: [0, 1, 0.01],
     houseFade: [0, 3, 0.05],

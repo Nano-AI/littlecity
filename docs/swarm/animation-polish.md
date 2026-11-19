@@ -109,6 +109,34 @@ once, `people-town` row landing, `everything` lamplighter at dusk
   three. Guide entries `garrison` and `rider` say so, with recipes for each
   case, and their pictures are re-rendered.
 
+- **Night was eerie: every window stayed lit.** Two causes. Homes went to
+  bed at a random 30–85% of the night, and the sun button's "night" holds
+  the cycle at its middle, so a held night froze with most homes still up;
+  and owls were a chance each, so a small town drew too few or too many.
+  Now (L07 "Windows through the night") homes go to bed through the first
+  half of the night, downstairs first then upstairs (a new param d on the
+  lifted house: panes below that height stay dark; one line in the glass
+  shader, which also stops leaving one pane in seven dark for good), until
+  only the owls are lit: one home in six, a fixed share by seed. Inns stay
+  lit; shops go dark when they shut; the bakery lights before dawn, then
+  early risers. Owls go dark for a spell now and then and a sleeper is up for
+  one, in spells of life time, so a held night still changes a little.
+  Watched: a whole evening into the night at playing zoom (the town goes
+  dark house by house to a few lit windows), and a held night close up.
+- **Silhouettes**: 4 slots, each playing one act every 8 s at a lit window
+  chosen by seed: a dark head and shoulders crosses the pane, pauses in it,
+  or a curtain is drawn half across and back. Only on a lit, awake storey
+  (the system asks the same pure function the window behaviour does, so
+  there is no frame's lag), never over the frame. Watched close up (zoom
+  14, turned to face the window) and at zoom 6, where it reads as somebody
+  at the window; at the widest zoom it is a pixel or two. Tests:
+  silhouette.test.ts (only in lit windows, held and running night,
+  deterministic, never spilling over the pane), dusk.test.ts (homes fall to
+  about one in six; inns stay lit; a held night changes).
+- **Fireflies removed** at the owner's request: rule, part, behaviour,
+  vocabulary, fixture, tests, and the shader's point-of-light branch that
+  only they used. Do not add them back.
+
 ### Watched and fine
 - Eight separate houses landing in one go, and a block landing on a roof
   (the building under it bounces as one; its props are carried).
