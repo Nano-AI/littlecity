@@ -4,18 +4,20 @@ The guide (design section 7) lists 44 special buildings and the Auto block.
 Every entry's recipe, built with the scenario builder, makes its building
 under the real rules (`src/guide/guide.test.ts`); no rule was changed.
 
-## 1. The garrison has no entry yet (for Animation / Life)
+## 1. Garrison and rider (DONE, with two notes for Animation)
 
-The design lists "a garrison" in the Town group. L36 (garrison) and L37
-(rider) are in the catalogue but no rule emits them yet, so there is nothing
-a test could prove. When L36 lands, add one entry to `src/guide/entries.ts`:
+Both have entries now (proof: the L36 / L37 actor; pictures drawn with the
+castle's people on, frozen at a fixed moment).
 
-```ts
-{ id: 'garrison', group: 'town', name: 'Garrison', how: '…', proof: { prop: … } }
-```
-
-`Proof` will need an `{ actor: { rule, type? } }` case (a few lines in
-`src/guide/proof.ts`, reading `dressing.actors`), then `npm run guide garrison`.
+- **A keep alone gets no garrison.** The catalogue (and the comment in
+  `scenarios/rules/L37.rider.scenario.ts`) says a keep is a castle, but a keep
+  has no door and no passage, so `castle.lib.ts` finds no gate and L36 emits
+  nothing. A keep with a gateway (an arch over a path) beside it, or curtain
+  walls with a turret or gatehouse, does get one. The sentence says so.
+- **A rider needs a plaza, not just a street.** L37 emits its actor when a
+  path or plaza touches the gate, but `rider.ts` only builds a ride to a
+  plaza cell (`haunt-square`), so with a path and no plaza nothing is drawn.
+  The sentence asks for a path from the gate to a plaza.
 
 ## 2. Where the code says more than the catalogue
 
@@ -53,5 +55,4 @@ Each sentence follows the code. Worth knowing when editing the catalogue:
 - `src/app/main.ts`: one line, `ui?.dressed(ready.dressing)` when the
   dressing arrives, so the ticks of the dressing entries (lamps, laundry,
   pocket park, paddock, walled garden) can follow the town.
-- `src/guide` is not in eslint's layer list (eslint.config.js is frozen), so
-  no layer rule checks it; it imports only core, vocab, resolve and scenario.
+- `eslint.config.js`: `src/guide` is in the scenario layer and pure.

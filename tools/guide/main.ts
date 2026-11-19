@@ -55,6 +55,11 @@ function boxOf(entry: GuideEntry, world: World): { lo: [number, number, number];
     else see(cell, 0.6, x, x + 1, z + 1, z + 1);
   }
   const pad = entry.pad ?? 0.4;
+  if (entry.frame) {
+    // A part of the recipe chosen by the entry (the castle's gate, where its people are).
+    const [fx0, fz0, fx1, fz1, top] = entry.frame;
+    return { lo: [fx0 - pad, y0 * CELL_H, fz0 - pad], hi: [fx1 + 1 + pad, (y0 + top) * CELL_H, fz1 + 1 + pad] };
+  }
   return { lo: [x0 - pad, y0 * CELL_H, z0 - pad], hi: [x1 + pad, y1 * CELL_H, z1 + pad] };
 }
 
@@ -119,7 +124,7 @@ const api = {
   ids: (): string[] => ENTRIES.map((e) => e.id),
 
   /** Renders one entry and returns it as a data URL (image/webp unless `type` says otherwise). */
-  async render(id: string, opts: { quality?: number; type?: string; margin?: number } = {}): Promise<string> {
+  async render(id: string, opts: { quality?: number; type?: string; margin?: number; settle?: number } = {}): Promise<string> {
     const entry = ENTRIES.find((e) => e.id === id);
     if (!entry) throw new Error(`no guide entry '${id}'`);
     const scn = guideScenario(entry);
@@ -161,7 +166,8 @@ const api = {
     }
     view.setCamera(fitted.pose);
 
-    for (let i = 0; i < 60; i++) life.update(signals.advance(1 / 30));
+    const steps = Math.round((opts.settle ?? entry.life?.settle ?? 2) * 30);
+    for (let i = 0; i < steps; i++) life.update(signals.advance(1 / 30));
     for (let i = 0; i < 6; i++) {
       view.render(signals);
       await nextFrame();

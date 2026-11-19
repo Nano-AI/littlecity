@@ -66,7 +66,7 @@ describe('the list', () => {
   });
 
   test('the special buildings the design lists all have an entry', () => {
-    // Design section 7, "What it lists" (the garrison waits for L36; see docs/swarm/requests/guide.md).
+    // Design section 7, "What it lists".
     const listed = [
       'chapel', 'shop', 'inn', 'town-hall', 'manor', 'townhouse', 'row-house', 'stilt-house', 'boathouse', 'cliff-house', 'greenhouse',
       'mill-house', 'keepers-cottage', 'lookout-cottage',
@@ -75,7 +75,7 @@ describe('the list', () => {
       'stone-bridge', 'sky-bridge', 'viaduct', 'gateway', 'loggia', 'flying-buttress',
       'pier', 'quay', 'boardwalk',
       'wheat-field', 'park', 'walled-garden', 'paddock', 'pocket-park', 'herb-garden',
-      'street-lamps', 'laundry-lines',
+      'street-lamps', 'laundry-lines', 'garrison', 'rider',
     ];
     const ids = new Set(ENTRIES.map((e) => e.id));
     for (const id of listed) expect(ids.has(id), id).toBe(true);
