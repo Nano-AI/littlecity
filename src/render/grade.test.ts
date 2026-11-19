@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { parseColor } from '@/gen/mesh';
 import { partPhases, timeAt } from '@/life/signals';
 import { PALETTE } from '@/style/palette';
-import { gradeAt, type Rgb } from './grade';
+import { gradeAt, gradeColor, type Rgb } from './grade';
 
 const lum = (c: Rgb): number => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 const at = (phase: number) => gradeAt(timeAt(phase, 0));
@@ -10,10 +10,12 @@ const paper = (() => {
   const [r, g, b] = parseColor(PALETTE.paper);
   return [r / 255, g / 255, b / 255] as Rgb;
 })();
-const graded = (c: Rgb, phase: number): Rgb => {
-  const g = at(phase);
-  return [c[0] * g.tint[0] + g.lift[0], c[1] * g.tint[1] + g.lift[1], c[2] * g.tint[2] + g.lift[2]];
+const graded = (c: Rgb, phase: number, facing = 1): Rgb => gradeColor(c, at(phase), facing);
+const hex = (h: string): Rgb => {
+  const [r, g, b] = parseColor(h);
+  return [r / 255, g / 255, b / 255];
 };
+const apart = (a: Rgb, b: Rgb): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 describe('the dusk grade', () => {
   const p = partPhases();
@@ -23,6 +25,9 @@ describe('the dusk grade', () => {
     expect(g.tint).toEqual([1, 1, 1]);
     expect(g.lift).toEqual([0, 0, 0]);
     expect(g.sat).toBe(1);
+    expect(g.shade).toEqual([1, 1, 1]);
+    expect([g.chroma, g.contrast, g.sea]).toEqual([1, 1, 1]);
+    expect(gradeColor([0.3, 0.6, 0.9], g, -1)).toEqual([0.3, 0.6, 0.9]);
     expect(g.glow).toBe(0);
     expect(g.stars).toBe(0);
   });
@@ -39,6 +44,38 @@ describe('the dusk grade', () => {
     expect(lum(graded(paper, p.night.mid))).toBeLessThan(lum(paper) * 0.5);
     expect(g.glow).toBe(1);
     expect(g.stars).toBe(1);
+  });
+
+  test('dusk keeps stone, path, sand and plaza apart: no single salmon (art review L3)', () => {
+    const peak = p.dusk.start + (p.dusk.end - p.dusk.start) * 0.42;
+    const pale = [PALETTE.stone, PALETTE.path, PALETTE.sand, PALETTE.plaza].map(hex);
+    const closest = (phase: number, facing: number): number => {
+      let d = Infinity;
+      for (let i = 0; i < pale.length; i++) for (let j = i + 1; j < pale.length; j++) d = Math.min(d, apart(graded(pale[i]!, phase, facing), graded(pale[j]!, phase, facing)));
+      return d;
+    };
+    // At least as far apart as by day, on lit faces and on faces in shade. (A plain multiply by the old
+    // tint brought the nearest pair to half its daytime distance.)
+    expect(closest(peak, 1)).toBeGreaterThanOrEqual(closest(p.day.mid, 1));
+    expect(closest(peak, -1)).toBeGreaterThanOrEqual(closest(p.day.mid, 1));
+    // Warm where the light falls, cool violet where it does not.
+    const stone = hex(PALETTE.stone);
+    const lit = graded(stone, peak, 1), shade = graded(stone, peak, -1);
+    expect(lit[0] - lit[2]).toBeGreaterThan(0.15);
+    expect(shade[0] - shade[2]).toBeLessThan((lit[0] - lit[2]) * 0.5);
+    expect(lum(shade)).toBeLessThan(lum(lit) - 0.05);
+  });
+
+  test('at night stone and white trim stand clear of the grass, and the sea is a step darker than the land (L4)', () => {
+    const night = p.night.mid;
+    const grass = lum(graded(hex(PALETTE.grass), night, 1));
+    for (const pale of [PALETTE.stone, PALETTE.marble, PALETTE.white]) {
+      expect(lum(graded(hex(pale), night, 1)) - grass, pale).toBeGreaterThan(0.1); // a top face in moonlight
+      expect(lum(graded(hex(pale), night, -1)), pale).toBeGreaterThan(grass); // even a wall turned from it
+    }
+    const g = at(night);
+    const sea = hex(PALETTE.sea).map((v) => v * g.sea) as Rgb;
+    expect(lum(gradeColor(sea, g, 1))).toBeLessThan(grass - 0.04);
   });
 
   test('it still reads as ink on paper at night: the line is clearly darker than the page', () => {
@@ -71,10 +108,14 @@ describe('the dusk grade', () => {
         expect(Math.abs(g.tint[k]! - last.tint[k]!)).toBeLessThan(0.004);
         expect(Math.abs(g.ink[k]! - last.ink[k]!)).toBeLessThan(0.004);
         expect(Math.abs(g.lift[k]! - last.lift[k]!)).toBeLessThan(0.004);
+        expect(Math.abs(g.shade[k]! - last.shade[k]!)).toBeLessThan(0.004);
       }
       expect(Math.abs(g.glow - last.glow)).toBeLessThan(0.01);
       expect(Math.abs(g.stars - last.stars)).toBeLessThan(0.01);
       expect(Math.abs(g.sat - last.sat)).toBeLessThan(0.004);
+      expect(Math.abs(g.chroma - last.chroma)).toBeLessThan(0.004);
+      expect(Math.abs(g.contrast - last.contrast)).toBeLessThan(0.01);
+      expect(Math.abs(g.sea - last.sea)).toBeLessThan(0.004);
       last = g;
     }
   });

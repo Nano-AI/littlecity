@@ -93,6 +93,10 @@ uniform vec3 uInk;
 uniform vec3 uTint;
 uniform vec3 uLift;
 uniform float uSat;
+uniform vec3 uShadeTint;   // the tint of faces turned away from the light
+uniform vec3 uLightView;   // the light's direction in view space
+uniform float uChroma;
+uniform float uContrast;
 uniform vec3 uLampWarm;
 uniform vec3 uStar;
 uniform float uGlow;
@@ -178,8 +182,16 @@ void main(){
   float glow = c0.a;
 
   // The dusk grade: the whole page is tinted, paper included. Lit glass keeps its own colour.
-  vec3 g = col * uTint;
-  g = mix(vec3(dot(g, vec3(0.299, 0.587, 0.114))), g, uSat) + uLift;
+  // (grade.ts has the same arithmetic as gradeColor(); change both together.)
+  //   chroma    materials are pushed apart in hue first, so a strong tint cannot merge them;
+  //   contrast  pale things keep their brightness and mid-tones drop;
+  //   tint      warm (or moonlit) on faces turned to the light, cool on faces turned away.
+  const vec3 LUM = vec3(0.299, 0.587, 0.114);
+  vec3 g = mix(vec3(dot(col, LUM)), col, uChroma);
+  g *= pow(max(dot(g, LUM), 1e-3), uContrast - 1.0);
+  float facing = mix(dot(decN(sid), uLightView), 1.0, bg);
+  g *= mix(uShadeTint, uTint, smoothstep(-0.15, 0.35, facing));
+  g = mix(vec3(dot(g, LUM)), g, uSat) + uLift;
   g = mix(g, col, glow);
   if (uGlow > 0.01 && uHalo > 0.0) {
     // A warm halo round anything lit: two rings of taps on the glow channel.

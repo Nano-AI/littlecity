@@ -321,6 +321,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uTint: v3(),
     uLift: v3(),
     uSat: { value: 1 },
+    uShadeTint: v3(),
+    uLightView: v3(),
+    uChroma: { value: 1 },
+    uContrast: { value: 1 },
     uLampWarm: v3(),
     uStar: v3(),
     uGlow: { value: 0 },
@@ -953,6 +957,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       cu.uTint.value.set(...grade.tint);
       cu.uLift.value.set(...grade.lift);
       cu.uSat.value = grade.sat;
+      cu.uShadeTint.value.set(...grade.shade);
+      cu.uChroma.value = grade.chroma;
+      cu.uContrast.value = grade.contrast;
+      const dotL = (a: Vec3): number => a[0] * LIGHT[0] + a[1] * LIGHT[1] + a[2] * LIGHT[2];
+      cu.uLightView.value.set(dotL(frame.right), dotL(frame.up), -dotL(frame.forward));
       cu.uGlow.value = grade.glow;
       cu.uStars.value = grade.stars;
       cu.uHalo.value = LOOK.halo;
@@ -985,7 +994,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const warm = Math.min(1, Math.max(0, (grade.tint[0] - grade.tint[2]) * 4));
       const low = Math.min(grade.tint[0], grade.tint[1], grade.tint[2]);
       const keep = (channel: number): number => 1 + warm * ((low / Math.max(1e-3, grade.tint[channel]!)) ** (LOOK.seaKeep * 2.2) - 1);
-      su.uSeaKeep.value.set(keep(0), keep(1), keep(2));
+      su.uSeaKeep.value.set(keep(0) * grade.sea, keep(1) * grade.sea, keep(2) * grade.sea);
       su.uSlope.value = grade.slope;
       su.uCast.value = grade.cast;
 

@@ -10,7 +10,11 @@ Order: L1, L2, L3, L4, bench (`bench-2000`, `everything`), grounding cost with m
 - **L2 line weight by zoom: done.** Outline (depth jump) uses `uThick`; seams and creases use
   `uThick * uInner`. Up close: `LOOK.inkWidth` 1.5 outside, `inkWidthInner` 0.85 inside; equal below
   playing zoom. Maths in index.ts `render()`.
-- **L3 dusk: next.** Then L4 night, bench.
+- **L3 dusk, L4 night: done** (one mechanism). The composite grades by facing: `tint` on faces toward
+  the light and on paper, `shade` on faces away; before the tint, `chroma` (pre-saturation) and
+  `contrast` (brightness curve); `sea` multiplies the sea alone. Values per part in `GRADE`
+  (src/style/look.ts). `gradeColor()` in grade.ts mirrors the shader for tests: change both together.
+- **Bench: next** (`npm run bench`, `npm run bench -- everything`), then grounding cost with movers.
 
 ## How to check
 - `npm run shots -- everything` (25 cameras, slow). One pose fast: `node .context/pose-shot.mjs`
