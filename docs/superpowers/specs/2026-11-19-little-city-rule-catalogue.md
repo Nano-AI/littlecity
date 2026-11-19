@@ -436,6 +436,41 @@ Actors and motion. All read the signals in the design, section 13.
 - **L20 · 3 · Rower** — two piers ≥ 10 apart → a rowboat crosses between
   them now and then.
 
+### Big ships (Derek's request, 2026-11-19)
+
+Bigger visitors that a town earns by the size of its port. Each needs a
+**berth**: a straight run of dock or quay-wall cells with open water at
+least 3 columns wide alongside it for the ship's whole length plus 2, and an
+open-water lane from there to the edge of the map. Ships never overlap each
+other, piers, or small boats; small boats give way to them.
+
+- **L38 · 2 · Galleon** — a berth of 8+ cells in a port with 12+ dock cells
+  in all → once or twice a day a three-masted galleon (about 7 cells long,
+  taller than a three-storey house, high stern castle, square sails, a long
+  pennant in the wind) appears at the edge of the map under full sail,
+  shortens sail as it nears, glides alongside and moors. Gangplank down;
+  sailors carry crates and barrels onto the quay (they pile up as dock
+  goods) and residents come to look. After a while it casts off, sets sail
+  and leaves by another edge. At night it stays, with stern lanterns lit.
+  Gulls wheel round its masts.
+- **L39 · 2 · Merchant cog** — a berth of 5+ cells in a port with 6+ dock
+  cells → a single-masted, round-bellied trading ship (about 4 cells long)
+  that calls more often than the galleon and stays a shorter time.
+- **L40 · 3 · Galley** — a lighthouse and a berth of 6+ cells → now and
+  then a long low galley (about 6 cells) with a bank of oars each side that
+  rise and dip together, one square sail furled or set by the wind; it rows
+  in, rests, and rows out.
+- **L41 · 3 · River barge** — a river with a dock on it and another dock at
+  least 10 cells away by water → a flat barge poled along the river between
+  them, carrying sacks, hay or barrels, passing under bridges (it lowers its
+  short mast if it has one).
+- **L42 · 3 · Passing sails** — any lighthouse → far out, beyond where the
+  small boats sail, a tall ship crosses the horizon once in a while without
+  calling.
+
+A port with a big ship moored is busier: more residents choose the quay as
+a destination, and the stalls nearest the harbour get customers.
+
 ### People
 
 - **L21 · 1 · Population** — each house structure houses ceil(cells ÷ 2)
