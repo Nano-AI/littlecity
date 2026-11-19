@@ -25,7 +25,12 @@ edited; the rest are seams and asks.
   The same leak is worth fixing in any other browser test that opens many
   pages.
 
-## 2. For Houses: the windmill cap cannot yaw (L03)
+## 2. For Houses: the windmill cap cannot yaw (L03) — DONE in Stage 4
+
+Resolved by the life-depth owner: the cap is `src/gen/windmill/cap.ts`, drawn by
+the 'mill-cap' actor part about the hub when that part exists; the generator
+bakes only the curb then. The text below is the original ask.
+
 
 The cap is baked into the windmill's mesh by `src/gen/windmill/windmill.gen.ts`,
 and the hub socket's frame comes from it. Life can move a whole structure or
@@ -36,7 +41,11 @@ the wind than side-on) but the cap does not come round to the wind.
 `mill-cap`, at a socket on the tower's neck, owning `mill-hub`). Then a
 behaviour can yaw it and the sails follow, with no other change.
 
-## 2b. For Monuments and Ground: mechanisms that are baked (L29)
+## 2b. For Monuments and Ground: mechanisms that are baked (L29) — DONE in Stage 4
+
+Resolved as asked (`parts.has` in the tower and fountain generators). The
+bell socket moved 0.04 up, to the pivot under the beam (`BELL_PIVOT`).
+
 
 The tower generator bakes a static bell into the belfry and fixed hands on
 each clock face; the fountain generator bakes a static jet. The sockets for
@@ -56,11 +65,15 @@ empty houses stay dark, most homes go dark at a seeded bedtime. Inside one
 house the order of panes is still the shader's, and a shop pane cannot light
 before the page glow reaches that pane's threshold.
 
+**Done in Stage 4** (life depth, the smallest change in the glass pattern of
+`src/render/shaders/surface.ts`): param c shifts the pane threshold; shops lead.
+
 **Asked (not urgent):** let param `c` of a slot shift the pane threshold
 (`smoothstep(hsh * 0.75 - c, …)`), so a shop's panes can lead and a house's
 panes can follow the house's own clock.
 
-Also: a flying bird's cast shade on the sea reads as a long smear at some
+Also (done in Stage 4: birds carry the AIRBORNE bit and are left out of the
+grounding picture): a flying bird's cast shade on the sea reads as a long smear at some
 angles (`LOOK.ground`, the cast term). Shortening the cast of things far
 above the surface would fix it.
 
@@ -100,3 +113,19 @@ most every other frame: on those frames the whole town is drawn twice. With
 smoke on every chimney that is every other frame, all day. See my report for
 the numbers. If the phone budget is tight, the first knobs are
 `WINDY.smokePuffs` and `LOOK.ground`.
+
+## 7. Stage 4 (life depth): files outside the life paths
+
+- `src/render/` (index.ts, slots.ts, pool.ts, shaders): the AIRBORNE/MIST marks
+  (`src/gen/airborne.ts`), air slots that never stale the grounding picture,
+  item moves redraw it every 4th frame; the overlay pass draws MIST (smoke,
+  cloud, cloud shadow), fades the beam toward the camera, draws points of
+  light; glass panes honour param c; the page draws a moon and shooting stars.
+- Generators, for L03/L29 only: `src/gen/windmill/`, `src/gen/tower/`,
+  `src/gen/fountain/`, `src/parts/monuments/openings.ts` (shapes shared).
+- Tests adjusted: `src/gen/tower/tower.test.ts`, `src/parts/openings/openings.test.ts`
+  (the still bell and cap are drawn when their parts are absent).
+- `tools/bench.mjs`, `tools/shot/main.ts`: mean triangles and grounding redraws.
+- For Dressing: bunting has no glow bulbs, so it cannot glow at night (L10).
+- For Interface: sound defaults to on in the stored preference; the audio only
+  starts on a user gesture.

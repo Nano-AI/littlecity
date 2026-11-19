@@ -3,23 +3,26 @@
 Read `src/life/MOTION.md` first (the motion style), then this.
 
 ## Done and committed (each looked at in sequences and unit-tested)
-- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L02/L03 sails and vanes, L07, L09, L10 fireflies, birds L11–L16, boats L06/L17/L19.
+- Stage 3 (still true): runtime, motion kit, fx pool, F01–F05, L03 sails and vanes, L07, L09, L10 fireflies, birds L11–L16, boats L06/L17/L19.
 - L02 smoke is MIST: 3 soft puffs a chimney (4 at dawn/dusk, fuller; dimmer at night), drifting with the wind where each puff is.
-- Renderer: `src/gen/airborne.ts` (AIRBORNE pattern bit, MIST). Air is left out of the grounding picture and never makes it stale; items redraw it every 4th frame, lifted structures every other. Bench 1.08 M → 0.90 M triangles a frame.
-- Flaws fixed: pigeons wheel clear of roofs (`wheelFor`, `columnTops`); birds are airborne (no shade smear); beam fades when it points at the camera; fireflies are warm points of light (param c = own colour, d = halo radius); shop panes lead at dusk (param c of a lifted structure).
-- L03 mill cap turns to the wind (`src/life/mechanisms/`, sails follow via `capTurnOf`); L29 bells, clock hands (game time), fountain jets, hanging signs. Generators skip the moving piece when its part exists (`parts.has`).
+- Renderer: `src/gen/airborne.ts` (AIRBORNE bit, MIST). Air stays out of the grounding picture and never makes it stale; items redraw it every 4th frame, lifted structures every other.
+- Flaws fixed: pigeons wheel clear of roofs; birds airborne (no shade smear); beam fades toward the camera; fireflies are warm points of light; shop panes lead at dusk (param c).
+- L03 cap turns to the wind (sails follow via `capTurnOf`); L29 bells, clock hands (game time), fountain jets, hanging signs. Generators skip the moving piece when its part exists.
+- L05 leaves/petals, L10 moon and shooting stars (composite shader), L14 sparrows, L15 doves/stork/owl/crow/duck, L18 fishing boat (gulls trail it home), L30 balloon, L31 clouds with shadows, L33 cats, L34 sheep/hens/paddock grazers, L35 butterflies/bees. F06 sound (`src/life/sound/`).
 
-## In the middle of
-- Nothing half-done.
+## Not done
+- L20 rower. L10 bunting glow (Dressing's bunting part has no `PATTERN.glow` bulbs; add them, then add 'bunting' to `LAMP_TYPES`).
+- Gust front: checked numerically (wind field), not convincingly by eye in contact sheets.
 
 ## Next, in order
-1. Part L tier 2/3 not yet built: L05 leaves/petals, L10 night dressing, L14, L15, L18, L20, L30, L31, L33, L34, L35. Then gust check, then F06 sound.
+1. L20 rower (two piers 10+ apart; a rowboat between their pier ends, through open water only).
+2. A second look at clouds (they only show over the paper round the map) and the cat's size at playing zoom.
 
 ## Gotchas
 - Shell: heredocs mixed with other commands are refused; use Write, or short python -c edits.
-- The renderer resets every item to its base frame on each `setDressing`; the runtime's `Posed` handle undoes that.
-- Self-lit things show at `page glow × param a`; use `litParam()` in `dusk/glow.ts`.
-- A behaviour that sets a grounded prop's matrix often costs a grounding redraw (every 4th frame): only set it when it visibly changed (see `sign.behaviour.ts`), or make the part AIRBORNE.
+- Only one behaviour per actor type: `small-bird` dispatches by variant (`birds/characters.behaviour.ts`).
+- A behaviour that sets a grounded prop's matrix often costs a grounding redraw: set it only when it changed, or make the part AIRBORNE.
+- Overlay params: MIST a = opacity, c > 0.5 = cloud rim, d > 0 = flat soft disc of radius d; beam c > 0.5 = own colour, d = point-light radius.
 - Do not name a scenario with a word another gallery test filters on (`tests/e2e/gallery.e2e.test.ts`).
 
 ## Verifying motion
