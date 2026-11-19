@@ -52,6 +52,10 @@ declare module '@/core/vocab' {
     'small-bird/duckling': true; // spawned by the duck
     'small-bird.height': number; // how high over its anchor it perches, world units
 
+    // L33. A cat on a house's doorstep: naps by day, sits up and looks about at dusk.
+    'cat': true;
+    'cat.look': number;
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand
