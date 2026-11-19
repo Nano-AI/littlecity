@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Page } from 'playwright';
 import { startApp, type App } from '../../tests/helpers/browser';
+import type { SweepResult } from './testing/flicker';
 import type { FrameSummary } from './testing/probe';
 
 let app: App;
@@ -16,7 +17,8 @@ beforeAll(async () => {
   app = await startApp();
   ({ page, errors } = await app.open('/tools/shot/index.html', { width: 700, height: 460 }));
   await page.addScriptTag({ type: 'module', url: `${app.url}/src/render/testing/probe.ts` });
-  await page.waitForFunction('window.__look !== undefined');
+  await page.addScriptTag({ type: 'module', url: `${app.url}/src/render/testing/flicker.ts` });
+  await page.waitForFunction('window.__look !== undefined && window.__flicker !== undefined');
 });
 afterAll(async () => {
   await app?.close();
@@ -261,6 +263,34 @@ describe('the view', () => {
         expect(f.dark, `${ink} @${ratio}x ${pose}: whole frame`).toBeLessThan(0.002);
       }
     }
+    expect(errors).toEqual([]);
+  });
+
+  test('turning the camera round a town does not make the ink flicker, and the pen does not crawl', async () => {
+    // A third of a pixel of motion a frame (src/render/testing/flicker.ts), so anything that blinks or
+    // pops, or a block of the picture that jumps in tone, is not the motion. Before steady ink (scores
+    // per mille at this size: blink / pop / area), coplanar surfaces with different ink ids traded
+    // pixels as the view turned and drew a scribble of seams that came and went (close orbit
+    // 0.13 / 0.50 / 2.5, close tilt 0.07 / 0.27 / 1.7; now about 0.02 / 0.14 / 0.1 and 0.01 / 0.05 / 0.1).
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    const close = `{ yaw: 45, pitch: 28, zoom: 7.5, target: [24.5, 1.8, 31.5] }`;
+    const sweep = (pose: string, motion: string): Promise<SweepResult> => look<SweepResult>(`window.__flicker.sweep(${pose}, '${motion}', 32, 640, 400)`);
+    for (const [name, r] of [['orbit', await sweep(close, 'yaw')], ['tilt', await sweep(close, 'pitch')]] as const) {
+      expect(r.blink, `close ${name}: blinks`).toBeLessThan(0.06);
+      expect(r.pop, `close ${name}: pops`).toBeLessThan(0.3);
+      expect(r.area, `close ${name}: areas changing tone at once`).toBeLessThan(0.8);
+    }
+    // At playing zoom (0.027 / 0.17 / 0.32 before; about 0.017 / 0.13 / 0.065 now).
+    const playing = await sweep(`{ yaw: 45, pitch: 33, zoom: 3.4, target: [24, 1.5, 32] }`, 'yaw');
+    expect(playing.area).toBeLessThan(0.2);
+    expect(playing.pop).toBeLessThan(0.25);
+    // The pen's wobble belongs to the drawing: orbiting, it adds no change of its own. (Fixed to the
+    // screen it made the picture change about a quarter more than with the wobble off.)
+    const wobbling = await sweep(close, 'yaw');
+    await look(`window.__look.style('look', 'wobble', 0)`);
+    const straight = await sweep(close, 'yaw');
+    await look(`window.__look.style()`);
+    expect(wobbling.change).toBeLessThan(straight.change * 1.08);
     expect(errors).toEqual([]);
   });
 
