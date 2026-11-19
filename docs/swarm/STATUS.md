@@ -377,3 +377,17 @@ enter and exit.
 **Big ships requested** (catalogue L38–L42: galleon, cog, galley, river
 barge, passing sails) → new Opus agent on `swarm/ships`.
 Running: terrain2, coplanar, walk (preview), ships.
+
+**Welcome card added by the orchestrator** (`src/ui/welcome.ts`): first
+visit to an empty island shows "Try growing a town… or build your own" with
+Grow a town and Build my own; once per browser (`lc:welcomed`). Tools and
+tests mark it seen by default (`openPage(..., { welcome: true })` shows it).
+**Terrain 2 merged** (`4f3b52c`, Opus 5.5): generator 2 with four island
+characters and rivers (measured over 500 seeds: gentle 48%, hilly 28%, steep
+13%, archipelago 11%; no river 19%, one 62%, two 19%), rock tops, scree, one
+ledge on tall cliffs, `World.terrainGen`, share codec v3. Generator 1 pinned
+by digest; existing scenarios pinned to generator 1. Full check green:
+1,551 tests. Published. Follow-ups: river look from the overview (same
+agent), Grow a town pass 3 for rivers and steep islands (grow-town agent).
+Running: coplanar, walk (preview only), ships, terrain2 follow-up,
+grow-town pass 3.
