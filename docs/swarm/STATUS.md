@@ -438,3 +438,10 @@ Minecraft-style flying (double-tap Space; Shift up, Control down); the
 glide in looks wrong and must not pass through things (glide out is good).
 Sent to the walk agent. Still preview only, still served at port 5174.
 Running: ships, coplanar follow-up, walk (preview fixes).
+
+**Two more from Derek:** doormats are badly broken with overlaps (D11) →
+added to the top of the coplanar agent's follow-up, with a prop scan;
+people walk through each other → animation-polish agent resumed to add
+local avoidance with a no-overlap test.
+Running: ships, coplanar follow-up (doormats first), walk (preview fixes),
+animation-polish (people avoidance).
