@@ -207,3 +207,19 @@ bunting glow at night, gust front unverified by eye; sound defaults to ON
 (interface's stored default) where the brief said off.
 Dev server hit its two-hour limit again and is NOT restarted; the public
 site serves the same build. Running: dressing-depth, grow-town (Opus 5.5).
+
+**Dressing depth merged** (`121520d`, Opus 5.5): U09, U10 (turret only),
+U11 (+U11-F), U12-E, D12, D14, D17–D19, D21–D23, D25–D28, D30–D34, laundry
+height fix, J20-F floating fences. Full check green: 1,323 tests. Published.
+Every catalogue rule now has an implementation except L20 (rower).
+
+Bench on bench-2000 (machine at load 10, so approximate): frame rate 60 fps,
+14 draw calls; `resolveShape` 12.8 ms median / 40 ms p95 in the browser
+(budget 8); geometry rebuild 9.3 / 20 ms (budget 8); `resolveDressing`
+9.4 / 22 ms (budget 30). Slowest rules: J09 windows 1.9 ms, R-H05 boathouse
+1.7, D01 lamps 1.5, L19 sailboats 1.2, J11 chimneys 1.1.
+
+**Stage 4 polish launched** on Opus 5.5 (`swarm/polish`): shape-stage and
+rebuild speed, phone viewport pass, and the small-fix list (walls on
+pitched roofs, stepper 44 px flake, bunting glow, L20 rower, stale ART.md
+pictures). Also running: grow-town.
