@@ -57,10 +57,12 @@ export default definePart({
     }
     // The cornice: a slab over the whole bay, reaching back to the wall (the covered walk's roof).
     b.with({ color: PALETTE.white, pattern: PATTERN.none, inkId: host.inkOf('arcade-cornice') }, () => {
-      const skip: ('n' | 'e' | 'w')[] = ['n'];
+      const skip: ('n' | 'e' | 'w' | 'bottom')[] = ['n', 'bottom'];
       if (!left) skip.push('w');
       if (!right) skip.push('e');
       b.box([xl, top, 0], [xr, cap, depth + 0.03], { skip });
+      // Its underside only in front of the walk's ceiling, which lies in the same plane.
+      b.quad([xr, top, depth + 0.03], [xl, top, depth + 0.03], [xl, top, depth - 0.12], [xr, top, depth - 0.12]);
     });
     // The ceiling of the walk, from the arch back to the wall.
     b.quad([xr, top, depth - 0.12], [xl, top, depth - 0.12], [xl, top, 0], [xr, top, 0]);

@@ -60,7 +60,8 @@ function gabledHood(h: House, name: string, half: number, eaveY: number, peakY: 
     b.quad([0, peakY - t, front], [-e, y0 - t, front], [-e, y0 - t, -inset], [0, peakY - t, -inset]);
   });
   const cap = persona.cover === 'glass' ? persona.trim : mixColor(persona.roofColor, persona.cover === 'thatch' ? PALETTE.trunk : PALETTE.ink, persona.cover === 'thatch' ? 0.3 : 0.2);
-  b.with({ color: cap, ink: `${name}-ridge` }, () => b.box([-HOUSE.capWidth / 2, peakY - 0.004, -back], [HOUSE.capWidth / 2, peakY + HOUSE.capProud, front], { skip: ['bottom', 'n'] }));
+  // The cap's end a hair (0.004) proud of the bargeboard, which lies in the plane of the front.
+  b.with({ color: cap, ink: `${name}-ridge` }, () => b.box([-HOUSE.capWidth / 2, peakY - 0.004, -back], [HOUSE.capWidth / 2, peakY + HOUSE.capProud, front + 0.004], { skip: ['bottom', 'n'] }));
 }
 
 /**

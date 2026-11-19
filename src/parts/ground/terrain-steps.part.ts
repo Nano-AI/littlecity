@@ -21,8 +21,11 @@ const LAP = 0.09;
 
 export default definePart({
   feature: 'terrain-steps',
-  build(_item, ctx) {
+  build(item, ctx) {
     const b = ctx.mesh();
+    // Two flights can leave one cell (round a corner), crossing each other there: those climbing east or
+    // west stand their nosings and cheeks a hair (0.004) higher, so the crossing pieces never share a plane.
+    const k = item.dir !== undefined && item.dir % 2 === 1 ? 0.004 : 0;
     const half = 0.5 - FLOOR.pathMargin - 0.01;
     const tread = RUN / STEPS, rise = CELL_H / STEPS;
     // The treads: one stone mass, so the creases between them are the drawing. Each tread is a little
@@ -41,15 +44,15 @@ export default definePart({
     b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'nosing' }, () => {
       for (let i = 0; i < STEPS - 1; i++) {
         const z0 = -RUN + i * tread;
-        b.box([-half - 0.015, (i + 1) * rise - 0.02, z0 - 0.02], [half + 0.015, (i + 1) * rise + 0.008, z0 + 0.035]);
+        b.box([-half - 0.015, (i + 1) * rise - 0.02 + k, z0 - 0.02], [half + 0.015, (i + 1) * rise + 0.008 + k, z0 + 0.035]);
       }
     });
     // Cheeks: a low stone block either side, stepping down with the flight.
     b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'cheeks' }, () => {
       for (const side of [-1, 1]) {
         const x0 = side < 0 ? -half - 0.1 : half, x1 = side < 0 ? -half : half + 0.1;
-        b.box([x0, 0, -RUN * 0.5], [x1, CELL_H + 0.05, LAP], { skip: ['bottom'] });
-        b.box([x0, 0, -RUN - 0.03], [x1, CELL_H * 0.5 + 0.04, -RUN * 0.5], { skip: ['bottom', 's'] });
+        b.box([x0, 0, -RUN * 0.5], [x1, CELL_H + 0.05 + k, LAP], { skip: ['bottom'] });
+        b.box([x0, 0, -RUN - 0.03], [x1, CELL_H * 0.5 + 0.04 + k, -RUN * 0.5], { skip: ['bottom', 's'] });
       }
     });
     return { mesh: b.build() };

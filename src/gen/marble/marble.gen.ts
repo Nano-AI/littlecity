@@ -36,6 +36,11 @@ export interface MarbleCell {
   grounded: readonly boolean[];
   /** Sides where the ground outside is level with the cell's top. */
   flush: readonly boolean[];
+  /**
+   * Open sides against another marble structure's block: no base course, string course or cornice there, which would
+   * reach into it and lie in the planes of its top and of its own bands round the corner.
+   */
+  against: readonly boolean[];
 }
 
 /** What the generator reads about each cell of a marble mass (all inside the structure hash). */
@@ -47,7 +52,7 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
     const up = above(cell);
     const down = below(cell);
     const onGround = height(x, z) === y && !mine.has(down);
-    const open: boolean[] = [], grounded: boolean[] = [], flush: boolean[] = [];
+    const open: boolean[] = [], grounded: boolean[] = [], flush: boolean[] = [], against: boolean[] = [];
     for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
       const n = neighbor(cell, d);
       const nh = n === NO_CELL ? 0 : height(keyX(n), keyZ(n));
@@ -58,8 +63,9 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
       open.push(n === NO_CELL || !mine.has(n) || beside);
       grounded.push(onGround && n !== NO_CELL && !mine.has(n) && nh === y);
       flush.push(n !== NO_CELL && !mine.has(n) && nh === y + 1);
+      against.push(n !== NO_CELL && !mine.has(n) && !beside && plan.kinds.get(n) === 'marble');
     }
-    return { cell, open, topOpen: up === NO_CELL || !mine.has(up), walkable: up === NO_CELL || !plan.kinds.has(up), grounded, flush };
+    return { cell, open, topOpen: up === NO_CELL || !mine.has(up), walkable: up === NO_CELL || !plan.kinds.has(up), grounded, flush, against };
   });
 }
 
@@ -194,26 +200,27 @@ export default defineGenerator({
     const wallOn = (c: MarbleCell, d: number): boolean => c.open[d]! && !carved.has(c.cell);
     const out = MONUMENTS.marbleBaseOut, baseH = MONUMENTS.marbleBase;
     if (baseH > 0 && out > 0) {
-      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => band((c, d) => c.grounded[d]! && !carved.has(c.cell), () => 0, baseH, out));
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'base' }, () => band((c, d) => c.grounded[d]! && !c.against[d] && !carved.has(c.cell), () => 0, baseH, out));
     }
     const embattled = (c: MarbleCell, d: number): boolean => battlements.has(c.cell * 4 + d);
     const corniceH = MONUMENTS.marbleCornice * (temple ? 1.5 : 1);
     if (corniceH > 0) {
       // A temple's is deeper and darker: its frieze.
       b.with({ color: temple ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'cornice' }, () =>
-        band((c, d) => c.topOpen && c.open[d]! && !c.flush[d] && !carved.has(c.cell) && !besideSteps(c.cell, d) && !embattled(c, d), () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
+        band((c, d) => c.topOpen && c.open[d]! && !c.against[d] && !c.flush[d] && !carved.has(c.cell) && !besideSteps(c.cell, d) && !embattled(c, d), () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
       );
     }
     // A string course at every storey line: the pen lines a tall wall needs.
     if (MONUMENTS.marbleCourse > 0) {
       b.with({ color: castle ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'course' }, () =>
-        band((c, d) => wallOn(c, d) && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
+        band((c, d) => wallOn(c, d) && !c.against[d] && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
       );
     }
     if (castle) {
-      // Quoins up every outer corner: long and short stones in turn, a hair proud.
+      // Quoins up every outer corner: long and short stones in turn, a hair proud (0.024: off the plane of an
+      // arch's voussoir ring, 0.02 proud of the same wall line, where an arch springs beside the corner).
       b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'quoins' }, () => {
-        const n = 5, qh = CELL_H / n, proud = 0.02;
+        const n = 5, qh = CELL_H / n, proud = 0.024;
         for (const c of cells) {
           for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
             const next = ((d + 1) & 3) as Dir4;

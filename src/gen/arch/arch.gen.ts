@@ -25,6 +25,11 @@ import { rakeAt, type Rake } from './rake';
 type Vec3 = [number, number, number];
 type Side = 'front' | 'back' | 'lo' | 'hi';
 const SIDES: readonly Side[] = ['front', 'back', 'lo', 'hi'];
+/**
+ * How far an arch's top (deck, coping, cornice) and an impost's top stand over the storey line they
+ * would otherwise share with the ground, a house's floor band or a marble block's cornice beside them.
+ */
+const TOP_LIFT = 0.004;
 
 interface OpeningParams {
   lo?: number;
@@ -152,7 +157,7 @@ export default defineGenerator({
     const stone = rampColor('arch', s.color + Math.round(MONUMENTS.archTint));
     // A buttress with no pier under it anywhere is drawn as a raking half arch, never a level slab.
     const raking = slim && [...cells.values()].every((c) => c.rake !== undefined && c.piers.length === 0);
-    const H = CELL_H;
+    const H = CELL_H, HT = H + TOP_LIFT;
     const { cornice: cH, corniceOut: cOut, parapet: pH, parapetThick: pT, pierHalf: ph } = MONUMENTS;
     const height = (c: CellKey): number => (inColumnBounds(keyX(c), keyZ(c)) ? plan.terrain.height[columnIndex(keyX(c), keyZ(c))]! : 0);
 
@@ -263,17 +268,19 @@ export default defineGenerator({
           }
         });
         // The deck.
+        // The top (deck, coping, cornice) stands TOP_LIFT over the storey line, where the ground beside
+        // it, a house's floor band under its abutment and a marble block's cornice lie.
         if (c.topOpen && slim) {
           // A coping along the rib's back.
           b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'cornice' }, () => {
             const skip: ('bottom' | 'w' | 'e')[] = ['bottom'];
             if (joined('lo')) skip.push('w');
             if (joined('hi')) skip.push('e');
-            b.box([-ext.lo, H - 0.07, t0 - 0.04], [1 + ext.hi, H, t1 + 0.04], { skip });
+            b.box([-ext.lo, H - 0.07, t0 - 0.04], [1 + ext.hi, HT, t1 + 0.04], { skip });
           });
         } else if (c.topOpen) {
           b.with({ color: stone, pattern: c.walkable ? PATTERN.cobbles : PATTERN.none, ink: 'body' }, () =>
-            b.quad([-ext.lo, H, 1], [1 + ext.hi, H, 1], [1 + ext.hi, H, 0], [-ext.lo, H, 0]),
+            b.quad([-ext.lo, HT, 1], [1 + ext.hi, HT, 1], [1 + ext.hi, HT, 0], [-ext.lo, HT, 0]),
           );
         }
 
@@ -283,8 +290,10 @@ export default defineGenerator({
           if (e === 0) continue;
           const o = c.openings.find((op) => (end === 'lo' ? op.lo < 0.02 && op.hi > 0.02 : op.hi > 0.98 && op.lo < 0.98));
           if (!o) continue;
+          // Its top two hairs over the springing: a springing on a storey line is level with a house's floor
+          // band, or with the top of an arch below (itself one hair over the line).
           b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'impost' }, () =>
-            b.box([end === 'lo' ? -e : 0.93, o.spring - 0.12, t0 - 0.03], [end === 'lo' ? 0.07 : 1 + e, o.spring, t1 + 0.03], { skip: ['bottom', end === 'lo' ? 'w' : 'e'] }),
+            b.box([end === 'lo' ? -e : 0.93, o.spring - 0.12, t0 - 0.03], [end === 'lo' ? 0.07 : 1 + e, o.spring + 2 * TOP_LIFT, t1 + 0.03], { skip: ['bottom', end === 'lo' ? 'w' : 'e'] }),
           );
         }
 
@@ -386,12 +395,12 @@ export default defineGenerator({
               for (let i = 0; i < n; i++) {
                 const a = i === 0 ? x0 : xs[i]!, d = i === n - 1 ? x1 : xs[i + 1]!;
                 const ra = rise(xs[i]!), rd = rise(xs[i + 1]!);
-                b.quad([a, H - cH + ra, 1 + cOut], [d, H - cH + rd, 1 + cOut], [d, H + rd, 1 + cOut], [a, H + ra, 1 + cOut]);
-                b.quad([a, H + ra, 1 + cOut], [d, H + rd, 1 + cOut], [d, H + rd, 1], [a, H + ra, 1]);
+                b.quad([a, H - cH + ra, 1 + cOut], [d, H - cH + rd, 1 + cOut], [d, HT + rd, 1 + cOut], [a, HT + ra, 1 + cOut]);
+                b.quad([a, HT + ra, 1 + cOut], [d, HT + rd, 1 + cOut], [d, HT + rd, 1], [a, HT + ra, 1]);
                 b.quad([a, H - cH + ra, 1], [d, H - cH + rd, 1], [d, H - cH + rd, 1 + cOut], [a, H - cH + ra, 1 + cOut]);
               }
-              if (capL && !cornerL && eL === 0) b.quad([0, H - cH, 1], [0, H - cH, 1 + cOut], [0, H, 1 + cOut], [0, H, 1]);
-              if (capR && !cornerR && eR === 0) b.quad([1, H - cH, 1 + cOut], [1, H - cH, 1], [1, H, 1], [1, H, 1 + cOut]);
+              if (capL && !cornerL && eL === 0) b.quad([0, H - cH, 1], [0, H - cH, 1 + cOut], [0, HT, 1 + cOut], [0, HT, 1]);
+              if (capR && !cornerR && eR === 0) b.quad([1, H - cH, 1 + cOut], [1, H - cH, 1], [1, HT, 1], [1, HT, 1 + cOut]);
             });
             if (!c.walkable) return;
             if (c.deck === 'covered' && along) return; // the gallery's own walls stand on these sides

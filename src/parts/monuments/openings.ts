@@ -67,7 +67,9 @@ export function arrowSlit(b: MeshBuilder, id: string, stone: ColorInput): void {
  * step. Origin: on the ground at the foot of the wall.
  */
 export function towerDoor(b: MeshBuilder, stone: ColorInput, leaf: ColorInput, steps = 0, moving = false): Record<string, Mat4Like> {
-  b.with({ color: stone, pattern: PATTERN.none, ink: 'door-frame' }, () => roundHeadBlock(b, 0.34, 0.5, 0.045, 0, 0, 8));
+  // The surround's face stands 0.042 proud: 0.004 behind the doorway (or the leaf, 0.05), so the two
+  // never share a plane (0.001 is too little to keep them apart from a low camera).
+  b.with({ color: stone, pattern: PATTERN.none, ink: 'door-frame' }, () => roundHeadBlock(b, 0.34, 0.5, 0.042, 0, 0, 8));
   // `moving`: the leaf is the 'door-leaf' actor's (it swings open); the wall shows a dark doorway.
   if (moving) b.with({ color: INTERIOR, pattern: PATTERN.none, ink: 'doorway' }, () => b.polygon(roundHead(0.23, 0.435, 0.046, 0, 0, 7)));
   else towerLeaf(b, leaf);

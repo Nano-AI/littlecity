@@ -352,8 +352,18 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
       }
     }
   }
-  if (look.cap) ridgeCaps(b, faces, look.cap);
+  if (look.cap) {
+    // A point on an overhang (outside every cell of the roof), where the slab's edge has a fascia.
+    const cellSet = new Set(input.cells.map((c) => `${keyX(c)},${keyZ(c)}`));
+    const inside = (x: number, z: number): boolean => cellSet.has(`${Math.floor(x)},${Math.floor(z)}`);
+    const e = 1e-3;
+    const overhang = (p: Vec3): boolean => !inside(p[0] - e, p[2] - e) && !inside(p[0] + e, p[2] - e) && !inside(p[0] - e, p[2] + e) && !inside(p[0] + e, p[2] + e);
+    ridgeCaps(b, faces, look.cap, overhang);
+  }
 }
+
+/** How far a cap's free end stands past the roof's edge (the step that keeps it off the fascia's plane). */
+const RIDGE_PROUD = 0.004;
 
 /**
  * Ridge and hip caps. Wherever two roof triangles meet at a fold that points
@@ -365,6 +375,7 @@ function ridgeCaps(
   b: MeshBuilder,
   faces: readonly { v: [Vec3, Vec3, Vec3]; flat: [Vec3, Vec3, Vec3]; n: Vec3 }[],
   cap: { color: ColorInput; ink: string; width: number; proud: number },
+  overhang: (p: Vec3) => boolean,
 ): void {
   const q = (p: Vec3): string => `${Math.round(p[0] * 2000)},${Math.round(p[2] * 2000)}`;
   const edges = new Map<string, { face: number; a: number; b: number }[]>();
@@ -409,7 +420,15 @@ function ridgeCaps(
   if (folds.length === 0) return;
   const hw = cap.width / 2;
   b.with({ color: cap.color, ink: cap.ink }, () => {
-    for (const { a, c, n1, n2, d1, d2 } of folds) {
+    for (const fold of folds) {
+      const { n1, n2, d1, d2 } = fold;
+      // Where the cap stops over an overhang (a ridge at a gable end) its end stands a hair proud of the
+      // fascia, which lies in the same plane: flush, the two would trade pixels as the view turns. (At a
+      // party wall it stops on the cell line, where the neighbour's cap begins.)
+      const run = unit(sub(fold.c, fold.a));
+      const proud = (p: Vec3): boolean => ends.get(q(p)) === 1 && overhang(p);
+      const a = proud(fold.a) ? along(fold.a, run, -RIDGE_PROUD) : fold.a;
+      const c = proud(fold.c) ? along(fold.c, run, RIDGE_PROUD) : fold.c;
       const up = unit([n1[0] + n2[0], n1[1] + n2[1], n1[2] + n2[2]]);
       const peakA = along(a, up, cap.proud), peakC = along(c, up, cap.proud);
       const side = (d: Vec3, n: Vec3): void => {
@@ -422,8 +441,8 @@ function ridgeCaps(
       side(d1, n1);
       side(d2, n2);
       // Close an end where the cap stops (a ridge at a gable end).
-      for (const [p, peak, out] of [[a, peakA, -1], [c, peakC, 1]] as const) {
-        if (ends.get(q(p)) !== 1) continue;
+      for (const [p, peak, out, end] of [[a, peakA, -1, fold.a], [c, peakC, 1, fold.c]] as const) {
+        if (ends.get(q(end)) !== 1) continue;
         const f1 = along(along(p, d1, hw), n1, 0.003), f2 = along(along(p, d2, hw), n2, 0.003);
         const e = sub(c, a);
         const normal = cross(sub(f1, peak), sub(f2, peak));
