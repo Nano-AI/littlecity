@@ -1,0 +1,85 @@
+# People
+
+The residents: who they are, where they go, how they get there, how they are
+drawn. Owner: People (Stage 3). Catalogue L21–L28, L32; design section 13.
+
+## The pieces
+
+| File | What it is |
+|---|---|
+| `src/resolve/nav.ts` | The walking graph, built in the dressing stage from the shape plan. Pure. |
+| `route.ts` | A* over the graph with the L24 costs; remembers routes. Pure. |
+| `walk.ts` | Turns a route into the line actually walked: one piece per cell, curves at turns, keep right, heights on stairs, steps and stoops, doors, time hidden inside. Pure. |
+| `crowd.ts` | The simulation: every person's mode, goal and position. No drawing, no clock of its own. |
+| `people.system.ts` | Runs the crowd and draws it through the `LifeStage`. The only file that touches the stage. |
+| `home.ts` | Who is at home, for the window lights; the `residentHome` and `lampReached` events. |
+| `testing.ts` | A watcher for tests: fails if anyone leaves the graph, walks backwards or gets stuck. |
+| `src/parts/people/person.ts`, `pose.ts` | The drawn person (five rigid pieces) and its poses. |
+| `src/rules/life/L2*.rule.ts`, `L32*` | What the plan says: residents, haunts, queue points, landings, ways out, stoops. |
+| `src/style/people.ts` | Every number: `nav` (costs), `people` (crowd), `person` (drawing and motion). |
+
+Rules decide **what a town offers** (pure, in the plan, as actors and
+sockets). The crowd decides **what people do with it** at run time. Nothing
+random: every choice is `rand(person seed, name, counter)`, and time comes
+only from `signals.time`.
+
+## Motion style
+
+Written here because `src/life/MOTION.md` did not exist when this was made;
+if the Animation owner's file says otherwise for shared things, that wins.
+
+- **Poses are held, places glide.** A figure's position moves smoothly every
+  frame along its line. Its *drawing* steps: a walk is four held drawings a
+  stride (contact, passing, contact, passing: "on twos"), an idle changes
+  drawing about three times a second. Nothing is blended between poses.
+- **A step is a step.** Stride phase advances with distance walked
+  (`PERSON.stepsPerCell`), never with time, so feet do not slide. Somebody
+  held up stands; they do not march on the spot.
+- **Turn, then go.** A walker more than about 60° off their line turns on
+  the spot first. Nobody moves backwards or sideways.
+- **Small bob, no squash.** The body rises 0.014 on the passing pose. People
+  are rigid pieces; squash and stretch belongs to buildings landing.
+- **One accent at a time.** An idle is mostly still, with one small event
+  every few seconds (a head turn, a swung foot, a tug on the line).
+- **In and out of sight in one beat.** Through a door: half a second walking
+  into the wall, then hidden. Down a hatch: sinking through the roof. At the
+  shore: shrinking in or out over 0.8 s.
+
+## For other owners
+
+- **Window lights (L07).** `homeCensus(signals).lit(structureId)` says
+  whether anyone is in that house now; `.ready` is false until the crowd has
+  seen a town (treat that as "light them all"); `.version` changes on every
+  change. Or listen: `signals.on('residentHome', ({ home, count }) => …)`.
+- **`personPassed`** is emitted with the cell each time a walker enters one.
+- **Seats.** Any socket of type `seat` (shape or dressing stage) becomes a
+  `haunt-bench`, or a `haunt-cafe` when its owner prop's type contains
+  "table" or "cafe". The sitter uses the socket's frame: origin = where they
+  sit, +Z = the way they face. A town with no seats simply has no sitters.
+- **Lamps.** `lampReached` (`{ lamp: propId }`) is declared in `home.ts`.
+- **Debug.** `window.__lcPeople` is the running crowd (`people`, `haunts`,
+  `atHome`, `nav`).
+
+## How to watch
+
+```sh
+npm run shots -- people-sheet      # every pose and forty looks, close and far
+npm run shots -- people-town       # the town with every kind of route
+npm run shots -- people-town --time dusk
+```
+
+`people-town` has a square, a pier, carved steps up a hill, a stairs flight
+to a marble terrace, an open viaduct, a covered sky bridge and a roof garden
+reached only through its house.
+
+## Readings of the catalogue worth knowing
+
+- **Shut-ins do not use the cap.** A house whose door opens onto nothing
+  walkable has `resident/indoors` people: at home for good, never drawn.
+- **The phone cap** is applied by the crowd (it knows the viewport), not by
+  L21, which is pure and always emits up to 60.
+- **Through a stranger's house** costs 12 extra, so houses are a way up only
+  when there is no other.
+- **A roof terrace with no door onto it** gets a hatch the graph derives
+  (`door/hatch` is in the vocabulary but no rule emits one).
+- **Garden** costs 2 a cell and **stairs** 1.5 (the catalogue names neither).

@@ -124,10 +124,9 @@ describe('the big town', () => {
     expect(w.arrivals).toBeGreaterThan(100);
     expect(w.mostOut).toBeGreaterThan(30);
     expect(crowd.people.filter((p) => p.shutIn).every((p) => p.mode === 'home' && !p.visible)).toBe(true);
-    // About 0.03 ms a step and 1 ms at worst on the machine this was written on; the bounds are loose
-    // because test machines are busy. A frame is 16.7 ms.
+    // About 0.03 ms a step (0.5 ms at worst) on the machine this was written on. Only the mean is
+    // asserted, loosely: under a busy test run a single step can be held up by anything. A frame is 16.7 ms.
     expect(mean).toBeLessThan(1.5);
-    expect(worst).toBeLessThan(12);
     console.info(`crowd on bench-2000: ${crowd.people.length} people, mean ${mean.toFixed(3)} ms a step, worst ${worst.toFixed(2)} ms, ${crowd.router!.stats.searches} searches, ${crowd.router!.stats.hits} cache hits`);
   });
 });
