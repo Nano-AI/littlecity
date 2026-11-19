@@ -295,7 +295,7 @@ const DRAWINGS: Record<string, string> = {
   // The ✨ over an Auto block while the Change tool is selected.
   sparkle: sparkle(22, 26, 18, `fill="${C.white}" stroke-width="3"`) + sparkle(39, 9, 7, `fill="${C.yellow}" stroke-width="2.4"`),
   // Random house style: a die, its three faces showing one, two and three.
-  dice:
+  styleDice:
     `<path d="${CUBE_LEFT}" fill="${C.white}"/><path d="${CUBE_RIGHT}" fill="${C.stoneShade}"/><path d="${CUBE_TOP}" fill="${C.white}"/>` +
     `<g fill="${C.ink}" stroke="none"><ellipse cx="24.1" cy="15.9" rx="2.3" ry="1.4"/>` +
     `<circle cx="12.6" cy="22.4" r="1.7"/><circle cx="19.5" cy="35.4" r="1.7"/>` +
@@ -336,7 +336,7 @@ function styleDoor(door: string, accent: string): string {
  */
 export function styleIcon(style: number, wallIndex: number): string {
   const st = houseStyle(style);
-  if (!st) return icon('dice');
+  if (!st) return icon('styleDice');
   const c = ((wallIndex % 8) + 8) % 8;
   const wall = RAMPS.wall[c]!;
   const accent = styleAccent(st, c);
