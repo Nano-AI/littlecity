@@ -12,6 +12,7 @@
 // piece with a garden cell on either side.
 
 import { edgeCells, neighbor, NO_CELL, type CellKey } from '@/core/grid';
+import type { Tag } from '@/core/vocab';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
 import type { Structure } from '@/resolve/plan';
@@ -37,22 +38,41 @@ export function wallRoleOf(f: Facts, s: Structure): WallRole {
   return byGarden ? 'garden-wall' : 'low-wall';
 }
 
-export default defineRule<{ role: WallRole }>({
+/** The palette index of the tower (first choice) or marble a curtain wall touches: its stone. */
+export function castleTint(f: Facts, s: Structure): number {
+  const found: { tower?: number; marble?: number } = {};
+  const look = (c: CellKey): void => {
+    if (c === NO_CELL) return;
+    const k = f.kinds.get(c);
+    if (k !== 'tower' && k !== 'marble') return;
+    found[k] ??= f.world.blocks.get(c)?.color ?? 0;
+  };
+  for (const c of s.cells) for (const d of DIRS) look(neighbor(c, d));
+  for (const e of s.edges) {
+    edgeCells(e).forEach(look);
+    for (const end of [0, 1] as const) if (edgeEndIsFree(f, e, end, 'wall')) cellsBeyond(e, end).forEach(look);
+  }
+  return (((found.tower ?? found.marble ?? 0) % 8) + 8) % 8;
+}
+
+export default defineRule<{ role: WallRole; tint: number }>({
   id: 'R-E02.wall-style',
   part: 'roles',
   tier: 1,
   priority: 3980,
-  about: 'Reads: marble and towers beside a wall run, garden floors on or beside it. Claims: the run’s role. Tags a garden wall with creepers by seeded chance.',
+  about: 'Reads: marble and towers beside a wall run, garden floors on or beside it. Claims: the run’s role. Tags a garden wall with creepers by seeded chance, and a curtain wall with the stone of the tower or marble it touches.',
   find({ facts }) {
-    const out: Candidate<{ role: WallRole }>[] = [];
+    const out: Candidate<{ role: WallRole; tint: number }>[] = [];
     for (const s of facts.structures.values()) {
       if (s.kind !== 'wall') continue;
-      out.push({ anchor: s.cells[0] ?? s.edges[0]! >> 1, structure: s.id, data: { role: wallRoleOf(facts, s) } });
+      const role = wallRoleOf(facts, s);
+      out.push({ anchor: s.cells[0] ?? s.edges[0]! >> 1, structure: s.id, data: { role, tint: role === 'curtain-wall' ? castleTint(facts, s) : 0 } });
     }
     return out;
   },
   apply(c, out, { rand }) {
     out.role(c.structure!, c.data.role);
     if (c.data.role === 'garden-wall' && rand('creepers') < WALL.creepers) out.tag(c.structure!, 'creepers');
+    if (c.data.role === 'curtain-wall') out.tag(c.structure!, `stone:${c.data.tint}` as Tag);
   },
 });

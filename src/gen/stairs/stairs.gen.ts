@@ -5,12 +5,18 @@
 // faces and no seams between them), cells continuing one up and one forward
 // are one long flight. Each cell is drawn from what surrounds it:
 //
-//   treads     stone risers, each under a proud tread slab; every tread slab
-//              of the flight is in ONE ink group
+//   treads     stone risers, each under a proud tread slab of lighter stone
+//              (the nosing); every tread slab of the flight is in ONE ink
+//              group. No two treads are quite the same height, and about
+//              one in six is worn a tone darker (seeded per row of the
+//              flight, so a wide flight's treads run straight through)
 //   open side  a stone cheek wall following the slope, standing a little in
 //              from the cell edge, with a newel block at the foot and the
 //              head of the flight and at each landing
-//   a wall or higher ground beside it: the treads run flush to it, no cheek
+//   a wall or higher ground beside it: no cheek; the treads run a little way
+//              into it (a house wall stands 0.07 inside its cell) and their
+//              ends are closed, so no slot of daylight shows beside a wall,
+//              a round tower or a rounded bank
 //   landing    (a `stair-landing` feature) a deep first tread
 //   handrail   (a `railing` feature on a stairs cell and one of its sides)
 //              a sloped rail on the cheek wall, in the feature's style
@@ -26,7 +32,7 @@ import { hash } from '@/core/rand';
 import { defineGenerator, placeFeatures } from '@/gen/api';
 import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import { drawSpan } from '@/parts/ground/edge-draw';
-import { rngOf } from '@/parts/ground/kit';
+import { mixColor, rngOf } from '@/parts/ground/kit';
 import type { Feature } from '@/resolve/plan';
 import { firm, ROLE_OF_RAIL, type RailVariant } from '@/rules/joinery/edges-lib';
 import { FENCE, STAIRS } from '@/style/edges';
@@ -41,6 +47,8 @@ export default defineGenerator({
     const b = new MeshBuilder({ ink: s.id });
     const mine = new Set(s.cells);
     const stone = rampColor('stairs', s.color);
+    // The tread slabs and their nosings: a lighter stone than the risers.
+    const light = mixColor(stone, PALETTE.white, 0.6);
     const landings = new Set<CellKey>();
     const rails = new Map<string, Feature>();
     for (const f of plan.featuresByStructure.get(s.id) ?? []) {
@@ -72,7 +80,10 @@ export default defineGenerator({
       const sides: [Dir4, Dir4] = [turn(rot, 3), turn(rot, 1)]; // −X, +X
       const state = sides.map((d) => sideOf(cell, d)) as [Side, Side];
       const edge = (i: 0 | 1): number => (state[i] === 'open' ? 0.5 - STAIRS.inset : 0.5);
-      const tread = (i: 0 | 1): number => (state[i] === 'open' ? edge(i) - STAIRS.cheek : 0.5);
+      const tread = (i: 0 | 1): number => (state[i] === 'open' ? edge(i) - STAIRS.cheek : state[i] === 'wall' ? 0.5 + STAIRS.into : 0.5);
+      // Seeded per row of the flight (its level and its place along the climb), so side-by-side cells agree.
+      const tr = rngOf(hash(s.seed, 'row', keyY(cell), rot % 2 === 1 ? keyX(cell) : keyZ(cell)));
+      const tops: number[] = [], fronts: number[] = [], backs: number[] = [];
       const xl = -tread(0), xr = tread(1);
 
       // Tread depths, front to back.
@@ -80,19 +91,26 @@ export default defineGenerator({
       for (let i = 0; i < n; i++) depths.push(landing ? (i === 0 ? STAIRS.landing : (1 - STAIRS.landing) / (n - 1)) : 1 / n);
 
       b.at(local, () => {
-        let zf = 0.5;
+        let zf = 0.5, under = 0;
         for (let i = 0; i < n; i++) {
           const zb = i === n - 1 ? -0.5 : zf - depths[i]!;
-          const h = (i + 1) * riser;
+          // The top tread is exact: it meets the floor above. The others are a hair out, as laid stone is.
+          const h = (i + 1) * riser + (i < n - 1 ? (tr('h', i) - 0.5) * 2 * STAIRS.uneven : 0);
           const lip = Math.min(STAIRS.nosing, riser * 0.5);
+          const zr = zf, low = under;
           b.with({ color: stone, pattern: PATTERN.stone, ink: 'steps' }, () =>
-            b.quad([xl, h - riser, zf], [xr, h - riser, zf], [xr, h - lip, zf], [xl, h - lip, zf]),
+            b.quad([xl, low, zr], [xr, low, zr], [xr, h - lip, zr], [xl, h - lip, zr]),
           );
-          b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'nosing' }, () => {
-            const zp = zf + STAIRS.proud;
+          const slab = tr('worn', i) < STAIRS.worn ? mixColor(light, PALETTE.stoneShade, 0.75) : light;
+          b.with({ color: slab, pattern: PATTERN.none, ink: 'nosing' }, () => {
+            const zp = zr + STAIRS.proud * (0.8 + tr('p', i) * 0.4);
             b.quad([xl, h, zp], [xr, h, zp], [xr, h, zb], [xl, h, zb]);
             b.quad([xl, h - lip, zp], [xr, h - lip, zp], [xr, h, zp], [xl, h, zp]);
           });
+          tops.push(h);
+          fronts.push(zf);
+          backs.push(zb);
+          under = h;
           zf = zb;
         }
         if (!solidAhead) {
@@ -101,6 +119,16 @@ export default defineGenerator({
 
         // The open sides. Drawn for +X; the −X side is its mirror image.
         for (const i of [0, 1] as const) {
+          if (state[i] === 'wall') {
+            // Against a wall or a bank: the ends of the treads, closed, a little way inside it.
+            const xe = tread(i);
+            b.at(i === 1 ? identity() : scaling(-1, 1, 1), () =>
+              b.with({ color: stone, pattern: PATTERN.stone, ink: 'steps' }, () => {
+                for (let k = 0; k < n; k++) b.quad([xe, 0, fronts[k]!], [xe, 0, backs[k]!], [xe, tops[k]!, backs[k]!], [xe, tops[k]!, fronts[k]!]);
+              }),
+            );
+            continue;
+          }
           if (state[i] !== 'open') continue;
           const side = sides[i];
           const xo = edge(i), xi = tread(i), xc = (xo + xi) / 2;

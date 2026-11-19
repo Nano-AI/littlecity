@@ -11,19 +11,23 @@ import { emptyWorld } from '@/world/world';
 import treeGen, { drawTree, mixedSpecies, TREE_ROLES, type TreeRole } from './tree.gen';
 
 const SEEDS = [1, 2, 3, 17, 404, 9001, 31337];
-/** Triangles per plant. The aim is under 400; a companion bush at the foot adds up to 160. */
+/**
+ * Triangles per plant. Crowns are divided finely enough that their outlines are
+ * curves (sixteen sides to a core, five to seven lumps round the rim: art review
+ * 1, G1), which costs more than the first pass's 400: the ceiling is 620.
+ */
 const BUDGET: Record<TreeRole, number> = {
-  'round-tree': 400,
-  'cypress': 300,
-  'bush': 320,
+  'round-tree': 540,
+  'cypress': 380,
+  'bush': 470,
   'palm': 330,
-  'willow': 400,
-  'pine': 160,
-  'planter-tree': 400,
-  'fruit-tree': 480,
-  'grove-tree': 480,
+  'willow': 520,
+  'pine': 420,
+  'planter-tree': 500,
+  'fruit-tree': 620,
+  'grove-tree': 620,
 };
-const COMPANION = 160;
+const COMPANION = 200;
 
 function plant(role: TreeRole, seed: number, companion = false): MeshData {
   const b = new MeshBuilder({ ink: seed });
@@ -52,7 +56,7 @@ describe('every tree species', () => {
       expect(triangleCount(mesh), `${role} seed ${seed}`).toBeLessThanOrEqual(BUDGET[role]);
       expect(triangleCount(plant(role, seed, true)) - triangleCount(mesh)).toBeLessThanOrEqual(COMPANION);
       // A handful of outlined objects, never one per leaf.
-      expect(inkGroups(mesh).size).toBeLessThanOrEqual(6);
+      expect(inkGroups(mesh).size).toBeLessThanOrEqual(7);
       const { min, max } = meshBounds(mesh);
       expect(min[1]).toBeGreaterThanOrEqual(-0.06); // a trunk's foot is sunk a hair, never lifted
       expect(max[1], `${role} is ${max[1]} tall`).toBeGreaterThan(role === 'bush' ? 0.3 : role === 'fruit-tree' ? 0.6 : 0.75);
@@ -78,19 +82,25 @@ describe('every tree species', () => {
     }
   });
 
-  test('crowns are drawn in flat tones: most leaf vertices carry one of the three tone normals', () => {
+  test('crowns are drawn in two flat tones: light left plain, shade marked with leaves', () => {
     const tones = [TONE.lit, TONE.mid, TONE.shade];
-    for (const role of ['round-tree', 'cypress', 'willow', 'grove-tree', 'fruit-tree'] as const) {
+    for (const role of ['round-tree', 'cypress', 'willow', 'grove-tree', 'fruit-tree', 'planter-tree'] as const) {
       const mesh = plant(role, 3);
-      let flat = 0, swaying = 0;
+      let flat = 0, swaying = 0, marked = 0, markedLit = 0;
       for (let v = 0; v < mesh.sway.length; v++) {
-        if (mesh.pattern[v] !== 17) continue; // leaves
+        if (mesh.sway[v]! < 0.3 || mesh.pattern[v] === 18) continue; // not the crown; bark
+        if (mesh.pattern[v] === 17) {
+          marked++;
+          if (Math.abs(mesh.normal[v * 3 + 1]! - TONE.lit[1]) < 1e-3) markedLit++;
+        }
         swaying++;
         const n = [mesh.normal[v * 3]!, mesh.normal[v * 3 + 1]!, mesh.normal[v * 3 + 2]!];
         if (tones.some((t) => Math.abs(t[0] - n[0]) + Math.abs(t[1] - n[1]) + Math.abs(t[2] - n[2]) < 1e-3)) flat++;
       }
       expect(swaying).toBeGreaterThan(100);
       expect(flat / swaying, role).toBeGreaterThan(0.9);
+      expect(marked, role).toBeGreaterThan(30);
+      expect(markedLit, `${role}: leaf marks only in the shade`).toBe(0);
     }
   });
 });
@@ -106,7 +116,7 @@ describe('the tree generator', () => {
     expect(min[1]).toBeLessThanOrEqual(0.8);
     expect(min[0]).toBeGreaterThan(19.3);
     expect(max[0]).toBeLessThan(21.7);
-    expect(triangleCount(out.mesh)).toBeLessThanOrEqual(400 + COMPANION);
+    expect(triangleCount(out.mesh)).toBeLessThanOrEqual(540 + COMPANION);
     // The same structure draws the same mesh.
     expect(treeGen.build(s, plan, allParts()).mesh).toEqual(out.mesh);
   });

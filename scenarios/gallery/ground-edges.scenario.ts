@@ -151,7 +151,7 @@ export default scenario({
     check.equal(check.features({ type: 'gate' }).filter((f) => f.edge !== undefined).length, 2, 'gates in edge runs');
     check.hasFeature({ type: 'railing', variant: 'picket', at: [8, 3, 22] });
     check.hasFeature({ type: 'railing', variant: 'balustrade', at: [15, 3, 22] });
-    check.hasFeature({ type: 'railing', variant: 'iron', at: [20, 3, 22] });
+    check.noFeature({ type: 'railing', at: [20, 3, 22] }); // a house roof: the house's own parapet is the barrier
     check.hasFeature({ type: 'railing', variant: 'rope', at: [27, 3, 23] });
     check.hasFeature({ type: 'stair-landing', at: [17, 4, 30] });
     check.hasFeature({ type: 'railing', at: [17, 3, 31], dir: 1 });

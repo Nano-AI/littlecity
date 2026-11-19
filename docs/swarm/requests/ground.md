@@ -98,3 +98,27 @@ piece's two ends would let both features go.
   toward a dock or bridge top only when it is heading straight for it (it
   continues from the opposite side) or is a lone cell, so a street along a
   quay does not grow a stub at every cell.
+
+## 6. After art review 1 (fix pass): seams that need the other side
+
+- **Houses, H4 (roof terrace).** Ground's half is done: a fence edge piece on
+  the edge of a house roof now stands `FENCE.roofInset` (0.07) inside the
+  cell line, on the wall head, and the iron is light. J19 no longer adds a
+  derived railing to a cell on a house roof. Still needed from Houses: leave
+  the white parapet out on a side that carries an edge piece (the house can
+  read `plan.world.edges` for its own cells' sides), or the terrace still
+  shows two barriers.
+- **Monuments, M1 (castle stone).** A curtain wall now takes the palette
+  index of the tower it touches (else of the marble) and draws
+  `rampColor('tower', index)` with `PATTERN.stone` and `PALETTE.stoneShade`
+  for its batter and corbel course. For the keep to match, marble in castle
+  roles needs the same: `PATTERN.stone` in `RAMPS.stone[its colour]`.
+- **Houses, pitched roofs.** A player can put fence edge pieces round a
+  house whose roof is pitched (`ground-edges` `roofs`): the railing then
+  stands at eaves level in the air. Either J04 should treat "edge pieces
+  round it" like a floor (flat terrace), or Ground should not draw them
+  there; say which.
+- **Stairs against a wall or bank** now run 0.075 into it with closed ends
+  (`STAIRS.into`). Nothing needed, but a house plinth wider than 0.075
+  beyond the wall would still show a step in the join.
+
