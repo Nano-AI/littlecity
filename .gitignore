@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.context/
+.gstack/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.vite/
+.DS_Store
+*.log

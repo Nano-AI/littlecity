@@ -1,0 +1,36 @@
+{
+  "name": "little-city",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "e2e": "vitest run --project e2e",
+    "check": "npm run typecheck && npm run lint && vitest run",
+    "shots": "node tools/shots.mjs",
+    "inspect": "node tools/inspect.mjs",
+    "bench": "node tools/bench.mjs"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "@types/three": "^0.187.0",
+    "eslint": "^10.15.0",
+    "playwright": "^1.65.1",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

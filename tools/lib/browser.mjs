@@ -1,0 +1,38 @@
+// Headless Chromium with WebGL, for screenshots, the benchmark and browser
+// tests (Stage 0, frozen). Installs Playwright's Chromium if it is missing.
+
+import { execFileSync } from 'node:child_process';
+import { chromium } from 'playwright';
+import { ROOT } from './vite.mjs';
+
+// Ask for the real GPU through ANGLE's Metal backend on macOS; Chromium falls
+// back to software rendering (SwiftShader) by itself where there is none.
+const ARGS = ['--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=metal', '--enable-unsafe-swiftshader'];
+
+export async function launchBrowser() {
+  const launch = () => chromium.launch({ headless: true, args: ARGS });
+  try {
+    return await launch();
+  } catch (err) {
+    if (!/Executable doesn't exist|playwright install/i.test(String(err?.message))) throw err;
+    console.error('Playwright Chromium is missing; installing it (one time)…');
+    execFileSync('npx', ['playwright', 'install', 'chromium'], { cwd: ROOT, stdio: 'inherit' });
+    return await launch();
+  }
+}
+
+/**
+ * Opens a page of the dev server and fails loudly on page errors.
+ * Returns { page, errors }: `errors` collects uncaught exceptions and console errors.
+ */
+export async function openPage(browser, url, { width = 1280, height = 800, scale = 1, ...context } = {}) {
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: scale, ...context });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e?.stack ?? e)));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  await page.goto(url, { waitUntil: 'load' });
+  return { page, errors };
+}

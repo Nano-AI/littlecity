@@ -1,0 +1,139 @@
+// The page the screenshot and benchmark tools drive (Stage 0, frozen). It
+// renders any scenario from any of its cameras using only the frozen
+// contracts (TownView, Signals, LifeRuntime, scenarios), so it keeps working
+// whatever the app, the UI and the renderer become.
+
+import { key } from '@/core/grid';
+import { createLife } from '@/life/runtime';
+import { createSignals, partPhases } from '@/life/signals';
+import type { LifeRuntime, SignalsDriver } from '@/life/api';
+import { createTownView } from '@/render/index';
+import type { TownView } from '@/render/api';
+import { resolveDressing, resolveShape } from '@/resolve/index';
+import { buildScenario, cameraName, type BuiltScenario, type TimeOfDay } from '@/scenario';
+import { findScenario, matchScenarios } from '@/scenario/discover';
+import { applyEdit, canApply } from '@/world/world';
+
+const canvas = document.getElementById('town') as HTMLCanvasElement;
+let view: TownView | null = null;
+let life: LifeRuntime | null = null;
+let signals: SignalsDriver | null = null;
+let current: BuiltScenario | null = null;
+
+const nextFrame = (): Promise<number> => new Promise((r) => requestAnimationFrame(r));
+
+function setTime(s: SignalsDriver, time: TimeOfDay): void {
+  if (typeof time !== 'number') {
+    s.hold(time);
+    return;
+  }
+  // Hold the part of the day this phase falls in, then move to the exact phase.
+  const phases = partPhases();
+  s.hold((['day', 'dusk', 'night', 'dawn'] as const).find((p) => time < phases[p].end) ?? 'dawn');
+  s.setPhase(time);
+}
+
+function load(name: string): BuiltScenario {
+  const scn = findScenario(name);
+  if (!scn) throw new Error(`no scenario named '${name}'`);
+  view?.dispose();
+  life?.dispose();
+  view = createTownView(canvas, { preserveDrawingBuffer: true, pixelRatio: window.devicePixelRatio });
+  view.resize(window.innerWidth, window.innerHeight);
+  signals = createSignals(scn.seed);
+  life = createLife(view.stage, signals);
+  current = buildScenario(scn);
+  const shape = resolveShape(current.world, current.terrain);
+  const dressing = resolveDressing(shape);
+  view.setTown(shape, dressing);
+  life.sync({ shape, dressing });
+  return current;
+}
+
+const api = {
+  /** The scenarios matching a glob (null = all), with their camera names. */
+  match(pattern: string | null) {
+    return matchScenarios(pattern ?? undefined).map(({ scenario, file }) => {
+      const cameras = buildScenario(scenario).cameras;
+      return { name: scenario.name, file, cameras: cameras.map((_, i) => cameraName(cameras, i)) };
+    });
+  },
+
+  /** Shows a scenario from one camera, settles life for `settle` simulated seconds, and draws it. */
+  async show(name: string, camera = 0, opts: { time?: TimeOfDay; settle?: number } = {}) {
+    const built = current?.scenario.name === name ? current : load(name);
+    const cam = built.cameras[camera];
+    if (!cam) throw new Error(`scenario '${name}' has no camera ${camera}`);
+    view!.resize(window.innerWidth, window.innerHeight);
+    view!.setCamera(cam);
+    setTime(signals!, opts.time ?? cam.time ?? built.scenario.time ?? 'day');
+    const steps = Math.round((opts.settle ?? 2) * 30);
+    for (let i = 0; i < steps; i++) life!.update(signals!.advance(1 / 30));
+    view!.render(signals!);
+    await nextFrame();
+    view!.render(signals!);
+    await nextFrame();
+    return { ...view!.stats(), blocks: built.world.blocks.size };
+  },
+
+  /** Frame statistics and one-edit timings for a scenario (npm run bench). */
+  async bench(name: string, frames = 120) {
+    const built = load(name);
+    view!.setCamera(built.cameras[0]!);
+    setTime(signals!, 'day');
+    for (let i = 0; i < 10; i++) {
+      view!.render(signals!);
+      await nextFrame();
+    }
+    const frameMs: number[] = [];
+    const renderMs: number[] = [];
+    let last = await nextFrame();
+    for (let i = 0; i < frames; i++) {
+      const t0 = performance.now();
+      life!.update(signals!.advance(1 / 60));
+      view!.orbit(0.5, 0);
+      view!.render(signals!);
+      renderMs.push(performance.now() - t0);
+      const now = await nextFrame();
+      frameMs.push(now - last);
+      last = now;
+    }
+    const stats = view!.stats();
+
+    // One edit: a block on a free column near the middle of the town.
+    let world = built.world;
+    const edits: { shapeMs: number; dressingMs: number; rebuildMs: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const cell = key(6 + i, 1, 5);
+      const e = { type: 'placeBlock', cell, kind: 'auto', color: 'auto', from: null } as const;
+      if (!canApply(world, built.terrain, e).ok) continue;
+      world = applyEdit(world, built.terrain, e);
+      const a = performance.now();
+      const shape = resolveShape(world, built.terrain);
+      const b = performance.now();
+      const dressing = resolveDressing(shape);
+      const c = performance.now();
+      view!.setTown(shape, dressing);
+      edits.push({ shapeMs: b - a, dressingMs: c - b, rebuildMs: view!.stats().rebuildMs });
+    }
+    const gl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) as WebGLRenderingContext | null;
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return {
+      blocks: built.world.blocks.size,
+      frames,
+      frameMs,
+      renderMs,
+      drawCalls: stats.drawCalls,
+      triangles: stats.triangles,
+      edits,
+      gpu: gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : 'unknown',
+    };
+  },
+};
+
+declare global {
+  interface Window {
+    __shot?: typeof api;
+  }
+}
+window.__shot = api;
