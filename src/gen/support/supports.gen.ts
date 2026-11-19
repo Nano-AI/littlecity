@@ -14,16 +14,19 @@
 //
 // Supports are never blocks and own no sockets.
 
-import { CELL_H, chunkOf, columnIndex, DIR4, E, keyX, keyY, keyZ, S, SEA_Y, type Chunk } from '@/core/grid';
+import { CELL_H, chunkOf, columnIndex, DIR4, E, inColumnBounds, key, keyX, keyY, keyZ, S, SEA_Y, type Chunk } from '@/core/grid';
 import { KINDS, type Kind } from '@/core/kinds';
 import { compose, rotationY, translation } from '@/core/mat4';
-import { hashCombine, hashString } from '@/core/rand';
+import { hashCombine, hashString, rand } from '@/core/rand';
 import { defineLayer } from '@/gen/api';
 import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import type { ShapePlan, Support } from '@/resolve/plan';
 import { MONUMENTS } from '@/style/monuments';
 import { PALETTE, RAMPS } from '@/style/palette';
+import { dockColors } from '@/gen/dock/wood';
 import { drawColumn } from '@/gen/pillar/column';
+import { tube } from '@/parts/ground/kit';
+import { DOCK } from '@/style/dock';
 import { profileSlab } from '@/parts/monuments/slab';
 
 type Vec3 = [number, number, number];
@@ -103,6 +106,28 @@ function timberJetty(b: MeshBuilder, wall: number, drop: number): void {
   b.box([-side - w / 2, -w - 0.02, front - w / 2], [side + w / 2, 0, front + w / 2], { skip: ['top'] }); // the beam under the outer edge
 }
 
+/**
+ * A timber building over the water stands on timber: when an S3 pillar would carry a house with plank
+ * walls (a stilt house, a boathouse), or one beside a dock, it is drawn as four piles in the dock's
+ * own wood instead of a stone column. Returns the dock stain to use (a wood-ramp index), or −1.
+ */
+function timberLegs(s: Support, plan: ShapePlan): number {
+  if (s.type !== 'pillar' || plan.kinds.get(s.carries) !== 'house') return -1;
+  const x = keyX(s.carries), z = keyZ(s.carries);
+  let stain = -1;
+  for (const [dx, dz] of [[0, 0], ...DIR4] as const) {
+    if (!inColumnBounds(x + dx, z + dz)) continue;
+    const dock = key(x + dx, 0, z + dz);
+    if (plan.kinds.get(dock) === 'dock') {
+      stain = plan.world.blocks.get(dock)?.color ?? 0;
+      break;
+    }
+  }
+  if (stain >= 0) return stain;
+  const id = plan.structureAt.get(s.carries);
+  return id !== undefined && plan.tags.get(id)?.has('plank-walls') ? 0 : -1;
+}
+
 export const supportsLayer = defineLayer({
   layer: 'supports',
   hash(chunk, plan) {
@@ -111,7 +136,7 @@ export const supportsLayer = defineLayer({
       const block = plan.world.blocks.get(s.carries);
       h = hashCombine(h, hashString(s.type), s.carries, s.bottomY, s.against ?? -1);
       for (const d of s.arcadeTo ?? []) h = hashCombine(h, d);
-      h = hashCombine(h, hashString(plan.kinds.get(s.carries) ?? ''), block?.color ?? 0, plan.terrain.height[columnIndex(keyX(s.carries), keyZ(s.carries))]!);
+      h = hashCombine(h, hashString(plan.kinds.get(s.carries) ?? ''), block?.color ?? 0, plan.terrain.height[columnIndex(keyX(s.carries), keyZ(s.carries))]!, timberLegs(s, plan));
     }
     return h;
   },
@@ -151,6 +176,29 @@ export const supportsLayer = defineLayer({
 
       // A block at sea level over water has nothing under it to draw: it stands in the sea on its own footing.
       if (length <= 0) continue;
+
+      const stain = timberLegs(s, plan);
+      if (stain >= 0) {
+        // Four piles and a cross-brace on each side, as the pier beside it is built.
+        const o = 0.36, r0 = DOCK.stiltRadius * 1.15;
+        const foot = inWater ? SEA_Y - 0.3 - s.bottomY * CELL_H : 0, low = inWater ? SEA_Y + 0.07 - s.bottomY * CELL_H : 0.1;
+        const corners = [[-o, -o], [o, -o], [o, o], [-o, o]] as const;
+        b.at(translation(x + 0.5, s.bottomY * CELL_H, z + 0.5), () =>
+          b.with({ color: dockColors(stain).pile, pattern: PATTERN.bark, ink: `tl${id}` }, () => {
+            const feet = corners.map(([cx, cz], i): [number, number] => [
+              cx + (rand(plan.world.seed, 'leg', id, i, 'x') - 0.5) * 2 * DOCK.stiltLean,
+              cz + (rand(plan.world.seed, 'leg', id, i, 'z') - 0.5) * 2 * DOCK.stiltLean,
+            ]);
+            corners.forEach(([cx, cz], i) => tube(b, [[feet[i]![0], foot, feet[i]![1]], [cx, length, cz]], r0 * (0.94 + rand(plan.world.seed, 'leg', id, i, 'r') * 0.14), { seg: 7 }));
+            for (let i = 0; i < 4; i++) {
+              const a = corners[i]!, c = corners[(i + 1) % 4]!;
+              // From the head of one pile down to the next, just clear of the water: one rake a side, turning round the house.
+              tube(b, [[a[0], length - 0.06, a[1]], [c[0], low, c[1]]], Math.max(DOCK.brace, 0.03), { seg: 4 });
+            }
+          }),
+        );
+        continue;
+      }
 
       if (s.type === 'stilts') {
         const w = MONUMENTS.stiltWidth, o = 0.37;

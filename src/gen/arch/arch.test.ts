@@ -103,8 +103,10 @@ describe('arch generator', () => {
     const groups = inkGroups(mesh);
     const names = ['body', 'cornice', 'parapet'].map((n) => ink.inkOf(n));
     for (const id of names) expect(groups.has(id)).toBe(true);
-    // Besides those three, only keystones.
-    expect(groups.size).toBe(3 + 5 * 2);
+    // Besides those three: one voussoir ring and one coping for the whole run, and the keystones.
+    expect(groups.has(ink.inkOf('ring'))).toBe(true);
+    expect(groups.has(ink.inkOf('coping'))).toBe(true);
+    expect(groups.size).toBe(5 + 5 * 2);
     // Nothing lies in the planes between cells above the openings (a wall there would be a doubled face).
     for (let x = 11; x <= 14; x++) {
       const between = inksWhere(mesh, (px, py) => Math.abs(px - x) < 1e-4 && py > CELL_H + 0.7 && py < 2 * CELL_H - 0.07);
