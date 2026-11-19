@@ -202,6 +202,11 @@ function shell(h: House): void {
   // A cell with air under it (carried by brackets, a pillar or stilts) rests on a timber beam instead.
   const beamOn = (c: CellKey, d: Dir4): boolean => exposed(c, d) && !has(below(c)) && (wooden || !solid(below(c)));
   const beltOn = (c: CellKey, d: Dir4): boolean => persona.storeyBands && exposed(c, d) && exposed(above(c), d);
+  // Where the ground beside reaches the band's storey line, the band's top stands a hair (0.004) over it.
+  const buried = (c: CellKey, d: Dir4): boolean => {
+    const n = neighbor(c, d);
+    return n !== NO_CELL && inColumnBounds(keyX(n), keyZ(n)) && keyY(n) < h.plan.terrain.height[columnIndex(keyX(n), keyZ(n))]!;
+  };
   const foundOn = (c: CellKey, d: Dir4): boolean => foundation.has(edgeId(c, d));
   const glass = h.plan.tags.get(s.id)?.has('glass-walls') ?? false;
   const chapel = h.plan.roles.get(s.id)?.role === 'chapel';
@@ -229,7 +234,7 @@ function shell(h: House): void {
         }
         if (beltOn(cell, d)) {
           b.with({ color: persona.trim, ink: 'belt' }, () =>
-            band(b, e, inset - proud, inset, CELL_H - HOUSE.trimH, CELL_H, caps(e, beltOn)));
+            band(b, e, inset - proud, inset, CELL_H - HOUSE.trimH, CELL_H + (buried(cell, d) ? 0.004 : 0), caps(e, beltOn)));
         }
         // R-H01: a chapel's walls are buttressed: one where each bay meets the next, one near each corner.
         if (chapel) {
@@ -551,10 +556,12 @@ function terrace(h: House, region: RoofRegion, cells: readonly CellKey[], side: 
   const rim = (c: CellKey, d: Dir4): boolean => inRoof(c) && !inRoof(neighbor(c, d)) && side(c, d) === 'free' && !open(c, d);
   const parapetOn = (c: CellKey, d: Dir4): boolean => rim(c, d) && !coped.has(edgeId(c, d));
   const copingOn = (c: CellKey, d: Dir4): boolean => rim(c, d) && coped.has(edgeId(c, d));
+  // The paving a hair (0.004) over the storey line: on a party side it runs to the cell line, over the
+  // cornice a marble block beside it reaches out at that line.
   b.with({ color: PALETTE.stoneShade, pattern: PATTERN.paving, ink: `terrace${region.index}` }, () => {
     for (const c of cells) {
       const x = keyX(c), z = keyZ(c);
-      b.box([x - ext(c, 3), top - 0.01, z - ext(c, 0)], [x + 1 + ext(c, 1), top, z + 1 + ext(c, 2)], { only: ['top'] });
+      b.box([x - ext(c, 3), top - 0.01, z - ext(c, 0)], [x + 1 + ext(c, 1), top + 0.004, z + 1 + ext(c, 2)], { only: ['top'] });
     }
   });
   for (const c of cells) {
