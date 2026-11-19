@@ -29,13 +29,31 @@ describe('supports layer (design section 9)', () => {
   });
 
   test('S3 over the sea: the pillar stands on a footing that shows above the water', () => {
-    const t = town((b) => b.block('house', 10, 2, 10), { terrain: (tb) => tb.flat(1).water(8, 8, 12, 12) });
+    const t = town((b) => b.block('marble', 10, 2, 10), { terrain: (tb) => tb.flat(1).water(8, 8, 12, 12) });
     const mesh = drawChunk(t, 10, 10);
     expect(meshBounds(mesh).min[1]).toBeCloseTo(0, 6); // the seabed
     expect(inkGroups(mesh).size).toBe(4);
     let footTop = 0;
     for (let i = 0; i < mesh.position.length; i += 3) if (Math.abs(mesh.position[i]! - 10.5) > 0.3) footTop = Math.max(footTop, mesh.position[i + 1]!);
     expect(footTop).toBeGreaterThan(SEA_Y);
+  });
+
+  test('a stilt house stands on four timber piles, not a stone column', () => {
+    const t = town((b) => b.block('house', 10, 2, 10), { terrain: (tb) => tb.flat(1).water(8, 8, 12, 12) });
+    expect(t.plan.tags.get(t.at(10, 2, 10).id)?.has('plank-walls')).toBe(true);
+    const mesh = drawChunk(t, 10, 10);
+    expect(validateMesh(mesh)).toEqual([]);
+    expect(inkGroups(mesh).size).toBe(1); // one piece of carpentry
+    const { min, max } = meshBounds(mesh);
+    expect(min[1]).toBeLessThan(SEA_Y); // the piles go down into the water
+    expect(max[1]).toBeCloseTo(2 * CELL_H, 2);
+    // Nothing stands under the middle of the house.
+    for (let i = 0; i < mesh.position.length; i += 3) {
+      if (mesh.position[i + 1]! < CELL_H) expect(Math.max(Math.abs(mesh.position[i]! - 10.5), Math.abs(mesh.position[i + 2]! - 10.5))).toBeGreaterThan(0.2);
+    }
+    // A stone block in the same place keeps its stone pillar.
+    const stone = town((b) => b.block('marble', 10, 2, 10), { terrain: (tb) => tb.flat(1).water(8, 8, 12, 12) });
+    expect(hashChunk(stone, 10, 10)).not.toBe(hashChunk(t, 10, 10));
   });
 
   test('S2: brackets hang under the block on the side of the wall that carries it', () => {
