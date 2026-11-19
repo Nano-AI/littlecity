@@ -116,3 +116,42 @@ export function buildHousing(town: Town, n: number, near: number): boolean {
   for (const [u, v] of [[0, 0], [L - 1, 0], [0, sB], [L - 1, sB]] as const) T.way(d, u, v);
   return true;
 }
+
+/**
+ * A courtyard block: a ring of twelve narrow houses round a 2 × 2 yard that
+ * only buildings shut in (D17 cobbles it and puts a well or a tree in the
+ * middle), streets along two sides.
+ *
+ *   v=0..3   H H H H      the houses, colours alternating
+ *            H . . H      . the courtyard
+ *            H . . H
+ *            H H H H
+ *   v=4      - - - - -    the street (and down u = 4)
+ */
+export function buildCourtyard(town: Town, n: number, near: number): boolean {
+  const { g } = town;
+  const found = search(g, `courtyard${n}`, (f) => {
+    if (!fits(g, f, 0, 0, 4, 4)) return null;
+    const h = rectFlat(g, f, 0, 0, 4, 4);
+    if (h < 0) return null;
+    const d = fromSquare(town, f.x(2, 2), f.z(2, 2));
+    if (d < 6) return null;
+    return { score: Math.abs(d - near), data: h };
+  });
+  if (!found) return false;
+  const f = found.frame;
+  const T = new Local(g, f);
+  const d = startDistrict(town, `courtyard${n}`, f.x(2, 2), f.z(2, 2));
+  T.claim(0, 0, 3, 3, CLAIM.built);
+  for (let u = 0; u <= 4; u++) pave(g, f.x(u, 4), f.z(u, 4));
+  for (let v = 0; v <= 3; v++) pave(g, f.x(4, v), f.z(4, v));
+  const ring: [number, number][] = [];
+  for (let u = 0; u <= 3; u++) ring.push([u, 0]);
+  for (let v = 1; v <= 3; v++) ring.push([3, v]);
+  for (let u = 2; u >= 0; u--) ring.push([u, 3]);
+  for (let v = 2; v >= 1; v--) ring.push([0, v]);
+  for (const [i, [u, v]] of ring.entries()) T.house(u, v, u, v, 2 + (g.chance(0.35, 'court', n, i) ? 1 : 0), `court${n}-${i}`);
+  T.way(d, 0, 4);
+  T.way(d, 4, 0);
+  return true;
+}

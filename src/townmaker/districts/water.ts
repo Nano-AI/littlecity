@@ -6,7 +6,7 @@
 import { columnIndex, key } from '@/core/grid';
 import { CLAIM, type Grower } from '../grower';
 import { search } from '../frame';
-import { fromSquare, startDistrict, type Town, Local } from '../town';
+import { fits, fromSquare, startDistrict, type Town, Local } from '../town';
 import { pave } from '../route';
 
 function openWater(g: Grower, x: number, z: number): boolean {
@@ -106,5 +106,45 @@ export function buildJetty(town: Town): boolean {
   J.put('auto', 0, 0, 2, 'auto');
   J.claim(0, 0, 0, 2, CLAIM.built);
   J.way(d, 0, -1);
+  return true;
+}
+
+/**
+ * A viaduct across a dip: two terraces of one height with lower ground (a
+ * step down or a valley) between them, two to six columns wide. Arches at
+ * the terraces' top level fill the gap (standing on the dip floor where it is
+ * one level down, spanning it where it is deeper), a path runs across their
+ * deck from terrace to terrace, and the lane below passes under the arches.
+ */
+export function buildViaduct(town: Town): boolean {
+  const { g } = town;
+  let found = null;
+  for (let n = 4; n >= 2 && !found; n = n === 4 ? 3 : n === 3 ? 5 : n === 5 ? 2 : 0) {
+    const len = n;
+    found = search(g, `viaduct${len}`, (f) => {
+      const top = g.h(f.ox, f.oz);
+      if (top < 2 || g.h(f.x(len + 1, 0), f.z(len + 1, 0)) !== top) return null;
+      for (const u of [-1, len + 2]) if (Math.abs(g.h(f.x(u, 0), f.z(u, 0)) - top) > 1 || g.h(f.x(u, 0), f.z(u, 0)) === 0) return null;
+      for (let u = 1; u <= len; u++) {
+        const h = g.h(f.x(u, 0), f.z(u, 0));
+        if (h === 0 || h >= top) return null;
+      }
+      if (!fits(g, f, 0, 0, len + 1, 0, 0)) return null;
+      const d = fromSquare(town, f.x(len / 2, 0), f.z(len / 2, 0));
+      return { score: Math.abs(d - 11) * 0.5 - len, data: { len, top } };
+    }, { turns: [0, 1] });
+  }
+  if (!found) return false;
+  const f = found.frame;
+  const { len, top } = found.data;
+  const V = new Local(g, f);
+  const d = startDistrict(town, 'viaduct', f.x(len / 2, 0), f.z(len / 2, 0));
+  V.claim(1, 0, len, 0, CLAIM.built);
+  pave(g, f.ox, f.oz);
+  pave(g, f.x(len + 1, 0), f.z(len + 1, 0));
+  for (let u = 1; u <= len; u++) V.put('arch', u, top - 1, 0, 0);
+  for (let u = 1; u <= len; u++) V.floor('path', u, 0, top);
+  V.way(d, 0, 0);
+  V.way(d, len + 1, 0);
   return true;
 }

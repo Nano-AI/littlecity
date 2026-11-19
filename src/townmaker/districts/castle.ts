@@ -62,7 +62,8 @@ export function buildCastle(town: Town): boolean {
     C.put('marble', m, h + 4, 1, keep);
     C.put('arch', m - 2, h + 3, 2, 0);
     // The bailey: a basin and a tree or two.
-    C.put('fountain', m + 1, h, S - 3);
+    if (town.pumps) C.put('tree', m + 1, h, S - 3, 0);
+    else C.put('fountain', m + 1, h, S - 3);
     if (S >= 7) C.put('tree', 1, h, S - 3, 0);
     C.put('tree', S - 2, h, 1, 0);
     C.way(d, m, S);

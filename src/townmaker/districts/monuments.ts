@@ -25,7 +25,8 @@ export function buildAcropolis(town: Town): boolean {
     const d = fromSquare(town, f.x(1, 8), f.z(1, 8));
     if (d < 7) return null;
     return { score: Math.abs(d - 13) - h * 1.5, data: h };
-  });
+    // Turned so its open end (local north, not the steps) is the front D22 reads (south or east): braziers stand there.
+  }, { turns: [1, 2] });
   if (!found) return false;
   const f = found.frame;
   const h = found.data;
@@ -209,7 +210,7 @@ export function buildHilltop(town: Town): boolean {
       g.mark(x, z, CLAIM.built);
     } else {
       g.put('house', x, top, z, g.colorFor('house', [[x, top, z]], 'lookout'));
-      for (let dz = -3; dz <= 3; dz++) for (let dx = -3 + Math.abs(dz); dx <= 3 - Math.abs(dz); dx++) g.mark(x + dx, z + dz, CLAIM.keep);
+      for (let dz = -3; dz <= 3; dz++) for (let dx = -3 + Math.abs(dz); dx <= 3 - Math.abs(dz); dx++) g.mark(x + dx, z + dz, CLAIM.clear);
       g.mark(x, z, CLAIM.built);
     }
     made++;

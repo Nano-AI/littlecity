@@ -80,9 +80,10 @@ export function buildManor(town: Town): boolean {
   for (let u = -1; u <= 4; u++) pave(g, f.x(u, 6), f.z(u, 6));
   for (let v = 3; v <= 5; v++) for (let u = 0; u <= 2; u++) P.floor('garden', u, v, h);
   P.house(0, 0, 2, 2, 2, 'manor');
+  // Two fruit trees two apart with nothing between (a hammock, D32), a birdbath in front.
   P.put('tree', 0, h, 4, 0);
-  P.put('tree', 2, h, 3, 0);
-  P.put('fountain', 1, h, 4, 0);
+  P.put('tree', 2, h, 4, 0);
+  if (!town.pumps) P.put('fountain', 1, h, 3, 0);
   P.stack('tower', 4, 5, 3, P.color('tower', [[4, h, 5]], 'dovecote'));
   P.way(d, -1, 6);
   P.way(d, 4, 6);
@@ -154,7 +155,8 @@ export function buildWalledGarden(town: Town): boolean {
     W.edge(0, h, v, 3, 'wall');
     W.edge(1, h, v, 1, 'wall');
   }
-  W.put('fountain', 0, h, 0, 0);
+  if (town.pumps) W.put('tree', 0, h, 0, 0);
+  else W.put('fountain', 0, h, 0, 0);
   W.put('tree', 1, h, 1, 0);
   W.way(d, 1, -1);
   return true;
