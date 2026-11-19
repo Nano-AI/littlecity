@@ -186,3 +186,12 @@ Typecheck and lint green; 5 unit tests fail at the seam with real Dressing
 props and Animation actors (lamp and pigeon counts, shut-in residents,
 children). Sent back to the People agent to fix on `swarm/people`; NOT
 published until green. Last published build: held length (`5bb587c`).
+
+**Stage 3: Life — PASSED.** People integration `60d63c3` merged; full check
+green: 1,203 tests. Published. All three life owners plus four fix passes
+and held length are in. Lamplighter's round = the ten lamp posts nearest the
+biggest square; lamps on the round wait for him (`deferLamp`); windows light
+only where someone is home; the walking graph reads decoration props.
+Flaky: `tests/e2e/held-length.e2e.test.ts` once measured a stepper button
+at 43 px against a 44 px minimum (passes on rerun): fix in polish.
+Running: dressing-depth, life-depth (both Opus 5.5).
