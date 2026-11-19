@@ -24,8 +24,8 @@ export const FOUNTAIN = defineStyle(
     wellHeight: 0.34,
     wellRoof: 0.88,
     /** Birdbath: radius of the dish and height of its rim. */
-    dishRadius: 0.21,
-    dishHeight: 0.47,
+    dishRadius: 0.27,
+    dishHeight: 0.5,
     /** R-F01: a fountain with plaza of one square on this many sides counts as standing in it. */
     squareSides: 3,
   },

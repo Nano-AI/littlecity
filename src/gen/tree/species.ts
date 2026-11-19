@@ -28,7 +28,9 @@ function swayTo(top: number): SwayInput {
 
 function trunk(b: MeshBuilder, r: Rng, points: readonly Vec3[], radius: number, sway: SwayInput, color: Rgb = vary(PALETTE.trunk, r('trunk'), 0.6)): void {
   const radii = points.map((_p, i) => radius * (1 - (i / (points.length - 1)) * 0.3));
-  b.with({ color, pattern: PATTERN.bark, ink: 'trunk', sway }, () => tube(b, points, radii, { seg: 6 }));
+  // A leaning trunk's foot ring is tilted: sink it a little so no edge of it lifts off the ground.
+  const rooted = points.map((p, i): Vec3 => (i === 0 ? [p[0], p[1] - 0.025, p[2]] : p));
+  b.with({ color, pattern: PATTERN.bark, ink: 'trunk', sway }, () => tube(b, rooted, radii, { seg: 6 }));
 }
 
 interface CloudOptions {
@@ -153,7 +155,8 @@ const FLOWERS = [PALETTE.red, PALETTE.pink, PALETTE.yellow, PALETTE.white] as co
 export function bush(b: MeshBuilder, r: Rng, size = 1, x = 0, z = 0, ink = 'bush', flowers: boolean | string = r('flower') < 0.5): void {
   const color = vary(PALETTE.bush, r('bc'), 0.8);
   const R = 0.15 * size;
-  const sway = TREE.sway * 0.3;
+  // A bush is rooted along its whole foot: it only stirs toward the top.
+  const sway: SwayInput = (_x, y) => Math.max(0, Math.min(1, y / (R * 1.8))) * TREE.sway * 0.3;
   b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway }, () =>
     mound(b, x + SHADE_SIDE[0] * R * 0.3, 0, z + SHADE_SIDE[1] * R * 0.3, R * 1.25, R * 0.95, R * 1.25, { seg: 7, rings: 2, normal: TONE.shade }),
   );
@@ -171,7 +174,7 @@ export function bush(b: MeshBuilder, r: Rng, size = 1, x = 0, z = 0, ink = 'bush
       for (let i = 0; i < 4; i++) {
         const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.6, up = 0.15 + r('fu', i) * 0.7;
         const s = Math.sqrt(1 - up * up);
-        lump(b, x + Math.cos(a) * s * R, R * 0.75 + up * R * 0.85, z + Math.sin(a) * s * R, 0.034 * size, 0.034 * size, 0.034 * size, { seg: 5, rings: 3, normal: TONE.lit });
+        lump(b, x + Math.cos(a) * s * R, R * 0.75 + up * R * 0.85, z + Math.sin(a) * s * R, 0.036 * size, 0.036 * size, 0.036 * size, { seg: 5, rings: 2, normal: TONE.lit });
       }
     });
   }
@@ -188,7 +191,7 @@ export function shrubbery(b: MeshBuilder, r: Rng): number {
 /** A palm: a curved, ringed trunk and a head of drooping fronds, with coconuts. */
 export function palm(b: MeshBuilder, r: Rng): number {
   const h = 0.95 + r('h') * 0.3;
-  const a = r('lean') * 6.28, reach = 0.12 + r('reach') * 0.16;
+  const a = r('lean') * 6.28, reach = 0.08 + r('reach') * 0.12;
   const lx = Math.cos(a) * reach, lz = Math.sin(a) * reach;
   const top = h + 0.22;
   const sway = swayTo(top);
@@ -207,7 +210,7 @@ export function palm(b: MeshBuilder, r: Rng): number {
   b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
     for (let f = 0; f < fronds; f++) {
       const fa = a0 + (f / fronds) * 6.28 + (r('fj', f) - 0.5) * 0.35;
-      const len = 0.44 + r('fl', f) * 0.14, rise = 0.1 + r('fr', f) * 0.1, droop = 0.34 + r('fd', f) * 0.14;
+      const len = 0.4 + r('fl', f) * 0.12, rise = 0.1 + r('fr', f) * 0.1, droop = 0.34 + r('fd', f) * 0.14;
       const dx = Math.cos(fa), dz = Math.sin(fa);
       const spine: Vec3[] = [], widths = [0.03, 0.085, 0.09, 0.065, 0.012];
       for (let i = 0; i <= 4; i++) {
@@ -358,7 +361,7 @@ export function groveTree(b: MeshBuilder, r: Rng): number {
   for (let i = 0; i < n; i++) {
     const a = r('ua', i) * 6.28, d = 0.2 + r('ud', i) * 0.16;
     const x = Math.cos(a) * d, z = Math.sin(a) * d, s = 0.09 + r('us', i) * 0.05;
-    b.with({ color: vary(PALETTE.leafDark, r('uc', i), 0.8), pattern: PATTERN.leaves, ink: 'under', sway: 0.15 }, () =>
+    b.with({ color: vary(PALETTE.leafDark, r('uc', i), 0.8), pattern: PATTERN.leaves, ink: 'under' }, () =>
       mound(b, x, 0, z, s * 1.3, s, s * 1.3, { seg: 6, rings: 2, normal: i % 2 ? TONE.mid : TONE.shade, twist: a }),
     );
   }

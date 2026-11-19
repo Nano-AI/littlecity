@@ -76,6 +76,9 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
     if (head !== NO_CELL && stairs !== undefined && !places.has(head)) places.set(head, stairs);
   }
 
+  const railed = new Set<string>();
+  for (const f of plan.features) if (f.type === 'railing' && f.cell !== undefined && f.dir !== undefined) railed.add(`${f.cell}:${f.dir}`);
+
   const rails: Rail[] = [];
   for (const cell of [...places.keys()].sort((a, b) => a - b)) {
     if (!standable(facts, cell)) continue;
@@ -84,7 +87,11 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
     const sides = dropSides(facts, cell);
     if (sides.length === 0) continue;
     const variant = railVariantAt(facts, cell);
-    for (const dir of sides) rails.push({ cell, dir, structure: places.get(cell)!, variant, from: 1, to: 1 });
+    for (const dir of sides) {
+      // An earlier rule may have railed this side already (a boardwalk's rope railings, R-D03).
+      if (railed.has(`${cell}:${dir}`)) continue;
+      rails.push({ cell, dir, structure: places.get(cell)!, variant, from: 1, to: 1 });
+    }
   }
 
   // Ends. Going round an edge with the drop on the outside, one railing's +X end is the next one's −X

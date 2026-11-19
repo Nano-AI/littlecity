@@ -35,7 +35,7 @@ function motif(b: MeshBuilder, f: Feature, y: number): void {
   const cell = f.cell!;
   const even = size % 2 === 0;
   const cx = keyX(cell) + (even ? 1 : 0.5), cz = keyZ(cell) + (even ? 1 : 0.5);
-  const R = Math.min(size / 2 - 0.35, 2.1);
+  const R = Math.min(size * 0.34, 2.4);
   const seg = 28;
   // All in the plaza's own ink group and all facing up: colour only, no lines of their own.
   b.with({ color: PALETTE.stoneShade, pattern: PATTERN.cobbles }, () => ring(b, cx, cz, R * 0.86, R, y, seg));
