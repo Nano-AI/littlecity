@@ -2,8 +2,11 @@
 //
 // On hover the game applies the piece to a what-if world, runs the shape
 // stage on it, and hands the view the new structure to draw translucent.
-// Auto neighbours whose resolved kind would change shimmer; an illegal
-// target shows a red outline. Only placing a piece has a ghost: the Change,
+// Auto neighbours whose resolved kind would change shimmer, and so does
+// the building a new block would join (design section 7, "One building"):
+// the whole building is redrawn translucent over itself, which on its own
+// barely shows, so its existing cells are framed too. An illegal target
+// shows a red outline. Only placing a piece has a ghost: the Change,
 // Paint and Erase tools act on what is already there.
 
 import { NO_CELL, type CellKey } from '@/core/grid';
@@ -36,6 +39,23 @@ export function changedAutos(world: World, now: ShapePlan, next: ShapePlan): Cel
   return out;
 }
 
+/**
+ * The cells already in the world that the new blocks' structures would take
+ * in: the building a placement joins. Empty when the new blocks stand alone.
+ */
+export function joinedCells(world: World, preview: ShapePlan, edits: readonly Edit[], ids: readonly StructureId[]): CellKey[] {
+  if (!edits.some((e) => e.type === 'placeBlock')) return [];
+  const out: CellKey[] = [];
+  for (const id of ids) {
+    const s = preview.structures.get(id);
+    if (!s) continue;
+    for (const c of s.cells) if (world.blocks.has(c)) out.push(c);
+  }
+  return out;
+}
+
+const withShimmer = (cells: CellKey[]): { shimmer?: CellKey[] } => (cells.length > 0 ? { shimmer: cells } : {});
+
 /** The ghost for a planned placement, or null when there is nothing to show. */
 export function ghostFor(plan: Plan, host: GhostHost): Ghost | null {
   const placing = plan.tries.some(isPlacement) || plan.refusal !== undefined;
@@ -48,8 +68,9 @@ export function ghostFor(plan: Plan, host: GhostHost): Ghost | null {
   if (edit.type === 'placeBlock') id = preview.structureAt.get(edit.cell);
   else if (edit.type === 'placeFloor') id = preview.floorAt.get(edit.cell);
   else if (edit.type === 'placeEdge') id = preview.edgeAt.get(edit.edge);
-  const shimmer = changedAutos(host.world, host.shape, preview);
-  return { plan: preview, show: id === undefined ? [] : [id], ...(shimmer.length > 0 ? { shimmer } : {}) };
+  const show = id === undefined ? [] : [id];
+  const shimmer = [...new Set([...changedAutos(host.world, host.shape, preview), ...joinedCells(host.world, preview, [edit], show)])];
+  return { plan: preview, show, ...withShimmer(shimmer) };
 }
 
 /** The structure each placing edit made in a shape, once each (cells of one run may merge into one structure). */
@@ -69,6 +90,7 @@ export function structuresOf(edits: readonly Edit[], plan: ShapePlan): Structure
 export function ghostForRun(run: Run, host: GhostHost): Ghost | null {
   if (run.edits.length === 0) return run.at === NO_CELL ? null : { plan: host.shape, show: [], refuse: run.at };
   const preview = host.preview(run.world);
-  const shimmer = changedAutos(host.world, host.shape, preview);
-  return { plan: preview, show: structuresOf(run.edits, preview), ...(shimmer.length > 0 ? { shimmer } : {}) };
+  const show = structuresOf(run.edits, preview);
+  const shimmer = [...new Set([...changedAutos(host.world, host.shape, preview), ...joinedCells(host.world, preview, run.edits, show)])];
+  return { plan: preview, show, ...withShimmer(shimmer) };
 }

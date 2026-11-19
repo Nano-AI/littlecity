@@ -25,8 +25,8 @@ export interface StyleFlyout {
   readonly isOpen: boolean;
   /** Wires a (new) House button: hover, long press and keyboard open the card from it. */
   attach(button: HTMLElement): void;
-  /** Redraws the tiles: the chosen style and the wall colour (a palette index). */
-  render(style: number, wallIndex: number): void;
+  /** Redraws the tiles: the chosen style, and the wall colour (a palette index) each style is drawn in. */
+  render(style: number, wallIndex: (style: number) => number): void;
   open(focus?: boolean): void;
   close(): boolean;
   dispose(): void;
@@ -164,7 +164,7 @@ export function createStyleFlyout(host: StyleFlyoutHost): StyleFlyout {
               },
               on: { click: () => host.choose(n) },
             },
-            [el('span', { class: 'lc-btn-icon', html: styleIcon(n, wallIndex) }), el('span', { class: 'lc-btn-label', text: styleName(n) })],
+            [el('span', { class: 'lc-btn-icon', html: styleIcon(n, wallIndex(n)) }), el('span', { class: 'lc-btn-label', text: styleName(n) })],
           ),
         ),
       );

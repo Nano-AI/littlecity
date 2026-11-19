@@ -11,6 +11,7 @@ import { columnIndex, DIR4, edgeOf, inBounds, key, keyX, keyY, keyZ, NO_CELL, ty
 import { AUTO_KINDS, KINDS, PALETTE_SIZE, placedInfo, type Kind, type PlacedKind } from '@/core/kinds';
 import type { Vec3 } from '@/core/mat4';
 import type { Edit, Rot, Terrain, World } from '@/core/world';
+import { houseStyle } from '@/style/houses';
 import { faceZone, type Pick } from './pick';
 import { isEdgePiece, isFloorPiece, isToolId, type ItemId } from './pieces';
 
@@ -158,7 +159,13 @@ export function planUse(tool: ToolState, pick: Pick, ctx: ActionContext): Plan {
 
   const edit: Edit = { type: 'placeBlock', cell: target, kind: item, color: tool.swatch, from: pick.from };
   if (item === 'stairs') edit.rot = stairsRot(target, pick.point, ctx);
-  if (item === 'house' && tool.style) edit.style = tool.style;
+  if (item === 'house' && tool.style) {
+    edit.style = tool.style;
+    // A chosen style brings its own wall colour (unless the swatch is set), wherever the click
+    // lands: houses of one style that touch then join into one building (design section 7).
+    const style = houseStyle(tool.style);
+    if (style && tool.swatch === 'auto') edit.color = style.wall;
+  }
   return { tries: [edit], at: target };
 }
 

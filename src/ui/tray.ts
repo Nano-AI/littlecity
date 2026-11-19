@@ -4,7 +4,7 @@
 
 import { PALETTE_SIZE, placedInfo, type PlacedKind } from '@/core/kinds';
 import { RAMPS } from '@/style/palette';
-import { RANDOM_STYLE } from '@/style/houses';
+import { houseStyle, RANDOM_STYLE } from '@/style/houses';
 import { el, iconButton, setIcon } from './dom';
 import { icon, styleIcon } from './icons';
 import { DRAWER_IDS, DRAWER_LABELS, drawerItems, drawerOf, isFloorPiece, isToolId, type DrawerId, type ItemId } from './pieces';
@@ -79,22 +79,22 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
   });
   root.append(styles.el);
 
-  /** The wall colour the style drawings use: the swatch's, or the house icon's yellow on auto. */
-  const wallIndex = (): number => (state.swatch === 'auto' ? 0 : state.swatch);
+  /** The wall colour a style's drawing uses: the swatch's, or on auto the style's own (what will be placed). */
+  const wallIndex = (style: number): number => (state.swatch !== 'auto' ? state.swatch : (houseStyle(style)?.wall ?? 0));
   /** The House button shows the chosen style; the flyout shows every style in the wall colour. */
   const renderStyle = (): void => {
     const house = row.querySelector<HTMLElement>('[data-item="house"]');
     if (house) {
       const holder = house.querySelector('.lc-btn-icon');
       if (state.style === RANDOM_STYLE) setIcon(house, 'house');
-      else if (holder) holder.innerHTML = styleIcon(state.style, wallIndex());
+      else if (holder) holder.innerHTML = styleIcon(state.style, wallIndex(state.style));
       house.dataset.houseStyle = String(state.style);
       const label = state.style === RANDOM_STYLE ? 'House' : `House: ${styleName(state.style)}`;
       house.setAttribute('aria-label', label);
       const base = (house.dataset.title ??= house.title);
       house.title = `${base.replace(/^House/, label)}. Hover for styles`;
     }
-    styles.render(state.style, wallIndex());
+    styles.render(state.style, wallIndex);
   };
 
   const tabButtons = new Map<DrawerId, HTMLButtonElement>();
