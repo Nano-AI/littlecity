@@ -16,12 +16,13 @@ No forks. Commit after each note. Finish with `npm run check` green.
   `buildRun` moves the line 0.07 inward (corners move on both axes). J19
   skips cells on a house roof (the house draws a parapet) and doors or
   stair heads on bare terrain.
-- **Next:** G5 plaza motif (`src/gen/floor/plaza.gen.ts`, function `motif`),
-  then seams against real buildings, then `npm run check`, then report.
-
-## What each remaining note needs
-- G5: rings in `PALETTE.plaza` and `stoneShade` with a thin `brick` course,
-  radial joints, accent no wider than 0.1. No red ring, no yellow disc.
+- **G5 plaza motif: done.** Rings in `plaza` and `stoneShade`, one thin
+  `brick` course, radial joints; the star in the two stone tones.
+- **Next:** look at seams against real buildings in `everything` (fences and
+  walls at houses and towers, stairs at walls, docks at quay walls, railings
+  on marble and bridges), fix what is Ground's, file the rest in
+  `docs/swarm/requests/ground.md`; then `npm run check`; then report.
+  Would-be-nice items are skipped unless nearly free.
 
 ## Tricks and gotchas
 - **Flat tones** (`src/parts/ground/kit.ts`): a lump whose vertices all carry
