@@ -241,3 +241,18 @@ role from dressing depth) to the coverage list as PENDING. Full check green:
 1,343 tests. Published. Second pass sent to the same agent: town hall,
 denser centre, new dressing-depth rules, streets to summits, a viaduct.
 Running: polish (speed), house-styles, animation-polish, grow-town pass 2.
+
+**House styles merged** (`c033878`, Opus 5.5). Conflict in
+`src/ui/interface.ts` with Grow a town resolved (both guards kept); second
+`dice` icon renamed `styleDice`. Orchestrator fixed the flaky stepper test
+(`.lc-step` no longer shrinks in its flex row). Full check green: 1,369
+tests. Published.
+
+**Three more requests from Derek, all launched on Opus 5.5:**
+- Castle life: garrison troop marching round the castle and a mounted rider
+  (catalogue L36, L37) → added to the animation-polish agent's list.
+- The guide: a side panel with a picture and a one-line recipe for each
+  special building (design section 7 "The guide") → `swarm/guide`.
+- Flicker and clipping on camera rotation → `swarm/steady-ink` (renderer).
+Running: polish (speed), animation-polish, grow-town pass 2, guide,
+steady-ink.
