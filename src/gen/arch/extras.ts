@@ -14,12 +14,15 @@ import { PALETTE, RAMPS } from '@/style/palette';
 import { ownSockets } from '@/parts/monuments/kit';
 import { openingHeight } from '@/parts/monuments/slab';
 import type { ArchCellShape } from './arch.gen';
+import { rakeAt } from './rake';
 
 export interface ExtrasEnv {
   plan: ShapePlan;
   stone: ColorInput;
   humped: boolean;
   cells: ReadonlyMap<CellKey, ArchCellShape>;
+  /** The structure is a buttress with no pier: a raking half arch. */
+  raking: boolean;
 }
 
 /** A parapet end post with a little cap. Origin: its foot on the deck. */
@@ -99,7 +102,7 @@ export function archExtras(b: MeshBuilder, anchors: Record<string, Mat4Like>, f:
         return n !== NO_CELL && env.cells.get(n)?.deck === 'covered';
       };
       // Where the gallery meets a house it runs on into the wall; where it joins the next bay there is no end.
-      const u0 = covered('lo') ? 0 : -0.08, u1 = covered('hi') ? 1 : 1.08;
+      const u0 = covered('lo') ? 0 : -0.1, u1 = covered('hi') ? 1 : 1.1;
       const wallH = 0.46, in0 = 0.07, thick = 0.06, eave = 0.03, rise = 0.3;
       const mb = new MeshBuilder({ ink: f.structure });
       mb.with({ color, pattern: PATTERN.planks, ink: 'gallery' }, () => {
@@ -122,11 +125,29 @@ export function archExtras(b: MeshBuilder, anchors: Record<string, Mat4Like>, f:
       return true;
     }
     case 'pinnacle': {
-      // A little spire standing on the rib over its outer end.
+      const mb = sub('pinnacle');
+      if (env.raking && c.rake) {
+        // On a raking buttress the pinnacle clasps the tip: a pendant hangs below it and a spire stands above.
+        const rk = c.rake;
+        const u = rk.dir > 0 ? 0.84 : 0.16;
+        const at = rakeAt(rk.from + rk.dir * u, rk.len);
+        const w = 0.5, foot = at.bottom - 0.1, head = at.top + 0.16;
+        mb.with({ color: env.stone, pattern: PATTERN.stone, ink: 'shaft' }, () => mb.boxAt([0, foot, 0], [w, head - foot, w], { skip: ['bottom', 'top'] }));
+        mb.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'cap' }, () => {
+          mb.boxAt([0, head, 0], [w + 0.07, 0.05, w + 0.07]);
+          mb.at(compose(translation(0, head + 0.05, 0), rotationY(Math.PI / 4)), () => mb.lathe([[(w / 2 + 0.01) * Math.SQRT2, 0], [0.09, 0.3], [0, 0.44]], { segments: 4, smooth: false }));
+        });
+        mb.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'pendant' }, () => {
+          mb.boxAt([0, foot - 0.045, 0], [w + 0.06, 0.045, w + 0.06], { skip: ['top'] });
+          mb.at(compose(translation(0, foot - 0.045, 0), rotationY(Math.PI / 4)), () => mb.lathe([[0, -0.26], [0.07, -0.2], [(w / 2 - 0.02) * Math.SQRT2, 0]], { segments: 4, smooth: false }));
+        });
+        b.add(mb, compose(c.frame, translation(u, 0, 0.5)));
+        return true;
+      }
+      // A little spire standing on the rib over its outer end (which rests on a pier).
       const o = c.openings.find((op) => op.hi > 1.001 || op.lo < -0.001);
       const outerHi = o ? o.hi > 1.001 && (o.lo + o.hi) / 2 >= 1 - 1e-6 : true;
       const u = outerHi ? 0.82 : 0.18;
-      const mb = sub('pinnacle');
       mb.with({ color: env.stone, pattern: PATTERN.stone, ink: 'shaft' }, () => mb.boxAt([0, 0, 0], [0.3, 0.3, 0.3], { skip: ['bottom', 'top'] }));
       mb.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'cap' }, () => {
         mb.boxAt([0, 0.3, 0], [0.37, 0.05, 0.37]);

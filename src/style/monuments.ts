@@ -47,6 +47,11 @@ export const MONUMENTS = defineStyle(
     corniceOut: 0.035,
     /** How much a stone bridge's parapet line rises at mid-span. */
     hump: 0.13,
+    /** The voussoir ring round every opening: how wide, and how far it stands proud of the face. */
+    archRing: 0.09,
+    archRingOut: 0.02,
+    /** Arches are built of a warmer stone than their palette index: this many places along the stone ramp. */
+    archTint: 3,
     /** Longest single arch, in cells; longer spans get piers. */
     archMax: 3,
     /** A hanging run this long (or shorter) is a half arch with no pier. */
@@ -95,6 +100,9 @@ export const MONUMENTS = defineStyle(
     cornice: [0.02, 0.12, 0.005],
     corniceOut: [0, 0.08, 0.005],
     hump: [0, 0.3, 0.01],
+    archRing: [0, 0.14, 0.01],
+    archRingOut: [0, 0.05, 0.005],
+    archTint: [0, 7, 1],
     archMax: [1, 6, 1],
     hangMax: [1, 4, 1],
     pillarRadius: [0.08, 0.25, 0.005],
