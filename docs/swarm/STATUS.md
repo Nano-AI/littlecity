@@ -368,3 +368,12 @@ GitHub Pages (crawlers run no scripts and never see the `#t=` part).
 **Walk mode requested by Derek** (design section 7 "Walk mode") → new Opus
 agent on `swarm/walk`.
 Running: terrain2, coplanar, walk.
+
+**Walk mode is a PREVIEW ONLY (Derek):** do NOT merge `swarm/walk` into the
+main branch and do NOT publish it until he has tried it locally and said
+yes. When the agent reports, serve its worktree on a separate local port
+for him. Scope trimmed to: perspective camera and ink, basic walking,
+enter and exit.
+**Big ships requested** (catalogue L38–L42: galleon, cog, galley, river
+barge, passing sails) → new Opus agent on `swarm/ships`.
+Running: terrain2, coplanar, walk (preview), ships.
