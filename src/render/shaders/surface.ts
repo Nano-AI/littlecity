@@ -137,6 +137,7 @@ uniform float uGlow;      // 0 by day to 1 at night
 // Palette colours the patterns need (linear).
 uniform vec3 uInk;
 uniform vec3 uSand;
+uniform vec3 uDirt;
 uniform vec3 uSea;
 uniform vec3 uSeaDeep;
 uniform vec3 uShallow;
@@ -220,9 +221,56 @@ float hatchLayer(vec2 p, vec2 dir, float seed){
 }
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
+float fadeAt(float period);
+
+// Earth: speckles and strata. Returns the toned colour; the pencil marks come back in pen.
+vec3 earthLook(vec3 c, out float pen){
+  vec2 p = vec2(vW.x + vW.z, vW.y) * vec2(5.0, 7.0); vec2 ci = floor(p); vec2 f = fract(p) - 0.5;
+  float r = h1(ci);
+  pen = lineAA(length(f - (vec2(h1(ci + 2.0), h1(ci + 9.0)) - 0.5) * 0.6), 0.07) * step(0.62, r) * 0.35 * fadeAt(0.14);
+  pen += lineAA(abs(fract(vW.y * 2.2 + sin((vW.x + vW.z) * 1.3) * 0.08) - 0.5), 0.012) * 0.25;
+  return c * (0.97 + 0.06 * n2(vec2(vW.x + vW.z, vW.y * 3.0)));
+}
+
+// Rock. Everything is a function of the world position alone (no "along the wall" coordinate), so
+// beds and cracks carry on unbroken round the curve of a cliff.
+vec3 rockLook(vec3 c, bool top, out float pen){
+  if (top) {
+    // a flat of bare rock: blotchy, with a few wandering cracks
+    vec2 p = vW.xz;
+    c *= 0.95 + 0.1 * n2(p * 1.3);
+    float v = abs(fract(p.x * 0.7 + p.y * 0.45 + n2(p * 0.9) * 1.4) - 0.5);
+    pen = lineAA(v, 0.012) * smoothstep(0.45, 0.7, n2(p * 0.5 + 7.0)) * 0.3 * fadeAt(0.5);
+    return c;
+  }
+  // Beds: tilted a few degrees, sagging a little, each of its own thickness and tone.
+  float bed = vW.y * 2.2 + vW.x * 0.15 + vW.z * 0.1 + 0.4 * n2(vec2(vW.x + vW.z * 0.7, vW.y * 0.6) * 0.5);
+  bed += 0.5 * n2(vec2(bed * 0.85, 3.7));
+  float row = floor(bed), f = fract(bed);
+  c *= 0.925 + 0.12 * h1(vec2(row, 5.0));
+  c *= 1.0 - 0.06 * smoothstep(0.7, 1.0, f);                       // each bed darkens toward its underside
+  c *= 0.97 + 0.06 * n2(vec2(vW.x * 0.8 + vW.z, vW.y * 2.0) * 1.6);
+  float ax = vW.x * 0.83 + vW.z * 0.61;                            // runs along any face
+  float lifted = smoothstep(0.3, 0.5, n2(vec2(ax * 0.9 + row * 3.1, row * 1.7)));   // the pencil lifts along a bed line
+  float line = lineAA(0.5 - abs(f - 0.5), 0.02) * lifted;
+  // Cracks: three or four to a face, each wandering down part of it.
+  float cx = ax * 0.72;
+  float ci = floor(cx), cr = h1(vec2(ci, 9.0));
+  float wob = (n2(vec2(vW.y * 1.6 + ci * 5.0, ci)) - 0.5) * 0.34 + (n2(vec2(vW.y * 6.0, ci * 3.0)) - 0.5) * 0.07 + (cr - 0.5) * 0.3;
+  float d = abs(fract(cx) - 0.5 - wob) / 0.72;
+  float fwc = fwidth(cx) / 0.72 * 1.2 + 1e-4;                      // from the unbroken coordinate: no hairline between cells
+  float reach = smoothstep(0.34, 0.52, n2(vec2(ci * 7.0, vW.y * 0.5 + cr * 9.0)));
+  float crack = (1.0 - smoothstep(0.017 - fwc, 0.017 + fwc, d)) * step(0.28, cr) * reach;
+  // and a short scratch here and there off a bed line
+  vec2 sp = vec2(ax * 2.3, bed * 1.0); vec2 si = floor(sp); vec2 sf = fract(sp) - 0.5;
+  float scratch = lineAA(abs(sf.x * 0.5 + sf.y * 0.25), 0.02) * step(abs(sf.y), 0.32) * step(0.8, h1(si + 3.0));
+  pen = max(max(line * 0.4, crack * 0.5), scratch * 0.26 * fadeAt(0.3)) * fadeAt(0.25);
+  return c;
+}
 float band(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
 // Marks whose period shrinks to a couple of pixels fade out instead of turning to noise.
 float fade(float period){ return clamp((period * uPx - 2.5) / 4.0, 0.0, 1.0); }
+float fadeAt(float period){ return fade(period); }
 
 // The stepped tone for a normal: 1 lit, down to 0.66 facing away.
 float toneOf(vec3 n){
@@ -407,13 +455,7 @@ void main(){
       }
     } else if (pat == 3) {
       // ── earth: speckles and strata on slab and bank sides
-      if (side) {
-        vec2 p = vec2(vW.x + vW.z, vW.y) * vec2(5.0, 7.0); vec2 c = floor(p); vec2 f = fract(p) - 0.5;
-        float r = h1(c);
-        pen = lineAA(length(f - (vec2(h1(c + 2.0), h1(c + 9.0)) - 0.5) * 0.6), 0.07) * step(0.62, r) * 0.35 * fade(0.14);
-        pen += lineAA(abs(fract(vW.y * 2.2 + sin((vW.x + vW.z) * 1.3) * 0.08) - 0.5), 0.012) * 0.25;
-        col *= 0.97 + 0.06 * n2(vec2(vW.x + vW.z, vW.y * 3.0));
-      }
+      if (side) col = earthLook(col, pen);
     } else if (pat == 4) {
       // ── stone courses
       float y = vW.y * 6.0; float row = floor(y);
@@ -481,21 +523,23 @@ void main(){
         col *= mix(vec3(1.0), vec3(0.84, 0.86, 0.9), wet);
       }
     } else if (pat == 10) {
-      // ── rock: broken courses and cracks, each block a different tone
-      vec2 q = top ? vW.xz * vec2(1.5, 1.9) : vec2(along * 1.7, vW.y * 2.6);
-      float row = floor(q.y);
-      q.x += h1(vec2(row, 3.0)) * 7.0;
-      vec2 c = floor(q); vec2 f = fract(q);
-      float r = h1(c + row * 13.0);
-      col *= 0.93 + 0.12 * r;
-      float by = 0.5 - abs(f.y - 0.5), bx = 0.5 - abs(f.x - 0.5);
-      float seg = step(0.3, h1(vec2(floor(q.x * 2.0), row + 5.0)));
-      float m = lineAA(by, 0.035) * seg;
-      m = max(m, lineAA(bx, 0.02) * step(0.35, r));
-      // a short slanting scratch inside some blocks
-      vec2 g = f - 0.5;
-      float sc = lineAA(abs(g.x * 0.6 + g.y), 0.03) * step(abs(g.x), 0.22) * step(0.72, h1(c + 9.0));
-      pen = max(m, sc * 0.7) * (top ? 0.18 : 0.3) * fade(0.38);
+      // ── rock: beds of stone lying a few degrees off level, a few long cracks. The terrain passes
+      //    "how rocky" in edge (0 earth to 1 rock; anything else leaves it at EDGE_FAR and gets plain
+      //    rock), so earth banks and cliffs interleave along a drawn, wandering border.
+      float penR;
+      vec3 rc = rockLook(col, top, penR);
+      col = rc;
+      pen = penR;
+      if (side && vEdge < 1.5) {
+        float e = vEdge + (n2(vec2(vW.x * 0.9 + vW.z * 0.6, vW.y * 1.5 + vW.z * 0.5 - vW.x * 0.3) * 1.15 + 2.0) - 0.5) * 0.78
+                        + (n2(vec2(vW.x * 0.7 - vW.z, vW.y * 1.2) * 4.3) - 0.5) * 0.14;
+        float fw = max(fwidth(e), 1e-4);
+        float rk = smoothstep(0.5 - fw, 0.5 + fw, e);
+        float penE;
+        vec3 ec = earthLook(shade(uDirt, s), penE);
+        col = mix(ec, rc, rk);
+        pen = mix(penE, penR, rk) + (1.0 - smoothstep(0.7, 1.7, abs(e - 0.5) / fw)) * 0.42;
+      }
     } else if (pat == 12) {
       // ── plaster: almost flat, a few flecks
       vec2 p = wall * vec2(4.0, 7.0); vec2 c = floor(p); vec2 f = fract(p) - 0.5;

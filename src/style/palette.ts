@@ -14,7 +14,8 @@ export const PALETTE = defineStyle('palette', {
   dirt: '#dcc39c',
   dirtDark: '#c7a982',
   sand: '#f0e2b6',
-  rock: '#c9c0b4',
+  /** Cliff rock: a warm stone a step darker and greyer than the earth banks (`dirt`) it interleaves with. */
+  rock: '#c8b59c',
   path: '#f3e8d0',
   plaza: '#ece3d1',
   garden: '#a9d488',

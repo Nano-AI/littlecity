@@ -107,11 +107,24 @@ describe('the terrain layer', () => {
   });
 
   test('a drop of two or more is rock; one level is an earth bank with a grass lip; sand meets the sea as a beach', () => {
-    const cliff = meshOf(plan, 20, 20);
-    const patterns = (mesh: MeshData): Set<number> => new Set(mesh.pattern);
-    expect(patterns(cliff).has(PATTERN.rock)).toBe(true);
-    const bank = meshOf(plan, 14, 14);
-    expect(patterns(bank).has(PATTERN.earth)).toBe(true);
+    // Banks are one surface whose `edge` says how rocky each point is: 1 on the cliff, 0 on a one-level bank.
+    const rockiness = (mesh: MeshData, near: (x: number, y: number, z: number) => boolean): number[] => {
+      const out: number[] = [];
+      for (let v = 0; v < mesh.pattern.length; v++) {
+        if (mesh.pattern[v] !== PATTERN.rock || Math.abs(mesh.normal[v * 3 + 1]!) > 0.5) continue;
+        if (near(mesh.position[v * 3]!, mesh.position[v * 3 + 1]!, mesh.position[v * 3 + 2]!)) out.push(mesh.edge[v]!);
+      }
+      return out;
+    };
+    const mid = meshOf(plan, 20, 20);
+    // The west face of the bluff (x = 18, a drop from 4 to 2), away from its corners.
+    const cliff = rockiness(mid, (x, _y, z) => x < 18.3 && x > 17.6 && z > 20 && z < 23);
+    expect(cliff.length).toBeGreaterThan(10);
+    expect(Math.min(...cliff)).toBe(1);
+    // The west bank of the level-2 lawn (x = 14, one level): earth.
+    const bank = rockiness(meshOf(plan, 14, 20), (x, _y, z) => x < 14.3 && x > 13.6 && z > 20 && z < 23);
+    expect(bank.length).toBeGreaterThan(10);
+    expect(Math.max(...bank)).toBe(0);
     // The beach slopes: its foot stands out from the terrace edge, below the waterline.
     const shore = meshOf(plan, 10, 20);
     let lowest = Infinity, westmost = Infinity;
@@ -123,6 +136,59 @@ describe('the terrain layer', () => {
     expect(lowest).toBeLessThan(SEA_Y);
     expect(westmost).toBeLessThan(9.85);
     expect(plan.terrain.material[10 + 20 * SIZE_X]).toBe(MAT.sand);
+  });
+
+  test('earth and rock are one inked surface that blends over a cell, so they interleave instead of meeting on a line', () => {
+    // A lawn at 2 against ground at 1, with a notch two deeper halfway along: bank, cliff, bank.
+    const t = new TerrainBuilder(5);
+    t.rect(10, 10, 37, 37, 3);
+    t.rect(10, 10, 37, 20, 2);
+    t.rect(22, 16, 24, 20, 1);
+    const terrain = t.build();
+    const notch = resolveShape(emptyWorld(5), terrain, { rules: [] });
+    const mesh = meshOf(notch, 20, 20);
+    const inks = new Set<number>(), values = new Set<number>();
+    for (let v = 0; v < mesh.pattern.length; v++) {
+      if (mesh.pattern[v] !== PATTERN.rock || Math.abs(mesh.normal[v * 3 + 1]!) > 0.5) continue;
+      const x = mesh.position[v * 3]!, z = mesh.position[v * 3 + 2]!;
+      if (z < 20.6 || z > 21.4 || x < 17 || x > 29) continue; // the south face of the step, z = 21
+      inks.add(mesh.inkId[v]!);
+      values.add(Math.round(mesh.edge[v]! * 100) / 100);
+    }
+    expect(inks.size).toBe(1); // no ink seam between the earth stretch and the rock stretch
+    expect(values.has(0)).toBe(true);
+    expect(values.has(1)).toBe(true);
+    expect([...values].some((e) => e > 0.2 && e < 0.8)).toBe(true); // and a half-way point where they meet
+  });
+
+  test('a tall rock face carries ledges with a grass top, but not where something is built against its foot', () => {
+    const ledges = (p: ShapePlan): number => {
+      // Grass at the height of level 3, standing out past the bluff's west face (x = 18): a ledge top.
+      const mesh = meshOf(p, 20, 20);
+      let n = 0;
+      for (let v = 0; v < mesh.pattern.length; v += 3) {
+        if (mesh.pattern[v] !== PATTERN.grass || Math.abs(mesh.position[v * 3 + 1]! - 3 * CELL_H) > 1e-6) continue;
+        const xs = [mesh.position[v * 3]!, mesh.position[v * 3 + 3]!, mesh.position[v * 3 + 6]!];
+        const zs = [mesh.position[v * 3 + 2]!, mesh.position[v * 3 + 5]!, mesh.position[v * 3 + 8]!];
+        if (Math.min(...xs) < 17.95 && Math.max(...xs) < 18.3 && Math.min(...zs) > 18.4 && Math.max(...zs) < 24.6) n++;
+      }
+      return n;
+    };
+    // Whether a given face has a ledge is seeded; over several seeds some do, and none juts further than the style says.
+    let withLedge = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const t = new TerrainBuilder(seed);
+      t.rect(10, 10, 37, 37, 2);
+      t.rect(18, 18, 24, 24, 4);
+      const terrain = t.build();
+      const open = resolveShape(emptyWorld(seed), terrain, { rules: [] });
+      if (ledges(open) === 0) continue;
+      withLedge++;
+      const b = new TownBuilder(emptyWorld(seed), terrain);
+      for (let z = 18; z <= 24; z++) b.house(17, z);
+      expect(ledges(resolveShape(b.world, terrain, { rules: [] })), `seed ${seed}`).toBe(0);
+    }
+    expect(withLedge).toBeGreaterThan(0);
   });
 
   test('the sea carries the distance to the shore: 0 at the waterline, far on open water', () => {

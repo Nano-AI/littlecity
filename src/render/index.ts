@@ -199,6 +199,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uGlow: { value: 0 },
     uInk: v3(),
     uSand: v3(),
+    uDirt: v3(),
     uSea: v3(),
     uSeaDeep: v3(),
     uShallow: v3(),
@@ -731,6 +732,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     const u = surfaceUniforms;
     setLinear(u.uInk.value, PALETTE.ink);
     setLinear(u.uSand.value, PALETTE.sand);
+    setLinear(u.uDirt.value, PALETTE.dirt);
     setLinear(u.uSea.value, PALETTE.sea);
     setLinear(u.uSeaDeep.value, PALETTE.seaDeep);
     setLinear(u.uShallow.value, PALETTE.shallow);
