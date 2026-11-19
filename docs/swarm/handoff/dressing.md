@@ -3,7 +3,8 @@
 Brief: decoration (D) and urban-fill (U) rules plus their prop parts. Order set by the orchestrator:
 tier 1, then U01, U02, U08, U04, U05, U06, U09–U12, then D03, D04, D06, D08, D15, D10, D11, then the
 rest of D. Commit after every rule. No sub-agents. `yaoderek/bloom-s-monkey-city-builder` is merged
-(5345b9d); merge it again before the final report and get `npm run check` green.
+up to its commit ad31e81 (merge commit 6510524) and the full `npm run check` was green there
+(1089 tests). Dressing costs about 10 ms of the 30 ms budget on bench-2000 (D01 2.5 ms is the most).
 
 ## Done (rule in `src/rules/`, fixture in `scenarios/rules/`, part in `src/parts/props/`)
 D01 D02 D03 D04 D05 D06 D07 D08 D09 D10 D11 D13 D13-T D15 D20 D24, U01 U02 U03 U04 U05 U06 U07 U08,
