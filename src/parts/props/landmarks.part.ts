@@ -225,6 +225,7 @@ export const brazier = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 277));
+    b.scale(1.3);
     b.rotateY(r('turn') * Math.PI);
     b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'brazier' }, () => {
       for (let i = 0; i < 3; i++) {
@@ -240,7 +241,7 @@ export const brazier = definePart({
         b.at(translation(Math.cos(a) * 0.035, 0.31, Math.sin(a) * 0.035), () => b.lathe([[0.03, 0], [0, 0.09 + r('h', i) * 0.05]], { segments: 4, capBottom: true }));
       }
     });
-    return { mesh: b.build(), anchors: { 'lamp-head': translation(0, 0.36, 0) } };
+    return { mesh: b.build(), anchors: { 'lamp-head': translation(0, 0.36 * 1.3, 0) } };
   },
 });
 
