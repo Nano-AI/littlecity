@@ -223,3 +223,12 @@ Bench on bench-2000 (machine at load 10, so approximate): frame rate 60 fps,
 rebuild speed, phone viewport pass, and the small-fix list (walls on
 pitched roofs, stepper 44 px flake, bunting glow, L20 rower, stale ART.md
 pictures). Also running: grow-town.
+
+**Two more requests from Derek, both specced in the design and launched on
+Opus 5.5:** house styles (`swarm/house-styles`: six named looks plus Random
+as the default, chosen from a flyout on the House tray button, stored as
+`Block.style`; Alt-click copies a look) and animation polish
+(`swarm/animation-polish`: doors that open, roof hatches, a watching pass
+over all motion, the gust front). Running now: grow-town, polish (speed),
+house-styles, animation-polish. Expect merge overlap in
+`src/parts/openings/door.part.ts` and `src/style/houses.ts`.
