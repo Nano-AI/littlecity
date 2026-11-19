@@ -9,7 +9,7 @@
 // those instances and draws its own, so a town shown without life still has
 // its residents at their doors.
 
-import { DIR4, keyX, keyZ } from '@/core/grid';
+import { DIR4, keyX, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
 import type { MeshData } from '@/gen/mesh';
@@ -20,6 +20,7 @@ import type { NavDoor } from '@/resolve/plan';
 import { PEOPLE, PERSON } from '@/style/people';
 import { setDoorTable } from '../doors/table';
 import { deferLamp, lightLamp } from '../dusk/lamps.system';
+import { easeIn } from '../motion/ease';
 import { setOccupied } from '../dusk/occupancy';
 import { createCrowd, type Crowd, type Person } from './crowd';
 import { markCensusReady, recordHome } from './home';
@@ -67,7 +68,9 @@ function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellR
 }
 
 function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
-  const visible = p.visible && p.fade > 0.02;
+  // At the water or the map's edge people climb up into view or step down out of it; elsewhere they fade.
+  const edge = p.edgeX !== 0 || p.edgeZ !== 0;
+  const visible = p.visible && p.fade > (edge ? 0.001 : 0.02);
   if (!visible) {
     if (d.shown && d.handles) for (const h of d.handles) h.setVisible(false);
     d.shown = false;
@@ -93,7 +96,15 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     pose.outL = pose.outR = -0.2;
   }
   const sitting = name === 'sit' && p.seat >= 0;
-  const scale = d.look.scale * (0.35 + 0.65 * p.fade);
+  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade);
+  const away = edge ? 1 - p.fade : 0;
+  // Down below the water (SEA_Y) by the end, head and all: a step out, then the drop.
+  const depth = Math.max(0.5, p.y - SEA_Y + DESIGN_HEIGHT * scale + 0.05);
+  const px = p.x + p.edgeX * away, pz = p.z + p.edgeZ * away;
+  // The drop comes over the last part of the way: off a dock's end at once, down a beach into the shallows.
+  const len = Math.hypot(p.edgeX, p.edgeZ);
+  const from = len > 1 ? 0.62 : 0.15;
+  const py = p.y + p.lift - depth * easeIn(Math.max(0, Math.min(1, (away - from) / (0.92 - from))));
   rigMatrices(d.look, pose, local, sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
   // world = T(x, y, z) · Ry(heading) · S(scale) · local
   const c = Math.cos(p.heading) * scale, s = Math.sin(p.heading) * scale;
@@ -102,9 +113,9 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     for (let col = 0; col < 4; col++) {
       const o = k + col * 4;
       const lx = local[o]!, ly = local[o + 1]!, lz = local[o + 2]!;
-      world[o] = c * lx + s * lz + (col === 3 ? p.x : 0);
-      world[o + 1] = scale * ly + (col === 3 ? p.y + p.lift : 0);
-      world[o + 2] = -s * lx + c * lz + (col === 3 ? p.z : 0);
+      world[o] = c * lx + s * lz + (col === 3 ? px : 0);
+      world[o + 1] = scale * ly + (col === 3 ? py : 0);
+      world[o + 2] = -s * lx + c * lz + (col === 3 ? pz : 0);
       world[o + 3] = col === 3 ? 1 : 0;
     }
   }

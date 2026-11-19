@@ -22,7 +22,7 @@
 // sockets (L22, L25, L32), `arrival` and `way-out` sockets (L27),
 // `queue-point` sockets (L24).
 
-import { DIR4, keyX, keyY, keyZ, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, DIR4, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey, type Dir4 } from '@/core/grid';
 import { hash, rand } from '@/core/rand';
 import type { SocketType } from '@/core/vocab';
 import type { TimeSignal } from '@/life/api';
@@ -103,8 +103,17 @@ export interface Person {
 
   mode: Mode;
   visible: boolean;
-  /** 0–1: fading in at the shore or out at the edge of the map. */
+  /** 0–1: coming into view at the shore or going out of it at the edge of the map. */
   fade: number;
+  /**
+   * Which way the water (or the map's edge) lies from where they come ashore or leave: they climb up out of
+   * it or step down into it while `fade` runs (drawn by people.system.ts). 0, 0 when there is none: then
+   * they fade.
+   */
+  edgeX: number;
+  edgeZ: number;
+  /** Seconds the coming into view or going out of it takes. */
+  fadeTime: number;
   x: number;
   y: number;
   z: number;
@@ -552,7 +561,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     let bestD = Infinity;
     for (const h of haunts) {
       if (h.type !== 'way-out' || nav.part[h.node] !== part) continue;
-      const d = Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here));
+      // Out over the water or off the map's edge, where they can step out of view, before a dead end.
+      const d = Math.abs(keyX(h.cell) - keyX(here)) + Math.abs(keyZ(h.cell) - keyZ(here)) + (edgeOf(h.node) ? 0 : 1000);
       if (d < bestD) {
         bestD = d;
         best = h;
@@ -561,6 +571,35 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (!best) return null;
     return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
   };
+
+  /** The side of a node's cell that gives onto open water or the map's edge, as a unit (x, z), or null. */
+  let terrain: ShapePlan['terrain'] | null = null;
+  let blocks: ShapePlan['structureAt'] | null = null;
+  const edgeOf = (node: number): [number, number] | null => {
+    if (!nav || !terrain || node < 0) return null;
+    const c = nav.nodes[node]!.cell;
+    const x = keyX(c), y = keyY(c), z = keyZ(c);
+    let best: [number, number] | null = null;
+    for (const [dx, dz] of DIR4) {
+      const nx = x + dx, nz = z + dz;
+      const off = nx < 0 || nz < 0 || nx >= SIZE_X || nz >= SIZE_Z;
+      if (!off) {
+        if (terrain.height[columnIndex(nx, nz)] !== 0) continue;
+        const n = key(nx, y, nz);
+        if (nav.nodeAt.has(n) || blocks?.has(n)) continue;
+      }
+      // Water before the map's edge.
+      if (!best || !off) best = [dx, dz];
+      if (!off) break;
+    }
+    if (!best) return null;
+    // How far out of view: off a dock's end it is a step down into a boat; down a beach, a wade.
+    const out = nav.nodes[node]!.surface === 'deck' ? 0.45 : terrain.height[columnIndex(x, z)] !== 0 && nav.nodes[node]!.surface === 'sand' ? 1.6 : 0.7;
+    return [best[0] * out, best[1] * out];
+  };
+
+  /** Seconds to walk the way out of view at the water or the map's edge, at a stroll. */
+  const edgeTime = (p: Person): number => Math.hypot(p.edgeX, p.edgeZ) / (p.speed * 0.8);
 
   // ── routes ────────────────────────────────────────────────────────────
   /** Plans the walk to `goal` and starts it. False if there is no route. */
@@ -658,6 +697,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.pose = 'wave';
       p.poseTime = 0;
       p.timer = PEOPLE.fade;
+      // Down into the water, or off the edge, if there is one: they walk on out of view.
+      const edge = edgeOf(p.node);
+      p.edgeX = edge?.[0] ?? 0;
+      p.edgeZ = edge?.[1] ?? 0;
+      if (edge) {
+        p.pose = 'walk';
+        p.timer = p.fadeTime = edgeTime(p);
+      }
     } else if (goal.door) {
       p.mode = 'visit';
       p.visible = false;
@@ -1080,6 +1127,12 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       return;
     }
     standAt(p, landing.node);
+    // Up out of the boat (or the shallows) on the water side of the landing.
+    const edge = edgeOf(landing.node);
+    p.edgeX = edge?.[0] ?? 0;
+    p.edgeZ = edge?.[1] ?? 0;
+    p.fadeTime = edge ? edgeTime(p) : PEOPLE.fade;
+    if (edge) p.heading = Math.atan2(-p.edgeX, -p.edgeZ);
     const c = nodeCentre(nav!, landing.node);
     p.x = c.x + (rand(p.seed, 'land-x') - 0.5) * 0.4;
     p.z = c.z + (rand(p.seed, 'land-z') - 0.5) * 0.4;
@@ -1104,7 +1157,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
       node: -1, cell: -1, walk: null, at: 0, t: 0,
       goal: null, want: null, timer: 0, held: -1, trips: 0, stuck: 0, slow: 1, queued: false,
-      inside: null, hop: null, leaving: false, startled: 0, startledFace: 0,
+      inside: null, hop: null, leaving: false, startled: 0, startledFace: 0, edgeX: 0, edgeZ: 0, fadeTime: PEOPLE.fade,
       jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
     };
   };
@@ -1131,6 +1184,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const first = nav === null;
       const old = nav;
       seed = shape.world.seed;
+      terrain = shape.terrain;
+      blocks = shape.structureAt;
       // L36: doors new to the town start as they should already be; shops stand open by day.
       doors.settle();
       shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
@@ -1291,7 +1346,12 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             p.timer -= dt;
             if (p.goal && !Number.isNaN(p.goal.face) && !p.flying) turnTo(p, p.goal.face, dt);
             if (p.goal?.kind === 'leave') {
-              p.fade = Math.max(0, p.timer / PEOPLE.fade);
+              p.fade = Math.max(0, p.timer / p.fadeTime);
+              if (p.edgeX !== 0 || p.edgeZ !== 0) {
+                turnTo(p, Math.atan2(p.edgeX, p.edgeZ), dt);
+                p.pose = 'walk';
+                p.stride += (dt * p.speed * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
+              }
               if (p.timer <= 0) remove(p);
               break;
             }
@@ -1333,6 +1393,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             break;
           }
           case 'wait':
+            // A newcomer climbs up out of the water first (L27), at a walk, then sets off home.
+            if (p.timer <= 0 && p.fade < 1 && (p.edgeX !== 0 || p.edgeZ !== 0) && !p.leaving) {
+              p.visible = true;
+              p.fade = Math.min(1, p.fade + dt / p.fadeTime);
+              turnTo(p, Math.atan2(-p.edgeX, -p.edgeZ), dt);
+              p.pose = p.child ? 'run' : 'walk';
+              p.stride += (dt * p.speed * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
+              break;
+            }
             p.poseTime += dt;
             p.timer -= dt;
             if (p.timer <= 0 && !p.want) {
@@ -1341,6 +1410,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
                 if (p.leaving) {
                   // Nowhere to walk off to: fade where they stand.
                   p.goal = { kind: 'leave', node: p.node, haunt: null, door: null, spot: null, face: NaN, pose: 'wave', linger: 0, seat: -1 };
+                  p.edgeX = p.edgeZ = 0;
                   p.mode = 'linger';
                   p.pose = 'wave';
                   p.timer = PEOPLE.fade;
@@ -1404,7 +1474,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       for (let k = 0; k < n && plans > 0; k++) {
         const p = people[(planCursor + k) % n]!;
         if (!p.want || p.mode === 'gone' || p.mode === 'hop') continue;
-        if (p.mode === 'wait' && p.timer > 0) continue;
+        if (p.mode === 'wait' && (p.timer > 0 || (p.fade < 1 && (p.edgeX !== 0 || p.edgeZ !== 0) && !p.leaving))) continue;
         if (p.mode === 'walk' && p.walk![p.at]!.kind !== 'move') continue; // not half-way through a door
         plans--;
         const goal = p.want;

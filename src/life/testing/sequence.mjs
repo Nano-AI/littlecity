@@ -187,6 +187,31 @@ try {
   const after = Number(flags.after ?? 0);
   if (first.length) console.log(`edits: ${(await applyEdits(first)).join(', ')}`);
 
+  // --shore: after the edits, play on until somebody is about to come ashore (a new home's people) or step
+  // off at a way out (an erased home's), and aim the camera there.
+  if (flags.shore) {
+    let hit = null;
+    for (let waited = 0; waited < Number(flags.wait ?? 60000) && !hit; waited += 50) {
+      hit = await page.evaluate((which) => {
+        const crowd = window.__lcPeople;
+        for (const p of crowd.people) {
+          if (p.mode === 'wait' && p.fade === 0 && (p.edgeX || p.edgeZ) && p.timer < 0.3) return { x: p.x, y: p.y, z: p.z, what: 'ashore' };
+          if (which !== 'ashore' && p.mode === 'walk' && p.goal?.kind === 'leave' && p.walk && p.at === p.walk.length - 1 && p.t > 0.5) return { x: p.x, y: p.y, z: p.z, what: 'leaving' };
+        }
+        return null;
+      }, flags.shore);
+      if (!hit) await play(50);
+    }
+    if (!hit) console.log('--shore: nobody came ashore or left in time');
+    else {
+      console.log(`--shore: ${hit.what} at ${hit.x.toFixed(2)},${hit.y.toFixed(2)},${hit.z.toFixed(2)}`);
+      await page.evaluate(([x, y, z]) => window.__lc.view.setCamera({ target: [x, y + 0.2, z] }), [hit.x, hit.y, hit.z]);
+    }
+  }
+
+  // --delay ms: play this long before the first frame (after any --door or --shore aim).
+  if (flags.delay) await play(Number(flags.delay));
+
   const shots = [];
   let secondDone = second.length === 0;
   for (let i = 0; i < frames; i++) {
