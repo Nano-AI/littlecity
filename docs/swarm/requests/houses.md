@@ -93,3 +93,31 @@ whoever widens or narrows that hash:
 - trail features (J08) are drawn on ground cells outside the structure. They
   are features of the house, so they are in its hash; the terrain height of
   those cells is implied by the feature's cell.
+
+## 5. Fix pass after art review 1
+
+- **H4 / G4, roof-terrace barrier (Ground).** The house side is done: rule
+  `J05.terrace-edges` (priority 805, after J19) pins a `coping` feature
+  (`cell` = the roof cell, `dir` = the side) on the house for every terrace
+  side that carries a player's edge piece or a J19 `railing`. On those sides
+  the house draws no parapet, only a coping 0.048 high on the wall head (wall
+  face 0.07 inside the cell line). J19 railings already stand
+  `FENCE.railInset` (0.07) in, so they land on it. **Still Ground's:** a
+  player's fence or wall edge piece on a house roof is drawn on the cell
+  line, 0.07 outside the wall. In `fence.gen.ts`, an edge piece whose cell
+  below is a `house` block should move 0.07 toward that cell (both cells
+  houses: stay on the line). Fixture: `scenarios/rules/J05.terrace-edges`.
+- **H6, loggia door (Monuments).** J26 now also gives a door where an arch
+  deck meets a house at roof level. That door's `cell` is the cell ABOVE the
+  house's top cell (the deck's level), `dir` toward the deck; the house
+  generator stands it in a small gabled housing in the roof. Nothing needed
+  from the arch generator; a `loggia-rail` on the house side of that cell
+  would block the door, so leave that side open as now.
+- **H7 / M6, stilt footing (Monuments).** Nothing changed on my side: the
+  `plank-walls` tag is on every stilt house and boathouse; the supports
+  layer reads it.
+- **Role props (Dressing).** The tier 2 role props are drawn by one part,
+  `src/parts/openings/role-prop.part.ts`, for the prop type `role-prop`
+  (variants `slipway`, `net`, `lantern`, `sacks`, `cart`, `telescope`,
+  `plants`), emitted by `src/rules/decoration/D-H01.role-props.rule.ts`. It
+  claims the floor slots it uses, so D11 and friends skip them.

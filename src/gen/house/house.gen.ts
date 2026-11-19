@@ -103,6 +103,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
       case 'foundation':
       case 'jetty':
       case 'collar':
+      case 'coping':
         return null; // drawn by this file
       case 'chimney':
         return chimneyFrame(h, f);
@@ -478,7 +479,12 @@ function terrace(h: House, region: RoofRegion, cells: readonly CellKey[], side: 
     const x = keyX(n), z = keyZ(n);
     return inColumnBounds(x, z) && plan.terrain.height[columnIndex(x, z)]! >= region.level + 1;
   };
-  const parapetOn = (c: CellKey, d: Dir4): boolean => inRoof(c) && !inRoof(neighbor(c, d)) && side(c, d) === 'free' && !open(c, d);
+  // J05/J19: a side that carries a railing or an edge piece gets a low coping, not a parapet.
+  const coped = new Set<number>();
+  for (const f of h.features) if (f.type === 'coping' && f.cell !== undefined && f.dir !== undefined) coped.add(edgeId(f.cell, f.dir));
+  const rim = (c: CellKey, d: Dir4): boolean => inRoof(c) && !inRoof(neighbor(c, d)) && side(c, d) === 'free' && !open(c, d);
+  const parapetOn = (c: CellKey, d: Dir4): boolean => rim(c, d) && !coped.has(edgeId(c, d));
+  const copingOn = (c: CellKey, d: Dir4): boolean => rim(c, d) && coped.has(edgeId(c, d));
   b.with({ color: PALETTE.stoneShade, pattern: PATTERN.paving, ink: `terrace${region.index}` }, () => {
     for (const c of cells) {
       const x = keyX(c), z = keyZ(c);
@@ -488,6 +494,13 @@ function terrace(h: House, region: RoofRegion, cells: readonly CellKey[], side: 
   for (const c of cells) {
     const mat = h.material(c);
     for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+      if (copingOn(c, d)) {
+        const e = wallEdge(inRoof, c, d);
+        b.at(compose(faceFrame(c, d), translation(0, CELL_H, 0)), () =>
+          b.with({ color: persona.trim, ink: `coping${region.index}` }, () =>
+            band(b, e, i - 0.018, i + 0.098, -0.012, 0.048, { inner: true, capLeft: !copingOn(...partner(e, 'left')), capRight: !copingOn(...partner(e, 'right')) })));
+        continue;
+      }
       if (!parapetOn(c, d)) continue;
       const e = wallEdge(inRoof, c, d);
       const capL = !parapetOn(...partner(e, 'left')), capR = !parapetOn(...partner(e, 'right'));

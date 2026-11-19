@@ -30,6 +30,10 @@ declare module '@/core/vocab' {
     'dormer/cross-gable': true; //  the wall over the main door carried up into a gable of its own
     'dormer/skylight': true; //     a roof light lying on the slope
 
+    // J05/J19 seam: a roof-terrace side that carries a railing or an edge piece. The house leaves
+    // its parapet out there and caps the wall with a low coping. `cell` = the roof cell, `dir` = the side.
+    'coping': true;
+
     // R-H09: a portico with two small columns at the main door. cell + dir as the door.
     'portico': true;
   }
