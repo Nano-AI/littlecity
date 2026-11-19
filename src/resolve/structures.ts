@@ -1,13 +1,43 @@
-// STUB (Stage 0). Owner: Logic (Stage 1). Final signature.
+// Pass 3: group pieces into structures (design sections 6 and 10). Owner: Logic.
 //
-// Pass 3: group pieces into structures. The stub makes one structure per
-// block, per floor cell and per edge piece. The Logic owner implements the
-// merge table (design section 6, KINDS[kind].merge) for blocks, connected
-// regions for floors, and runs for fences and walls (cell and edge pieces
-// together), keeping the id rules documented on StructureId in ../plan.ts.
+// Blocks merge by their RESOLVED kind, per KINDS[kind].merge:
+//   house, marble        touching (all six faces), same colour
+//   dock                 touching
+//   tower                directly above/below, same colour
+//   lighthouse, pillar,  directly above/below
+//   windmill
+//   arch                 touching arches: the same run (side by side) or tier (stacked)
+//   stairs               beside (same rot, side by side across the flight) or
+//                        continuing the flight (same rot, one up and one forward)
+//   fence, wall          runs: cell pieces side by side, edge pieces meeting at a
+//                        corner, and an edge piece on a side of a cell piece
+//   tree, fountain, stall  never merge
+// Floors: connected cells of one floor kind, side by side at one level, or
+// one level apart where both lie on terrain (a path up a terrace is one path).
+//
+// Ids (see StructureId in ./plan.ts): the lowest seq among member blocks, so
+// growing a structure never re-rolls it and a split-off part takes the id of
+// its own lowest seq; FLOOR_ID_BASE + lowest cell for floor regions;
+// EDGE_ID_BASE + lowest edge for runs made only of edge pieces.
 
-import type { CellKey, EdgeKey } from '@/core/grid';
-import type { Kind } from '@/core/kinds';
+import {
+  above,
+  columnIndex,
+  E,
+  edgeCells,
+  keyX,
+  keyY,
+  keyZ,
+  neighbor,
+  NO_CELL,
+  S,
+  turn,
+  unedge,
+  type CellKey,
+  type Dir4,
+  type EdgeKey,
+} from '@/core/grid';
+import { KINDS, type Kind, type StructureKind } from '@/core/kinds';
 import { hash } from '@/core/rand';
 import type { Terrain, World } from '@/core/world';
 import { EDGE_ID_BASE, FLOOR_ID_BASE, type Structure, type StructureId } from './plan';
@@ -24,28 +54,173 @@ export function structureSeed(worldSeed: number, id: StructureId): number {
   return hash(worldSeed, 'structure', id);
 }
 
-export function buildStructures(w: World, _t: Terrain, kinds: ReadonlyMap<CellKey, Kind>): StructureSet {
+class UnionFind {
+  readonly parent: Int32Array;
+  constructor(n: number) {
+    this.parent = new Int32Array(n);
+    for (let i = 0; i < n; i++) this.parent[i] = i;
+  }
+  find(i: number): number {
+    let r = i;
+    while (this.parent[r] !== r) r = this.parent[r]!;
+    while (this.parent[i] !== r) {
+      const next = this.parent[i]!;
+      this.parent[i] = r;
+      i = next;
+    }
+    return r;
+  }
+  union(a: number, b: number): void {
+    const ra = this.find(a);
+    const rb = this.find(b);
+    if (ra !== rb) this.parent[Math.max(ra, rb)] = Math.min(ra, rb);
+  }
+}
+
+/** Should two blocks of the same resolved kind, `b` lying in direction `dir` from `a`, merge? */
+function blocksMerge(w: World, kind: Kind, a: CellKey, b: CellKey, dir: Dir4 | 'up'): boolean {
+  const info = KINDS[kind];
+  const ba = w.blocks.get(a)!;
+  const bb = w.blocks.get(b)!;
+  if (info.mergeNeedsColor && ba.color !== bb.color) return false;
+  switch (info.merge) {
+    case 'none':
+      return false;
+    case 'touching':
+      return true;
+    case 'vertical':
+      return dir === 'up';
+    case 'run':
+      if (kind === 'arch') return true;
+      if (kind === 'fence' || kind === 'wall') return dir !== 'up';
+      if (kind === 'stairs') {
+        if (ba.rot !== bb.rot || dir === 'up') return false;
+        // Side by side across the flight.
+        return dir === turn(ba.rot, 1) || dir === turn(ba.rot, 3);
+      }
+      return false;
+  }
+}
+
+export function buildStructures(w: World, t: Terrain, kinds: ReadonlyMap<CellKey, Kind>): StructureSet {
   const structures = new Map<StructureId, Structure>();
   const structureAt = new Map<CellKey, StructureId>();
   const floorAt = new Map<CellKey, StructureId>();
   const edgeAt = new Map<EdgeKey, StructureId>();
-  const add = (s: Omit<Structure, 'seed' | 'hash'>): void => {
-    structures.set(s.id, { ...s, seed: structureSeed(w.seed, s.id), hash: 0 });
+
+  // ── blocks and edge pieces: one union-find over both ──
+  const cells = [...w.blocks.keys()].sort((a, b) => a - b);
+  const edges = [...w.edges.keys()].sort((a, b) => a - b);
+  const index = new Map<CellKey, number>();
+  cells.forEach((c, i) => index.set(c, i));
+  const uf = new UnionFind(cells.length + edges.length);
+  for (let i = 0; i < cells.length; i++) {
+    const cell = cells[i]!;
+    const kind = kinds.get(cell)!;
+    if (KINDS[kind].merge === 'none') continue;
+    const tryMerge = (n: CellKey, dir: Dir4 | 'up'): void => {
+      if (n === NO_CELL || kinds.get(n) !== kind) return;
+      if (blocksMerge(w, kind, cell, n, dir)) uf.union(i, index.get(n)!);
+    };
+    tryMerge(neighbor(cell, E), E);
+    tryMerge(neighbor(cell, S), S);
+    tryMerge(above(cell), 'up');
+    if (kind === 'stairs') {
+      // Continuing the flight: one level up, one step forward, same rot.
+      const rot = w.blocks.get(cell)!.rot;
+      const fwd = neighbor(cell, rot);
+      const next = fwd === NO_CELL ? NO_CELL : above(fwd);
+      if (next !== NO_CELL && kinds.get(next) === 'stairs' && w.blocks.get(next)!.rot === rot) uf.union(i, index.get(next)!);
+    }
+  }
+  // Edge pieces: with each other at shared corners, and with cell pieces of their kind on either side.
+  const corners = new Map<number, number[]>();
+  const cornerKey = (x: number, z: number, y: number, kind: string): number => ((y * 64 + z) * 64 + x) * 2 + (kind === 'wall' ? 1 : 0);
+  for (let j = 0; j < edges.length; j++) {
+    const e = edges[j]!;
+    const kind = w.edges.get(e)!;
+    const { cell, side } = unedge(e);
+    const x = keyX(cell);
+    const z = keyZ(cell);
+    const y = keyY(cell);
+    const ends = side === 'E' ? [[x + 1, z], [x + 1, z + 1]] : [[x, z + 1], [x + 1, z + 1]];
+    for (const [cx, cz] of ends) {
+      const k = cornerKey(cx!, cz!, y, kind);
+      const list = corners.get(k);
+      if (list) {
+        uf.union(cells.length + j, cells.length + list[0]!);
+        list.push(j);
+      } else corners.set(k, [j]);
+    }
+    for (const c of edgeCells(e)) {
+      if (c !== NO_CELL && kinds.get(c) === kind) uf.union(cells.length + j, index.get(c)!);
+    }
+  }
+  // Collect components.
+  const groups = new Map<number, { cells: CellKey[]; edges: EdgeKey[] }>();
+  const groupOf = (root: number): { cells: CellKey[]; edges: EdgeKey[] } => {
+    let g = groups.get(root);
+    if (!g) groups.set(root, (g = { cells: [], edges: [] }));
+    return g;
   };
-  for (const cell of [...w.blocks.keys()].sort((a, b) => a - b)) {
-    const block = w.blocks.get(cell)!;
-    add({ id: block.seq, kind: kinds.get(cell)!, color: block.color, cells: [cell], edges: [] });
-    structureAt.set(cell, block.seq);
+  for (let i = 0; i < cells.length; i++) groupOf(uf.find(i)).cells.push(cells[i]!);
+  for (let j = 0; j < edges.length; j++) groupOf(uf.find(cells.length + j)).edges.push(edges[j]!);
+  for (const g of groups.values()) {
+    let id: StructureId;
+    let kind: StructureKind;
+    let color = 0;
+    if (g.cells.length) {
+      let lowest = w.blocks.get(g.cells[0]!)!;
+      for (const c of g.cells) {
+        const b = w.blocks.get(c)!;
+        if (b.seq < lowest.seq) lowest = b;
+      }
+      id = lowest.seq;
+      color = lowest.color;
+      kind = kinds.get(g.cells[0]!)!;
+    } else {
+      id = EDGE_ID_BASE + g.edges[0]!;
+      kind = w.edges.get(g.edges[0]!)!;
+    }
+    structures.set(id, { id, kind, color, seed: structureSeed(w.seed, id), cells: g.cells, edges: g.edges, hash: 0 });
+    for (const c of g.cells) structureAt.set(c, id);
+    for (const e of g.edges) edgeAt.set(e, id);
   }
-  for (const cell of [...w.floors.keys()].sort((a, b) => a - b)) {
-    const id = FLOOR_ID_BASE + cell;
-    add({ id, kind: w.floors.get(cell)!, color: 0, cells: [cell], edges: [] });
-    floorAt.set(cell, id);
+
+  // ── floors ──
+  const fcells = [...w.floors.keys()].sort((a, b) => a - b);
+  const findex = new Map<CellKey, number>();
+  fcells.forEach((c, i) => findex.set(c, i));
+  const fu = new UnionFind(fcells.length);
+  const onTerrain = (c: CellKey): boolean => keyY(c) === t.height[columnIndex(keyX(c), keyZ(c))];
+  for (let i = 0; i < fcells.length; i++) {
+    const cell = fcells[i]!;
+    const kind = w.floors.get(cell)!;
+    for (const d of [E, S] as const) {
+      const n = neighbor(cell, d);
+      if (n === NO_CELL) continue;
+      if (w.floors.get(n) === kind) fu.union(i, findex.get(n)!);
+      if (!onTerrain(cell)) continue;
+      // One terrain level up or down: a path climbing a terrace.
+      for (const dy of [1, -1]) {
+        const y = keyY(n) + dy;
+        if (y < 0 || y > 31) continue;
+        const m = n + dy * (1 << 12);
+        if (w.floors.get(m) === kind && onTerrain(m)) fu.union(i, findex.get(m)!);
+      }
+    }
   }
-  for (const edge of [...w.edges.keys()].sort((a, b) => a - b)) {
-    const id = EDGE_ID_BASE + edge;
-    add({ id, kind: w.edges.get(edge)!, color: 0, cells: [], edges: [edge] });
-    edgeAt.set(edge, id);
+  const fgroups = new Map<number, CellKey[]>();
+  for (let i = 0; i < fcells.length; i++) {
+    const r = fu.find(i);
+    const list = fgroups.get(r);
+    if (list) list.push(fcells[i]!);
+    else fgroups.set(r, [fcells[i]!]);
+  }
+  for (const list of fgroups.values()) {
+    const id = FLOOR_ID_BASE + list[0]!;
+    structures.set(id, { id, kind: w.floors.get(list[0]!)!, color: 0, seed: structureSeed(w.seed, id), cells: list, edges: [], hash: 0 });
+    for (const c of list) floorAt.set(c, id);
   }
   return { structures, structureAt, floorAt, edgeAt };
 }
