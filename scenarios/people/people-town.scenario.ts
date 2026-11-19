@@ -69,6 +69,15 @@ export default scenario({
     b.path(34, 12, 42, 12);
     b.house(35, 10, { floors: 2, w: 2, color: 1 });
     b.put('tree', 38, 14).put('tree', 29, 22).put('tree', 24, 22).put('tree', 6, 22);
+    // A second street behind the first, with the bigger houses.
+    b.path(6, 30, 15, 30).path(17, 30, 36, 30).path(36, 26, 36, 29);
+    b.house(7, 31, { floors: 2, w: 3, color: 3 });
+    b.house(11, 31, { floors: 3, w: 2, color: 6 });
+    b.house(19, 31, { floors: 2, w: 3, color: 5 });
+    b.house(23, 31, { floors: 3, w: 2, color: 0 });
+    b.house(27, 31, { floors: 2, w: 2, color: 7 });
+    b.house(30, 31, { floors: 2, w: 3, color: 4 });
+    b.garden(34, 31, 35, 32);
     b.block('stairs', 25, 1, 16, { rot: E });
   },
   cameras: [

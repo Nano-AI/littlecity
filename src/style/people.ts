@@ -93,11 +93,11 @@ export const PEOPLE = defineStyle(
 export const PERSON = defineStyle(
   'person',
   {
-    /** Adult height to the top of the head (hair and hats add a little), and a child's share of it. */
-    height: 0.42,
+    /** Adult height to the top of the head in world units (hair and hats add a little), and a child's share of it. */
+    height: 0.46,
     child: 0.7,
-    /** Head radius: big for the body, as in the reference drawings. */
-    head: 0.074,
+    /** Head radius for a figure 0.42 tall (it scales with `height`): big for the body, as in the reference drawings. */
+    head: 0.078,
     /** Steps per cell walked (one step = one leg swing). */
     stepsPerCell: 5,
     /** Leg and arm swing at full stride, radians. */

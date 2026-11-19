@@ -34,7 +34,7 @@ export interface Look {
   /** A skirt or a long coat: the body flares to the knee and the legs show bare below it. */
   dress: boolean;
   child: boolean;
-  /** Whole-figure scale: about 1 for an adult, PERSON.child for a child. */
+  /** Whole-figure scale: figure units to world units. PERSON.height ÷ DESIGN_HEIGHT for an average adult, PERSON.child of that for a child. */
   scale: number;
   /** Width of the body, about 1. */
   girth: number;
@@ -63,10 +63,16 @@ export function lookOf(seed: number, child = false): Look {
     hatColor: pickOf(PERSON.hats, r('hat-colour')),
     dress: r('dress') < 0.34,
     child,
-    scale: child ? PERSON.child * (0.92 + r('size') * 0.16) : 0.95 + r('size') * 0.1,
+    scale: (PERSON.height / DESIGN_HEIGHT) * (child ? PERSON.child * (0.92 + r('size') * 0.16) : 0.95 + r('size') * 0.1),
     girth: 0.92 + r('girth') * 0.18,
   };
 }
+
+/**
+ * The figure is drawn this tall in its own units, whatever PERSON.height says: the style value scales
+ * the whole figure, so its proportions hold.
+ */
+export const DESIGN_HEIGHT = 0.42;
 
 /** Where the pieces join, in the figure's own units (before `scale`). */
 export interface Rig {
@@ -87,7 +93,7 @@ export function rigOf(look: Look): Rig {
     hipX: 0.031 * look.girth,
     shoulderY: 0.25,
     shoulderX: 0.064 * look.girth,
-    headY: PERSON.height - PERSON.head,
+    headY: DESIGN_HEIGHT - PERSON.head,
     head,
     leg: 0.128,
     arm: 0.108,

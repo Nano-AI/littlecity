@@ -6,7 +6,7 @@ import { transformPoint } from '@/core/mat4';
 import { inkGroups, triangleCount, validateMesh } from '@/gen/checks';
 import { MeshBuilder, meshBounds } from '@/gen/mesh';
 import { PERSON } from '@/style/people';
-import { assemblePerson, buildPerson, lookOf, PIECES, rigOf } from './person';
+import { assemblePerson, buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf } from './person';
 import { POSES, poseOf, rigMatrices, sitDrop } from './pose';
 
 const whole = (seed: number, pose = poseOf('stand', 0), child = false) => {
@@ -38,9 +38,12 @@ describe('the person', () => {
   test('an adult stands about PERSON.height tall on the ground; a child is smaller', () => {
     const adult = whole(11);
     const { min, max } = meshBounds(adult.mesh);
+    // In the figure's own units (0.42 tall); `look.scale` takes it to PERSON.height in the world.
     expect(min[1]).toBeCloseTo(0, 2);
-    expect(max[1]).toBeGreaterThan(PERSON.height - 0.01);
-    expect(max[1]).toBeLessThan(PERSON.height + 0.09); // hair, a bun or a hat on top
+    expect(max[1]).toBeGreaterThan(DESIGN_HEIGHT - 0.01);
+    expect(max[1]).toBeLessThan(DESIGN_HEIGHT + 0.09); // hair, a bun or a hat on top
+    expect(adult.look.scale * DESIGN_HEIGHT).toBeGreaterThan(PERSON.height * 0.94);
+    expect(adult.look.scale * DESIGN_HEIGHT).toBeLessThan(PERSON.height * 1.06);
     expect(lookOf(11, true).scale).toBeLessThan(lookOf(11, false).scale * 0.85);
   });
 
