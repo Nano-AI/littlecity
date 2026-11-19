@@ -9,6 +9,8 @@ export const PALETTE = defineStyle('palette', {
   paper: '#f2ede3',
   grass: '#b9dc94',
   grassSide: '#a3cf80',
+  /** High ground: each terrace above the first leans a step toward this lighter, sunnier green. */
+  grassHigh: '#d6eeae',
   dirt: '#dcc39c',
   dirtDark: '#c7a982',
   sand: '#f0e2b6',

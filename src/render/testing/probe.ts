@@ -7,12 +7,16 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
+import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import type { DayPart, InstanceHandle, SignalsDriver } from '@/life/api';
 import { createSignals } from '@/life/signals';
+import type { Edit } from '@/core/world';
+import type { ResolveOptions } from '@/resolve/engine/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
+import { applyEdit, canApply } from '@/world/world';
 import type { CameraPose, TownView, ViewOptions } from '../api';
 import { createTownView } from '../index';
 
@@ -27,6 +31,8 @@ export interface FrameSummary {
   dark: number;
   /** Pixels that are bright and warm: lit windows and lamps. */
   warm: number;
+  /** Share of ink-dark pixels in the outermost three rows and columns of the frame. */
+  border: number;
   /** The four corner pixels (bare paper in most views). */
   corners: [number, number, number][];
   /** A coarse copy of the picture (COLS × ROWS cells, rgb), for comparing two frames. */
@@ -39,6 +45,7 @@ let view: TownView | null = null;
 let signals: SignalsDriver | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let shape: ShapePlan | null = null;
+let options: ResolveOptions | null = null;
 let dressing: DressingPlan | null = null;
 let lifted: InstanceHandle | null = null;
 
@@ -47,7 +54,7 @@ function summary(): FrameSummary {
   const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
   const px = new Uint8Array(w * h * 4);
   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
-  let r = 0, g = 0, b = 0, dark = 0, warm = 0;
+  let r = 0, g = 0, b = 0, dark = 0, warm = 0, border = 0, borderDark = 0;
   const thumb = new Float64Array(COLS * ROWS * 3);
   const counts = new Float64Array(COLS * ROWS);
   for (let y = 0; y < h; y++) {
@@ -58,7 +65,12 @@ function summary(): FrameSummary {
       r += pr;
       g += pg;
       b += pb;
-      if (0.299 * pr + 0.587 * pg + 0.114 * pb < 95) dark++;
+      const isDark = 0.299 * pr + 0.587 * pg + 0.114 * pb < 95;
+      if (isDark) dark++;
+      if (x < 3 || y < 3 || x >= w - 3 || y >= h - 3) {
+        border++;
+        if (isDark) borderDark++;
+      }
       if (pr > 225 && pg > 185 && pb < 170 && pr - pb > 70) warm++;
       const cell = row * COLS + Math.min(COLS - 1, Math.floor((x / w) * COLS));
       thumb[cell * 3] += pr;
@@ -81,6 +93,7 @@ function summary(): FrameSummary {
     mean: [r / n, g / n, b / n],
     dark: dark / n,
     warm,
+    border: borderDark / Math.max(1, border),
     corners: [at(2, 2), at(w - 3, 2), at(2, h - 3), at(w - 3, h - 3)],
     thumb: [...thumb].map((v, i) => Math.round(v / counts[Math.floor(i / 3)]!)),
   };
@@ -102,7 +115,7 @@ const api = {
     view.resize(width, height);
     signals = createSignals(scn.seed);
     const built = buildScenario(scn);
-    const options = scenarioResolveOptions(scn);
+    options = scenarioResolveOptions(scn);
     shape = resolveShape(built.world, built.terrain, options);
     dressing = resolveDressing(shape, options);
     view.setTown(shape, dressing);
@@ -119,6 +132,11 @@ const api = {
   frameOnly(seconds = 0): void {
     for (let t = 0; t < seconds; t += 1 / 30) signals!.advance(Math.min(1 / 30, seconds));
     view!.render(signals!);
+  },
+  /** Changes one style value, as the tuning panel does. No arguments puts every value back. */
+  style(name?: string, key?: string, value?: StyleValue): void {
+    if (name === undefined || key === undefined || value === undefined) resetStyles();
+    else setStyle(name, key, value);
   },
   time(part: DayPart): void {
     signals!.hold(part);
@@ -142,11 +160,24 @@ const api = {
     lifted?.release();
     lifted = null;
   },
-  /** Shows the first house as a ghost with a refused cell beside it, or clears the ghost. */
+  /**
+   * Shows what the game's hover would: a what-if plan with a two-storey house placed two cells east of
+   * the first house, that new house as the ghost, a shimmering cell and a refused cell beside it.
+   * `false` clears the ghost.
+   */
   ghost(on: boolean): void {
     if (!on) return view!.setGhost(null);
     const s = [...shape!.structures.values()].find((x) => x.kind === 'house')!;
-    view!.setGhost({ plan: shape!, show: [s.id], shimmer: [s.cells[0]! + 2], refuse: s.cells[0]! + 3 });
+    const base = Math.min(...s.cells);
+    const at = base + 2;
+    let world = shape!.world;
+    for (const cell of [at, at + (1 << 12)]) {
+      const edit: Edit = { type: 'placeBlock', cell, kind: 'house', color: 2, from: null };
+      if (canApply(world, shape!.terrain, edit).ok) world = applyEdit(world, shape!.terrain, edit);
+    }
+    const plan = resolveShape(world, shape!.terrain, options ?? {});
+    const id = plan.structureAt.get(at);
+    view!.setGhost({ plan, show: id === undefined ? [s.id] : [id], shimmer: [base + 4], refuse: base + 5 });
   },
   /** Hides every prop, or shows them again. Returns how many there are. */
   props(visible: boolean): number {

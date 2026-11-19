@@ -33,6 +33,8 @@ export class SlotTable {
   generation = 0;
   /** Set whenever `data` changes; the view clears it after uploading. */
   dirty = true;
+  /** Set whenever something moved, appeared or vanished (not for params); the view clears it. */
+  moved = true;
   private free: number[] = [];
   private next = 1;
   /** The true matrix of each slot (12 floats), kept while a slot is hidden. */
@@ -81,6 +83,7 @@ export class SlotTable {
       // A zero matrix collapses every vertex of the slot to one point: nothing is drawn.
       this.data.fill(0, slot * FLOATS, slot * FLOATS + 12);
       this.dirty = true;
+      this.moved = true;
     }
   }
 
@@ -95,6 +98,7 @@ export class SlotTable {
   private write(slot: number): void {
     this.data.set(this.matrix.subarray(slot * 12, slot * 12 + 12), slot * FLOATS);
     this.dirty = true;
+    this.moved = true;
   }
 
   private reset(slot: number): void {

@@ -5,7 +5,7 @@
 //   vertex    slot matrix (things that move), wind sway, varyings
 //   fragment  flat stepped shading from one fixed light (3–4 tones, shadows
 //             drifting cool), then the surface's pencil pattern, then
-//             screen-space pencil hatching in the shaded tones
+//             pencil hatching in the shaded tones and the grounding shade
 //   outputs   location 0: colour (sRGB) and glow in alpha
 //             location 1: view normal (xy) and the ink id (two bytes), which
 //             the composite pass turns into ink lines
@@ -72,11 +72,16 @@ void main(){
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
   float pat = color.a * 255.0;
-  bool over = abs(pat - 27.0) < 0.5 || params.x < -0.5;  // light beams and ghosts (glow < 0) belong to the overlay pass
-#ifdef OVERLAY
-  if (!over) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  // Three passes share this shader and each draws its own triangles: the page (everything solid),
+  // OVERLAY (light beams) and GHOST (the preview: slots whose glow is negative).
+  bool beam = abs(pat - 27.0) < 0.5;
+  bool ghost = params.x < -0.5;
+#if defined(GHOST)
+  if (!ghost || beam) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+#elif defined(OVERLAY)
+  if (!beam || ghost) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #else
-  if (over) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  if (beam || ghost) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 #endif
   float len = length(n);
   n = len > 0.0 ? n / len : vec3(0.0, 1.0, 0.0);
@@ -136,21 +141,31 @@ uniform vec3 uSea;
 uniform vec3 uSeaDeep;
 uniform vec3 uShallow;
 uniform vec3 uFoam;
+uniform vec3 uSeaKeep;    // multiplies the sea: undoes most of a warm tint's pull toward grey
+uniform float uSeaY;      // the waterline
 uniform vec3 uWhite;
 uniform vec3 uTimber;
 uniform vec3 uLamp;
 uniform vec3 uFlowerA;
 uniform vec3 uFlowerB;
 uniform vec3 uFlowerC;
+// Grounding (shaders/ground.ts): the town's heights seen from above, and the shade baked from them.
+uniform sampler2D tHeight;
+uniform sampler2D tShade;
+uniform vec4 uMap;        // x0, z0, 1 / size, top
+uniform float uMapRange;
+uniform float uGround;    // strength of the whole effect
+uniform float uSlope;     // how steeply the light falls: lower is a longer cast shadow
+uniform float uCast;      // strength of the cast shadow
 
-#ifdef OVERLAY
+#if defined(OVERLAY) || defined(GHOST)
 uniform sampler2D tDepth;
 uniform vec2 uCanvas;
-uniform vec3 uTint;
-uniform vec3 uLift;
 uniform vec3 uStar;
 uniform vec3 uMagic;
 uniform vec3 uRed;
+#endif
+#ifdef OVERLAY
 out vec4 oColor;
 #else
 layout(location = 0) out vec4 oColor;
@@ -159,6 +174,50 @@ layout(location = 1) out vec4 oId;
 
 ${NOISE}
 ${COLOR}
+
+float heightOver(vec2 xz){ return uMap.w - texture(tHeight, (xz - uMap.xy) * uMap.z).x * uMapRange; }
+
+// How much this point is grounded: 0 open, toward 1 in the deepest contact shade. The lookups are
+// nudged by a slow noise, so the edge of the shade wanders like a pencilled one instead of being ruled.
+float grounding(vec3 n){
+  if (uGround <= 0.0) return 0.0;
+  vec2 xz = vW.xz + (vec2(n2(vW.xz * 2.3), n2(vW.xz * 2.3 + 9.0)) - 0.5) * 0.09;
+  if (n.y > 0.5) {
+    vec4 sh = texture(tShade, (xz - uMap.xy) * uMap.z);
+    float contact = smoothstep(0.06, 0.45, sh.r) * 0.72;
+    float thrown = smoothstep(uSlope - 0.1, uSlope + 0.1, sh.g * 3.0) * uCast;
+    float cover = smoothstep(0.22, 0.5, heightOver(xz) - vW.y) * 0.8;       // under a crown, an arch, a deck
+    return max(max(contact, thrown), cover);
+  }
+  if (abs(n.y) < 0.5 && length(n.xz) > 0.1) {
+    vec2 away = normalize(n.xz);
+    float up = vW.y - heightOver(xz + away * 0.27);                          // height above the ground at the wall's foot
+    float foot = (1.0 - smoothstep(0.0, 0.26, up)) * step(-0.04, up) * 0.7;
+    float under = heightOver(vW.xz + away * 0.05) - vW.y;                    // just under an eave or a ledge
+    float eave = (1.0 - smoothstep(0.02, 0.2, under)) * step(0.025, under) * 0.7;
+    return max(foot, eave);
+  }
+  return 0.0;
+}
+
+// One layer of pencil strokes on a surface. p is a position in the surface's own plane (world
+// units) and dir the direction the strokes run in that plane, so the strokes belong to the surface
+// and do not slide over it when the view moves. Their spacing on the page still stays near
+// uHatchSpacing at every zoom: each time the zoom doubles the spacing halves, and the new strokes
+// fade in between the old ones, which stay exactly where they were.
+float hatchLayer(vec2 p, vec2 dir, float seed){
+  float lod = log2(max(uCss, 1.0) / 32.0);
+  float o = floor(lod), fr = lod - o, scr = exp2(fr);
+  vec2 q = p * (32.0 * exp2(o) / uHatchSpacing);          // in stroke spacings
+  float hv = dot(q, vec2(-dir.y, dir.x)) + (mix(n2(q * 0.16 + seed), n2(q * 0.32 + seed), fr) - 0.5) * 1.1 / scr;
+  float ha = dot(q, dir);
+  float d = abs(fract(hv) - 0.5);
+  float stroke = 1.0 - smoothstep(0.14 / scr, 0.36 / scr, d);
+  float between = (1.0 - smoothstep(0.14 / scr, 0.36 / scr, 0.5 - d)) * smoothstep(0.1, 0.9, fr);
+  // The pencil lifts here and there: patches of strokes, not a ruled screen.
+  float lifted = mix(n2(vec2(hv * 0.9 + seed, ha * 0.2)), n2(vec2(hv * 1.8 + seed, ha * 0.4)), fr);
+  return max(stroke, between) * smoothstep(0.3, 0.62, lifted);
+}
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
 float band(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
@@ -193,32 +252,30 @@ void main(){
   float hatchable = 1.0;
   vec3 col;
 
-#ifdef OVERLAY
-  // Hidden behind the finished drawing?
+#if defined(OVERLAY)
+  // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
+  if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
+  float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
+  oColor = vec4(uStar * a, 0.0);
+#elif defined(GHOST)
+  // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
+  // the ghost composite then outlines in pencil. Anything hidden behind the finished drawing is left out.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
   vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
-  if (pat == 27) {
-    // A shaft of light: edge runs 0 at the source to 1 at the tip.
-    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
-    oColor = vec4(uStar * a, 0.0);
-    return;
-  }
+  vec4 fill;
   if (vParams.z > 1.5) {            // an illegal target
-    oColor = vec4(uRed * 0.92, 0.92);
-    return;
-  }
-  if (vParams.z > 0.5) {            // an Auto neighbour that would change: a travelling glint
+    fill = vec4(uRed, 0.88);
+  } else if (vParams.z > 0.5) {     // an Auto neighbour that would change: a travelling glint
     float g = smoothstep(0.7, 1.0, sin((spx.x + spx.y) * 0.07 - uTime * 5.0));
-    float a = 0.16 + 0.4 * g;
-    oColor = vec4(mix(uMagic, vec3(1.0), g * 0.6) * a, a);
-    return;
+    fill = vec4(mix(uMagic, vec3(1.0), g * 0.6), 0.16 + 0.4 * g);
+  } else {
+    // The piece itself as a wash of its own colours, thinned with white and laid in loose strokes.
+    vec3 g = mix(toSrgb(shade(base, s)), vec3(1.0), 0.42);
+    float strokes = smoothstep(0.28, 0.5, abs(fract((spx.x - spx.y) / 6.0 + n2(spx * 0.05) * 0.6) - 0.5));
+    fill = vec4(g, 0.3 + 0.24 * strokes);
   }
-  // The ghost: the piece itself, pale and striped, so it reads as "not placed yet".
-  vec3 g = toSrgb(shade(base, s));
-  g = mix(g, vec3(1.0), 0.28) * uTint + uLift;
-  float stripe = smoothstep(0.35, 0.5, abs(fract((spx.x - spx.y) / 7.0) - 0.5));
-  float a = 0.5 + 0.22 * stripe;
-  oColor = vec4(g * a, a);
+  oColor = fill;
+  oId = vec4(normalize(vVN).xy * 0.5 + 0.5, vId);
 #else
 
   if (pat == 11 && top) {
@@ -228,23 +285,51 @@ void main(){
     float m = n2(vW.xz * 0.32 + vec2(uTime * 0.03, 0.0));
     c = mix(c, uSeaDeep, smoothstep(0.5, 0.8, m) * 0.45);
     float sd = vEdge + (n2(vW.xz * 2.3 + uTime * 0.05) - 0.5) * 0.09;
+    // Round the island the water pales in two steps, like the contours of a chart: a wide lazy
+    // shelf with a pencilled edge, then the pale shallows at the shore itself.
+    float sd2 = vEdge + (n2(vW.xz * 0.8 + 4.0) - 0.5) * 0.6 + (n2(vW.xz * 3.1) - 0.5) * 0.1;
+    float fw2 = max(fwidth(sd2), 1e-4);
+    c = mix(c, uShallow, (1.0 - smoothstep(1.3 - fw2, 1.3 + fw2, sd2)) * 0.3);
+    c = mix(c, uSeaDeep, (1.0 - smoothstep(0.5, 1.5, abs(sd2 - 1.3) / fw2)) * 0.55 * step(vEdge, 3.0));
     c = mix(c, uShallow, (1.0 - smoothstep(0.0, 0.62, sd)) * 0.7);
+    c *= uSeaKeep;       // the sea keeps its blue through a warm dusk (index.ts)
     // Wave marks lie level on the page whichever way the island is turned.
     vec2 r2 = normalize(uCamRight.xz);
     vec2 q = vec2(dot(vW.xz, r2), dot(vW.xz, vec2(-r2.y, r2.x)));
+    float fwq = fwidth(q.y) * 1.2;      // from the unbroken coordinate: no hairline where the cells meet
     q.x += uTime * 0.1;
-    vec2 cell = vec2(0.9, 0.34);
-    vec2 id = floor(q / cell); vec2 f = fract(q / cell) - 0.5;
-    float r = h1(id);
-    vec2 lp = (f - (vec2(h1(id + 1.7), h1(id + 5.3)) - 0.5) * vec2(0.35, 0.3)) * cell;
-    float len = 0.11 + r * 0.08;
-    float wav = sin(lp.x * 26.0 + r * 6.0 + uTime * 1.5) * 0.014;
-    float life = 0.5 + 0.5 * sin(uTime * 0.7 + r * 40.0);
-    float mark = band(lp.y - wav, 0.011) * smoothstep(len, len - 0.05, abs(lp.x)) * step(0.45, r) * smoothstep(0.25, 0.7, life);
-    c = mix(c, uFoam, mark * 0.85 * fade(0.2) * smoothstep(0.25, 0.5, sd));
-    float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), 0.024);
-    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2));
-    c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0) * fade(0.12));
+    float open = smoothstep(0.25, 0.5, sd);
+    {
+      vec2 cell = vec2(0.9, 0.34);
+      vec2 id = floor(q / cell); vec2 f = fract(q / cell) - 0.5;
+      float r = h1(id);
+      vec2 lp = (f - (vec2(h1(id + 1.7), h1(id + 5.3)) - 0.5) * vec2(0.35, 0.3)) * cell;
+      float len = 0.11 + r * 0.08;
+      float wav = sin(lp.x * 26.0 + r * 6.0 + uTime * 1.5) * 0.014;
+      float life = 0.5 + 0.5 * sin(uTime * 0.7 + r * 40.0);
+      float mark = (1.0 - smoothstep(0.011 - fwq, 0.011 + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.05, abs(lp.x)) * step(0.45, r) * smoothstep(0.25, 0.7, life);
+      c = mix(c, uFoam, mark * 0.85 * fade(0.2) * open);
+    }
+    {
+      // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
+      vec2 cell = vec2(3.1, 1.05);
+      vec2 qq = q + vec2(uTime * 0.12, 0.0);
+      vec2 id = floor(qq / cell); vec2 f = fract(qq / cell) - 0.5;
+      float r = h1(id + 31.0);
+      vec2 lp = (f - (vec2(h1(id + 2.9), h1(id + 6.1)) - 0.5) * vec2(0.4, 0.45)) * cell;
+      float len = 0.45 + r * 0.5;
+      float wav = sin(lp.x * 5.5 + r * 6.0 + uTime * 0.9) * 0.05;
+      float life = 0.5 + 0.5 * sin(uTime * 0.45 + r * 40.0);
+      float w = max(0.03, 0.75 / uPx);
+      float mark = (1.0 - smoothstep(w - fwq, w + fwq, abs(lp.y - wav))) * smoothstep(len, len - 0.2, abs(lp.x)) * step(0.4, r) * smoothstep(0.2, 0.7, life);
+      c = mix(c, uFoam, mark * 0.7 * (1.0 - fade(0.2)) * open);
+    }
+    float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
+    float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
+    float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12);
+    c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0));
+    // Things standing in the water (a dock, a hull) darken it a little where they meet it.
+    c *= mix(vec3(1.0), vec3(0.8, 0.84, 0.93), grounding(n) * uGround * smoothstep(0.15, 0.4, sd));
     col = c;
   } else {
     col = shade(base, s);
@@ -261,6 +346,12 @@ void main(){
           pen += (1.0 - smoothstep(0.7, 1.6, abs(e - 0.5) / fw)) * 0.32;
         }
         vec3 grass = col * (0.965 + 0.07 * n2(vW.xz * 0.45 + 3.0));
+        // Meadow: wide patches of longer, deeper grass with a wandering edge, so open ground is not one flat green.
+        float meadow = n2(vW.xz * 0.21 + 13.0) + (n2(vW.xz * 1.7 + 5.0) - 0.5) * 0.16;
+        float mfw = max(fwidth(meadow), 1e-4);
+        float deep = smoothstep(0.56 - mfw, 0.56 + mfw, meadow);
+        grass *= mix(vec3(1.0), vec3(0.93, 0.965, 0.9), deep);
+        grass = mix(grass, grass * vec3(0.78, 0.88, 0.74), (1.0 - smoothstep(0.6, 1.6, abs(meadow - 0.56) / mfw)) * 0.5);
         vec2 p = vW.xz * 3.6; vec2 c = floor(p); vec2 f = fract(p) - 0.5;
         float r = h1(c);
         f -= (vec2(h1(c + 3.1), h1(c + 7.7)) - 0.5) * 0.5;
@@ -281,6 +372,18 @@ void main(){
         float dotm = lineAA(length(f3), 0.085) * step(0.93, r3) * fade(0.2);
         vec3 fl = r3 > 0.977 ? uFlowerA : (r3 > 0.953 ? uFlowerB : uFlowerC);
         grass = mix(grass, fl, dotm);
+        // From far off single flowers vanish, so they gather into drifts: looser, bigger specks where a slow noise says so.
+        float drift = smoothstep(0.55, 0.75, n2(vW.xz * 0.33 + 41.0));
+        vec2 p4 = vW.xz * 1.15 + 7.3; vec2 c4 = floor(p4); vec2 f4 = fract(p4) - 0.5;
+        float r4 = h1(c4 + 17.0);
+        f4 -= (vec2(h1(c4 + 3.3), h1(c4 + 8.1)) - 0.5) * 0.7;
+        float speck = lineAA(length(f4), max(0.07, 1.25 / uPx)) * step(1.0 - 0.55 * drift, r4) * (1.0 - fade(0.2)) * (1.0 - sandy);
+        grass = mix(grass, r4 > 0.85 ? uFlowerA : (r4 > 0.7 ? uFlowerB : uFlowerC), speck * 0.8);
+        // ... and the deeper meadow carries a few darker tussocks.
+        vec2 p5 = vW.xz * 0.9 + 3.1; vec2 c5 = floor(p5); vec2 f5 = fract(p5) - 0.5;
+        f5 -= (vec2(h1(c5 + 5.3), h1(c5 + 1.1)) - 0.5) * 0.7;
+        float tussock = lineAA(length(f5 * vec2(1.0, 1.7)), max(0.09, 1.4 / uPx)) * step(0.62, h1(c5 + 23.0)) * deep * (1.0 - fade(0.3));
+        grass = mix(grass, grass * vec3(0.8, 0.9, 0.76), tussock * 0.8);
         // sand: stipple
         vec3 sand = shade(uSand, s) * (0.975 + 0.05 * n2(vW.xz * 0.7));
         vec2 ps = vW.xz * 9.0; vec2 cs = floor(ps); vec2 fs = fract(ps) - 0.5;
@@ -372,6 +475,11 @@ void main(){
       float r = h1(c);
       pen = lineAA(length(f - (vec2(h1(c + 2.0), h1(c + 9.0)) - 0.5) * 0.6), 0.09) * step(0.74, r) * 0.3 * fade(0.11);
       col *= 0.975 + 0.05 * n2(p * 0.08);
+      if (!top) {
+        // Wet sand: a darker band where the beach slopes into the water, with an uneven upper edge.
+        float wet = 1.0 - smoothstep(0.03, 0.06, vW.y - uSeaY - 0.07 - 0.05 * n2(vW.xz * 2.1));
+        col *= mix(vec3(1.0), vec3(0.84, 0.86, 0.9), wet);
+      }
     } else if (pat == 10) {
       // ── rock: broken courses and cracks, each block a different tone
       vec2 q = top ? vW.xz * vec2(1.5, 1.9) : vec2(along * 1.7, vW.y * 2.6);
@@ -507,22 +615,21 @@ void main(){
       col = mix(col, shade(uFoam, s), lineAA(abs(fract(x) - 0.5), 0.08) * step(0.5, h1(vec2(floor(x), 0.0))) * 0.5 * fade(0.11));
     }
 
-    // ── pencil hatching in the shade. It is laid on the page, not on the surface (strokes keep one
-    //    density at every zoom), but it is anchored to the world so it does not slide when you pan.
-    vec2 sp = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
-    float ang = 0.95 + (h1(vId * 91.7) - 0.5) * 0.4;
+    // ── pencil hatching in the shade, laid on the surface itself (see hatchLayer): it stays put when
+    //    the view pans, orbits or zooms.
+    bool flatish = abs(n.y) > 0.7;
+    vec2 hp = flatish ? vW.xz : vec2(dot(vW.xz, tang), vW.y);
+    float ang = (flatish ? 0.35 : 0.95) + (h1(vId * 91.7) - 0.5) * 0.4;
     vec2 hd = vec2(cos(ang), sin(ang));
-    float hv = dot(sp, vec2(-hd.y, hd.x)) / uHatchSpacing + (n2(sp * 0.03) - 0.5) * 1.1;
-    float ha = dot(sp, hd);
-    float stroke = 1.0 - smoothstep(0.14, 0.36, abs(fract(hv) - 0.5));
-    float broken = smoothstep(0.3, 0.62, n2(vec2(floor(hv) * 7.3, ha * 0.04)));
     float depth = s > 0.95 ? 0.22 : (s > 0.85 ? 0.5 : (s > 0.75 ? 0.8 : 1.0));
-    float amount = stroke * broken * depth;
+    // Grounding: a cooler, darker tone, and the pencil pressed harder there.
+    float gnd = hatchable > 0.5 ? grounding(n) * uGround : 0.0;
+    col *= mix(vec3(1.0), vec3(0.76, 0.77, 0.9), gnd);
+    depth = max(depth, gnd * 1.15);
+    float amount = hatchLayer(hp, hd, 0.0) * depth;
     if (s < 0.75) {
       // the darkest faces get a second, crossing layer
-      float hv2 = dot(sp, hd) / (uHatchSpacing * 1.3) + (n2(sp * 0.03 + 9.0) - 0.5) * 1.1;
-      float stroke2 = 1.0 - smoothstep(0.14, 0.36, abs(fract(hv2) - 0.5));
-      amount = max(amount, stroke2 * smoothstep(0.35, 0.65, n2(vec2(floor(hv2) * 5.1, dot(sp, vec2(-hd.y, hd.x)) * 0.04))) * 0.6);
+      amount = max(amount, hatchLayer(hp / 1.3, vec2(-hd.y, hd.x), 9.0) * 0.6);
     }
     col *= 1.0 - uHatch * hatchable * amount * 0.17;
     col = mix(col, uInk, clamp(pen * uPencil, 0.0, 1.0));

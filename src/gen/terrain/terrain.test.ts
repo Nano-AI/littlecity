@@ -7,6 +7,7 @@ import { TerrainBuilder, TownBuilder } from '@/scenario';
 import { emptyWorld } from '@/world/world';
 import { inkGroups, validateMesh } from '../checks';
 import { EDGE_FAR, PATTERN, triangleCount, type MeshData } from '../mesh';
+import { terraceGrass } from '@/style/terrain';
 import { buildTerrainChunk, terrainLayer } from './terrain.gen';
 
 /** A hand-made island with everything the mesh must handle: beach, steps, a 2-level cliff, a cove, a peak. */
@@ -87,6 +88,22 @@ describe('the terrain layer', () => {
     }
     expect(nearest).toBeGreaterThan(0.05); // a square corner would have a vertex at distance 0
     expect(nearest).toBeLessThan(0.32);
+  });
+
+  test('each terrace above the first is a step lighter, and terraceGrass says which green', () => {
+    const colorAt = (mesh: MeshData, level: number): number[] => {
+      for (let v = 0; v < mesh.pattern.length; v++) {
+        if (mesh.pattern[v] === PATTERN.grass && Math.abs(mesh.position[v * 3 + 1]! - level * CELL_H) < 1e-6) return [...mesh.color.subarray(v * 3, v * 3 + 3)];
+      }
+      return [];
+    };
+    const mesh = meshOf(plan, 20, 20);
+    expect(colorAt(mesh, 2)).toEqual(terraceGrass(2));
+    expect(colorAt(mesh, 4)).toEqual(terraceGrass(4));
+    const sum = (c: number[]): number => c[0]! + c[1]! + c[2]!;
+    expect(sum(terraceGrass(2))).toBeGreaterThan(sum(terraceGrass(1)));
+    expect(sum(terraceGrass(4))).toBeGreaterThan(sum(terraceGrass(2)));
+    expect(terraceGrass(1)).toEqual([0xb9, 0xdc, 0x94]); // the lowest land is the palette's grass
   });
 
   test('a drop of two or more is rock; one level is an earth bank with a grass lip; sand meets the sea as a beach', () => {

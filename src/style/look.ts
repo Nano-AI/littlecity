@@ -33,6 +33,10 @@ export const LOOK = defineStyle(
     pencil: 1,
     /** Paper grain strength. */
     paper: 1,
+    /** Grounding: the contact tone, cover shade and short cast shadow that sit pieces on the ground. 0 is off. */
+    ground: 0.85,
+    /** How much of its blue the sea keeps under a warm dusk tint (0 lets it go grey, 1 keeps its hue). */
+    seaKeep: 1.1,
     /** Soft shadow of the floating slab on the paper. */
     slabShadow: 0.16,
     /** Warm halo around lit windows and lamps at night. */
@@ -54,6 +58,8 @@ export const LOOK = defineStyle(
     hatchSpacing: [3, 12, 0.5],
     pencil: [0, 1.5, 0.05],
     paper: [0, 2, 0.05],
+    ground: [0, 1.5, 0.05],
+    seaKeep: [0, 2, 0.05],
     slabShadow: [0, 0.4, 0.01],
     halo: [0, 1, 0.05],
     sway: [0, 0.3, 0.01],
@@ -73,24 +79,37 @@ export const GRADE = defineStyle(
     dayLift: '#000000',
     dayInk: '#3a2f2a',
     daySat: 1,
+    /** How steeply the light falls (lower casts a longer shadow), and how dark the cast shadow is. */
+    daySlope: 1.25,
+    dayCast: 0.55,
     duskTint: '#ffd4bd',
     duskLift: '#12060f',
     duskInk: '#4a2c33',
     duskSat: 1.05,
+    duskSlope: 0.6,
+    duskCast: 0.7,
     nightTint: '#4c5590',
     nightLift: '#080a1c',
     nightInk: '#11112c',
     /** Night is a little greyer as well as darker: colours rest, lit windows sing. */
     nightSat: 0.72,
+    nightSlope: 1.45,
+    nightCast: 0.35,
     dawnTint: '#e6cfe2',
     dawnLift: '#07050c',
     dawnInk: '#3b2e40',
     dawnSat: 0.92,
+    dawnSlope: 0.65,
+    dawnCast: 0.6,
     /** Lit windows and lamps: the pane colour and its warmer halo. */
     lamp: '#ffd96e',
     lampWarm: '#ffb45e',
     /** Stars and the lighthouse beam. */
     star: '#fff6d8',
   },
-  { daySat: [0, 1.5, 0.01], duskSat: [0, 1.5, 0.01], nightSat: [0, 1.5, 0.01], dawnSat: [0, 1.5, 0.01] },
+  {
+    daySat: [0, 1.5, 0.01], duskSat: [0, 1.5, 0.01], nightSat: [0, 1.5, 0.01], dawnSat: [0, 1.5, 0.01],
+    daySlope: [0.3, 3, 0.05], duskSlope: [0.3, 3, 0.05], nightSlope: [0.3, 3, 0.05], dawnSlope: [0.3, 3, 0.05],
+    dayCast: [0, 1, 0.05], duskCast: [0, 1, 0.05], nightCast: [0, 1, 0.05], dawnCast: [0, 1, 0.05],
+  },
 );

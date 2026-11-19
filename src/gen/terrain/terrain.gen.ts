@@ -36,7 +36,7 @@ import { hashCombine, rand } from '@/core/rand';
 import { MAT, type Terrain, type World } from '@/core/world';
 import type { ShapePlan } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
-import { TERRAIN } from '@/style/terrain';
+import { terraceGrass, TERRAIN } from '@/style/terrain';
 import { defineLayer } from '../api';
 import { MeshBuilder, PATTERN } from '../mesh';
 
@@ -234,7 +234,7 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
   };
   const rockTop = inA && hA === level && g.mat(x, z) === MAT.rock;
   if (rockTop) b.setColor(PALETTE.rock).setPattern(PATTERN.rock).setInk(`rocktop${level}`);
-  else b.setColor(PALETTE.grass).setPattern(PATTERN.grass).setInk(`ground${level}`);
+  else b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
   const arc = (i: number): [number, number] => {
     const phi = (i / ARC) * (Math.PI / 2);
     return [r - r * Math.sin(phi), r - r * Math.cos(phi)];

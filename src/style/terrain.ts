@@ -2,6 +2,7 @@
 // src/gen/terrain. All lengths are world units (a cell is 1 wide, 0.8 tall).
 
 import { defineStyle } from '@/core/style';
+import { PALETTE } from './palette';
 
 export const TERRAIN = defineStyle(
   'terrain',
@@ -14,6 +15,8 @@ export const TERRAIN = defineStyle(
     radiusBuilt: 0.1,
     /** How far outline points wander from the grid (seeded, smooth). */
     wobble: 0.045,
+    /** How far each terrace above the first leans toward PALETTE.grassHigh (0 keeps one green everywhere). */
+    levelTint: 0.34,
     /** Height of the grass lip that caps an earth bank or a cliff. */
     turf: 0.12,
     /** How far it overhangs. */
@@ -34,6 +37,7 @@ export const TERRAIN = defineStyle(
     radiusVary: [0, 0.3, 0.01],
     radiusBuilt: [0.02, 0.5, 0.01],
     wobble: [0, 0.12, 0.005],
+    levelTint: [0, 1, 0.02],
     turf: [0, 0.3, 0.01],
     turfOut: [0, 0.08, 0.005],
     beachRun: [0, 0.45, 0.01],
@@ -45,3 +49,18 @@ export const TERRAIN = defineStyle(
     earthDepth: [0.2, 2, 0.05],
   },
 );
+
+/**
+ * The grass colour of the terrain at a level (1 is the lowest land): each terrace above the first
+ * leans a step toward PALETTE.grassHigh, so plateaus read from every side. A lawn or garden piece
+ * that should melt into the ground it lies on uses this instead of PALETTE.grass.
+ */
+export function terraceGrass(level: number): [number, number, number] {
+  const rgb = (hex: string): [number, number, number] => {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const a = rgb(PALETTE.grass), b = rgb(PALETTE.grassHigh);
+  const t = Math.min(1, Math.max(0, level - 1) * TERRAIN.levelTint);
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+}
