@@ -382,6 +382,19 @@
   font-size: inherit;
   opacity: 1;
 }
+.lc-menu-row {
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+}
+.lc-menu-row > .lc-menu-item:first-child {
+  flex: 1;
+}
+.lc-menu-dice {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 5px 9px;
+}
 .lc-menu-rule {
   height: 0;
   margin: 4px 8px;

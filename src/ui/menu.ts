@@ -1,10 +1,18 @@
-// The ☰ menu (design section 7): new island (with a confirm), share link,
-// postcard, town file out and in, sound, and the dev tuning panel.
+// The ☰ menu (design section 7): grow a town (design 15a; with a dice
+// button beside it for a different town on a new island), new island (with a
+// confirm), share link, postcard, town file out and in, sound, and the dev
+// tuning panel.
 // Owner: Interface.
 
 import { el, iconButton, setIcon } from './dom';
 
 export interface MenuActions {
+  /** Fills this island with a grown town. */
+  growTown(): void;
+  /** Grows a different town on a new island. */
+  growNewIsland(): void;
+  /** The island holds more than its starting trees: growing over it (or leaving it) asks first. */
+  hasTown(): boolean;
   newIsland(): void;
   shareLink(): void;
   postcard(): void;
@@ -69,7 +77,15 @@ export function createMenu(actions: MenuActions): Menu {
       },
       true,
     );
+    const dice = iconButton('dice', 'Grow a town on a new island', {
+      class: 'lc-menu-item lc-menu-dice',
+      title: 'Grow a town on a new island',
+      attrs: { role: 'menuitem', 'data-menu': 'grow-new' },
+      on: { click: () => ask('grow-new') },
+    });
     panel.replaceChildren(
+      el('div', { class: 'lc-menu-row' }, [item('grow', 'grow', 'Grow a town', () => ask('grow'), true), dice]),
+      el('div', { class: 'lc-menu-rule' }),
       item('new', 'island', 'New island', showConfirm, true),
       item('share', 'share', 'Share link', actions.shareLink),
       item('postcard', 'postcard', 'Postcard', actions.postcard),
@@ -79,6 +95,36 @@ export function createMenu(actions: MenuActions): Menu {
       el('div', { class: 'lc-menu-rule' }),
       sound,
       item('tuning', 'tune', 'Tuning', actions.toggleTuning),
+    );
+  };
+
+  /** Grows at once on an island with nothing but its starting trees; otherwise asks first. */
+  const ask = (what: 'grow' | 'grow-new'): void => {
+    const run = what === 'grow' ? actions.growTown : actions.growNewIsland;
+    if (!actions.hasTown()) {
+      api.close();
+      run();
+      return;
+    }
+    panel.replaceChildren(
+      el('div', { class: 'lc-confirm', attrs: { 'data-ui': 'confirm' } }, [
+        el('p', { text: what === 'grow' ? 'Grow a town on this island?' : 'Grow a town on a new island?' }),
+        el('small', { text: 'The town you have now will be cleared. One undo brings it back.' }),
+        el('div', { class: 'lc-confirm-buttons' }, [
+          el('button', {
+            class: 'lc-text-btn lc-primary',
+            text: 'Grow it',
+            attrs: { type: 'button', 'data-menu': `${what}-yes` },
+            on: {
+              click: () => {
+                api.close();
+                run();
+              },
+            },
+          }),
+          el('button', { class: 'lc-text-btn', text: 'Keep this one', attrs: { type: 'button', 'data-menu': `${what}-no` }, on: { click: () => api.close() } }),
+        ]),
+      ]),
     );
   };
 

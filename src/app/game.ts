@@ -42,6 +42,12 @@ export interface Game {
   can(e: Edit): EditResult;
   /** Applies the edit if it is legal and shows the result. */
   edit(e: Edit): EditResult;
+  /**
+   * Applies every legal edit of a list in order and shows the result once
+   * (no landing: a whole town at a time). One undo step unless a batch is
+   * open. Returns how many were applied.
+   */
+  editAll(edits: readonly Edit[]): number;
   /** Opens a batch: the edits until end() are one undo step. */
   begin(): void;
   end(): void;
@@ -113,6 +119,19 @@ export function createGame(start: GameStart, events: GameEvents): Game {
       if (batch === null) history = pushHistory(history, next);
       show(next, e);
       return verdict;
+    },
+    editAll(edits) {
+      let next = world;
+      let n = 0;
+      for (const e of edits) {
+        if (!canApply(next, terrain, e).ok) continue;
+        next = applyEdit(next, terrain, e);
+        n++;
+      }
+      if (n === 0) return 0;
+      if (batch === null) history = pushHistory(history, next);
+      show(next, null);
+      return n;
     },
     begin() {
       closeBatch();
