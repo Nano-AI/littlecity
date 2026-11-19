@@ -389,7 +389,7 @@ describe('desktop: mouse and keys', () => {
   test('the menu: new island asks first; sound and tuning toggle; a refusal is shown, not thrown', async () => {
     const { page, errors } = await open(TOWN);
     await page.click('[data-ui="menu-button"]');
-    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['new', 'share', 'postcard', 'download', 'open', 'sound', 'tuning']);
+    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'grow-new', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'tuning']);
 
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);

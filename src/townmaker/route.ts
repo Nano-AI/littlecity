@@ -6,7 +6,7 @@
 // keeps clear, and prefers to join existing streets rather than run beside
 // them.
 
-import { columnIndex, inColumnBounds, key, SIZE_X, SIZE_Z } from '@/core/grid';
+import { columnIndex, inBounds, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
 import { CLAIM, type Grower } from './grower';
 import { D4 } from './site';
 
@@ -75,8 +75,8 @@ class Heap {
 export interface RouteOptions {
   /** Columns the street may use even though a district claims them (its own way in). */
   allow?: ReadonlySet<number>;
-  /** The districts whose streets count as arrived (already joined to the square). Default: any street. */
-  joined?: ReadonlySet<number>;
+  /** The columns that count as arrived (already joined to the square). Default: any street. */
+  reached?: (x: number, z: number) => boolean;
   /** Give up past this cost. */
   maxCost?: number;
   /** Also cross ground a district claimed but left empty (a last resort: a district that cannot be reached otherwise). */
@@ -91,8 +91,7 @@ export interface RouteOptions {
 export function route(g: Grower, from: readonly [number, number], opts: RouteOptions = {}): [number, number][] | null {
   const [fx, fz] = from;
   if (!canPave(g, fx, fz, opts.allow, opts.relaxed)) return null;
-  const arrived = (x: number, z: number): boolean =>
-    onNetwork(g, x, z) && (!opts.joined || opts.joined.has(g.streetOf[columnIndex(x, z)]!));
+  const arrived = (x: number, z: number): boolean => onNetwork(g, x, z) && (!opts.reached || opts.reached(x, z));
   if (arrived(fx, fz)) return [];
   const cost = new Float64Array(N).fill(Infinity);
   const prev = new Int32Array(N).fill(-1);
@@ -157,4 +156,44 @@ export function pave(g: Grower, x: number, z: number): boolean {
   if (!g.floor('path', x, z, y)) return false;
   g.mark(x, z, CLAIM.street);
   return true;
+}
+
+/**
+ * Every street cell (path or plaza, at any level: decks and bridges too) a
+ * person can walk to from `roots` along streets: side by side at one level,
+ * one level up or down between two cells on the terrain (carved steps, J17),
+ * or through a flight of stairs.
+ */
+export function joinedStreets(g: Grower, roots: readonly CellKey[]): Set<CellKey> {
+  const isStreet = (c: CellKey): boolean => {
+    const f = g.world.floors.get(c);
+    return f === 'path' || f === 'plaza' || g.world.blocks.get(c)?.kind === 'stairs';
+  };
+  const onTerrain = (c: CellKey): boolean => keyY(c) === g.h(keyX(c), keyZ(c));
+  const seen = new Set<CellKey>();
+  const queue: CellKey[] = [];
+  for (const r of roots) {
+    if (isStreet(r) && !seen.has(r)) {
+      seen.add(r);
+      queue.push(r);
+    }
+  }
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q]!;
+    const x = keyX(c), y = keyY(c), z = keyZ(c);
+    for (const [dx, dz] of D4) {
+      for (const dy of [0, 1, -1]) {
+        if (!inBounds(x + dx, y + dy, z + dz)) continue;
+        const n = key(x + dx, y + dy, z + dz);
+        if (seen.has(n) || !isStreet(n)) continue;
+        if (dy !== 0) {
+          const stairs = g.world.blocks.get(c)?.kind === 'stairs' || g.world.blocks.get(n)?.kind === 'stairs';
+          if (!stairs && !(onTerrain(c) && onTerrain(n))) continue;
+        }
+        seen.add(n);
+        queue.push(n);
+      }
+    }
+  }
+  return seen;
 }

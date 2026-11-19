@@ -29,7 +29,8 @@ export function buildSquare(town: Town): boolean {
       const water = site.waterDist[Math.round(cx) + Math.round(cz) * 48]!;
       if (water < 4) return null;
       const d = Math.abs(cx - site.centre[0]) + Math.abs(cz - site.centre[1]);
-      return { score: d + (h > 2 ? 4 : 0), data: h };
+      // Facing the default camera (from the south-east) with its open side: tall shops to the north and west.
+      return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 4), data: h };
     });
     if (!found) continue;
     const f = found.frame;
@@ -49,7 +50,7 @@ export function buildSquare(town: Town): boolean {
 
     // Shops along the north side and down the east side; storeys vary, colours never match a neighbour.
     for (let u = 2; u <= k; u++) L.house(u, 0, u, 0, 2 + (g.chance(0.35, 'shop-n', u) ? 1 : 0), `shop-n${u}`);
-    for (let v = 2; v <= k; v++) L.house(k + 1, v, k + 1, v, 1 + (g.chance(0.6, 'shop-e', v) ? 1 : 0), `shop-e${v}`);
+    for (let v = 2; v <= k; v++) L.house(k + 1, v, k + 1, v, 1 + (g.chance(0.3, 'shop-e', v) ? 1 : 0), `shop-e${v}`);
     // The inn, facing the square, two storeys.
     const innTo = Math.min(4, k);
     L.house(-1, 2, 0, innTo, 2, 'inn');

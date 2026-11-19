@@ -20,7 +20,7 @@
 // canApply against the town as grown so far, so the result is exactly a
 // town a player could have built (on an empty island of this terrain).
 
-import { columnIndex } from '@/core/grid';
+import { columnIndex, key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain } from '@/core/world';
 import { buildCastle } from './districts/castle';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
@@ -31,7 +31,7 @@ import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop,
 import { buildSquare } from './districts/square';
 import { buildBoardwalk, buildBridge, buildJetty } from './districts/water';
 import { Grower, type Made } from './grower';
-import { route } from './route';
+import { joinedStreets, route } from './route';
 import { readSite } from './site';
 import { fromSquare, type District, type Town } from './town';
 
@@ -102,28 +102,45 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   };
 }
 
-/** Streets from every district's ways to the square's network, nearest district first. Returns the districts left unjoined. */
+/**
+ * Streets from every district's ways to the streets joined to the square,
+ * nearest district first. "Joined" is worked out by walking the laid
+ * streets (route.ts, joinedStreets), so a district whose two streets meet
+ * nothing else is joined at both ends. Returns the districts left unjoined.
+ */
 function joinStreets(town: Town): string[] {
   const { g } = town;
-  const joined = new Set<number>();
-  const sq = town.districts.find((d) => d.name === 'square');
-  if (sq) joined.add(sq.id);
-  else if (town.districts[0]) joined.add(town.districts[0].id);
+  const sq = town.districts.find((d) => d.name === 'square') ?? town.districts[0];
+  if (!sq) return [];
+  const roots = (): CellKey[] => {
+    const out: CellKey[] = [];
+    for (let i = 0; i < g.streetOf.length; i++) {
+      if (g.streetOf[i] !== sq.id) continue;
+      const x = i % 48, z = Math.floor(i / 48);
+      out.push(key(x, g.h(x, z), z));
+    }
+    return out;
+  };
+  let net = joinedStreets(g, roots());
+  const reached = (x: number, z: number): boolean => net.has(key(x, g.h(x, z), z));
+  const done = (d: District): boolean => (d.anyWay ? d.ways.some(([x, z]) => reached(x, z)) : d.ways.every(([x, z]) => reached(x, z)));
   const todo = town.districts
-    .filter((d) => !joined.has(d.id) && d.ways.length > 0)
+    .filter((d) => d !== sq && d.ways.length > 0)
     .sort((a, b) => fromSquare(town, a.x, a.z) - fromSquare(town, b.x, b.z));
   for (let pass = 0; pass < 3; pass++) {
     for (const d of todo) {
-      if (joined.has(d.id)) continue;
+      if (done(d)) continue;
       g.district = d.id;
       const allow = new Set(d.ways.map(([x, z]) => columnIndex(x, z)));
       for (const way of d.ways) {
-        if (d.anyWay && joined.has(d.id)) break;
-        if (route(g, way, { joined, allow, relaxed: pass === 2 }) !== null) joined.add(d.id);
+        if (reached(way[0], way[1])) continue;
+        if (route(g, way, { reached, allow, relaxed: pass === 2 }) === null) continue;
+        net = joinedStreets(g, roots());
+        if (d.anyWay) break;
       }
     }
   }
-  return todo.filter((d) => !joined.has(d.id)).map((d) => d.name);
+  return todo.filter((d) => !done(d)).map((d) => d.name);
 }
 
 /**

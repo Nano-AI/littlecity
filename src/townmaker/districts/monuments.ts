@@ -155,7 +155,7 @@ export function buildLighthouse(town: Town): boolean {
 export function buildWatchtower(town: Town): boolean {
   const { g, site } = town;
   const found = search(g, 'watchtower', (f) => {
-    if (!fits(g, f, 0, 0, 0, 1)) return null;
+    if (!fits(g, f, 0, 0, 0, 1, 3)) return null;
     const h = g.h(f.ox, f.oz);
     if (h === 0 || h === site.maxH) return null;
     if (Math.abs(g.h(f.x(0, 1), f.z(0, 1)) - h) > 1 || g.h(f.x(0, 1), f.z(0, 1)) === 0) return null;

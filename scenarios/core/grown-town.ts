@@ -48,7 +48,7 @@ export function grownTown(n: number, seed: number) {
   for (const [district, name, yaw, zoom] of close) {
     const p = at(district);
     if (!p) continue;
-    cameras.push({ name, yaw, pitch: 32, zoom, target: [p[0] + 0.5, level(p[0], p[1]) + 0.5, p[1] + 0.5] });
+    cameras.push({ name, yaw, pitch: name === 'square' ? 44 : 32, zoom, target: [p[0] + 0.5, level(p[0], p[1]) + 0.5, p[1] + 0.5] });
   }
   const sq = plan.square;
   const town: [number, number, number] = sq ? [sq.x + 0.5, sq.h + 0.5, sq.z + 0.5] : mid;

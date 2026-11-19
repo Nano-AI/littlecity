@@ -11,7 +11,7 @@ import { CLAIM, type Grower } from '../grower';
 import { fromSquare, startDistrict, type Town } from '../town';
 import { D4 } from '../site';
 
-const AVOID = new Set(['tower', 'lighthouse', 'windmill', 'marble', 'pillar', 'arch', 'auto', 'stairs', 'fountain', 'stall']);
+const AVOID = new Set(['tower', 'lighthouse', 'windmill', 'marble', 'pillar', 'arch', 'auto', 'stairs', 'fountain', 'stall', 'dock', 'wall', 'fence']);
 
 /** Nothing but houses (or nothing) beside this column, up to `levels` above its ground. */
 function quietAround(g: Grower, x: number, z: number, levels: number): boolean {
@@ -19,7 +19,7 @@ function quietAround(g: Grower, x: number, z: number, levels: number): boolean {
   for (const [dx, dz] of D4) {
     if (!g.inMap(x + dx, z + dz)) return false;
     const i = columnIndex(x + dx, z + dz);
-    if ((g.claim[i]! & (CLAIM.built | CLAIM.keep)) !== 0 && g.owner[i] !== g.district) return false;
+    if ((g.claim[i]! & CLAIM.keep) !== 0) return false;
     for (let y = h - 1; y <= h + levels; y++) {
       const b = g.block(x + dx, y, z + dz);
       if (b && AVOID.has(b.kind)) return false;
@@ -48,7 +48,7 @@ export function buildInfill(town: Town, ring: number): void {
     }
   }
   streets.sort((a, b) => a[2] - b[2]);
-  const density = Math.max(0.12, 0.7 - ring * 0.18);
+  const density = Math.max(0.15, 0.85 - ring * 0.2);
   let n = 0;
   for (const [sx, sz] of streets) {
     for (const [dx, dz] of D4) {
