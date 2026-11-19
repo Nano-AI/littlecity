@@ -146,3 +146,37 @@ export const PERSON = defineStyle(
     drawRate: [6, 60, 1],
   },
 );
+
+/** L36: the castle's garrison. Lengths in world units, times in seconds. */
+export const GARRISON = defineStyle(
+  'garrison',
+  {
+    /** Marching pace, cells a second (a resident strolls at 0.62). */
+    speed: 0.5,
+    /** Between ranks along the line of march, and from the line to each file. */
+    spacing: 0.44,
+    file: 0.12,
+    /** Halted at the gate each lap; at the change of the guard (dawn, dusk); at either end of a there-and-back. */
+    halt: 4,
+    changeHalt: 10,
+    endHalt: 2,
+  },
+  { speed: [0.2, 1.2, 0.02], spacing: [0.25, 0.6, 0.01], file: [0.06, 0.2, 0.01], halt: [0, 20, 0.5], changeHalt: [0, 30, 0.5], endHalt: [0, 10, 0.5] },
+);
+
+/** L37: the rider. */
+export const RIDER = defineStyle(
+  'rider',
+  {
+    /** Trot and walk, cells a second; a walk when anybody is this near ahead. */
+    trot: 1.2,
+    walk: 0.5,
+    crowd: 1.1,
+    /** Rides a day; the horse stands tethered by the gate between them. */
+    rides: 3,
+    /** The horse's strides per cell walked and trotted (its legs step with the ground, not the clock). */
+    walkSteps: 2.6,
+    trotSteps: 1.5,
+  },
+  { trot: [0.5, 3, 0.05], walk: [0.2, 1.2, 0.02], crowd: [0.4, 3, 0.05], rides: [0, 8, 1], walkSteps: [1, 6, 0.1], trotSteps: [0.6, 4, 0.1] },
+);

@@ -209,6 +209,15 @@ try {
     }
   }
 
+  // --aim '<expression>': aim the camera at [x, y, z] from an expression evaluated in the page, e.g.
+  //   --aim '(g => [g.list[0].troop.soldiers[0].x, g.list[0].troop.soldiers[0].y, g.list[0].troop.soldiers[0].z])(window.__lcGarrison)'
+  // --follow re-aims it before every frame.
+  const aim = async () => {
+    const at = await page.evaluate((expr) => (0, eval)(expr), String(flags.aim));
+    if (Array.isArray(at)) await page.evaluate((p) => window.__lc.view.setCamera({ target: [p[0], p[1] + 0.25, p[2]] }), at);
+  };
+  if (flags.aim) await aim();
+
   // --delay ms: play this long before the first frame (after any --door or --shore aim).
   if (flags.delay) await play(Number(flags.delay));
 
@@ -223,6 +232,7 @@ try {
       console.log(`then: ${(await applyEdits(second)).join(', ')}`);
       await play(FRAME);
     }
+    if (flags.aim && flags.follow) await aim();
     const png = await page.locator('#town').screenshot();
     shots.push({ png, label: `${Math.round(at)} ms` });
     // --open all | --open door@<cell>:<dir>,…: after the first frame, those doors swing open and stay open.

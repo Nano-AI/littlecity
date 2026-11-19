@@ -85,12 +85,12 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance'];
 /** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0 };
 
-export function toolMesh(tool: Tool): MeshData {
+export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   const b = new MeshBuilder({ ink: `tool-${tool}` });
   b.setInk('tool').setPattern(PATTERN.none);
   switch (tool) {
@@ -128,6 +128,28 @@ export function toolMesh(tool: Tool): MeshData {
       tube(b, [[0, -0.1, 0.022], [0, 0.42, 0.022]], 0.005, { seg: 4 });
       b.setInk('wick').setColor(PALETTE.metal);
       b.box([-0.008, 0.42, 0.014], [0.008, 0.45, 0.03]);
+      break;
+    case 'pike':
+      // L36: held upright at the right hand, butt on the ground, the head well over the helmet.
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0.085, 0.0, 0.05], [0.085, 0.66, 0.05]], 0.006, { seg: 4 });
+      b.setInk('pike-head').setColor('#b9bac4').setPattern(PATTERN.metal);
+      b.at(translation(0.085, 0.66, 0.05), () => b.lathe([[0, 0], [0.016, 0.018], [0, 0.07]], { segments: 4 }));
+      break;
+    case 'torch':
+      // L36: a sentry's torch, raised a little in the right hand.
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0.085, 0.12, 0.07], [0.085, 0.32, 0.09]], [0.007, 0.01], { seg: 4 });
+      b.setInk('flame').setColor(PALETTE.yellow).setPattern(PATTERN.glow);
+      b.at(translation(0.085, 0.33, 0.09), () => b.lathe([[0, 0], [0.022, 0.02], [0.012, 0.05], [0, 0.07]], { segments: 6 }));
+      break;
+    case 'lance':
+      // L37: the rider's lance, upright, with a pennant in the garrison's colour.
+      b.setColor(PALETTE.wood);
+      tube(b, [[0.09, 0.06, 0.06], [0.09, 0.8, 0.07]], 0.006, { seg: 4 });
+      b.setInk('pennant').setColor(colour).setPattern(PATTERN.cloth).setSway(0.6);
+      b.quad([0.09, 0.78, 0.072], [0.09, 0.7, 0.072], [0.09, 0.73, -0.12], [0.09, 0.76, -0.12]);
+      b.quad([0.09, 0.7, 0.068], [0.09, 0.78, 0.068], [0.09, 0.76, -0.12], [0.09, 0.73, -0.12]);
       break;
     case 'reach':
       b.setColor(PALETTE.trunk);

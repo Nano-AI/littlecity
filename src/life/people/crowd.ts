@@ -196,6 +196,8 @@ export interface CrowdOptions {
   /** The place and facing of a seat socket (world x, y, z and heading), if the stage knows it. */
   seatAt?(socket: string): { x: number; y: number; z: number; face: number } | null;
   events?: CrowdEvents;
+  /** L36, L37: bodies walkers wait for (soldiers, a horse), read each step. */
+  obstacles?(): readonly { x: number; y: number; z: number }[];
 }
 
 export interface Crowd {
@@ -837,6 +839,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   let now: TimeSignal | null = null;
   const onDutyNow = (p: Person): boolean => now !== null && (onDuty(p, now) || mustBeHome(p, now));
   const follow = (): void => {
+    const bodies = opts.obstacles?.() ?? null;
     for (const p of people) {
       p.slow = 1;
       if (p.mode !== 'walk' || !p.visible) continue;
@@ -872,6 +875,18 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const k = (ahead - PEOPLE.gap) / (PEOPLE.slowAt - PEOPLE.gap);
         const keep = k < 0 ? 0 : k;
         if (keep < p.slow) p.slow = keep;
+      }
+      // L36, L37: they wait for the garrison's column or the rider's horse to pass, without counting it as
+      // being held up (nobody steps round a soldier).
+      if (bodies) {
+        for (const o of bodies) {
+          const dx = o.x - p.x, dz = o.z - p.z;
+          if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(o.y - p.y) > 0.3) continue;
+          const ahead = dx * fx + dz * fz;
+          if (ahead <= 0 || ahead >= PEOPLE.slowAt || Math.abs(dx * fz - dz * fx) > 0.2) continue;
+          p.slow = 0;
+          p.stuck = 0;
+        }
       }
     }
   };
