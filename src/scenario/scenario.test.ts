@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { columnIndex, edgeKey, key } from '@/core/grid';
 import { MAT } from '@/core/world';
+import { defineRule } from '@/resolve/engine/api';
 import { demoRules } from '../../tests/fixtures/demo';
 import { buildScenario, checkScenario, createCheck, flatTerrain, resolveScenario, scenario, TerrainBuilder } from './index';
 import { collectScenarios, matchScenarios } from './discover';
@@ -117,6 +118,42 @@ describe('scenario checks', () => {
     expect(() => check.ok(false, 'told you')).toThrow('[check-test] told you');
     // With the real (still empty) rule set the same scenario has no roles, so checkScenario fails.
     expect(() => checkScenario(s)).toThrow(/role at \(10, 1, 10\): expected cottage, got none/);
+  });
+});
+
+describe('scenario rules', () => {
+  test('a scenario can bring its own rules, e.g. to show a part in isolation', () => {
+    const show = defineRule({
+      id: 'G-LAMP.show', part: 'decoration', tier: 1, priority: 0,
+      find: () => (['post', 'four-arm', 'bridge', 'pier'] as const).map((variant, i) => ({ anchor: key(10 + i * 2, 1, 10), data: variant })),
+      apply: (c, out) => void out.prop({ type: 'lamp', variant: c.data, at: { cell: c.anchor, pos: 'c' } }),
+    });
+    const s = scenario({
+      name: 'gallery-lamp', seed: 1, rules: [show], build() {},
+      expect: (_plan, _dressing, check) => void check.hasProp({ type: 'lamp', rule: 'G-LAMP.show' }, 4),
+    });
+    expect(checkScenario(s).dressing.props.map((p) => p.variant)).toEqual(['post', 'four-arm', 'bridge', 'pier']);
+  });
+});
+
+describe('the fixture shown in docs/swarm/CONTRACTS.md', () => {
+  test('a rule fixture is a scenario with an expect()', () => {
+    const fixture = scenario({
+      name: 'D-X01.demo-lamp', seed: 7,
+      rules: demoRules, // a real fixture needs no `rules`: its rule is discovered in src/rules
+      build(b) {
+        for (let i = 0; i < 8; i++) b.house(10 + i * 2, 10);
+      },
+      cameras: [{ yaw: 45, pitch: 32, zoom: 3, target: [17, 1, 10] }],
+      expect(_plan, _dressing, check) {
+        check.ok(check.applied('D-X01.demo-lamp') > 0, 'some doors get a lamp');
+        check.hasProp({ type: 'lamp', rule: 'D-X01.demo-lamp' });
+        check.noProp({ type: 'lamp', at: [10, 1, 10] }); // never inside a house
+      },
+    });
+    const r = checkScenario(fixture);
+    expect(r.dressing.props.length).toBeGreaterThan(0);
+    expect(r.dressing.props.length).toBeLessThan(8);
   });
 });
 

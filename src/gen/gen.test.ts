@@ -4,9 +4,9 @@ import { positionOf, transformDir, transformPoint, translation } from '@/core/ma
 import { resolveTown } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { emptyWorld } from '@/world/world';
-import { demoParts, demoRules } from '../../tests/fixtures/demo';
+import { demoGenerators, demoParts, demoRules } from '../../tests/fixtures/demo';
 import { createGeneratorRegistry, createPartRegistry, defineGenerator, defineLayer, definePart, placeFeatures } from './api';
-import { validateMesh } from './checks';
+import { findDuplicateFaces, inkGroups, validateMesh } from './checks';
 import { allGenerators, allParts, collectGenerators } from './discover';
 import { fallbackGenerator, fallbackPart } from './fallback';
 import { anchorFrame, cellFrame, edgeFrame, faceFrame, featureFrame, slotFrame, socketFallbackFrame } from './frames';
@@ -136,6 +136,22 @@ describe('generators', () => {
     const { shape } = town((b) => b.house(10, 10));
     const out = registry.build([...shape.structures.values()][0]!, shape, demoParts);
     expect(triangleCount(out.mesh)).toBe(12 + 12); // the box and the chimney; the door was skipped
+  });
+
+  test('a discovered generator draws a merged structure: one shaft, three ink groups, in budget', () => {
+    expect(demoGenerators.has('pillar')).toBe(true);
+    const { shape } = town((b) => b.stack('pillar', 20, 20, { floors: 3 }));
+    // The stub makes one structure per block; merge the stack by hand to stand in for the real merge.
+    const cells = [key(20, 1, 20), key(20, 2, 20), key(20, 3, 20)];
+    const pillar = { ...shape.structures.get(shape.structureAt.get(cells[0]!)!)!, cells };
+    const out = demoGenerators.build(pillar, shape, demoParts);
+    expect(validateMesh(out.mesh)).toEqual([]);
+    expect(findDuplicateFaces(out.mesh)).toBe(0);
+    expect(inkGroups(out.mesh).size).toBe(3);
+    expect(triangleCount(out.mesh)).toBeLessThan(120);
+    const { min, max } = meshBounds(out.mesh);
+    expect(min[1]).toBeCloseTo(CELL_H, 6);
+    expect(max[1]).toBeCloseTo(4 * CELL_H, 6);
   });
 
   test('layers are discovered beside generators and hash per chunk', () => {

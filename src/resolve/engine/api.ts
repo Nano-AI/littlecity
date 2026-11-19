@@ -205,6 +205,8 @@ export interface ResolveOptions {
   rules?: readonly Rule[];
   /** Skip rules marked townWide (the locality test). */
   skipTownWide?: boolean;
+  /** Skip rules above this tier (the phone fallback's density knob). Default 3: run everything. */
+  maxTier?: 1 | 2 | 3;
   /** Fill RuleTrace.ms using this clock. Only tools pass one; town logic never reads time. */
   clock?: () => number;
 }

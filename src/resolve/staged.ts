@@ -6,6 +6,7 @@
 // back). The app calls update() on each edit and poll() once per frame.
 
 import type { Terrain, World } from '@/core/world';
+import type { ResolveOptions } from './engine/api';
 import { resolveDressing, resolveShape } from './index';
 import type { DressingPlan, ShapePlan } from './plan';
 
@@ -23,22 +24,23 @@ export interface StagedResolver {
   readonly shape: ShapePlan | null;
 }
 
-export function createStagedResolver(terrain: Terrain): StagedResolver {
+/** `opts` is passed to every resolve (the app passes a scenario's own rules). */
+export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}): StagedResolver {
   let shape: ShapePlan | null = null;
   let pending = false;
   return {
     update(world) {
-      shape = resolveShape(world, terrain);
+      shape = resolveShape(world, terrain, opts);
       pending = true;
       return shape;
     },
     poll() {
       if (!pending || !shape) return null;
       pending = false;
-      return { shape, dressing: resolveDressing(shape) };
+      return { shape, dressing: resolveDressing(shape, opts) };
     },
     preview(world) {
-      return resolveShape(world, terrain);
+      return resolveShape(world, terrain, opts);
     },
     get shape() {
       return shape;

@@ -11,6 +11,9 @@ import { allBehaviours, allSystems } from '@/life/discover';
 import { allFacts, allRules } from '@/resolve/engine/discover';
 import { allScenarios } from '@/scenario/discover';
 
+// Style modules register themselves when imported; load them all so allStyles() is complete.
+import.meta.glob('/src/style/*.ts', { eager: true });
+
 const root = document.getElementById('gallery')!;
 const section = (title: string, rows: string[][]): void => {
   const h = document.createElement('h2');

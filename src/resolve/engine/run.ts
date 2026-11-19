@@ -100,6 +100,7 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
     for (const rule of sorted) {
       if (rule.part !== part) continue;
       if (rule.townWide && opts.skipTownWide) continue;
+      if (opts.maxTier !== undefined && rule.tier > opts.maxTier) continue;
       const t0 = opts.clock ? opts.clock() : 0;
       const tr: RuleTrace = { rule: rule.id, part, candidates: 0, chanceSkipped: 0, claimSkipped: 0, applied: 0 };
       let found: AnyCandidate[];

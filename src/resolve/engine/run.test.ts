@@ -136,6 +136,34 @@ describe('claims', () => {
     expect(shape.trace.find((t) => t.rule === 'R-H15.cottage')).toMatchObject({ applied: 0, claimSkipped: 3 });
   });
 
+  test('a role rule may give a second structure its role (chapel and steeple) by claiming it', () => {
+    const b = row(1, (t) => t.tower(11, 10, { floors: 1 }));
+    const pair = defineRule<{ tower: number }>({
+      id: 'R-H01.chapel', part: 'roles', tier: 1, priority: 90,
+      find: ({ facts }) => [{ anchor: key(10, 1, 10), structure: facts.structureAt.get(key(10, 1, 10))!, data: { tower: facts.structureAt.get(key(11, 1, 10))! } }],
+      claims: (c) => [slot.role(c.data.tower)],
+      apply(c, out) {
+        out.role(c.structure!, 'chapel');
+        out.role(c.data.tower, 'steeple');
+      },
+    });
+    const watchtower = defineRule({
+      id: 'R-T07.watchtower', part: 'roles', tier: 1, priority: 0,
+      find: ({ facts }) => [...facts.structures.values()].filter((s) => s.kind === 'tower').map((s) => ({ anchor: s.cells[0]!, structure: s.id })),
+      apply: (c, out) => out.role(c.structure!, 'watchtower'),
+    });
+    const shape = resolveShape(b.world, terrain, { rules: [watchtower, pair] });
+    expect([...shape.roles.values()].map((r) => r.role).sort()).toEqual(['chapel', 'steeple']);
+    expect(shape.trace.find((t) => t.rule === 'R-T07.watchtower')).toMatchObject({ claimSkipped: 1, applied: 0 });
+    // Giving a role to a structure that already has one is a bug in the rule, reported loudly.
+    const clash = defineRule<number>({
+      id: 'R-T08.clash', part: 'roles', tier: 1, priority: -1,
+      find: ({ facts }) => [{ anchor: 0, data: facts.structureAt.get(key(11, 1, 10))! }],
+      apply: (c, out) => out.role(c.data, 'watchtower'),
+    });
+    expect(() => resolveShape(b.world, terrain, { rules: [pair, clash] })).toThrow(/already has the role 'steeple' from R-H01\.chapel/);
+  });
+
   test('a shape-stage claim also blocks dressing-stage rules', () => {
     const early = defineRule({
       id: 'J05.early', part: 'joinery', tier: 1, priority: 0, find: houses,
@@ -250,10 +278,13 @@ describe('stages and ids', () => {
     expect(() => resolveTown(row(1).world, terrain, { rules: [lost] })).toThrow(/which no rule declared/);
   });
 
-  test('town-wide rules can be switched off', () => {
+  test('town-wide rules and higher tiers can be switched off', () => {
     const wide = defineRule({ id: 'D93.wide', part: 'decoration', tier: 3, priority: 0, townWide: true, find: houses, apply: (c, out) => void out.prop({ type: 'boulder', at: { cell: c.anchor, pos: 'c' } }) });
     expect(resolveTown(row(2).world, terrain, { rules: [wide] }).dressing.props).toHaveLength(2);
     expect(resolveTown(row(2).world, terrain, { rules: [wide], skipTownWide: true }).dressing.props).toHaveLength(0);
+    // The rule is tier 3: a lower tier cap skips it too.
+    expect(resolveTown(row(2).world, terrain, { rules: [wide], maxTier: 2 }).dressing.props).toHaveLength(0);
+    expect(resolveTown(row(2).world, terrain, { rules: [wide], maxTier: 3 }).dressing.props).toHaveLength(2);
   });
 
   test('the walking graph is built before the life rules', () => {

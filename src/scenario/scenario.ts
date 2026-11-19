@@ -15,7 +15,8 @@
 
 import { SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Terrain, World } from '@/core/world';
-import type { ResolveOptions } from '@/resolve/engine/api';
+import type { ResolveOptions, Rule } from '@/resolve/engine/api';
+import { allRules } from '@/resolve/engine/discover';
 import { resolveDressing, resolveShape } from '@/resolve/index';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { generateTerrain, initialWorld } from '@/terrain/terrain';
@@ -59,6 +60,13 @@ export interface ScenarioDef {
   cameras?: CameraSpec[];
   /** Default 'day'. */
   time?: TimeOfDay;
+  /**
+   * Extra rules that exist only in this scenario, run together with the
+   * discovered ones. For gallery entries and fixtures that must show a part
+   * whatever the real rules decide: a small rule that emits exactly the
+   * features, props or actors you want to look at.
+   */
+  rules?: readonly Rule[];
   /** Assertions run by the scenario test (`npm test`). Throw (or use `check`) to fail. */
   expect?(plan: ShapePlan, dressing: DressingPlan, check: Check): void;
   /** What this scenario shows, for the gallery and inspect. */
@@ -117,11 +125,18 @@ export interface ResolvedScenario extends BuiltScenario {
   dressing: DressingPlan;
 }
 
+/** The options a scenario resolves with: the discovered rules plus the scenario's own. */
+export function scenarioResolveOptions(s: Scenario, opts: ResolveOptions = {}): ResolveOptions {
+  if (!s.rules || s.rules.length === 0) return opts;
+  return { ...opts, rules: [...(opts.rules ?? allRules()), ...s.rules] };
+}
+
 /** Builds and resolves both stages. */
 export function resolveScenario(s: Scenario, opts?: ResolveOptions): ResolvedScenario {
   const built = buildScenario(s);
-  const shape = resolveShape(built.world, built.terrain, opts);
-  const dressing = resolveDressing(shape, opts);
+  const withOwn = scenarioResolveOptions(s, opts);
+  const shape = resolveShape(built.world, built.terrain, withOwn);
+  const dressing = resolveDressing(shape, withOwn);
   return { ...built, shape, dressing };
 }
 

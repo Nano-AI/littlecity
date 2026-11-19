@@ -9,7 +9,7 @@ import type { LifeRuntime, SignalsDriver } from '@/life/api';
 import { createTownView } from '@/render/index';
 import type { TownView } from '@/render/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario, cameraName, TownBuilder, type BuiltScenario, type TimeOfDay } from '@/scenario';
+import { buildScenario, cameraName, scenarioResolveOptions, TownBuilder, type BuiltScenario, type TimeOfDay } from '@/scenario';
 import { findScenario, matchScenarios } from '@/scenario/discover';
 
 const canvas = document.getElementById('town') as HTMLCanvasElement;
@@ -41,8 +41,9 @@ function load(name: string): BuiltScenario {
   signals = createSignals(scn.seed);
   life = createLife(view.stage, signals);
   current = buildScenario(scn);
-  const shape = resolveShape(current.world, current.terrain);
-  const dressing = resolveDressing(shape);
+  const opts = scenarioResolveOptions(scn);
+  const shape = resolveShape(current.world, current.terrain, opts);
+  const dressing = resolveDressing(shape, opts);
   view.setTown(shape, dressing);
   life.sync({ shape, dressing });
   return current;

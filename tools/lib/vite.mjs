@@ -61,6 +61,9 @@ export async function startServer() {
       logLevel: 'error',
       clearScreen: false,
       server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
+      // No dependency pre-bundling: nothing is written to the cache, so several
+      // servers can start at once in one checkout (Three.js is served as the ES module it ships).
+      optimizeDeps: { noDiscovery: true, include: [] },
     });
     try {
       await server.listen();

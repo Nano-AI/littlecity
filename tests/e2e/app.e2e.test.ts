@@ -42,7 +42,7 @@ describe('the app', () => {
     await page.mouse.click(sx, sy - 20, { button: 'right' });
     await page.waitForFunction(`${blocks} === 1`);
 
-    await page.keyboard.press('Meta+z');
+    await page.keyboard.press('ControlOrMeta+z');
     await page.waitForFunction(`${blocks} === 2`);
 
     // Dragging orbits instead of placing.

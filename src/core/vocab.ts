@@ -62,6 +62,7 @@ export interface FeatureVocab {
   'roof.against': number; //       lean-to: Dir4 of the taller wall it leans on
 
   // Top of a tower, lighthouse or windmill structure (J13, R-T*, R-L01, R-W01). `cell` = top cell.
+  // Owns sockets 'tower-top' (the tip) and 'flag-mount'.
   'cap': true;
   'cap/cone': true; //             watchtower
   'cap/spire': true; //            steeple
