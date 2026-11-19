@@ -52,7 +52,7 @@ import { onTwos } from '../motion/twos';
 import { ShipBody, type ShipWind } from './body';
 import { Crew, LeftGoods, type Gangway, type Spot } from './crew';
 import { Escort } from './escort';
-import { newsOf, type BigShipNews } from './news';
+import { clearAhead, newsOf, type BigShipNews } from './news';
 
 export interface CallInfo {
   id: string;
@@ -307,6 +307,10 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.t = into;
   };
 
+  /** Small boats seen last frame: a ship under way slows for one under its bow. */
+  let small: { x: number; z: number }[] = [];
+  const yieldFor = (ship: Ship): number => clearAhead({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.speed }, small);
+
   const stepShip = (ship: Ship, dt: number, signals: Signals): void => {
     ship.t += dt;
     const body = ship.body;
@@ -327,7 +331,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       case 'arriving': {
         const v = ship.voyage!;
         const remaining = v.path.length - ship.s;
-        const want = full * Math.min(1, Math.max(0.16, Math.sqrt(Math.max(0, remaining) / SHIPS.slowing)));
+        const want = full * Math.min(1, Math.max(0.16, Math.sqrt(Math.max(0, remaining) / SHIPS.slowing))) * yieldFor(ship);
         ship.speed += (want - ship.speed) * glide(0.8, dt);
         ship.s = Math.min(v.path.length, ship.s + ship.speed * dt);
         const p = pathAt(v.path, ship.s);
@@ -459,7 +463,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         if (body && !rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp > body.rig.sails[i]!.order * SHIPS.sailEvery * 0.6 ? 1 : 0));
         if (body && rowing) body.rowing = Math.min(1, body.rowing + dt);
         // Gathering way as the sails fill.
-        const want = full * Math.min(1, 0.18 + ship.s / (len * 1.2)) * (rowing ? 1 : 0.35 + 0.65 * (body?.canvas ?? 1));
+        const want = full * Math.min(1, 0.18 + ship.s / (len * 1.2)) * (rowing ? 1 : 0.35 + 0.65 * (body?.canvas ?? 1)) * yieldFor(ship);
         ship.speed += (want - ship.speed) * glide(0.6, dt);
         ship.s = Math.min(v.path.length, ship.s + ship.speed * dt);
         const p = pathAt(v.path, ship.s);
@@ -654,6 +658,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       }
     },
     update(dt, signals) {
+      small = news.small;
+      news.small = [];
       // Calls that are due, one at a time at sea, never two at one berth.
       if (!atSea()) {
         const due = ships.filter((s) => s.phase === 'idle' && !s.orphan && s.due <= 0 && !berthBusy(s)).sort((a, b) => a.due - b.due || FIRST[a.kind] - FIRST[b.kind]);

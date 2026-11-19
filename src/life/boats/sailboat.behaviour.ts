@@ -23,6 +23,7 @@ import { fly } from '../motion/pose';
 import { Twos } from '../motion/twos';
 import { swellAt, wakeRing, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
+import { giveWay } from '../ships/news';
 import { Sails } from './sails';
 
 /** Boats closer than this to the one ahead slow down; at half of it they stop gaining altogether. */
@@ -122,10 +123,16 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
     gap = Math.min(gap, d);
   }
   if (gap < GAP) want *= smooth((gap - GAP / 2) / (GAP / 2));
+  // Big ships (L38–L42): slow for one ahead, and stand aside out of its way.
+  const yieldTo = giveWay(ctx.stage, state.x, state.z, state.yaw);
+  want *= yieldTo.slow;
+  state.offX += yieldTo.px * dt;
+  state.offZ += yieldTo.pz * dt;
   state.speed += (want - state.speed) * glide(0.9, dt);
   state.place.s = (state.place.s + state.speed * dt) % lane.length;
   const p = lane.at(state.place.s);
-  const fade = 1 - glide(0.8, dt);
+  // (Not while standing aside for a big ship: it keeps out of the way until the ship has passed.)
+  const fade = yieldTo.px !== 0 || yieldTo.pz !== 0 ? 1 : 1 - glide(0.8, dt);
   state.offX *= fade;
   state.offZ *= fade;
   const px = state.x, pz = state.z;

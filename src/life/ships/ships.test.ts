@@ -19,6 +19,10 @@ import { recordingStage } from '../testing/stage';
 import harbourSystem from './harbour.system';
 import { harbourOf, type Ship } from './visit';
 import { angleDelta } from '../motion/ease';
+import { positionOf } from '@/core/mat4';
+import sailboat from '../boats/sailboat.behaviour';
+import fishing from '../boats/fishing-boat.behaviour';
+import { bigShipsOf, fromHull } from './news';
 
 type Town = ReturnType<typeof resolveScenario>;
 
@@ -43,13 +47,13 @@ function towns(): { full: Town; bare: { shape: Town['shape']; dressing: Town['dr
   return { full, bare: townOf(w, full), world: full.world };
 }
 
-function run(opts: { start: 'bare' | 'full'; seconds: number; edits?: { at: number; erase: [number, number, number][] }[]; onStep?: (t: number, ships: readonly Ship[], town: Town['shape']) => void }) {
+function run(opts: { start: 'bare' | 'full'; seconds: number; boats?: boolean; onBoats?: (t: number, rec: ReturnType<typeof recordingStage>, town: Town['dressing']) => void; edits?: { at: number; erase: [number, number, number][] }[]; onStep?: (t: number, ships: readonly Ship[], town: Town['shape']) => void }) {
   const { full, bare } = towns();
   const rec = recordingStage(opts.start === 'bare' ? bare : full);
   const signals = createSignals(scn.seed);
   signals.setPhase(partPhases().day.start + 0.02);
   signals.hold('run');
-  const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem] });
+  const life = createLife(rec.stage, signals, { behaviours: opts.boats ? [sailboat, fishing] : [], systems: [harbourSystem] });
   let current = opts.start === 'bare' ? bare : { shape: full.shape, dressing: full.dressing };
   life.sync(current);
   if (opts.start === 'bare') {
@@ -73,6 +77,7 @@ function run(opts: { start: 'bare' | 'full'; seconds: number; edits?: { at: numb
     }
     life.update(signals.advance(dt));
     opts.onStep?.(t, harbour.ships, current.shape);
+    opts.onBoats?.(t, rec, current.dressing);
   }
   return { harbour, rec, signals };
 }
@@ -173,5 +178,33 @@ describe('big ships (L38–L40)', () => {
       return out;
     };
     expect(log()).toEqual(log());
+  });
+
+  test('small boats give way: no sailboat or fishing boat ever overlaps a ship', () => {
+    let closest = Infinity;
+    let checked = 0;
+    let worstAt = '';
+    run({
+      start: 'bare',
+      seconds: 400,
+      boats: true,
+      onBoats(_t, rec, dressing) {
+        const ships = bigShipsOf(rec.stage);
+        for (const a of dressing.actors) {
+          if (a.type !== 'sailboat' && a.type !== 'fishing-boat') continue;
+          const [x, , z] = positionOf(rec.of(a.id).matrix);
+          for (const s of ships) {
+            if (s.halfBeam < 0.7) continue; // rising over the edge or sinking away: drawn small
+            checked++;
+            const g = fromHull(s, x, z).gap;
+            if (g < closest) worstAt = `${_t.toFixed(1)} ${a.type} ${x.toFixed(2)},${z.toFixed(2)} ship ${s.x.toFixed(2)},${s.z.toFixed(2)} v ${s.speed.toFixed(2)}`;
+            closest = Math.min(closest, g);
+          }
+        }
+      },
+    });
+    expect(checked).toBeGreaterThan(100);
+    // A small boat's half-length is under half a column.
+    expect(closest, worstAt).toBeGreaterThan(0.45);
   });
 });

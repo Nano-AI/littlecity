@@ -21,6 +21,7 @@ import { rand } from '@/core/rand';
 import type { ShapePlan } from '@/resolve/plan';
 import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
+import { shipSoundsOf } from '../ships/news';
 import { gullCall, noiseBuffer, noteFor, pop, strike, timbreFor } from './synth';
 
 const SOUND_KEY = 'little-city.sound';
@@ -172,7 +173,15 @@ export default defineSystem<State>({
     const time = signals.time;
     const bell = bellNow(state.prev, time);
     state.prev = time;
+    // A big ship (L38–L40): two strokes of the ship's bell as it comes alongside, a creak as it casts off.
+    const ship = shipSoundsOf(ctx.stage);
     if (!a || !state.wanted) return;
+    for (const s of ship) {
+      if (s.kind === 'bell') {
+        strike(a.ac, a.master, 784, 'bell', 0.05);
+        strike(a.ac, a.master, 784, 'bell', 0.045, a.ac.currentTime + 0.42);
+      } else strike(a.ac, a.master, 92, 'plank', 0.08);
+    }
     if (bell) strike(a.ac, a.master, 392, 'bell', 0.09);
     // Wind: a few times a second, the level follows the wind in the middle of the town.
     state.windAt -= dt;

@@ -9,6 +9,7 @@
 // those instances and draws its own, so a town shown without life still has
 // its residents at their doors.
 
+import { shipInFor } from '../ships/news';
 import { DIR4, keyX, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
@@ -183,6 +184,8 @@ export default defineSystem<State>({
       doorAt,
       wind: (x, z) => ctx.signals.wind(x, z),
       obstacles: () => obstaclesOf(ctx.stage),
+      // L38–L40: the quay draws a crowd while a big ship is in.
+      favour: (h) => (shipInFor(ctx.stage, h.id.split('/')[0]!) ? 6 : 0),
       seatAt(socket) {
         const m = ctx.stage.socket(socket);
         if (!m || (m[12] === 0 && m[13] === 0 && m[14] === 0)) return null;

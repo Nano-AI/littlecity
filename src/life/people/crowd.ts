@@ -198,6 +198,8 @@ export interface CrowdOptions {
   events?: CrowdEvents;
   /** L36, L37: bodies walkers wait for (soldiers, a horse), read each step. */
   obstacles?(): readonly { x: number; y: number; z: number }[];
+  /** L38–L40: how much a place that is only sometimes worth going to weighs now (a quay with a ship in); 0 = not now. */
+  favour?(h: Haunt): number;
 }
 
 export interface Crowd {
@@ -390,6 +392,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         g.pose = r(p, 'pose') < 0.6 ? 'stand' : 'look';
         break;
       case 'haunt-viewpoint':
+      case 'haunt-ship':
         facing(0.3);
         g.pose = 'look';
         break;
@@ -499,6 +502,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       let w: number;
       if (strandedHome) w = h.type === 'haunt-stoop' && h.structure === p.home ? 1 : 0;
       else if (night) w = h.type === 'haunt-night' && p.owl ? 1 : 0;
+      else if (h.type === 'haunt-ship') w = opts.favour?.(h) ?? 0;
       else if (h.type === 'haunt-play') w = !p.child ? 0 : h.name !== 'kite' ? PLAY_WEIGHT : windy ? PLAY_WEIGHT * 2 : 1;
       else w = h.type === 'haunt-visit' && h.structure === p.home ? 0 : (KIND_WEIGHT[h.type] ?? 0);
       if (w <= 0) continue;
