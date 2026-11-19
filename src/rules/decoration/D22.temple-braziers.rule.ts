@@ -52,7 +52,7 @@ export default defineRule<{ cell: CellKey; dir: Dir4 }>({
         const ground = key(x, h, z);
         // The cell's centre: the temple's steps reach a good way into the cell in front.
         if (!clear.free(ground, 'c') || !clear.headroom(ground, 'c')) continue;
-        out.push({ anchor: ground, structure: id, key: 'brazier', data: { cell: ground, dir: d } });
+        out.push({ anchor: ground, structure: id, key: `brazier${id}`, data: { cell: ground, dir: d } });
       }
     }
     return out;

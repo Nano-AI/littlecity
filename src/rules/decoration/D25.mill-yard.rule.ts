@@ -61,7 +61,7 @@ export default defineRule<Placed>({
       ];
       sides.forEach((side, i) => {
         const p = i < things.length ? things[i]!(side) : null;
-        if (p) out.push({ anchor: side.cell, structure: s.id, key: `mill${i}`, data: p });
+        if (p) out.push({ anchor: side.cell, structure: s.id, key: `mill${s.id}-${i}`, data: p });
       });
     }
     return out;

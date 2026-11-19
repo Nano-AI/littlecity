@@ -49,7 +49,7 @@ export default defineRule<Placed>({
       // The bell: toward the water if it can be, in the middle of that cell.
       const order = [...beside].sort((a, b) => Number(b.wet) - Number(a.wet) || a.d - b.d);
       const bell = order.find((b) => clear.free(b.cell, 'c') && clear.headroom(b.cell, 'c'));
-      if (bell) out.push({ anchor: bell.cell, structure: s.id, key: 'bell', data: { type: 'fog-bell', cell: bell.cell, pos: 'c', face: bell.d, params: { look } } });
+      if (bell) out.push({ anchor: bell.cell, structure: s.id, key: `bell${s.id}`, data: { type: 'fog-bell', cell: bell.cell, pos: 'c', face: bell.d, params: { look } } });
       // Rocks at the water's edge round the foot: a tumble of big boulders on the water side.
       let rocks = 0;
       for (const b of beside) {
@@ -60,7 +60,7 @@ export default defineRule<Placed>({
           if (!openWater(facts, keyX(b.cell) + ex, keyZ(b.cell) + ez)) continue;
           for (const pos of [edgePos(e), ...cornersOn(e)] as CellPos[]) {
             if (rocks >= 4 || !clear.free(b.cell, pos) || (bell && bell.cell === b.cell && pos === 'c')) continue;
-            out.push({ anchor: b.cell, structure: s.id, key: `rock${pos}`, data: { type: 'boulder', cell: b.cell, pos, params: { size: 0.8 + (hash(seed, RULE, b.cell, pos) % 20) / 100, look: hash(seed, RULE, 'r', b.cell, pos) % 1000 } } });
+            out.push({ anchor: b.cell, structure: s.id, key: `rock${s.id}-${pos}`, data: { type: 'boulder', cell: b.cell, pos, params: { size: 0.8 + (hash(seed, RULE, b.cell, pos) % 20) / 100, look: hash(seed, RULE, 'r', b.cell, pos) % 1000 } } });
             rocks++;
           }
         }
