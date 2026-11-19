@@ -141,6 +141,18 @@ export interface Person {
   /** Stop and look (L26): seconds left, and the heading to turn to. */
   startled: number;
   startledFace: number;
+  /** L26: a small hop is owed once they have turned to look; seconds left of a hop in the air; its height now. */
+  jumpy: boolean;
+  jump: number;
+  lift: number;
+  /** L26: stopped for a chat: seconds left, the heading toward the other, the last person chatted with, whose turn it is to talk. */
+  chat: number;
+  chatFace: number;
+  lastMet: Person | null;
+  chatWith: Person | null;
+  bubble: boolean;
+  /** A pose that overrides `pose` while a reaction lasts (a look, a hop, a chat), else null. */
+  react: PoseName | null;
 }
 
 export interface CrowdEvents {
@@ -196,6 +208,9 @@ const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
 /** Where a walker waiting for a single-file stretch stops in their cell (0 = where they came in, 1 = the far edge). */
 const WAIT_AT = 0.42;
 const TURN_RATE = 9;
+/** L26: the small hop after turning to look: how long, how high. */
+const JUMP = 0.36;
+const JUMP_HEIGHT = 0.12;
 /** A keeper's stay in the lighthouse: all night (they come down when it is day). */
 const KEEPER_NIGHT = 1e9;
 /** A walker more than this far (radians) from the way they are to go turns on the spot before stepping off. */
@@ -716,6 +731,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     }
   };
   /** How much of their speed each walker keeps, from who is just ahead of them (L24: people queue). */
+  /** Too busy to stop: on the lamp round, or called home by the dusk. */
+  let now: TimeSignal | null = null;
+  const onDutyNow = (p: Person): boolean => now !== null && (onDuty(p, now) || mustBeHome(p, now));
   const follow = (): void => {
     for (const p of people) {
       p.slow = 1;
@@ -728,6 +746,21 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (q === p || !q.visible || q.mode !== 'walk') continue;
         const dx = q.x - p.x, dz = q.z - p.z;
         if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(q.y - p.y) > 0.3) continue;
+        // Two people meeting (L26): going opposite ways, about to pass, on open ground. Once per meeting.
+        if (p.id < q.id && p.lastMet !== q && Math.sin(q.heading) * fx + Math.cos(q.heading) * fz < -0.5 && dx * dx + dz * dz < 0.2) {
+          p.lastMet = q;
+          q.lastMet = p;
+          const open = (w: Person): boolean =>
+            w.chat <= 0 && w.startled <= 0 && w.held < 0 && !w.queued && !w.leaving && !w.carrying && w.fade >= 1 && w.walk![w.at]!.kind === 'move' && !onDutyNow(w);
+          if (open(p) && open(q) && rand(p.seed, 'chat', q.seed, p.trips) < PEOPLE.chat) {
+            const t = PEOPLE.chatTime * (0.6 + 0.4 * rand(p.seed, 'chat-time', q.seed, p.trips));
+            p.chat = q.chat = t;
+            p.chatWith = q;
+            q.chatWith = p;
+            p.chatFace = Math.atan2(dx, dz);
+            q.chatFace = Math.atan2(-dx, -dz);
+          }
+        }
         const ahead = dx * fx + dz * fz;
         if (ahead <= 0.02 || ahead >= PEOPLE.slowAt) continue;
         if (Math.abs(dx * fz - dz * fx) > 0.09) continue;
@@ -1016,6 +1049,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       node: -1, cell: -1, walk: null, at: 0, t: 0,
       goal: null, want: null, timer: 0, held: -1, trips: 0, stuck: 0, slow: 1, queued: false,
       inside: null, hop: null, leaving: false, startled: 0, startledFace: 0,
+      jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, react: null,
     };
   };
 
@@ -1156,6 +1190,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     step(dt, time) {
       if (!nav) return;
       duskClock = time.isDusk || time.isNight ? duskClock + dt : 0;
+      now = time;
       follow();
       let plans = Math.max(1, Math.round(PEOPLE.plansPerFrame));
       const n = people.length;
@@ -1207,7 +1242,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             break;
           }
           case 'walk':
-            if (p.startled > 0) {
+            if (p.startled > 0 || p.chat > 0) {
               p.pose = 'stand';
               p.poseTime += dt;
               break;
@@ -1253,9 +1288,43 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           case 'gone':
             break;
         }
+        // Reactions (L26). `react` is the pose shown while one lasts.
+        p.react = null;
+        p.bubble = false;
         if (p.startled > 0) {
           p.startled -= dt;
-          turnTo(p, p.startledFace, dt);
+          if (p.seat < 0) {
+            turnTo(p, p.startledFace, dt);
+            p.react = 'stand';
+          }
+          // Once they have turned: a small hop, for some.
+          let off = p.startledFace - p.heading;
+          off -= Math.round(off / (Math.PI * 2)) * Math.PI * 2;
+          if (p.jumpy && Math.abs(off) < 0.2) {
+            p.jumpy = false;
+            p.jump = JUMP;
+          }
+        } else p.jumpy = false;
+        if (p.jump > 0) {
+          p.jump -= dt;
+          p.lift = Math.sin(Math.PI * (1 - Math.max(0, p.jump) / JUMP)) * JUMP_HEIGHT;
+          p.react = 'hop';
+        } else p.lift = 0;
+        if (p.chat > 0) {
+          p.chat -= dt;
+          p.poseTime += dt;
+          // A block landing interrupts: they both look at that first.
+          if (p.startled <= 0) {
+            turnTo(p, p.chatFace, dt);
+            p.react = 'chat';
+            // They take turns: the one with the lower id starts.
+            const turn = Math.floor(p.chat * 0.9) % 2 === 0;
+            p.bubble = p.chatWith !== null && (p.id < p.chatWith.id ? turn : !turn);
+          }
+          if (p.mode !== 'walk' || p.chat <= 0) {
+            p.chat = 0;
+            p.chatWith = null;
+          }
         }
       }
       // Routes: a few a frame, taking turns, so sixty people asking at once never show in a frame.
@@ -1305,6 +1374,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (Math.abs(dx) + Math.abs(dz) > PEOPLE.lookReach || (dx === 0 && dz === 0)) continue;
         p.startled = PEOPLE.lookTime * (0.7 + rand(p.seed, 'startle', p.trips) * 0.6);
         p.startledFace = Math.atan2(dx, dz);
+        p.jumpy = p.seat < 0 && rand(p.seed, 'hop', p.trips, cell) < PEOPLE.lookHop;
       }
     },
   };

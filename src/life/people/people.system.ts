@@ -12,7 +12,9 @@
 import { DIR4, keyX, keyZ } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
-import { buildPerson, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
+import type { MeshData } from '@/gen/mesh';
+import { bubbleMesh } from '@/parts/people/extras';
+import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
 import { PEOPLE } from '@/style/people';
@@ -26,11 +28,14 @@ interface Drawn {
   shown: boolean;
   /** What was last sent to the stage, to leave a still figure alone. */
   last: Float32Array;
+  /** The chat bubble over their head while they talk. */
+  bubble: InstanceHandle | null;
 }
 
 interface State {
   crowd: Crowd;
   drawn: Map<Person, Drawn>;
+  bubbleMesh: MeshData | null;
   /** The plan's own resident instances, kept hidden. */
   standIns: InstanceHandle[];
   unsubscribe: () => void;
@@ -52,7 +57,7 @@ function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellR
   (signals as Partial<SignalsDriver>).emit?.(event, payload as never);
 }
 
-function draw(p: Person, d: Drawn, stage: LifeStage): void {
+function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   const visible = p.visible && p.fade > 0.02;
   if (!visible) {
     if (d.shown && d.handles) for (const h of d.handles) h.setVisible(false);
@@ -65,14 +70,20 @@ function draw(p: Person, d: Drawn, stage: LifeStage): void {
     d.handles = PIECES.map((piece) => stage.spawnMesh(meshes[piece], IDENTITY));
     d.shown = true;
   }
-  const walking = p.pose === 'walk' || p.pose === 'run';
-  const pose = poseOf(p.pose, walking ? p.stride : p.poseTime, p.rank);
+  const name = p.react ?? p.pose;
+  const walking = name === 'walk' || name === 'run';
+  const pose = poseOf(name, walking ? p.stride : p.poseTime, p.rank);
+  // L26: a strong gust, and a hand goes to the hat.
+  if (gust && d.look.hat !== 'none' && (walking || name === 'stand')) {
+    pose.armR = 2.95;
+    pose.outR = -0.2;
+  }
   if (walking && p.carrying) {
     // Arms full: a sack, a tray.
     pose.armL = pose.armR = 1.25;
     pose.outL = pose.outR = -0.2;
   }
-  const sitting = p.pose === 'sit' && p.seat >= 0;
+  const sitting = name === 'sit' && p.seat >= 0;
   const scale = d.look.scale * (0.35 + 0.65 * p.fade);
   rigMatrices(d.look, pose, local, sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
   // world = T(x, y, z) · Ry(heading) · S(scale) · local
@@ -83,7 +94,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage): void {
       const o = k + col * 4;
       const lx = local[o]!, ly = local[o + 1]!, lz = local[o + 2]!;
       world[o] = c * lx + s * lz + (col === 3 ? p.x : 0);
-      world[o + 1] = scale * ly + (col === 3 ? p.y : 0);
+      world[o + 1] = scale * ly + (col === 3 ? p.y + p.lift : 0);
       world[o + 2] = -s * lx + c * lz + (col === 3 ? p.z : 0);
       world[o + 3] = col === 3 ? 1 : 0;
     }
@@ -139,11 +150,12 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80) });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null });
         },
         removed(p) {
           const d = drawn.get(p);
           if (d?.handles) for (const h of d.handles) h.release();
+          d?.bubble?.release();
           drawn.delete(p);
         },
       },
@@ -151,7 +163,7 @@ export default defineSystem<State>({
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
-    return { crowd, drawn, standIns: [], unsubscribe };
+    return { crowd, drawn, bubbleMesh: null, standIns: [], unsubscribe };
   },
   sync(state, next, _prev, ctx) {
     if (!next.dressing) return;
@@ -171,12 +183,30 @@ export default defineSystem<State>({
     state.crowd.step(dt, signals.time);
     for (const p of state.crowd.people) {
       const d = state.drawn.get(p);
-      if (d) draw(p, d, ctx.stage);
+      if (!d) continue;
+      const gust = p.visible && d.look.hat !== 'none' && signals.wind(p.x, p.z).strength > PEOPLE.gust;
+      draw(p, d, ctx.stage, gust);
+      // The chat bubble over whoever is talking (L26).
+      const talking = p.bubble && p.visible;
+      if (talking) {
+        d.bubble ??= ctx.stage.spawnMesh((state.bubbleMesh ??= bubbleMesh()), IDENTITY);
+        const m = Array.from(IDENTITY);
+        m[12] = p.x;
+        m[13] = p.y + (DESIGN_HEIGHT + 0.2) * d.look.scale;
+        m[14] = p.z;
+        d.bubble.setMatrix(m);
+      } else if (d.bubble) {
+        d.bubble.release();
+        d.bubble = null;
+      }
     }
   },
   dispose(state) {
     state.unsubscribe();
-    for (const d of state.drawn.values()) if (d.handles) for (const h of d.handles) h.release();
+    for (const d of state.drawn.values()) {
+      if (d.handles) for (const h of d.handles) h.release();
+      d.bubble?.release();
+    }
     state.drawn.clear();
   },
 });

@@ -79,6 +79,8 @@ export const PEOPLE = defineStyle(
     /** L26: chance two people meeting stop for a chat, and how long it lasts. */
     chat: 0.2,
     chatTime: 4,
+    /** L26: wind strength above which a hand goes to the hat. */
+    gust: 0.72,
   },
   {
     cap: [0, 120, 1],

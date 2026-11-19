@@ -328,6 +328,71 @@ describe('jobs (L23) and the lamplighter (L08)', () => {
   });
 });
 
+describe('reactions (L26)', () => {
+  const town = scenarioTown(peopleTown);
+
+  test('a block lands on the square: those within four cells stop and look, some of them hop, the rest of the town carries on', () => {
+    const { crowd, clock: c } = run(town, 25);
+    // Where the most people are.
+    const out = crowd.people.filter((p) => p.visible && (p.mode === 'walk' || p.mode === 'linger'));
+    const around = (x: number, z: number) => out.filter((p) => Math.abs(p.x - x) + Math.abs(p.z - z) <= PEOPLE.lookReach - 0.5);
+    const centre = [...out].sort((a, b) => around(b.x, b.z).length - around(a.x, a.z).length)[0]!;
+    const cx = Math.floor(centre.x) + 0.5, cz = Math.floor(centre.z) + 0.5;
+    const at = key(Math.floor(centre.x), 1, Math.floor(centre.z));
+    const near = around(cx, cz).filter((p) => p.mode !== 'walk' || p.walk![p.at]!.kind === 'move');
+    const far = crowd.people.filter((p) => p.visible && p.mode === 'walk' && Math.abs(p.x - cx) + Math.abs(p.z - cz) > PEOPLE.lookReach + 1);
+    expect(near.length).toBeGreaterThan(4);
+    expect(far.length).toBeGreaterThan(3);
+    crowd.blockLanded(at);
+    expect(near.every((p) => p.startled > 0)).toBe(true);
+    expect(far.every((p) => p.startled === 0)).toBe(true);
+    const hopped = new Set<string>();
+    let highest = 0;
+    for (let i = 0; i < 30 * 4; i++) {
+      crowd.step(c.tick(1 / 30), c.time);
+      for (const p of near) {
+        if (p.lift > 0) hopped.add(p.id);
+        highest = Math.max(highest, p.lift);
+        if (p.jump > 0) expect(p.react).toBe('hop');
+      }
+    }
+    // A seeded third of them, more or less.
+    expect(hopped.size).toBeGreaterThan(0);
+    expect(hopped.size).toBeLessThan(near.length);
+    expect(highest).toBeGreaterThan(0.08);
+    expect(near.every((p) => p.lift === 0 && p.startled <= 0)).toBe(true);
+  });
+
+  test('two people meeting sometimes stop for a chat: both stand, face each other and take turns under the bubble', () => {
+    const c = clock(town.world.seed);
+    const crowd = createCrowd();
+    crowd.sync(town.shape, town.dressing, c.time);
+    const w = watch(crowd, { maxStuck: 8 });
+    let chats = 0, bubbles = 0;
+    const talkers = new Set<string>();
+    for (let i = 0; i < 30 * 400; i++) {
+      crowd.step(c.tick(1 / 30), c.time);
+      w.check();
+      for (const p of crowd.people) {
+        if (p.chat <= 0) continue;
+        chats++;
+        const q = p.chatWith!;
+        expect(p.react).toBe('chat');
+        // One bubble between the two of them at a time.
+        if (q.chat > 0) expect(p.bubble).toBe(!q.bubble);
+        if (p.bubble) {
+          bubbles++;
+          talkers.add(p.id);
+        }
+      }
+    }
+    expect(w.problems).toEqual([]);
+    expect(chats).toBeGreaterThan(100);
+    expect(bubbles).toBeGreaterThan(50);
+    expect(talkers.size).toBeGreaterThan(1);
+  });
+});
+
 describe('the town changes (L27)', () => {
   const base = (b: TownBuilder): void => {
     b.plaza(10, 10, 15, 14);
