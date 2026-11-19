@@ -116,8 +116,9 @@ describe('scenario checks', () => {
     expect(() => check.noFeature({ type: 'door' })).toThrow(/expected no feature/);
     expect(() => check.structure(40, 1, 40)).toThrow(/no block structure/);
     expect(() => check.ok(false, 'told you')).toThrow('[check-test] told you');
-    // With the real (still empty) rule set the same scenario has no roles, so checkScenario fails.
-    expect(() => checkScenario(s)).toThrow(/role at \(10, 1, 10\): expected cottage, got none/);
+    // checkScenario resolves with the discovered rules, not the demo ones this expect() was written
+    // for, so it fails (on whichever check the real rules do not happen to satisfy).
+    expect(() => checkScenario(s)).toThrow(/^\[check-test\] /);
   });
 });
 
@@ -151,7 +152,9 @@ describe('the fixture shown in docs/swarm/CONTRACTS.md', () => {
         check.noProp({ type: 'lamp', at: [10, 1, 10] }); // never inside a house
       },
     });
-    const r = checkScenario(fixture);
+    // Resolved with the demo rules alone: the real house rules add doors and chimneys of their own.
+    const r = resolveScenario(fixture, { rules: [] });
+    fixture.expect!(r.shape, r.dressing, createCheck(r.shape, r.dressing, fixture.name));
     expect(r.dressing.props.length).toBeGreaterThan(0);
     expect(r.dressing.props.length).toBeLessThan(8);
   });

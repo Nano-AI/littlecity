@@ -17,7 +17,8 @@ const joinery = defineRule<{ top: number }>({
   id: 'X-J01.demo-joinery',
   part: 'joinery',
   tier: 1,
-  priority: -1000,
+  // Before the real joinery rules, so these features keep the plain ids the expect() below names.
+  priority: 100000,
   // One candidate per house: a door on its lowest cell, windows and a chimney on its top cell.
   find: ({ facts }) =>
     [...facts.structures.values()]
@@ -44,7 +45,8 @@ const laundry = defineRule<{ from: string; to: string }>({
   priority: -1000,
   find({ facts }) {
     // East-facing windows with a west-facing window three cells to the east.
-    const windows = socketsOfType(facts, 'window');
+    // Only this scenario's own windows: the real rules (J09) give the houses windows too.
+    const windows = socketsOfType(facts, 'window').filter((s) => s.rule === 'X-J01.demo-joinery');
     const west = new Map(windows.filter((s) => s.dir === W).map((s) => [s.cell, s.id]));
     return windows
       .filter((s) => s.dir === E)
@@ -63,7 +65,10 @@ const lamps = defineRule({
   part: 'decoration',
   tier: 1,
   priority: -1001,
-  find: ({ facts }) => socketsOfType(facts, 'door').map((s) => ({ anchor: neighbor(s.cell, s.dir!) })),
+  find: ({ facts }) =>
+    socketsOfType(facts, 'door')
+      .filter((s) => s.rule === 'X-J01.demo-joinery')
+      .map((s) => ({ anchor: neighbor(s.cell, s.dir!) })),
   claims: (c) => [slot.floor(c.anchor, 'e')],
   apply(c, out) {
     const lamp = out.prop({ type: 'lamp', variant: 'post', at: { cell: c.anchor, pos: 'e' } });
@@ -76,7 +81,10 @@ const smoke = defineRule<string>({
   part: 'life',
   tier: 1,
   priority: -1000,
-  find: ({ facts }) => socketsOfType(facts, 'chimney-top').map((s) => ({ anchor: s.cell, structure: s.structure, data: s.id })),
+  find: ({ facts }) =>
+    socketsOfType(facts, 'chimney-top')
+      .filter((s) => s.rule === 'X-J01.demo-joinery')
+      .map((s) => ({ anchor: s.cell, structure: s.structure, data: s.id })),
   apply(c, out) {
     out.actor({ type: 'smoke', at: { socket: c.data }, home: c.structure });
   },
