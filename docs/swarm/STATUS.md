@@ -111,3 +111,9 @@ the SAME worktree path (no new worktree), with a handoff brief: read
 `git status`, `git log`, the owner's original brief (in this log's stage
 sections and the plan), `docs/swarm/requests/<owner>.md`, then continue.
 Worktree paths: `git worktree list`.
+
+**Model instruction from Derek (10:55):** every agent launched from here on
+runs on Opus 5.5 ("fable is too slow"): Stage 4 polish, discovery rounds,
+final art pass, and any replacement for an agent that dies. The seven
+already running stay on Fable to keep their memory; each keeps a handoff
+note in `docs/swarm/handoff/<owner>.md`.
