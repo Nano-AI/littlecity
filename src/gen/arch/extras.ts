@@ -103,7 +103,9 @@ export function archExtras(b: MeshBuilder, anchors: Record<string, Mat4Like>, f:
       };
       // Where the gallery meets a house it runs on into the wall; where it joins the next bay there is no end.
       const u0 = covered('lo') ? 0 : -0.1, u1 = covered('hi') ? 1 : 1.1;
-      const wallH = 0.46, in0 = 0.07, thick = 0.06, eave = 0.03, rise = 0.3;
+      // Its walls stand a hair (0.004) inside a house's wall line, so where they run on into the house
+      // they do not lie in the plane of its side walls.
+      const wallH = 0.46, in0 = 0.074, thick = 0.06, eave = 0.03, rise = 0.3;
       const mb = new MeshBuilder({ ink: f.structure });
       mb.with({ color, pattern: PATTERN.planks, ink: 'gallery' }, () => {
         mb.box([u0, H, 1 - in0 - thick], [u1, H + wallH, 1 - in0], { skip: ['bottom', 'top', 'w', 'e'] });

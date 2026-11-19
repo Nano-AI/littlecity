@@ -152,12 +152,13 @@ describe('arch generator', () => {
       if (z < 16.05) end = Math.max(end, y);
     }
     expect(mid).toBeGreaterThan(end + 0.08);
-    // The deck itself stays level, so floors and people stay on the grid: every upward body face is at the cell's top.
+    // The deck itself stays level, so floors and people stay on the grid: every upward body face is at the cell's top
+    // (a hair, 0.004, over it: off the plane of the ground or a house's floor band beside it).
     const body = new MeshBuilder({ ink: s.id }).inkOf('body');
     let decks = 0;
     for (let v = 0; v < out.mesh.inkId.length; v += 3) {
       if (out.mesh.inkId[v] !== body || out.mesh.normal[v * 3 + 1]! < 0.9) continue;
-      for (let k = 0; k < 3; k++) expect(out.mesh.position[(v + k) * 3 + 1]).toBeCloseTo(CELL_H, 6);
+      for (let k = 0; k < 3; k++) expect(out.mesh.position[(v + k) * 3 + 1]).toBeCloseTo(CELL_H + 0.004, 6);
       decks++;
     }
     expect(decks).toBe(3 * 2);

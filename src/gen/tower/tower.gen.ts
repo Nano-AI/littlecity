@@ -153,9 +153,16 @@ export default defineGenerator({
         });
       }
       if (belfry >= 0 && !round) {
-        b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'belfry-sill' }, () =>
-          b.boxAt([0, bodyTop - 0.05, 0], [half * 2 + 0.08, 0.05, half * 2 + 0.08], { skip: ['bottom'] }),
-        );
+        // A ledge round the body: its top only outside the body, whose own top (the belfry's floor) lies
+        // in the same plane.
+        b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'belfry-sill' }, () => {
+          const o = half + 0.04, i = half, y = bodyTop;
+          b.boxAt([0, bodyTop - 0.05, 0], [o * 2, 0.05, o * 2], { skip: ['bottom', 'top'] });
+          b.quad([-o, y, -o], [-o, y, -i], [o, y, -i], [o, y, -o]);
+          b.quad([-o, y, i], [-o, y, o], [o, y, o], [o, y, i]);
+          b.quad([-o, y, -i], [-o, y, i], [-i, y, i], [-i, y, -i]);
+          b.quad([i, y, -i], [i, y, i], [o, y, i], [o, y, -i]);
+        });
       }
       if (!shape.capped) b.at(translation(0, top, 0), () => flatCap(b, rAt(top), round));
     });
