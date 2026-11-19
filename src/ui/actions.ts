@@ -19,6 +19,8 @@ export interface ToolState {
   item: ItemId;
   /** The colour swatch: 'auto' (the default) or a forced palette index. */
   swatch: number | 'auto';
+  /** The house style for a new house: 0 or absent = Random. */
+  style?: number;
 }
 
 export interface ActionContext {
@@ -156,7 +158,20 @@ export function planUse(tool: ToolState, pick: Pick, ctx: ActionContext): Plan {
 
   const edit: Edit = { type: 'placeBlock', cell: target, kind: item, color: tool.swatch, from: pick.from };
   if (item === 'stairs') edit.rot = stairsRot(target, pick.point, ctx);
+  if (item === 'house' && tool.style) edit.style = tool.style;
   return { tries: [edit], at: target };
+}
+
+/**
+ * Alt-click (design section 7, "Copy a look"): the kind, wall colour and
+ * house style of the block under the pointer, to put into the hand. Null
+ * when the pointer is not on a block.
+ */
+export function copyLook(pick: Pick, ctx: ActionContext): { item: PlacedKind; swatch: number; style: number } | null {
+  if (pick.hit !== 'block') return null;
+  const block = ctx.world.blocks.get(pick.cell);
+  if (!block) return null;
+  return { item: block.kind, swatch: block.color, style: block.style ?? 0 };
 }
 
 /**

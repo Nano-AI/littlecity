@@ -4,9 +4,11 @@
 
 import { PALETTE_SIZE, placedInfo, type PlacedKind } from '@/core/kinds';
 import { RAMPS } from '@/style/palette';
-import { el, iconButton } from './dom';
-import { icon } from './icons';
+import { RANDOM_STYLE } from '@/style/houses';
+import { el, iconButton, setIcon } from './dom';
+import { icon, styleIcon } from './icons';
 import { DRAWER_IDS, DRAWER_LABELS, drawerItems, drawerOf, isFloorPiece, isToolId, type DrawerId, type ItemId } from './pieces';
+import { createStyleFlyout, styleName, type StyleFlyout } from './styles';
 
 export interface TrayState {
   /** The drawer that is open. */
@@ -15,6 +17,8 @@ export interface TrayState {
   item: ItemId;
   /** 'auto' (the default): a new block takes the colour of what it was placed on. */
   swatch: number | 'auto';
+  /** The house style new houses get: 0 = Random (the default), 1–6 a named style. For the session. */
+  style: number;
 }
 
 export interface Tray {
@@ -24,6 +28,12 @@ export interface Tray {
   select(item: ItemId): void;
   openDrawer(drawer: DrawerId): void;
   setSwatch(swatch: number | 'auto'): void;
+  /** Chooses the house style (0 = Random) without changing the selected piece. */
+  setStyle(style: number): void;
+  /** The house-style flyout on the House button. */
+  readonly styles: StyleFlyout;
+  /** Elements the style flyout must keep clear of (the length stepper, added by the interface). */
+  avoid(el: HTMLElement): void;
   /** Keys 1–9 and 0: the nth item of the open drawer (0 is the tenth). False if there is none. */
   pickNumber(n: number): boolean;
   /** Refusal feedback: the selected button shakes its head. */
@@ -40,7 +50,7 @@ export function swatchColors(item: ItemId): readonly string[] {
 }
 
 export function createTray(start: Partial<TrayState> = {}): Tray {
-  const state: TrayState = { drawer: 'build', item: 'auto', swatch: 'auto', ...start };
+  const state: TrayState = { drawer: 'build', item: 'auto', swatch: 'auto', style: RANDOM_STYLE, ...start };
   const listeners: ((s: Readonly<TrayState>) => void)[] = [];
   const emit = (): void => listeners.forEach((fn) => fn(state));
 
@@ -53,6 +63,39 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
   const swatches = el('div', { class: 'lc-pop lc-swatches', attrs: { role: 'group', 'aria-label': 'Colour', hidden: '' } });
   const card = el('div', { class: 'lc-card lc-tray-card' }, [row, el('div', { class: 'lc-tray-side' }, [swatchButton])]);
   const root = el('div', { class: 'lc-tray', attrs: { role: 'toolbar', 'aria-label': 'Pieces and tools' } }, [tabs, card, swatches]);
+
+  const avoid: HTMLElement[] = [];
+  const styles = createStyleFlyout({
+    tray: root,
+    avoid: () => avoid,
+    choose(style) {
+      state.style = style;
+      styles.close();
+      renderStyle();
+      // Choosing a look means "build houses like this".
+      if (state.item !== 'house') api.select('house');
+      else emit();
+    },
+  });
+  root.append(styles.el);
+
+  /** The wall colour the style drawings use: the swatch's, or the house icon's yellow on auto. */
+  const wallIndex = (): number => (state.swatch === 'auto' ? 0 : state.swatch);
+  /** The House button shows the chosen style; the flyout shows every style in the wall colour. */
+  const renderStyle = (): void => {
+    const house = row.querySelector<HTMLElement>('[data-item="house"]');
+    if (house) {
+      const holder = house.querySelector('.lc-btn-icon');
+      if (state.style === RANDOM_STYLE) setIcon(house, 'house');
+      else if (holder) holder.innerHTML = styleIcon(state.style, wallIndex());
+      house.dataset.houseStyle = String(state.style);
+      const label = state.style === RANDOM_STYLE ? 'House' : `House: ${styleName(state.style)}`;
+      house.setAttribute('aria-label', label);
+      const base = (house.dataset.title ??= house.title);
+      house.title = `${base.replace(/^House/, label)}. Hover for styles`;
+    }
+    styles.render(state.style, wallIndex());
+  };
 
   const tabButtons = new Map<DrawerId, HTMLButtonElement>();
   for (const id of DRAWER_IDS) {
@@ -78,8 +121,10 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
         on: { click: () => api.select(item.id) },
       });
       row.append(button);
+      if (item.id === 'house') styles.attach(button);
     });
     row.scrollLeft = 0;
+    renderStyle();
   };
 
   const renderSwatch = (): void => {
@@ -158,8 +203,19 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
     setSwatch(swatch) {
       state.swatch = swatch;
       renderSwatch();
+      renderStyle();
       setPopup(false);
       emit();
+    },
+    setStyle(style) {
+      if (style === state.style) return;
+      state.style = style;
+      renderStyle();
+      emit();
+    },
+    styles,
+    avoid(element) {
+      avoid.push(element);
     },
     pickNumber(n) {
       const items = drawerItems(state.drawer);
@@ -177,7 +233,7 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
     closePopups() {
       const wasOpen = !swatches.hasAttribute('hidden');
       setPopup(false);
-      return wasOpen;
+      return styles.close() || wasOpen;
     },
     onChange(fn) {
       listeners.push(fn);

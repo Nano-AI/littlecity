@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from 'vitest';
 import type { Role } from '@/core/vocab';
-import { HOUSE_STYLES, houseStyle, isHouseStyle, personalityOf } from './houses';
+import { HOUSE_STYLES, houseStyle, isHouseStyle, personalityOf } from '@/style/houses';
 
 const ROLES: (Role | undefined)[] = [undefined, 'cottage', 'chapel', 'stilt-house', 'greenhouse', 'manor', 'boathouse', 'keepers-cottage', 'town-hall', 'shop', 'townhouse'];
 
