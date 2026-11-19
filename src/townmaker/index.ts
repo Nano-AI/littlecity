@@ -37,7 +37,8 @@ import { fromSquare, type District, type Town } from './town';
 
 export interface GrownTown {
   edits: Edit[];
-  districts: readonly { name: string; edits: number }[];
+  /** Each district, with a column near its middle and how many edits it made. */
+  districts: readonly { name: string; x: number; z: number; edits: number }[];
   /** Edits the generator tried that were not legal (it adapted round them). */
   refused: number;
   /** Districts that could not be joined to the square by a street. */
@@ -92,7 +93,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   for (const m of g.made) counts.set(m.district, (counts.get(m.district) ?? 0) + 1);
   return {
     edits,
-    districts: town.districts.map((d) => ({ name: d.name, edits: counts.get(d.id) ?? 0 })),
+    districts: town.districts.map((d) => ({ name: d.name, x: d.x, z: d.z, edits: counts.get(d.id) ?? 0 })),
     refused: g.refused,
     unjoined,
     fellBack,
