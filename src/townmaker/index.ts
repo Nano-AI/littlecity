@@ -57,7 +57,8 @@ export function growTown(terrain: Terrain, seed: number): Edit[] {
 
 export function planTown(terrain: Terrain, seed: number): GrownTown {
   const g = new Grower(terrain, seed);
-  const town: Town = { g, site: readSite(terrain), square: null, districts: [] };
+  // One town in five has no fountain anywhere, so the hand pump (D33, which needs a town without one) shows too.
+  const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
 
   buildSquare(town);
   buildWillow(town);

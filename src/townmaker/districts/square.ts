@@ -16,20 +16,23 @@
 import { CLAIM } from '../grower';
 import { search } from '../frame';
 import { fits, rectFlat, startDistrict, type Town, Local } from '../town';
-import { pave } from '../route';
+import { canPave, pave } from '../route';
 
 export function buildSquare(town: Town): boolean {
   const { g, site } = town;
   for (const k of [5, 4, 3]) {
+    // The town hall along the north side: k − 1 wide, deep enough for a footprint of 8.
+    const hd = Math.ceil(8 / (k - 1));
+    const top = 1 - hd;
     const found = search(g, `square${k}`, (f) => {
-      if (!fits(g, f, -2, 0, k + 1, k + 1)) return null;
-      const h = rectFlat(g, f, -2, 0, k + 1, k + 1);
+      if (!fits(g, f, -3, top - 1, k + 2, k + 2, 1)) return null;
+      const h = rectFlat(g, f, -2, top, k + 1, k + 1);
       if (h < 0) return null;
       const [cx, cz] = [f.x((k + 1) / 2, (k + 1) / 2), f.z((k + 1) / 2, (k + 1) / 2)];
       const water = site.waterDist[Math.round(cx) + Math.round(cz) * 48]!;
       if (water < 4) return null;
       const d = Math.abs(cx - site.centre[0]) + Math.abs(cz - site.centre[1]);
-      // Facing the default camera (from the south-east) with its open side: tall shops to the north and west.
+      // Facing the default camera (from the south-east) with its open side: the hall to the north, the inn west.
       return { score: d + (h > 2 ? 4 : 0) + (f.r === 0 ? 0 : 4), data: h };
     });
     if (!found) continue;
@@ -39,17 +42,21 @@ export function buildSquare(town: Town): boolean {
     const mid = Math.ceil(k / 2);
     town.square = { x: f.x(mid, mid), z: f.z(mid, mid), h };
     const d = startDistrict(town, 'square', town.square.x, town.square.z);
-    L.claim(-2, 0, k + 1, k + 1, CLAIM.built);
-    L.claim(-3, -1, k + 2, k + 2, CLAIM.open);
+    L.claim(-2, top, k + 1, k + 1, CLAIM.built);
 
-    // The ground: the plaza and the paths round it.
+    // The ground: the plaza, the paths round it, and the ring road one step out.
     for (let v = 1; v <= k; v++) for (let u = 1; u <= k; u++) L.floor('plaza', u, v, h);
     for (let u = 0; u <= k + 1; u++) if (u !== 2) pave(g, f.x(u, k + 1), f.z(u, k + 1));
-    for (const [u, v] of [[1, 0], [k + 1, 0], [k + 1, 1], [0, 1]] as const) pave(g, f.x(u, v), f.z(u, v));
+    for (let v = top - 1; v <= 1; v++) {
+      pave(g, f.x(1, v), f.z(1, v));
+      pave(g, f.x(k + 1, v), f.z(k + 1, v));
+    }
+    for (let u = -3; u <= 0; u++) pave(g, f.x(u, 1), f.z(u, 1));
+    ringRoad(town, L, -3, top - 1, k + 2, k + 2);
     for (let v = 2; v <= Math.min(4, k); v++) L.floor('garden', -2, v, h);
 
-    // Shops along the north side and down the east side; storeys vary, colours never match a neighbour.
-    for (let u = 2; u <= k; u++) L.house(u, 0, u, 0, 2 + (g.chance(0.35, 'shop-n', u) ? 1 : 0), `shop-n${u}`);
+    // The town hall on the north side, shops down the east side; colours never match a neighbour.
+    L.house(2, top, k, 0, 2, 'town-hall');
     for (let v = 2; v <= k; v++) L.house(k + 1, v, k + 1, v, 1 + (g.chance(0.3, 'shop-e', v) ? 1 : 0), `shop-e${v}`);
     // The inn, facing the square, two storeys.
     const innTo = Math.min(4, k);
@@ -60,8 +67,8 @@ export function buildSquare(town: Town): boolean {
     for (let v = 2; v <= innTo; v++) L.edge(-2, h, v, 3, 'fence');
     // The clock tower in the corner.
     L.stack('tower', 0, 0, 5, L.color('tower', [[0, h, 0]], 'clock'));
-    // The fountain, stalls and planter trees.
-    L.put('fountain', mid, h, mid);
+    // The fountain (a town without fountains draws water at a pump instead), stalls and planter trees.
+    if (!town.pumps) L.put('fountain', mid, h, mid);
     L.put('stall', k, h, 2);
     L.put('stall', k, h, Math.max(3, k - 1));
     L.put('tree', 1, h, k);
@@ -69,10 +76,25 @@ export function buildSquare(town: Town): boolean {
     // A statue on its plinth by the square.
     L.put('marble', 2, h, k + 1, 1);
 
-    for (const [u, v] of [[1, -1], [k + 1, -1], [k + 2, 1], [-1, k + 1], [k + 2, k + 1], [-1, 1]] as const) {
-      if (pave(g, f.x(u, v), f.z(u, v))) L.way(d, u, v);
+    for (const [u, v] of [[-3, top - 1], [k + 2, top - 1], [-3, k + 2], [k + 2, k + 2]] as const) {
+      if (g.claimed(f.x(u, v), f.z(u, v), CLAIM.street)) L.way(d, u, v);
     }
     return true;
   }
   return false;
+}
+
+/** A street round the outside of a local rectangle, where the ground allows (steps of one level at most). */
+function ringRoad(town: Town, L: Local, u0: number, v0: number, u1: number, v1: number): void {
+  const { g } = town;
+  const cells: [number, number][] = [];
+  for (let u = u0; u <= u1; u++) cells.push([u, v0]);
+  for (let v = v0 + 1; v <= v1; v++) cells.push([u1, v]);
+  for (let u = u1 - 1; u >= u0; u--) cells.push([u, v1]);
+  for (let v = v1 - 1; v > v0; v--) cells.push([u0, v]);
+  for (const [u, v] of cells) {
+    const x = L.x(u, v), z = L.z(u, v);
+    if (g.h(x, z) === 0 || !canPave(g, x, z)) continue;
+    pave(g, x, z);
+  }
 }

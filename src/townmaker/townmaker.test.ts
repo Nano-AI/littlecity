@@ -111,13 +111,14 @@ describe('grow a town', () => {
       terrains.push(t);
       const roles = rolesOf(build(t, growTown(t, seed)), t);
       expect(roles.size, `seed ${seed}`).toBeGreaterThanOrEqual(30);
+      expect(roles.has('town-hall'), `seed ${seed}: a town hall on the square`).toBe(true);
       for (const r of roles) seen.set(r, [...(seen.get(r) ?? []), seed]);
     }
     const table = ROLES.map((r) => `${r.padEnd(18)} ${(seen.get(r) ?? []).join(' ') || '—'}`).join('\n');
     console.log(`role coverage, seeds 1–5\n${table}`);
     // PENDING: roles added to the game after the generator was written. The generator's owner removes
     // each name from this list as the generator learns to build it (see docs/swarm/STATUS.md).
-    const PENDING: readonly string[] = ['town-hall'];
+    const PENDING: readonly string[] = [];
     const missing = ROLES.filter((r) => !PENDING.includes(r) && !seen.has(r) && terrains.some((t) => impossible(r, t) === null));
     expect(missing, `never reached on seeds 1–5:\n${table}`).toEqual([]);
   });

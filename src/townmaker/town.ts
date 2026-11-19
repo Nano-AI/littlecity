@@ -25,6 +25,8 @@ export interface Town {
   site: Site;
   square: { x: number; z: number; h: number } | null;
   districts: District[];
+  /** A town with no fountain at all: it draws its water at a hand pump (D33) instead. */
+  pumps: boolean;
 }
 
 export function startDistrict(town: Town, name: string, x: number, z: number): District {
