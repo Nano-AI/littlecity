@@ -21,6 +21,7 @@ import { angleDelta, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { swellAt, wakeRing, type Swell } from './afloat';
+import { giveWay } from '../ships/news';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
 /** Columns a second, under way. */
@@ -146,7 +147,9 @@ export default defineBehaviour({
       if (lane) state.s = lane.nearest(state.x, state.z);
     }
 
-    // Travel: smooth, every frame.
+    // Travel: smooth, every frame. Big ships (L38–L42) have the way: it slows for one ahead.
+    const yieldTo = giveWay(ctx.stage, state.x, state.z, state.yaw);
+    dt *= yieldTo.slow;
     const px = state.x, pz = state.z;
     let heading: number;
     if (state.mode === 'out' || state.mode === 'home') {

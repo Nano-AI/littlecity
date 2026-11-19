@@ -13,6 +13,7 @@ import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
 import { townFacts } from '@/resolve/facts/town.fact';
+import { harbour } from './berths.fact';
 import { seaLane } from './sea-lanes.fact';
 
 /** Dock cells the town needs before it keeps a fishing boat. */
@@ -32,10 +33,12 @@ export function berthOf(facts: Facts): Berth | null {
   let best: Berth | null = null;
   let bestScore = -1;
   const docks = [...facts.kinds].filter(([c, k]) => k === 'dock' && keyY(c) === 0).map(([c]) => c).sort((a, b) => a - b);
+  // Not in the water a big ship's berth needs (L38–L40).
+  const reserved = facts.shapeReady ? harbour(facts).reserved : new Set<number>();
   for (const c of docks) {
     for (const [dx, dz] of DIR4) {
       const x = keyX(c) + dx, z = keyZ(c) + dz;
-      if (!open(facts, x, z)) continue;
+      if (!open(facts, x, z) || reserved.has(columnIndex(x, z))) continue;
       let wet = 0;
       for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (open(facts, x + i + dx, z + j + dz)) wet++;
       if (wet > bestScore) {

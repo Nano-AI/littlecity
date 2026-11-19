@@ -124,6 +124,16 @@ export function face(b: MeshBuilder, pts: readonly Vec3[], normals: readonly Vec
   if (pts.length === 4) tri(0, 2, 3);
 }
 
+/** The mirror image (across x = 0) of a face, leaving out any triangle lying on the centreline: it is its own mirror. */
+export function faceMirror(b: MeshBuilder, pts: readonly Vec3[], normals: readonly Vec3[]): void {
+  const m = (v: Vec3): Vec3 => [-v[0], v[1], v[2]];
+  const tris = pts.length === 4 ? [[0, 1, 2], [0, 2, 3]] : [[0, 1, 2]];
+  for (const t of tris) {
+    if (t.every((i) => Math.abs(pts[i]![0]) < 1e-6)) continue;
+    face(b, t.map((i) => m(pts[i]!)), t.map((i) => m(normals[i]!)));
+  }
+}
+
 /** A flat face through `pts` that looks along `toward` (whichever way round the points are given). */
 export function flat(b: MeshBuilder, pts: readonly Vec3[], toward: Vec3): void {
   let nx = 0, ny = 0, nz = 0;
@@ -215,7 +225,7 @@ export function drawHull(b: MeshBuilder, spec: HullSpec, colors: HullColors, ink
         const p = [grid[i]![j]!, grid[i + 1]![j]!, grid[i + 1]![j + 1]!, grid[i]![j + 1]!];
         const q = [outerN[i]![j]!, outerN[i + 1]![j]!, outerN[i + 1]![j + 1]!, outerN[i]![j + 1]!];
         face(b, p, q);
-        face(b, p.map(mirror), q.map(mirror));
+        faceMirror(b, p, q);
       }
     }
     // The gunwale: from the outer sheer in to the inner skin. Where the hull is narrower than two
@@ -227,7 +237,7 @@ export function drawHull(b: MeshBuilder, spec: HullSpec, colors: HullColors, ink
       const p = [a, c, ci, ai];
       const q = [outerN[i]![ROWS - 1]!, outerN[i + 1]![ROWS - 1]!, UP, UP];
       face(b, p, q);
-      face(b, p.map(mirror), q.map(mirror));
+      faceMirror(b, p, q);
     }
     // The transom: a flat board across the stern, and its top edge.
     const stern = grid[0]!;
@@ -255,7 +265,7 @@ export function drawHull(b: MeshBuilder, spec: HullSpec, colors: HullColors, ink
         const p = [inner[i]![j]!, inner[i + 1]![j]!, inner[i + 1]![j + 1]!, inner[i]![j + 1]!];
         const q = [innerN[i]![j]!, innerN[i + 1]![j]!, innerN[i + 1]![j + 1]!, innerN[i]![j + 1]!];
         face(b, p, q);
-        face(b, p.map(mirror), q.map(mirror));
+        faceMirror(b, p, q);
       }
     }
     const back = inner[0]!;
