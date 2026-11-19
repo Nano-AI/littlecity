@@ -1,7 +1,10 @@
 // L05 leaves and L35 insects on their fixture, at fixed steps.
 
 import { describe, expect, test } from 'vitest';
+import { CELL_H, columnIndex, keyX, keyZ } from '@/core/grid';
 import { positionOf } from '@/core/mat4';
+import { meadowOf } from '@/rules/life/L34.grazers.rule';
+import meadowScn from '../../../scenarios/rules/L34.grazers.scenario';
 import { resolveScenario } from '@/scenario';
 import scn from '../../../scenarios/rules/L05.leaves.scenario';
 import { createLife } from '../runtime';
@@ -9,6 +12,7 @@ import { createSignals } from '../signals';
 import { recordingStage, step } from '../testing/stage';
 import insect from './insect.behaviour';
 import leaf, { LEAF_EVERY } from './leaf.behaviour';
+import sheepB from './sheep.behaviour';
 
 function live() {
   const town = resolveScenario(scn);
@@ -69,5 +73,31 @@ describe('insects (L35)', () => {
     signals.hold('night');
     step(life, signals, 0.2);
     for (const a of flies) expect(rec.of(a.id).visible).toBe(false);
+  });
+});
+
+describe('sheep (L34)', () => {
+  test('sheep amble about the meadow, never off it, on the ground or hopping a terrace', () => {
+    const town = resolveScenario(meadowScn);
+    const rec = recordingStage(town);
+    const signals = createSignals(meadowScn.seed);
+    const life = createLife(rec.stage, signals, { behaviours: [sheepB], systems: [] });
+    life.sync(town);
+    signals.hold('day');
+    const meadow = new Set(meadowOf(town.shape.facts).map((c) => columnIndex(keyX(c), keyZ(c))));
+    const sheep = town.dressing.actors.filter((a) => a.type === 'sheep');
+    const start = sheep.map((a) => positionOf(rec.of(a.id).base));
+    let moved = 0;
+    for (let k = 0; k < 120; k++) {
+      step(life, signals, 0.5, 20);
+      sheep.forEach((a, i) => {
+        const [x, y, z] = positionOf(rec.of(a.id).matrix);
+        expect(meadow.has(columnIndex(Math.floor(x), Math.floor(z))), `${a.id} on the meadow`).toBe(true);
+        const g = town.shape.terrain.height[columnIndex(Math.floor(x), Math.floor(z))]! * CELL_H;
+        expect(Math.abs(y - g)).toBeLessThan(CELL_H + 0.3);
+        if (Math.hypot(x - start[i]![0], z - start[i]![2]) > 0.5) moved++;
+      });
+    }
+    expect(moved).toBeGreaterThan(0);
   });
 });

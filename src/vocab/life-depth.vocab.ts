@@ -26,6 +26,12 @@ declare module '@/core/vocab' {
     'insect/bee': true;
     'insect.look': number;
 
+    // L34. A sheep that wanders the open meadow; a chicken by a vegetable patch.
+    'sheep': true;
+    'sheep.look': number;
+    'chicken': true;
+    'chicken.look': number;
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand
