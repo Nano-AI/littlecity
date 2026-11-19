@@ -8,8 +8,13 @@ import { defineStyle } from '@/core/style';
 export const LOOK = defineStyle(
   'look',
   {
-    /** Ink line width in CSS pixels at close zoom, and at the far overview. */
-    inkWidth: 1.6,
+    /**
+     * Ink line width in CSS pixels. Up close an outline (one thing in front of another) is `inkWidth`
+     * and the lines inside a shape (seams, creases) are `inkWidthInner`; at the far overview every
+     * line is `inkWidthFar`.
+     */
+    inkWidth: 1.5,
+    inkWidthInner: 0.85,
     inkWidthFar: 0.95,
     /** Screen pixels per world unit at which the line reaches each width. */
     inkNearPx: 110,
@@ -46,6 +51,7 @@ export const LOOK = defineStyle(
   },
   {
     inkWidth: [0.6, 3, 0.05],
+    inkWidthInner: [0.4, 3, 0.05],
     inkWidthFar: [0.4, 2, 0.05],
     inkSilhouette: [0, 1, 0.05],
     inkSeam: [0, 1, 0.05],
@@ -67,38 +73,64 @@ export const LOOK = defineStyle(
 );
 
 /**
- * The colour grade at the four anchors of the dusk cycle. `tint` multiplies
- * the whole drawing (paper included), `lift` is added after it, `ink` is the
- * line colour. Dusk and dawn are the colours at the peak of those stretches;
- * the grade eases between neighbours (src/render/grade.ts).
+ * The colour grade at the four anchors of the dusk cycle (src/render/grade.ts applies it). Per part:
+ *
+ *   Tint      multiplies faces turned to the light, and the bare paper
+ *   Shade     multiplies faces turned away from it (dusk: warm light, cool violet shade)
+ *   Lift      is added afterwards
+ *   Ink       is the line colour
+ *   Chroma    saturation of the drawing BEFORE the tint: above 1 pushes materials apart in hue, so
+ *             a strong tint does not turn stone, path and sand into one colour
+ *   Contrast  a curve on brightness before the tint: above 1 keeps pale things (stone, white trim)
+ *             up and lets mid-tones (grass) drop, so monuments stand off the ground at night
+ *   Sat       saturation after the tint
+ *   Sea       multiplies the sea alone (night: a step darker than the land)
+ *   Slope, Cast   the cast shade: how steeply the light falls (lower is longer), how dark it is
+ *
+ * Dusk and dawn are the values at the peak of those stretches; the grade eases between neighbours.
  */
 export const GRADE = defineStyle(
   'grade',
   {
     dayTint: '#ffffff',
+    dayShade: '#ffffff',
     dayLift: '#000000',
     dayInk: '#3a2f2a',
+    dayChroma: 1,
+    dayContrast: 1,
     daySat: 1,
-    /** How steeply the light falls (lower casts a longer shadow), and how dark the cast shadow is. */
+    daySea: 1,
     daySlope: 1.25,
     dayCast: 0.55,
-    duskTint: '#ffd4bd',
-    duskLift: '#12060f',
+    duskTint: '#ffe6cc',
+    duskShade: '#dcc6e2',
+    duskLift: '#0c0409',
     duskInk: '#4a2c33',
-    duskSat: 1.05,
+    duskChroma: 1.3,
+    duskContrast: 1.35,
+    duskSat: 1,
+    duskSea: 1,
     duskSlope: 0.6,
     duskCast: 0.7,
-    nightTint: '#4c5590',
+    nightTint: '#626cab',
+    nightShade: '#4a5390',
     nightLift: '#080a1c',
     nightInk: '#11112c',
+    nightChroma: 1,
+    nightContrast: 2.6,
     /** Night is a little greyer as well as darker: colours rest, lit windows sing. */
     nightSat: 0.72,
+    nightSea: 0.74,
     nightSlope: 1.45,
     nightCast: 0.35,
-    dawnTint: '#e6cfe2',
+    dawnTint: '#f0dcea',
+    dawnShade: '#cfc4e6',
     dawnLift: '#07050c',
     dawnInk: '#3b2e40',
-    dawnSat: 0.92,
+    dawnChroma: 1.15,
+    dawnContrast: 1.25,
+    dawnSat: 0.94,
+    dawnSea: 0.95,
     dawnSlope: 0.65,
     dawnCast: 0.6,
     /** Lit windows and lamps: the pane colour and its warmer halo. */
@@ -107,9 +139,14 @@ export const GRADE = defineStyle(
     /** Stars and the lighthouse beam. */
     star: '#fff6d8',
   },
-  {
-    daySat: [0, 1.5, 0.01], duskSat: [0, 1.5, 0.01], nightSat: [0, 1.5, 0.01], dawnSat: [0, 1.5, 0.01],
-    daySlope: [0.3, 3, 0.05], duskSlope: [0.3, 3, 0.05], nightSlope: [0.3, 3, 0.05], dawnSlope: [0.3, 3, 0.05],
-    dayCast: [0, 1, 0.05], duskCast: [0, 1, 0.05], nightCast: [0, 1, 0.05], dawnCast: [0, 1, 0.05],
-  },
+  Object.fromEntries(
+    ['day', 'dusk', 'night', 'dawn'].flatMap((part) => [
+      [`${part}Chroma`, [0, 2, 0.01]],
+      [`${part}Contrast`, [0.5, 4, 0.05]],
+      [`${part}Sat`, [0, 1.5, 0.01]],
+      [`${part}Sea`, [0.3, 1.2, 0.01]],
+      [`${part}Slope`, [0.3, 3, 0.05]],
+      [`${part}Cast`, [0, 1, 0.05]],
+    ]),
+  ),
 );

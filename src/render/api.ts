@@ -49,6 +49,14 @@ export interface ViewStats {
   triangles: number;
   /** Milliseconds the last setTown / setDressing spent rebuilding geometry. */
   rebuildMs: number;
+  /**
+   * Added by Look. Where the last setTown / setDressing spent that time, in milliseconds, so a slow
+   * rebuild can be laid at the right door: `generators` is time inside structure generators (and the
+   * parts they call), `layers` inside layer hash() and build(), `parts` inside prop and actor parts,
+   * `view` everything the renderer itself did (packing into pools, layout, bookkeeping). `structures`
+   * and `vertices` count what was rebuilt.
+   */
+  rebuild?: { generators: number; layers: number; parts: number; view: number; structures: number; vertices: number };
 }
 
 export interface ViewOptions {

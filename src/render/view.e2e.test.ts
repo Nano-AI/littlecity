@@ -198,6 +198,40 @@ describe('the view', () => {
     expect(across).toBeLessThan(elsewhere * 1.5 + 0.05);
   });
 
+  test('line weight answers to zoom: up close the lines inside a shape are finer than its outline; far off nothing changes', async () => {
+    await look(`window.__look.open('look-primitives', { ink: 'full', pixelRatio: 2 })`);
+    const inkAt = async (zoom: number, inner: number | null): Promise<number> => {
+      await look(`window.__look.style()`);
+      if (inner !== null) await look(`window.__look.style('look', 'inkWidthInner', ${inner})`);
+      await look(`window.__look.camera({ yaw: 45, pitch: 30, zoom: ${zoom}, target: [21, 1.5, 24.5] })`);
+      return (await settled()).dark;
+    };
+    // Close (zoom 12: a house fills the view). With the interior as heavy as the outline there is clearly more ink.
+    const fine = await inkAt(12, null), heavy = await inkAt(12, 1.5);
+    expect(fine).toBeLessThan(heavy * 0.85);
+    // The outline is still there: thinning the interior further removes little more.
+    expect(await inkAt(12, 0.4)).toBeGreaterThan(fine * 0.6);
+    // At the overview the interior width plays no part: the picture is inked exactly as before.
+    expect(await inkAt(1.6, 0.4)).toBe(await inkAt(1.6, 1.5));
+    await look(`window.__look.style()`);
+    expect(errors).toEqual([]);
+  });
+
+  test('actors and spawned things move without redrawing the grounding picture; a moved prop redraws it', async () => {
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    const rest = (await settled()).drawCalls;
+    expect(await look<number>(`window.__look.spawn(60)`)).toBe(60);
+    await settled();
+    // Sixty things moving every frame: one more draw call (their pool) and nothing else, ever.
+    const walking = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('spawned', 30)`);
+    expect(walking.drawCalls).toBe(rest + 1);
+    // A prop stands in the picture (it throws shade), so moving one redraws it, every other frame at most.
+    const sliding = await look<{ ms: number; drawCalls: number }>(`window.__look.moving('prop', 30)`);
+    expect(sliding.drawCalls).toBeGreaterThan(rest + 3);
+    expect(sliding.drawCalls).toBeLessThanOrEqual(rest + 1 + (rest + 2) / 2 + 1);
+    expect(errors).toEqual([]);
+  });
+
   test('flat ground and open sea never ink over, however far out or low the view (phone, half ink)', async () => {
     for (const ink of ['half', 'full']) {
       await look(`window.__look.open('look-isle-1', { ink: '${ink}', pixelRatio: 2, width: 390, height: 844 })`);

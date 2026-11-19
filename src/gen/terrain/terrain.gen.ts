@@ -38,7 +38,7 @@ import type { ShapePlan } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
 import { terraceGrass, TERRAIN } from '@/style/terrain';
 import { defineLayer } from '../api';
-import { MeshBuilder, PATTERN } from '../mesh';
+import { EDGE_FAR, MeshBuilder, PATTERN } from '../mesh';
 
 /** Segments in a quarter-circle of outline. */
 const ARC = 6;
@@ -53,14 +53,27 @@ const UNDER_SEA = 0.12;
 
 type Pt = readonly [number, number];
 type Shore = 'rock' | 'earth' | 'sand';
-interface EdgeKind {
-  shore: Shore;
+/** What a stretch of bank is like. The numbers blend from one stretch to the next round a corner. */
+interface BankMix {
   /** How far the foot of the bank stands out from its top. */
   run: number;
-  /** A grass lip caps it. */
-  lip: boolean;
+  /** 0 earth to 1 rock. The shader draws the wandering border between them (PATTERN.rock reads `edge`). */
+  rock: number;
+  /** 0 to 1: a grass lip caps it. */
+  lip: number;
+  /** 0 to 1: a ledge may jut out at the top of this level (a tall face carries one or two). */
+  shelf: number;
+}
+interface EdgeKind extends BankMix {
+  shore: Shore;
 }
 const HARDNESS: Record<Shore, number> = { sand: 0, earth: 1, rock: 2 };
+const blend = (a: BankMix, b: BankMix, t: number): BankMix => ({
+  run: a.run + (b.run - a.run) * t,
+  rock: a.rock + (b.rock - a.rock) * t,
+  lip: a.lip + (b.lip - a.lip) * t,
+  shelf: a.shelf + (b.shelf - a.shelf) * t,
+});
 
 interface Ground {
   seed: number;
@@ -70,6 +83,10 @@ interface Ground {
   radius(vx: number, vz: number, level: number): number;
   /** Moves an outline point off the grid a little. */
   warp(x: number, z: number): Pt;
+  /** True if a block or floor stands in column (x, z) anywhere from level `lo` up to below `hi`. */
+  built(x: number, z: number, lo: number, hi: number): boolean;
+  /** How far a ledge juts out at the top of a level at an outline point, where one is allowed (0 to 1). */
+  shelf(x: number, z: number, level: number): number;
 }
 
 /** Smooth seeded noise in [0, 1]. */
@@ -112,6 +129,18 @@ function groundOf(plan: ShapePlan): Ground {
       const a = TERRAIN.wobble * 2;
       return [x + (vnoise(seed ^ 0x51, x * 0.83, z * 0.83) - 0.5) * a, z + (vnoise(seed ^ 0xa7, x * 0.83, z * 0.83) - 0.5) * a];
     },
+    built(x, z, lo, hi) {
+      if (!inColumnBounds(x, z)) return false;
+      if (w.floors.has(key(x, lo, z))) return true;
+      for (let y = lo; y < hi; y++) if (w.blocks.has(key(x, y, z))) return true;
+      return false;
+    },
+    shelf(x, z, level) {
+      // Ledges come and go along a face: a slow noise, cut so that about a third of a face has one.
+      const n = vnoise(seed ^ (0x1ed + level * 977), x * 0.5, z * 0.5);
+      const t = Math.min(1, Math.max(0, (n - 0.5) / 0.2));
+      return t * t * (3 - 2 * t);
+    },
   };
 }
 
@@ -122,9 +151,12 @@ function edgeKind(g: Ground, hx: number, hz: number, lx: number, lz: number, lev
   const shore: Shore = hi - lo >= 2 || m === MAT.rock ? 'rock' : m === MAT.sand ? 'sand' : 'earth';
   const atWater = level === 1 && lo === 0;
   const run = shore === 'sand' ? TERRAIN.beachRun : atWater ? TERRAIN.shoreRun : shore === 'earth' ? TERRAIN.earthRun : TERRAIN.rockRun;
-  return { shore, run, lip: shore !== 'sand' && m === MAT.grass && hi === level };
+  // A ledge partway up: only where the face carries on above this level, never at the waterline, and
+  // never where something is built against the foot of the face.
+  const shelf = hi > level && !atWater && !g.built(lx, lz, lo, hi) ? 1 : 0;
+  return { shore, run, rock: shore === 'rock' ? 1 : 0, lip: shore !== 'sand' && m === MAT.grass && hi === level ? 1 : 0, shelf };
 }
-const harder = (a: EdgeKind, b: EdgeKind): EdgeKind => (HARDNESS[b.shore] > HARDNESS[a.shore] ? b : a);
+const harder = (a: EdgeKind, b: EdgeKind): Shore => (HARDNESS[b.shore] > HARDNESS[a.shore] ? b.shore : a.shore);
 
 // ───────────────────────────────────────────────────────────── emitters ──
 
@@ -136,59 +168,71 @@ function upTri(b: MeshBuilder, p0: Vec3, p1: Vec3, p2: Vec3, e0: number, e1: num
 }
 
 /** A wall strip between two outline points, facing along the given normals. */
-function wallQuad(b: MeshBuilder, lo0: Vec3, lo1: Vec3, hi1: Vec3, hi0: Vec3, n0lo: Vec3, n1lo: Vec3, n1hi: Vec3, n0hi: Vec3): void {
+function wallQuad(b: MeshBuilder, lo0: Vec3, lo1: Vec3, hi1: Vec3, hi0: Vec3, n0lo: Vec3, n1lo: Vec3, n1hi: Vec3, n0hi: Vec3, e0 = EDGE_FAR, e1 = EDGE_FAR): void {
   const ux = lo1[0] - lo0[0], uy = lo1[1] - lo0[1], uz = lo1[2] - lo0[2];
   const vx = hi0[0] - lo0[0], vy = hi0[1] - lo0[1], vz = hi0[2] - lo0[2];
   const facing = (uy * vz - uz * vy) * n0lo[0] + (uz * vx - ux * vz) * n0lo[1] + (ux * vy - uy * vx) * n0lo[2];
-  if (facing >= 0) b.quad(lo0, lo1, hi1, hi0, { normals: [n0lo, n1lo, n1hi, n0hi] });
-  else b.quad(lo1, lo0, hi0, hi1, { normals: [n1lo, n0lo, n0hi, n1hi] });
+  // `edge` carries a per-point value up the wall (the bank's rockiness): e0 at the first point, e1 at the second.
+  if (facing >= 0) b.quad(lo0, lo1, hi1, hi0, { normals: [n0lo, n1lo, n1hi, n0hi], edge: [e0, e1, e1, e0] });
+  else b.quad(lo1, lo0, hi0, hi1, { normals: [n1lo, n0lo, n0hi, n1hi], edge: [e1, e0, e0, e1] });
 }
 
-interface WallPoint {
+interface WallPoint extends BankMix {
   /** The outline point (already warped), world x and z. */
   x: number;
   z: number;
   /** Outward unit normal in the ground plane. */
   nx: number;
   nz: number;
-  /** How far the foot stands out here. */
-  run: number;
+  /** How far a ledge juts out at the top of this level here (world units). */
+  out: number;
 }
 
-/** One stretch of bank: the strip from the foot up to the outline, and its grass lip. */
-function emitBank(b: MeshBuilder, pts: readonly WallPoint[], kind: EdgeKind, yb: number, yt: number, level: number): void {
+/**
+ * One stretch of bank: the strip from the foot up to the outline, its grass lip, and, on a tall
+ * face, a ledge. Earth and rock are one surface (one ink group): each point says how rocky it is and
+ * the rock pattern draws the border between them, so they interleave instead of meeting on a line.
+ */
+function emitBank(b: MeshBuilder, pts: readonly WallPoint[], shore: Shore, yb: number, yt: number, level: number): void {
   if (pts.length < 2) return;
-  const lipH = kind.lip ? Math.min(kind.shore === 'rock' ? TERRAIN.turf * 0.6 : TERRAIN.turf, (yt - yb) * 0.4) : 0;
-  const ym = yt - lipH;
-  const lipOut = kind.lip ? TERRAIN.turfOut : 0;
-  if (kind.shore === 'sand') b.setColor(PALETTE.sand).setPattern(PATTERN.sand).setInk(`ground${level}`);
-  else if (kind.shore === 'rock') b.setColor(PALETTE.rock).setPattern(PATTERN.rock).setInk('rock');
-  else b.setColor(PALETTE.dirt).setPattern(PATTERN.earth).setInk('earth');
-  const rise = ym - yb;
+  const sand = shore === 'sand';
+  const lipOf = (w: WallPoint): number => {
+    if (sand) return 0;
+    const ledge = Math.min(1, w.out / 0.05);
+    return Math.min(TERRAIN.turf * (1 - 0.4 * w.rock), (yt - yb) * 0.4) * Math.max(w.lip, ledge);
+  };
+  if (sand) b.setColor(PALETTE.sand).setPattern(PATTERN.sand).setInk(`ground${level}`);
+  else b.setColor(PALETTE.rock).setPattern(PATTERN.rock).setInk('bank');
+  const top = (w: WallPoint, y: number, extra = 0): Vec3 => [w.x + w.nx * (w.out + extra), y, w.z + w.nz * (w.out + extra)];
   for (let i = 0; i + 1 < pts.length; i++) {
     const p = pts[i]!, q = pts[i + 1]!;
     const slope = (w: WallPoint): Vec3 => {
+      const rise = yt - lipOf(w) - yb;
       const len = Math.hypot(rise, w.run) || 1;
       return [(w.nx * rise) / len, w.run / len, (w.nz * rise) / len];
     };
     // A beach meets its top softly: the normal eases to "up" there, so no crease is inked.
-    const crown = (w: WallPoint): Vec3 => (kind.shore === 'sand' ? norm([w.nx * 0.5, 1, w.nz * 0.5]) : slope(w));
-    wallQuad(
-      b,
-      [p.x + p.nx * p.run, yb, p.z + p.nz * p.run],
-      [q.x + q.nx * q.run, yb, q.z + q.nz * q.run],
-      [q.x, ym, q.z],
-      [p.x, ym, p.z],
-      slope(p), slope(q), crown(q), crown(p),
-    );
+    const crown = (w: WallPoint): Vec3 => (sand ? norm([w.nx * 0.5, 1, w.nz * 0.5]) : slope(w));
+    wallQuad(b, top(p, yb, p.run), top(q, yb, q.run), top(q, yt - lipOf(q)), top(p, yt - lipOf(p)), slope(p), slope(q), crown(q), crown(p), sand ? EDGE_FAR : p.rock, sand ? EDGE_FAR : q.rock);
   }
-  if (lipH > 0) {
-    b.setColor(PALETTE.grassSide).setPattern(PATTERN.none).setInk('turf');
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const p = pts[i]!, q = pts[i + 1]!;
-      const np: Vec3 = [p.nx, 0, p.nz], nq: Vec3 = [q.nx, 0, q.nz];
-      wallQuad(b, [p.x + p.nx * lipOut, ym, p.z + p.nz * lipOut], [q.x + q.nx * lipOut, ym, q.z + q.nz * lipOut], [q.x, yt, q.z], [p.x, yt, p.z], np, nq, nq, np);
-    }
+  if (sand) return;
+  b.setColor(PALETTE.grassSide).setPattern(PATTERN.none).setInk('turf');
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const p = pts[i]!, q = pts[i + 1]!;
+    const lp = lipOf(p), lq = lipOf(q);
+    if (lp < 0.004 && lq < 0.004) continue;
+    const np: Vec3 = [p.nx, 0, p.nz], nq: Vec3 = [q.nx, 0, q.nz];
+    const over = (l: number): number => TERRAIN.turfOut * Math.min(1, l / 0.03);
+    wallQuad(b, top(p, yt - lp, over(lp)), top(q, yt - lq, over(lq)), top(q, yt), top(p, yt), np, nq, nq, np);
+  }
+  // The ledge's own top: a strip of grass between the face above and the lip.
+  b.setColor(terraceGrass(level)).setPattern(PATTERN.grass).setInk(`ground${level}`);
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const p = pts[i]!, q = pts[i + 1]!;
+    if (p.out < 0.004 && q.out < 0.004) continue;
+    const p0: Vec3 = [p.x, yt, p.z], q0: Vec3 = [q.x, yt, q.z];
+    upTri(b, p0, q0, top(q, yt), EDGE_FAR, EDGE_FAR, EDGE_FAR);
+    upTri(b, p0, top(q, yt), top(p, yt), EDGE_FAR, EDGE_FAR, EDGE_FAR);
   }
 }
 
@@ -277,9 +321,11 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
 
   // ── the banks ──────────────────────────────────────────────────────────
   const yb = level === 1 ? SEA_Y - UNDER_SEA : (level - 1) * CELL_H;
-  const point = (u: number, v: number, nu: number, nv: number, run: number): WallPoint => {
+  const point = (u: number, v: number, nu: number, nv: number, k: BankMix, cap = Infinity): WallPoint => {
     const [px, pz] = world(u, v, true);
-    return { x: px, z: pz, nx: -sx * nu, nz: -sz * nv, run };
+    const run = Math.min(cap, k.run);
+    const out = Math.min(Math.max(0, cap - run), k.shelf * TERRAIN.ledge * g.shelf(px, pz, level));
+    return { ...k, run, x: px, z: pz, nx: -sx * nu, nz: -sz * nv, out };
   };
   if (fillet) {
     const kB = edgeKind(g, x + sx, z, x, z, level), kC = edgeKind(g, x, z + sz, x, z, level);
@@ -287,8 +333,8 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
     for (let i = 0; i <= ARC; i++) {
       const phi = (i / ARC) * (Math.PI / 2);
       const [u, v] = arc(i);
-      const run = Math.min(r * 0.8, kC.run + (kB.run - kC.run) * (i / ARC));
-      pts.push(point(u, v, Math.sin(phi), Math.cos(phi), run));
+      // The foot and any ledge stay inside the fillet's own curve.
+      pts.push(point(u, v, Math.sin(phi), Math.cos(phi), blend(kC, kB, i / ARC), r * 0.8));
     }
     emitBank(b, pts, harder(kB, kC), yb, yt, level);
     return;
@@ -300,25 +346,26 @@ function emitQuarter(b: MeshBuilder, g: Ground, x: number, z: number, sx: number
     for (let i = 0; i <= ARC; i++) {
       const phi = (i / ARC) * (Math.PI / 2);
       const [u, v] = arc(i);
-      pts.push(point(u, v, -Math.sin(phi), -Math.cos(phi), kC.run + (kB.run - kC.run) * (i / ARC)));
+      pts.push(point(u, v, -Math.sin(phi), -Math.cos(phi), blend(kC, kB, i / ARC)));
     }
     emitBank(b, pts, harder(kB, kC), yb, yt, level);
   }
   if (kB) {
-    // Along u = 0, from where the corner ends to the middle of the cell's edge.
+    // Along u = 0, from where the corner ends to the middle of the cell's edge. Where the outline
+    // runs straight on into the next cell, the two cells' banks meet half-way between their kinds.
     const straightOn = inC && !inD;
     const t = straightOn ? 0 : r;
     if (t < 0.5) {
-      const runAtCorner = straightOn ? (kB.run + edgeKind(g, x, z + sz, x + sx, z + sz, level).run) / 2 : kB.run;
-      emitBank(b, [point(0, t, -1, 0, runAtCorner), point(0, 0.5, -1, 0, kB.run)], kB, yb, yt, level);
+      const atCorner = straightOn ? blend(kB, edgeKind(g, x, z + sz, x + sx, z + sz, level), 0.5) : kB;
+      emitBank(b, [point(0, t, -1, 0, atCorner), point(0, 0.5, -1, 0, kB)], kB.shore, yb, yt, level);
     }
   }
   if (kC) {
     const straightOn = inB && !inD;
     const t = straightOn ? 0 : r;
     if (t < 0.5) {
-      const runAtCorner = straightOn ? (kC.run + edgeKind(g, x + sx, z, x + sx, z + sz, level).run) / 2 : kC.run;
-      emitBank(b, [point(t, 0, 0, -1, runAtCorner), point(0.5, 0, 0, -1, kC.run)], kC, yb, yt, level);
+      const atCorner = straightOn ? blend(kC, edgeKind(g, x + sx, z, x + sx, z + sz, level), 0.5) : kC;
+      emitBank(b, [point(t, 0, 0, -1, atCorner), point(0.5, 0, 0, -1, kC)], kC.shore, yb, yt, level);
     }
   }
 }

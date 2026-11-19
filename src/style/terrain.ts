@@ -19,7 +19,9 @@ export const TERRAIN = defineStyle(
     levelTint: 0.34,
     /** Height of the grass lip that caps an earth bank or a cliff. */
     turf: 0.12,
-    /** How far it overhangs. */
+    /** How far a ledge juts out partway up a rock face of two levels or more (0 for none). */
+    ledge: 0.17,
+    /** How far the grass lip overhangs. */
     turfOut: 0.025,
     /** How far the foot of a bank stands out from its top: beach, earth, rock. */
     beachRun: 0.3,
@@ -39,6 +41,7 @@ export const TERRAIN = defineStyle(
     wobble: [0, 0.12, 0.005],
     levelTint: [0, 1, 0.02],
     turf: [0, 0.3, 0.01],
+    ledge: [0, 0.3, 0.01],
     turfOut: [0, 0.08, 0.005],
     beachRun: [0, 0.45, 0.01],
     earthRun: [0, 0.2, 0.01],
