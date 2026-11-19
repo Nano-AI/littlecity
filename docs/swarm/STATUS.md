@@ -124,7 +124,7 @@ is not pushed beyond what was already on the remote). Pages source was
 changed from the working branch to `gh-pages`. Redeploy after each gate
 with `./tools/deploy-pages.sh`.
 
-**11:45** Merged fix passes: Monuments `cb686d2` (M1–M7 all done) and
+**(time: see git log)** Merged fix passes: Monuments `cb686d2` (M1–M7 all done) and
 Houses `21c4909` (H1–H6 plus role props; adds `J05.terrace-edges`,
 `R-H99.role-props`). Typecheck, lint and 853 unit tests green. Browser
 tests in `tests/e2e/interface.e2e.test.ts` time out under machine load
@@ -134,7 +134,7 @@ Ground's half of the terrace railing (G4), bench not re-measured after
 Houses' heavier J10. Held-length feature in progress on `swarm/held-length`
 (Opus 5.5).
 
-**12:15** Merged Ground fix pass `8419265` (G1–G5). Orchestrator rewrote the
+**(time: see git log)** Merged Ground fix pass `8419265` (G1–G5). Orchestrator rewrote the
 end of `scenarios/rules/J05.terrace-edges.scenario.ts`: Ground no longer
 adds J19 railings on house roofs, so the house parapet stands there.
 856 unit tests green. Open seams: fence edge pieces round a pitched-roof
@@ -142,7 +142,7 @@ house float at eaves level (needs a decision: skip drawing them); stall and
 fountain triangle trims not done. Still running: Animation, Dressing, Look
 fix pass, held-length; People finishing.
 
-**12:50** Merged Animation `409c40c` (L02, L03, L06, L07, L09, L10 part,
+**(time: see git log)** Merged Animation `409c40c` (L02, L03, L06, L07, L09, L10 part,
 L11–L13, L16, L17, L19, F01–F05; `src/life/MOTION.md`; sequence tool
 `src/life/testing/sequence.mjs`). Full `npm run check` green: 972 tests,
 browser tests included (Animation fixed the slow e2e file by closing pages).
@@ -151,19 +151,19 @@ clock hands, fountain jet baked as static geometry); grounding picture
 redraws every other frame so GPU load is about 3.5x (check on phone);
 remaining L rules and sound not done.
 
-**13:20** Merged Dressing `ea3274c`: D01–D11 (not D12), D13, D15, D20, D24,
+**(time: see git log)** Merged Dressing `ea3274c`: D01–D11 (not D12), D13, D15, D20, D24,
 U01–U08, U12 (centre half). Full check green: 1,089 tests. Published.
 Not built: U09–U11 and U12 edge half (need Houses files), D12, D14, D17–D19,
 D21–D23, D25–D28, D30–D34. `resolveDressing` 13 ms of 30 ms. Orchestrator
 note: chimney smoke reads as stacked white lumps and is too dense; a laundry
 line can cross above a public stair.
 
-**13:25** Stage 4 depth launched on Opus 5.5: `swarm/dressing-depth`
+**(time: see git log)** Stage 4 depth launched on Opus 5.5: `swarm/dressing-depth`
 (remaining D and U rules; may edit Houses files for U09–U11) and
 `swarm/life-depth` (remaining L rules, L29 unblock, cap yaw, sound, smoke
 tuning; may edit the generators that bake bell, clock hands and jets).
 
-**13:55** Merged Look fix pass `61ba162` (L1–L4; actors kept out of the
+**(time: see git log)** Merged Look fix pass `61ba162` (L1–L4; actors kept out of the
 grounding picture). Orchestrator relaxed one assertion in
 `src/render/view.e2e.test.ts` (actor pool may exist at rest). Full check
 green: 1,095 tests. Published. Open from Look's bench: geometry rebuild
@@ -172,3 +172,11 @@ almost all inside structure generators rebuilding a whole merged structure;
 `npm run bench -- everything` throws (use
 `node src/render/testing/bench.mjs <scenario>`); ART.md pictures are stale.
 Running: People (finishing), held-length, dressing-depth, life-depth.
+
+Note: the clock times on the six entries above were guesses and have been
+removed; the merge commits carry the real times (all between 11:08 and
+11:54 on 2026-11-19).
+
+**11:55** Merged held length `9772953` (scroll or the − n + stepper
+stretches run pieces; `src/ui/length.ts`). Full check green: 1,117 tests.
+Published. Running: People (final check), dressing-depth, life-depth.
