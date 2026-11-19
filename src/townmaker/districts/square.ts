@@ -13,6 +13,7 @@
 //   v=6     .  .  M  .  .  .  .        M plinth with a statue
 //        u=-2 0  1  2  3  4  5  6
 
+import { key } from '@/core/grid';
 import { CLAIM } from '../grower';
 import { search } from '../frame';
 import { fits, rectFlat, startDistrict, type Town, Local } from '../town';
@@ -73,6 +74,10 @@ export function buildSquare(town: Town): boolean {
     L.put('stall', k, h, Math.max(3, k - 1));
     L.put('tree', 1, h, k);
     L.put('tree', 0, h, k);
+    // Corner houses inside the ring road's corners (streets on two sides: U10 corner turrets).
+    for (const [u, v] of [[-2, top], [-2, k + 1]] as const) {
+      if (!g.groundTaken(f.x(u, v), f.z(u, v)) && !g.world.floors.has(key(f.x(u, v), h, f.z(u, v)))) L.house(u, v, u, v, 2 + (g.chance(0.4, 'corner', u, v) ? 1 : 0), `corner${v}`);
+    }
     // A statue on its plinth by the square.
     L.put('marble', 2, h, k + 1, 1);
 

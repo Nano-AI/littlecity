@@ -25,7 +25,8 @@ export function buildAcropolis(town: Town): boolean {
     const d = fromSquare(town, f.x(1, 8), f.z(1, 8));
     if (d < 7) return null;
     return { score: Math.abs(d - 13) - h * 1.5, data: h };
-  });
+    // Turned so its open end (local north, not the steps) is the front D22 reads (south or east): braziers stand there.
+  }, { turns: [1, 2] });
   if (!found) return false;
   const f = found.frame;
   const h = found.data;

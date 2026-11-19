@@ -24,8 +24,9 @@ import { columnIndex, key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain } from '@/core/world';
 import { buildCastle } from './districts/castle';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
+import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour } from './districts/harbour';
-import { buildHousing } from './districts/housing';
+import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
 import { buildSquare } from './districts/square';
@@ -61,6 +62,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
 
   buildSquare(town);
+  reserveFarmstead(town);
   buildWillow(town);
   buildHilltop(town);
   buildCliffHouse(town);
@@ -70,6 +72,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildHarbour(town);
   buildLighthouse(town);
   buildHousing(town, 0, 9);
+  buildCourtyard(town, 0, 8);
   buildManor(town);
   buildHousing(town, 1, 11);
   buildChapel(town);
@@ -88,6 +91,7 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildFlowerBed(town, 1);
   for (let ring = 0; ring < 4; ring++) buildInfill(town, ring);
   buildTrees(town);
+  buildFarmstead(town);
 
   const { edits, fellBack } = watchingOrder(town);
   const counts = new Map<number, number>();

@@ -27,6 +27,8 @@ export interface Town {
   districts: District[];
   /** A town with no fountain at all: it draws its water at a hand pump (D33) instead. */
   pumps: boolean;
+  /** Where the outlying farmstead goes, its ground kept clear (farmstead.ts). */
+  farm?: [number, number];
 }
 
 export function startDistrict(town: Town, name: string, x: number, z: number): District {
