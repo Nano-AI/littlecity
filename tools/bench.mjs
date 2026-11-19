@@ -58,6 +58,13 @@ if (!flags['no-browser'] && !failed) {
     row('update + render CPU time (median / p95)', `${ms(median(r.renderMs))} / ${ms(p95(r.renderMs))}`);
     row('draw calls per frame', r.drawCalls, 'budget ≤ 150');
     row('triangles per frame', r.triangles);
+    if (r.frameTriangles?.length) {
+      const mean = r.frameTriangles.reduce((a, b) => a + b, 0) / r.frameTriangles.length;
+      const low = Math.min(...r.frameTriangles);
+      const redraws = r.frameTriangles.filter((t) => t > low * 1.5).length;
+      row('triangles per frame (mean, with grounding)', `${(mean / 1e6).toFixed(2)} M`);
+      row('frames that redrew the grounding picture', `${redraws} of ${r.frameTriangles.length}`);
+    }
     row('resolveShape() after one edit', `${ms(median(r.edits.map((e) => e.shapeMs)))} / ${ms(p95(r.edits.map((e) => e.shapeMs)))}`, 'budget ≤ 8 ms');
     row('resolveDressing() after one edit', `${ms(median(r.edits.map((e) => e.dressingMs)))} / ${ms(p95(r.edits.map((e) => e.dressingMs)))}`, 'budget ≤ 30 ms');
     row('geometry rebuild after one edit', `${ms(median(r.edits.map((e) => e.rebuildMs)))} / ${ms(p95(r.edits.map((e) => e.rebuildMs)))}`, 'budget ≤ 8 ms');
