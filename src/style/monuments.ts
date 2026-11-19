@@ -68,6 +68,9 @@ export const MONUMENTS = defineStyle(
     /** The cornice under its top edges (0 for none: then the shader's bevel line is used instead). */
     marbleCornice: 0.13,
     marbleCorniceOut: 0.025,
+    /** The string course at each storey line of a marble wall: height and how far it stands out. */
+    marbleCourse: 0.05,
+    marbleCourseOut: 0.03,
   },
   {
     towerRadius: [0.28, 0.45, 0.01],
@@ -104,5 +107,7 @@ export const MONUMENTS = defineStyle(
     marbleBaseOut: [0, 0.08, 0.005],
     marbleCornice: [0, 0.2, 0.005],
     marbleCorniceOut: [0, 0.08, 0.005],
+    marbleCourse: [0, 0.12, 0.005],
+    marbleCourseOut: [0, 0.08, 0.005],
   },
 );
