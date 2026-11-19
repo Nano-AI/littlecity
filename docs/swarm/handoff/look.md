@@ -38,5 +38,9 @@ Branch `swarm/look`. Task was the Look section of `docs/swarm/art-review-1.md`, 
   or `slots.moved` (at most every other frame); shade baked at half size.
 - Pools: one `VertexPool` per 16 × 16 chunk, plus `dynamic` (props, ghost) and `movers`. `put` appends
   and retires the old span; only dirty spans upload. Slot 0 = static; negative glow = ghost slot.
+- Steady ink (`docs/swarm/steady-ink.md`): the surface vertex shader sets its own clip z (from the
+  target, plus a per-ink-id tie-break of up to 23 x `Z_STEP`) and the clip planes are 70 to 330. The
+  pen's noise is read at the world point under the pixel (`penAt`, a 3D noise texture). Check motion
+  with `node src/render/testing/flicker.mjs`, coplanar geometry with `coplanar.mjs`.
 - Styles `look`, `grade`, `wind`, `time` are read per frame; any other style change invalidates every
   mesh (`geometryStyleKey`).
