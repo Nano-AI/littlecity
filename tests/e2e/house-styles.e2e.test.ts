@@ -291,6 +291,26 @@ describe('desktop: one building, not a row of strangers', () => {
     expect(errors).toEqual([]);
   });
 
+  test('six ground clicks across a one-level step in the ground make one building', async () => {
+    const opened = await app.open('/?scenario=J02.split-level', DESKTOP);
+    pages.push(opened.page);
+    const { page, errors } = opened;
+    await page.waitForFunction('window.__lc !== undefined && window.__lc.ui !== null');
+    // Columns x = 8, 9 are at level 1 and x = 10 one level up, from z = 4 to 20.
+    await js(page, `window.__lc.view.setCamera({ yaw: 45, pitch: 34, zoom: 7, target: [9.5, 1.5, 14.5] })`);
+    await page.waitForTimeout(1200);
+    await chooseStyle(page, 2);
+    const before = await js<number>(page, 'window.__lc.world().blocks.size');
+    const cells = rect(8, 14, 3, 2);
+    await build(page, cells, 1);
+    expect(await js(page, 'window.__lc.world().blocks.size')).toBe(before + 6);
+    const placed = cells.map(([x, z]) => [x, x === 10 ? 2 : 1, z] as [number, number, number]);
+    for (const [x, y, z] of placed) expect(await blockAt(page, x, y, z)).toMatchObject({ kind: 'house', style: 2 });
+    expect((await buildingOf(page, placed)).ids).toHaveLength(1);
+    await page.screenshot({ path: path.join(SHOTS, 'house-styles-split-level.png') });
+    expect(errors).toEqual([]);
+  });
+
   test('with Random the old behaviour holds: each ground click starts its own building', async () => {
     const { page, errors } = await open();
     await page.click('[data-item="house"]');

@@ -53,9 +53,10 @@ type and which later rules apply.
 - **R-H04 · 1 · Stilt house** — every lowest cell stands over water (on a
   dock or generated stilts) → plank walls, ladder down to the water, fishing
   rod socket on the water side.
-- **R-H05 · 2 · Boathouse** — ground storey at `y ≤ 1` and a facade faces
-  water within 1, or touches a dock → wide double doors on the water side,
-  slipway, net on the wall.
+- **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and at most 2
+  storeys; ground storey at `y ≤ 1` and a facade faces water within 1, or
+  touches a dock → wide double doors on the water side, slipway, net on the
+  wall. (A bigger house on the shore can be a town hall, inn or manor.)
 - **R-H06 · 2 · Inn** — 6+ cells, 2+ storeys, ground-storey facade faces a
   street or plaza within 1 → inn sign on a bracket, lantern by the door,
   stable-style door.

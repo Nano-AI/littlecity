@@ -2,7 +2,8 @@
 // straight onto water, or touching a dock. West to east: a house on the
 // shore (boathouse, doors to the sea); a house beside a dock (boathouse,
 // doors to the dock); a house one cell back from the shore (cottage); a
-// house on a terrace above the shore (level 2: cottage).
+// house on a terrace above the shore (level 2: cottage); a big house on the
+// shore, 3 × 2 and two storeys by a path (too big for a boathouse: an inn).
 import { scenario } from '@/scenario';
 import { houseDressing } from '../houses/standins';
 
@@ -21,6 +22,8 @@ export default scenario({
     b.block('dock', 14, 0, 15);
     b.house(20, 13, { color: 6 });
     b.house(28, 14, { color: 0 });
+    b.house(5, 13, { w: 3, d: 2, floors: 2, color: 5 });
+    b.path(4, 12, 9, 12);
   },
   cameras: [
     { name: 'front', yaw: 45, pitch: 30, zoom: 5.5, target: [18, 1.5, 14] },
@@ -35,6 +38,7 @@ export default scenario({
     check.role(20, 1, 13, 'cottage');
     check.ok(plan.roles.get(check.structure(28, 2, 14).id)?.role !== 'boathouse', 'the house on the terrace is above the water, not on it');
     check.equal(check.applied('R-H05.boathouse'), 2, 'boathouses');
+    check.role(5, 1, 14, 'inn');
     // Wide double doors on the water side.
     const door = check.hasFeature({ type: 'door', variant: 'double', on: [10, 1, 14] })[0]!;
     check.equal(door.dir, 2, 'the boat doors face the sea to the south');

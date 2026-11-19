@@ -26,7 +26,12 @@ export interface StructureInfo {
   /** Lowest and highest level of its cells. */
   minY: number;
   maxY: number;
-  /** maxY − minY + 1. For a tower, lighthouse, pillar or windmill this is its height. */
+  /**
+   * The tallest column, bottom to top (top − bottom + 1 of one column). For a
+   * tower, lighthouse, pillar or windmill this is its height; for most houses
+   * it is maxY − minY + 1. A split-level house (one built across a step in the
+   * ground) counts the storeys of its tallest part, not the whole drop.
+   */
   storeys: number;
   /** Distinct columns it occupies. */
   footprint: number;
@@ -73,9 +78,17 @@ function infoOf(f: Facts, id: StructureId): StructureInfo {
     if (!t) touches.set(other, (t = { sides: new Set(), above: false, below: false }));
     return t;
   };
+  const spans = new Map<number, [number, number]>();
   for (const c of s.cells) {
     const col = columnIndex(keyX(c), keyZ(c));
     columns.add(col);
+    const y = keyY(c);
+    const span = spans.get(col);
+    if (!span) spans.set(col, [y, y]);
+    else {
+      if (y < span[0]) span[0] = y;
+      if (y > span[1]) span[1] = y;
+    }
     const list = byLevel.get(keyY(c));
     if (list) list.push(col);
     else byLevel.set(keyY(c), [col]);
@@ -86,13 +99,15 @@ function infoOf(f: Facts, id: StructureId): StructureInfo {
     if (down) down.below = true;
   }
   const box = boxOf(s.cells);
+  let storeys = 0;
+  for (const [lo, hi] of spans.values()) storeys = Math.max(storeys, hi - lo + 1);
   return {
     id: s.id,
     kind: s.kind,
     cells: s.cells,
     minY: box.y0,
     maxY: box.y1,
-    storeys: box.y1 - box.y0 + 1,
+    storeys,
     footprint: columns.size,
     footprintByLevel: byLevel,
     groundFootprint: byLevel.get(box.y0)!.length,

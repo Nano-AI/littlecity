@@ -247,7 +247,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'boathouse',
     group: 'houses',
     name: 'Boathouse',
-    how: 'Build a house on the shore with a wall looking straight out onto the water.',
+    how: 'Build a small house (four squares of ground or fewer, at most two storeys) on the shore, with a wall looking straight out onto the water.',
     proof: { role: 'boathouse' },
     seed: 7109,
     ground: seaSouth,

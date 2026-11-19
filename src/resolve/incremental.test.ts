@@ -105,4 +105,6 @@ function play(name: string, edits: number, seed: number): void {
 describe('incremental resolve equals a full resolve', () => {
   test('everything: 300 random legal edits', () => play('everything', 300, 11), 240_000);
   test('bench-2000: 60 random legal edits', () => play('bench-2000', 60, 12), 240_000);
+  // Stepped ground, where houses join across one-level steps (split-level houses).
+  test('J02.split-level: 150 random legal edits on stepped ground', () => play('J02.split-level', 150, 13), 240_000);
 });

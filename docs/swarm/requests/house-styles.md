@@ -58,7 +58,9 @@ What still stands between a player and a big house, found by building on a
 generated island (seed 4242) with Playwright. None is in my files, so these
 are requests, not changes:
 
-1. **Sloping ground (merge logic, Logic).** Ground clicks on two touching
+1. **DONE (e026d07): houses now join across a one-level step** (see the
+   design doc's merge table and `scenarios/rules/J02.split-level`). Was:
+   **Sloping ground (merge logic, Logic).** Ground clicks on two touching
    columns one level apart make two buildings: a house block merges only
    across shared faces, and (x, 1, z) beside (x+1, 2, z) shares none. The
    second storey bridges them ((x, 2, z) touches (x+1, 2, z)), after which
@@ -67,7 +69,8 @@ are requests, not changes:
    manor on a slope stays in pieces. Option: let house blocks of one colour
    also merge diagonally one level apart when the lower one's top is open
    ground, or leave it and say so in the guide.
-2. **Big houses by the water become boathouses (R-H05, Houses).** R-H05
+2. **DONE (ac76a9d): R-H05 is limited to a footprint of 4 or fewer and 2
+   storeys at most.** Was: **Big houses by the water become boathouses (R-H05, Houses).** R-H05
    (priority 9950) runs before the town hall (9945), the inn (9940) and the
    manor: any house with a ground storey at level 1 or below looking onto
    water is a boathouse, whatever its size. My 12-block house on the shore

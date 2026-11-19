@@ -35,6 +35,35 @@ describe('merging per kind', () => {
     expect(s.same(k(10, 1, 10), k(11, 1, 11))).toBe(false);
   });
 
+  test('houses join across a one-level step in the ground, not a two-level one, and not diagonally', () => {
+    const t = new TerrainBuilder(3).flat(1).rect(12, 4, 43, 43, 2).rect(30, 4, 43, 43, 4).build();
+    const s = build((b) => {
+      b.house(11, 10, { color: 1 }).house(12, 10, { color: 1 }); // one step: (11, 1) and (12, 2)
+      b.house(11, 14, { color: 1 }).house(12, 14, { color: 2 }); // one step, different colours
+      b.house(11, 18, { color: 1 }).house(12, 19, { color: 1 }); // a step and a corner: diagonal
+      b.house(29, 10, { color: 3 }).house(30, 10, { color: 3 }); // a two-level step: (29, 2) and (30, 4)
+    }, t);
+    expect(s.same(k(11, 1, 10), k(12, 2, 10))).toBe(true);
+    expect(s.same(k(11, 1, 14), k(12, 2, 14))).toBe(false);
+    expect(s.same(k(11, 1, 18), k(12, 2, 19))).toBe(false);
+    expect(s.same(k(29, 2, 10), k(30, 4, 10))).toBe(false);
+  });
+
+  test('a split-level join needs the higher block on a step: terrain or a solid non-building block', () => {
+    const s = build((b) => {
+      // On another building: a colour-5 house, with a colour-1 block on its roof beside a colour-1 house.
+      b.house(10, 10, { color: 1 }).house(11, 10, { color: 5 }).block('house', 11, 2, 10, { color: 1 });
+      // On a marble block: that is a step.
+      b.house(10, 14, { color: 1 }).put('marble', 11, 14, { color: 0 }).put('house', 11, 14, { color: 1 });
+      // On a tower: another building.
+      b.house(10, 18, { color: 1 }).put('tower', 11, 18, { color: 0 }).put('house', 11, 18, { color: 1 });
+    });
+    expect(s.same(k(10, 1, 10), k(11, 2, 10))).toBe(false);
+    expect(s.same(k(11, 1, 10), k(11, 2, 10))).toBe(false); // different colours, as ever
+    expect(s.same(k(10, 1, 14), k(11, 2, 14))).toBe(true);
+    expect(s.same(k(10, 1, 18), k(11, 2, 18))).toBe(false);
+  });
+
   test('Auto blocks that resolve to house merge with placed houses of the same colour', () => {
     const s = build((b) => b.house(10, 10, { color: 4 }).auto(11, 10, { color: 4 }));
     expect(s.same(k(10, 1, 10), k(11, 1, 10))).toBe(true);
