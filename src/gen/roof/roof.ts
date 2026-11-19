@@ -242,6 +242,16 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
       tri(cell, d, a, mid);
     }
   };
+  /**
+   * The underside of an overhang (a→b→c→d counter-clockwise from above, as for `patch`). A far
+   * slope's overhang is seen from below whenever the camera is lower than the roof is steep, so
+   * without this the edge of the roof would float.
+   */
+  const soffit = (cell: CellKey, a: P2, p: P2, c: P2, d: P2): void => {
+    if (look.thick <= 0) return;
+    const at = (q: P2): Vec3 => [q[0], f.heightAt(cell, q[0], q[1]) - look.thick, q[1]];
+    b.quad(at(d), at(c), at(p), at(a));
+  };
   const fascia = (cell: CellKey, p: P2, q: P2): void => {
     if (look.thick <= 0) return;
     const yp = f.heightAt(cell, p[0], p[1]), yq = f.heightAt(cell, q[0], q[1]);
@@ -290,6 +300,8 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
           b.with({ color: look.fascia, ink: look.fasciaInk }, () => {
             fascia(cell, P(cl, o), P(0.5, o));
             fascia(cell, P(0.5, o), P(1 - cr, o));
+            soffit(cell, P(0, 0), P(cl, o), P(0.5, o), P(0.5, 0));
+            soffit(cell, P(0.5, 0), P(0.5, o), P(1 - cr, o), P(1, 0));
           });
         }
       }
@@ -306,6 +318,7 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
         b.with({ color: look.fascia, ink: look.fasciaInk }, () => {
           if (HAS_FASCIA[m]) fascia(cell, c1, c2);
           if (mr && HAS_FASCIA[mr]) fascia(cell, c2, c3);
+          if (HAS_FASCIA[m] || (mr && HAS_FASCIA[mr])) soffit(cell, c0, c1, c2, c3);
         });
       } else if (o > 0 && or === 0 && HAS_FASCIA[m] && (mr === 'cut' || mr === 'eave0')) {
         // The slab's end where an overhang stops at a party wall.

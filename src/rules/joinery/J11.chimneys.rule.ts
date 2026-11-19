@@ -10,7 +10,7 @@ import { solid } from '@/resolve/facts/lib';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
 import type { Structure } from '@/resolve/plan';
 import { houseFacts } from './houses.fact';
-import { houseStructures, roleOf, roofOf } from './houses.lib';
+import { featureAt, houseStructures, roleOf, roofOf } from './houses.lib';
 
 /** The least number of chimneys a role has, and the chance a small house of that role has one at all. */
 const MINIMUM: Partial<Record<Role, readonly [number, number]>> = {
@@ -32,15 +32,20 @@ export default defineRule<{ s: Structure }>({
     const role = roleOf(ctx.plan, s.id);
     const hf = houseFacts(ctx.facts);
     const eligible: CellKey[] = [];
+    let roofCells = 0;
     for (const region of roofRegions(ctx.facts).byStructure.get(s.id) ?? []) {
       const roof = roofOf(ctx.plan, region);
       if (!roof || roof.variant === 'flat') continue;
       const pierced = new Set(region.pierced);
-      for (const k of region.cells) if (!pierced.has(k)) eligible.push(k);
+      for (const k of region.cells) {
+        if (pierced.has(k)) continue;
+        roofCells++;
+        if (!featureAt(ctx.plan, s.id, 'dormer', k)) eligible.push(k); // a dormer has the cell already
+      }
     }
     if (eligible.length === 0 || (role && NONE.has(role))) return;
     const [min, chance] = MINIMUM[role ?? 'cottage'] ?? [1, 1];
-    let count = Math.min(3, Math.max(min, Math.floor(eligible.length / 3)));
+    let count = Math.min(3, Math.max(min, Math.floor(roofCells / 3)));
     if (count === min && min > 0 && chance < 1 && ctx.rand('any') >= chance) count = 0;
     if (count === 0) return;
 

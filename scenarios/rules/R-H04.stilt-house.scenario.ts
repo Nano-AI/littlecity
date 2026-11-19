@@ -1,6 +1,7 @@
 // Fixture for R-H04 (stilt house): every lowest cell stands over water.
 // One on a dock, one on generated stilts a cell above the sea, and one with
-// a foot on the shore (a cottage: not every lowest cell is over water).
+// a foot on the shore (not every lowest cell is over water, so not a stilt
+// house: by the next rule down it is a boathouse).
 import { scenario } from '@/scenario';
 import { houseDressing } from '../houses/standins';
 
@@ -31,7 +32,7 @@ export default scenario({
     check.hasTag(11, 1, 16, 'plank-walls');
     check.hasTag(11, 1, 16, 'over-water');
     check.role(18, 1, 17, 'stilt-house');
-    check.role(24, 1, 14, 'cottage');
+    check.role(24, 1, 14, 'boathouse');
     check.equal(check.applied('R-H04.stilt-house'), 2, 'stilt houses');
     // A ladder down to the water on a water side, and somewhere to fish from.
     check.hasFeature({ type: 'ladder', on: [11, 1, 16] });

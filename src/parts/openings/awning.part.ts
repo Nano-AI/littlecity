@@ -15,8 +15,8 @@ export default definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const color = COLORS[(((item.params?.color ?? 0) % COLORS.length) + COLORS.length) % COLORS.length]!;
-    const w = 0.84, out = 0.3, fall = 0.13, lip = 0.055;
-    const x0 = -w / 2, x1 = w / 2;
+    const w = 0.74, out = 0.3, fall = 0.13, lip = 0.055;
+    const x0 = -w / 2 - 0.04, x1 = w / 2 - 0.04; // a little to the left: the sign hangs at the right corner
     b.setColor(color).setPattern(item.variant === 'plain' ? PATTERN.cloth : PATTERN.stripes).setInk('awning');
     b.setSway((_x, _y, z) => Math.max(0, z / out) * 0.45);
     // The cloth, sagging a little between the wall and the front bar.

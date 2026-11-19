@@ -41,6 +41,8 @@ interface House {
   solid(c: CellKey): boolean;
   persona: Personality;
   material(cell: CellKey): Material;
+  /** The wall colour, for pieces that mix their own (a timbered gable). */
+  wall: ColorInput & string;
   features: readonly Feature[];
   /** The roof over each roofed cell. */
   fields: Map<CellKey, RoofField>;
@@ -85,10 +87,10 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
     if (tags?.has('glass-walls')) return { color: PALETTE.glass, pattern: PATTERN.glass };
     if (timbered.has(cell)) return { color: mixColor(wall, PALETTE.white, 0.45), pattern: PATTERN.timber };
     if (tags?.has('stone-ground') && solid(below(cell))) return { color: PALETTE.stoneShade, pattern: PATTERN.stone };
-    if (tags?.has('plank-walls')) return { color: wall, pattern: PATTERN.planks };
+    if (tags?.has('plank-walls') || (persona.plankUpper && has(below(cell)))) return { color: wall, pattern: PATTERN.planks };
     return { color: wall, pattern: PATTERN.plaster };
   };
-  const h: House = { s, plan, b, has, solid, persona, material, features, fields: new Map() };
+  const h: House = { s, plan, b, has, solid, persona, material, wall, features, fields: new Map() };
 
   shell(h);
   roofs(h);
@@ -162,11 +164,13 @@ function shell(h: House): void {
     else foundation.set(edgeId(f.cell, f.dir), (f.params as { depth?: number } | undefined)?.depth ?? 1);
   }
   // J01: base trim only where a cell stands on the ground or on another piece.
-  const plinthOn = (c: CellKey, d: Dir4): boolean => exposed(c, d) && !has(below(c)) && solid(below(c)) && !cliff.has(edgeId(c, d));
+  const wooden = h.plan.tags.get(s.id)?.has('plank-walls') ?? false; // a stilt house stands on timber, not stone
+  const plinthOn = (c: CellKey, d: Dir4): boolean => !wooden && exposed(c, d) && !has(below(c)) && solid(below(c)) && !cliff.has(edgeId(c, d));
   // A cell with air under it (carried by brackets, a pillar or stilts) rests on a timber beam instead.
-  const beamOn = (c: CellKey, d: Dir4): boolean => exposed(c, d) && !has(below(c)) && !solid(below(c));
+  const beamOn = (c: CellKey, d: Dir4): boolean => exposed(c, d) && !has(below(c)) && (wooden || !solid(below(c)));
   const beltOn = (c: CellKey, d: Dir4): boolean => persona.storeyBands && exposed(c, d) && exposed(above(c), d);
   const foundOn = (c: CellKey, d: Dir4): boolean => foundation.has(edgeId(c, d));
+  const glass = h.plan.tags.get(s.id)?.has('glass-walls') ?? false;
   const caps = (e: WallEdge, on: (c: CellKey, d: Dir4) => boolean): { capLeft: boolean; capRight: boolean } => ({
     capLeft: !on(...partner(e, 'left')),
     capRight: !on(...partner(e, 'right')),
@@ -190,6 +194,14 @@ function shell(h: House): void {
         if (beltOn(cell, d)) {
           b.with({ color: persona.trim, ink: 'belt' }, () =>
             band(b, e, inset - proud, inset, CELL_H - HOUSE.trimH, CELL_H, caps(e, beltOn)));
+        }
+        // R-H13: a greenhouse wall is glass in a white frame: a sill rail, a head rail, glazing bars.
+        if (glass) {
+          b.with({ color: persona.trim, ink: 'glazing' }, () => {
+            band(b, e, inset - 0.018, inset, CELL_H - 0.05, CELL_H, { noTop: true });
+            band(b, e, inset - 0.018, inset, 0.27, 0.3);
+            for (const x of [-0.25, 0, 0.25]) b.box([x - 0.013, HOUSE.plinthH, -inset], [x + 0.013, CELL_H - 0.05, -inset + 0.018], { skip: ['n', 'top', 'bottom'] });
+          });
         }
         // J24: a stone foundation down to the lower ground on this side.
         const depth = foundation.get(edgeId(cell, d));
@@ -267,7 +279,7 @@ function roofs(h: House): void {
       for (const c of cells) h.fields.set(c, field);
       emitRoof(b, field, {
         color: persona.roofColor,
-        pattern: persona.cover === 'thatch' ? PATTERN.thatch : PATTERN.shingles,
+        pattern: persona.cover === 'thatch' ? PATTERN.thatch : persona.cover === 'glass' ? PATTERN.glass : PATTERN.shingles,
         ink: `roof${region.index}`,
         thick: HOUSE.roofThick,
         fascia: persona.trim,
@@ -316,7 +328,9 @@ function roofs(h: House): void {
 function gableWall(h: House, field: RoofField, e: WallEdge, inset: number, top: number, stepped: boolean): void {
   const { b } = h;
   const frame = faceFrame(e.cell, e.dir);
-  const mat = h.material(e.cell);
+  const plain = h.material(e.cell);
+  // Some houses have half-timbered gables over plain walls.
+  const mat = h.persona.timberGable && !stepped && inset > 0 && plain.pattern === PATTERN.plaster ? { color: mixColor(h.wall, PALETTE.white, 0.45), pattern: PATTERN.timber } : plain;
   const xl = leftX(e, inset), xr = rightX(e, inset);
   const heightAt = (x: number): number => {
     const p = transformPoint(frame, [x, 0, -inset - 0.001]);
@@ -395,7 +409,7 @@ function terrace(h: House, region: RoofRegion, cells: readonly CellKey[], side: 
         b.with({ color: mat.color, pattern: mat.pattern, ink: 'walls' }, () =>
           band(b, e, i, i + 0.08, 0, HOUSE.parapetH, { inner: true, noTop: true, capLeft: capL, capRight: capR }));
         b.with({ color: persona.trim, ink: `coping${region.index}` }, () =>
-          band(b, e, i - 0.025, i + 0.105, HOUSE.parapetH, HOUSE.parapetH + 0.035, { inner: true, capLeft: capL, capRight: capR }));
+          band(b, e, i - 0.018, i + 0.098, HOUSE.parapetH, HOUSE.parapetH + 0.026, { inner: true, capLeft: capL, capRight: capR }));
       });
     }
   }

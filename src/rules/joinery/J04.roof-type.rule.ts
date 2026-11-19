@@ -15,7 +15,7 @@ import { defineRule } from '@/resolve/engine/api';
 import { solid } from '@/resolve/facts/lib';
 import { roofRegions, type RoofRegion } from '@/resolve/facts/roofs.fact';
 import { HOUSE } from '@/style/houses';
-import { farGableEnd, houseStructures, roleOf } from './houses.lib';
+import { farGableEnd, houseStructures, roleOf, roofOf } from './houses.lib';
 
 type Variant = 'gable' | 'hip' | 'lean-to' | 'flat' | 'stepped-gable';
 
@@ -40,6 +40,7 @@ export default defineRule<{ region: RoofRegion }>({
     const pierced = new Set(region.pierced);
     const cells = region.cells.filter((k) => !pierced.has(k));
     if (cells.length === 0) return; // wholly under another structure: nothing to roof
+    if (roofOf(ctx.plan, region)) return; // J05 made it a terrace
     const narrow = Math.min(region.width, region.depth);
 
     // Which ends of each axis are closed by a party wall or by a taller part: a ridge likes to run into those.
@@ -81,6 +82,11 @@ export default defineRule<{ region: RoofRegion }>({
       params: { ...(ridge ? { ridge } : {}), ...(lift !== 0 && variant !== 'flat' ? { lift } : {}), ...(against !== undefined ? { against } : {}) },
     });
 
+    // R-H14: a weathervane on the ridge of a lookout cottage.
+    if (ridge && (ctx.plan.tags.get(structure)?.has('weathervane') ?? false)) {
+      const end = farGableEnd(ctx, structure, region, ridge);
+      if (end) out.feature({ type: 'finial', structure, cell: end.cell, dir: end.dir, variant: 'vane' });
+    }
     // R-H01: a finial on the gable end farthest from the steeple.
     if (role === 'chapel' && ridge) {
       const end = farGableEnd(ctx, structure, region, ridge);

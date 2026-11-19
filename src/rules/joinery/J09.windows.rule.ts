@@ -19,7 +19,7 @@ import { structureInfo } from '@/resolve/facts/structure.fact';
 import type { Structure } from '@/resolve/plan';
 import { HOUSE, personalityOf } from '@/style/houses';
 import { houseFacts } from './houses.fact';
-import { farGableEnd, featureAt, houseStructures, isTerraceTop, roleOf, roofOf } from './houses.lib';
+import { cliffSide, farGableEnd, featureAt, houseStructures, isTerraceTop, roleOf, roofOf } from './houses.lib';
 
 type WindowVariant = 'square' | 'tall' | 'arched' | 'shuttered' | 'pointed' | 'shopfront' | 'bay';
 
@@ -33,7 +33,10 @@ export default defineRule<{ s: Structure }>({
   apply(c, out, ctx) {
     const { s } = c.data;
     const role = roleOf(ctx.plan, s.id);
+    if (role === 'greenhouse') return; // all glass already
     const persona = personalityOf(s.seed, s.color, role, s.cells.length);
+    const cliff = role === 'cliff-house' ? cliffSide(ctx, s) : null;
+    let cliffBalcony = false;
     const hf = houseFacts(ctx.facts);
     const info = structureInfo(ctx.facts).get(s.id);
     const mainDoor = (ctx.plan.featuresByStructure.get(s.id) ?? []).find((f) => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1);
@@ -69,6 +72,13 @@ export default defineRule<{ s: Structure }>({
         const balcony = out.feature({ type: 'balcony', structure: s.id, cell: f.cell, dir: f.dir, variant: 'iron' });
         out.socket({ type: 'perch', owner: balcony, structure: s.id, cell: f.cell, dir: f.dir });
       }
+      // R-H12: one timber balcony on the top storey, on the side away from the cliff.
+      if (cliff !== null && !cliffBalcony && top && f.storey >= 2 && f.dir === ((cliff + 2) & 3)) {
+        cliffBalcony = true;
+        variant = 'tall';
+        const balcony = out.feature({ type: 'balcony', structure: s.id, cell: f.cell, dir: f.dir, variant: 'timber' });
+        out.socket({ type: 'perch', owner: balcony, structure: s.id, cell: f.cell, dir: f.dir });
+      }
       window(f.cell, f.dir, variant);
     }
 
@@ -93,6 +103,8 @@ export default defineRule<{ s: Structure }>({
           return n === NO_CELL || !region.cells.includes(n);
         });
         if (cell === undefined || hf.outside(cell, dir) === 'blocked') continue;
+        const fc = all.at(cell, dir);
+        if (fc && (fc.touching || (fc.faces === 'structure' && fc.dist === 1))) continue; // something stands against that end
         const always = roof.variant === 'stepped-gable' && mainDoor?.dir === dir;
         if (!always && ctx.rand('gable', region.index, dir) >= HOUSE.gableWindow) continue;
         window(cell, dir, 'round');

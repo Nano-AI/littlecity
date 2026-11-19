@@ -3,7 +3,9 @@
 //
 // Frame: origin on the ridge at the gable end, +Y up.
 
+import { compose, rotationY, translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
+import { PATTERN } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 import { bead } from './lib';
 
@@ -14,7 +16,24 @@ export default definePart({
     b.setColor(PALETTE.yellow).setInk('finial');
     // Face the cross along the ridge: its arms run across the gable end.
     const across = item.dir === 1 || item.dir === 3;
-    if (item.variant === 'ball') {
+    if (item.variant === 'vane') {
+      // A weathervane: a rod, a ball, and an arrow that has swung a little off the ridge line.
+      b.with({ color: PALETTE.metal, pattern: PATTERN.metal }, () => {
+        b.boxAt([0, -0.04, 0], [0.022, 0.4, 0.022], { skip: ['bottom'] });
+        bead(b, 0, 0.2, 0, 0.035);
+        b.at(compose(translation(0, 0.3, 0), rotationY((across ? 0 : Math.PI / 2) + 0.5 + ctx.rand('swing'))), () => {
+          b.box([-0.14, -0.01, -0.008], [0.12, 0.012, 0.008]);
+          // head and tail, flat plates seen from both sides
+          for (const z of [0.009, -0.009]) {
+            const s = z > 0 ? 1 : -1;
+            const head: [number, number, number][] = [[0.12, -0.045, z], [0.2, 0.001, z], [0.12, 0.047, z]];
+            const tail: [number, number, number][] = [[-0.2, -0.05, z], [-0.1, 0.001, z], [-0.2, 0.052, z]];
+            b.polygon(s > 0 ? head : [...head].reverse());
+            b.polygon(s > 0 ? tail : [...tail].reverse());
+          }
+        });
+      });
+    } else if (item.variant === 'ball') {
       b.boxAt([0, -0.04, 0], [0.03, 0.14, 0.03], { skip: ['bottom', 'top'] });
       bead(b, 0, 0.13, 0, 0.045);
     } else {

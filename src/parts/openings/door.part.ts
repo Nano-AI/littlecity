@@ -69,6 +69,7 @@ export default definePart({
       });
       knob(b, -0.035, 0.25, 0.062);
       knob(b, 0.035, 0.25, 0.062);
+      anchors['sign-bracket'] = translation(0.36, 0.66, 0);
       const out = stoop(b, 0.62, steps);
       anchors.door = translation(0, -steps * STEP_RISE, out + 0.2);
     } else if (variant === 'shop') {
@@ -84,7 +85,7 @@ export default definePart({
       const out = stoop(b, 0.3, steps, -0.26); // the step belongs under the door, not the window
       anchors.door = translation(-0.26, -steps * STEP_RISE, out + 0.2);
       anchors['awning-mount'] = translation(0, 0.62, 0.06);
-      anchors['sign-bracket'] = translation(0.4, 0.69, 0);
+      anchors['sign-bracket'] = translation(0.405, 0.7, 0);
     } else {
       const look = variant === 'deck' ? 'glazed' : p.door;
       const arched = look === 'arched';
@@ -111,6 +112,7 @@ export default definePart({
         b.with({ ink: 'leaf' }, () => bar(b, 0, 0.39, 0, 0.485, 0.018, 0.055));
       }
       knob(b, 0.085, 0.24, 0.058);
+      anchors['sign-bracket'] = translation(0.3, 0.66, 0); // an inn hangs its sign here
       if (variant !== 'deck') {
         const out = stoop(b, 0.46, steps);
         anchors.door = translation(0, -steps * STEP_RISE, out + 0.2);

@@ -71,7 +71,7 @@ export const WINDMILL = defineStyle('windmill', {
 
 export type WindowFamily = 'square' | 'tall' | 'arched' | 'shuttered';
 export type DoorLook = 'plank' | 'panel' | 'arched' | 'glazed';
-export type RoofCover = 'shingles' | 'thatch';
+export type RoofCover = 'shingles' | 'thatch' | 'glass';
 
 /** What a structure decides once about itself. */
 export interface Personality {
@@ -90,8 +90,10 @@ export interface Personality {
   door: DoorLook;
   /** A trim band between storeys (some houses are plain). */
   storeyBands: boolean;
-  /** Corner boards (quoins in wood) on the outer corners. */
-  cornerBoards: boolean;
+  /** The gable triangles are half-timbered. */
+  timberGable: boolean;
+  /** Storeys above the ground storey are weatherboarded (painted planks). */
+  plankUpper: boolean;
   /** −1 … 1: a whole-house bias for small leans and offsets. */
   lean: number;
 }
@@ -137,25 +139,34 @@ export function personalityOf(seed: number, color: number, role?: Role, size = 1
   } else if (role === 'stilt-house') {
     family = 'square';
     door = 'plank';
+  } else if (role === 'greenhouse') {
+    cover = 'glass';
+    door = 'glazed';
+  } else if (role === 'manor') {
+    family = r('family') < 0.5 ? 'tall' : 'arched';
+    door = 'panel';
+  } else if (role === 'boathouse') {
+    family = 'square';
   } else if (role === 'keepers-cottage') {
     roof = 0;
     accent = PALETTE.redDark;
     trim = PALETTE.red;
-  } else if (role === 'cottage' && size <= 4 && r('thatch') < 0.3) {
+  } else if (role === 'cottage' && size <= 4 && r('thatch') < 0.16) {
     cover = 'thatch';
   }
   const accent2 = [PALETTE.yellow, PALETTE.pink, PALETTE.red, PALETTE.white][hash(seed, 'accent2') % 4]!;
   return {
     family,
     roof,
-    roofColor: cover === 'thatch' ? PALETTE.sand : RAMPS.roof[roof]!,
+    roofColor: cover === 'thatch' ? PALETTE.sand : cover === 'glass' ? PALETTE.glass : RAMPS.roof[roof]!,
     cover,
     trim,
     accent,
     accent2,
     door,
     storeyBands: r('bands') < 0.7,
-    cornerBoards: r('corners') < 0.35,
+    timberGable: role !== 'chapel' && role !== 'stilt-house' && r('timber-gable') < 0.22,
+    plankUpper: role !== 'chapel' && r('plank-upper') < 0.18,
     lean: r('lean') * 2 - 1,
   };
 }

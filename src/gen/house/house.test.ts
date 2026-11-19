@@ -22,12 +22,15 @@ const town = (build: (b: TownBuilder) => void, terrain = flatTerrain(SEED)): Sha
 const at = (plan: ShapePlan, x: number, y: number, z: number): Structure => plan.structures.get(plan.structureAt.get(key(x, y, z))!)!;
 const draw = (plan: ShapePlan, s: Structure): MeshData => allGenerators().build(s, plan, allParts()).mesh;
 
-/** Vertices that belong to upright faces of a given pattern. */
-function uprights(m: MeshData, pattern: number): number[] {
+/** Vertices of upright faces of a given pattern, up to a height (the wall top: dormers above it are their own objects). */
+function uprights(m: MeshData, pattern: number, maxY = Infinity): number[] {
   const out: number[] = [];
-  for (let v = 0; v < m.pattern.length; v++) if (m.pattern[v] === pattern && Math.abs(m.normal[v * 3 + 1]!) < 1e-6) out.push(v);
+  for (let v = 0; v < m.pattern.length; v++) {
+    if (m.pattern[v] === pattern && Math.abs(m.normal[v * 3 + 1]!) < 1e-6 && m.position[v * 3 + 1]! <= maxY + 1e-4) out.push(v);
+  }
   return out;
 }
+const wallTop = (s: Structure): number => (Math.max(...s.cells.map((c) => c >> 12)) + 1) * CELL_H;
 
 describe('house shell', () => {
   test('J02: a merged house has no interior walls, no doubled faces and one wall ink group', () => {
@@ -37,7 +40,7 @@ describe('house shell', () => {
     const m = draw(plan, s);
     expect(validateMesh(m)).toEqual([]);
     expect(findDuplicateFaces(m)).toBe(0);
-    const wall = uprights(m, PATTERN.plaster);
+    const wall = uprights(m, PATTERN.plaster, wallTop(s) - 0.1);
     expect(new Set(wall.map((v) => m.inkId[v])).size).toBe(1);
     // Every wall vertex lies on the outline (inset from the cell line), never on a line between merged cells.
     const i = HOUSE.inset;
@@ -97,7 +100,8 @@ describe('house shell', () => {
       const m = draw(plan, s);
       expect(validateMesh(m), name).toEqual([]);
       expect(findDuplicateFaces(m), name).toBe(0);
-      expect(new Set(uprights(m, PATTERN.plaster).map((v) => m.inkId[v])).size, `${name}: one wall surface`).toBeLessThanOrEqual(1);
+      // Below the lowest eave: above it, dormers and the gables of lower wings are other objects.
+      expect(new Set(uprights(m, PATTERN.plaster, 2 * CELL_H - 0.1).map((v) => m.inkId[v])).size, `${name}: one wall surface`).toBeLessThanOrEqual(1);
       // Roughly 600 triangles a cell at most, openings included (a lone cell carries the most).
       expect(triangleCount(m) / s.cells.length, `${name}: triangles per cell`).toBeLessThan(600);
       // Nothing reaches more than an eave's width into the next cell.

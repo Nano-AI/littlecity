@@ -1,7 +1,7 @@
 // Helpers shared by the house role and joinery rules (Houses owner). Not a
 // rule file: nothing here is discovered.
 
-import { DIR4, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, DIR4, keyX, keyY, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import type { Role } from '@/core/vocab';
 import type { RuleContext } from '@/resolve/engine/api';
 import type { Facade } from '@/resolve/facts/facades.fact';
@@ -99,4 +99,20 @@ export function farGableEnd(ctx: RuleContext, structure: number, region: RoofReg
   return best && { cell: best.cell, dir: best.dir };
 }
 
-export const levelOf = keyY;
+/**
+ * The side on which a house abuts a cliff: terrain rising 2+ levels above the
+ * floor of one of its lowest cells (R-H12). Null if there is none.
+ */
+export function cliffSide(ctx: RuleContext, s: Structure): Dir4 | null {
+  let minY = 99;
+  for (const c of s.cells) minY = Math.min(minY, keyY(c));
+  for (const c of s.cells) {
+    if (keyY(c) !== minY) continue;
+    for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+      const n = neighbor(c, d);
+      if (n === NO_CELL) continue;
+      if (ctx.facts.terrain.height[columnIndex(keyX(n), keyZ(n))]! >= minY + 2) return d;
+    }
+  }
+  return null;
+}

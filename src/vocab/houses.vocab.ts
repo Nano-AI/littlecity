@@ -9,6 +9,9 @@ declare module '@/core/vocab' {
     // end; the house generator centres it in the gable.
     'window/round': true;
 
+    // R-H14 (and D12): a weathervane on a ridge end.
+    'finial/vane': true;
+
     // R-H04: a stove pipe instead of a brick stack.
     'chimney/pipe': true;
 
