@@ -269,6 +269,49 @@
   box-sizing: border-box;
 }
 
+/* Held length: a small − n + standing on the tray's right shoulder, like a tab. */
+.lc-stepper {
+  position: absolute;
+  right: 12px;
+  top: -6px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 2px;
+  border-radius: 11px 9px 12px 8px / 9px 12px 8px 11px;
+  transform: rotate(0.6deg);
+}
+.lc-step {
+  width: 28px;
+  height: 28px;
+}
+.lc-step .lc-btn-icon {
+  width: 18px;
+  height: 18px;
+}
+.lc-length-value {
+  min-width: 22px;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How many pieces the held run will place, beside the mouse. */
+.lc-count {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none !important;
+  padding: 1px 7px 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--lc-pick) 58%, white);
+  border: 1.5px solid var(--lc-ink);
+  border-radius: 9px 8px 10px 7px / 8px 10px 7px 9px;
+  box-shadow: 1px 2px 0 var(--lc-shadow);
+  white-space: nowrap;
+}
+
 /* ── pop-ups: colours, the menu ────────────────────────────────────────── */
 
 .lc-pop {
@@ -622,6 +665,25 @@
   .lc-swatch {
     width: 44px;
     height: 44px;
+  }
+  .lc-stepper {
+    right: 12px;
+    top: auto;
+    bottom: calc(100% + 6px);
+    transform: none;
+    padding: 2px 3px;
+  }
+  .lc-step {
+    width: 44px;
+    height: 44px;
+  }
+  .lc-step .lc-btn-icon {
+    width: 24px;
+    height: 24px;
+  }
+  .lc-length-value {
+    min-width: 28px;
+    font-size: 16px;
   }
   .lc-menu-item {
     min-height: 46px;

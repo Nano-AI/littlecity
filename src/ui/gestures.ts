@@ -41,6 +41,12 @@ export interface GestureSink {
   pan(dx: number, dy: number): void;
   /** Zoom by a factor about a point. */
   zoom(factor: number, x: number, y: number): void;
+  /**
+   * A plain scroll (no Ctrl or ⌘, not a pinch) of `dy` pixels here; `notch`
+   * when the wheel reported lines or pages. Return true to take it (it then
+   * does not zoom): held length uses it (design section 7).
+   */
+  scroll?(dy: number, notch: boolean, x: number, y: number): boolean;
   /** The mouse rests here with no button down (never called for touch). */
   hover(x: number, y: number): void;
   /** The mouse left, or started doing something else. */

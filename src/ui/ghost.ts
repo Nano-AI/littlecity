@@ -12,6 +12,7 @@ import type { Ghost } from '@/render/api';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { applyEdit } from '@/world/world';
 import type { Plan } from './actions';
+import type { Run } from './length';
 
 export interface GhostHost {
   readonly world: World;
@@ -49,4 +50,25 @@ export function ghostFor(plan: Plan, host: GhostHost): Ghost | null {
   else if (edit.type === 'placeEdge') id = preview.edgeAt.get(edit.edge);
   const shimmer = changedAutos(host.world, host.shape, preview);
   return { plan: preview, show: id === undefined ? [] : [id], ...(shimmer.length > 0 ? { shimmer } : {}) };
+}
+
+/** The structure each placing edit made in a shape, once each (cells of one run may merge into one structure). */
+export function structuresOf(edits: readonly Edit[], plan: ShapePlan): StructureId[] {
+  const out = new Set<StructureId>();
+  for (const e of edits) {
+    let id: StructureId | undefined;
+    if (e.type === 'placeBlock') id = plan.structureAt.get(e.cell);
+    else if (e.type === 'placeFloor') id = plan.floorAt.get(e.cell);
+    else if (e.type === 'placeEdge') id = plan.edgeAt.get(e.edge);
+    if (id !== undefined) out.add(id);
+  }
+  return [...out];
+}
+
+/** The ghost for a held-length run (./length.ts): the whole run, or a red outline when its first cell is refused. */
+export function ghostForRun(run: Run, host: GhostHost): Ghost | null {
+  if (run.edits.length === 0) return run.at === NO_CELL ? null : { plan: host.shape, show: [], refuse: run.at };
+  const preview = host.preview(run.world);
+  const shimmer = changedAutos(host.world, host.shape, preview);
+  return { plan: preview, show: structuresOf(run.edits, preview), ...(shimmer.length > 0 ? { shimmer } : {}) };
 }
