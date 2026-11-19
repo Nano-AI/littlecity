@@ -17,6 +17,7 @@
 //   slot      1 × uint16               0 = fixed in the world; otherwise a row of the slot table
 //                                      (slots.ts) that gives the vertex a matrix and four params
 
+import { MIST } from '@/gen/airborne';
 import { PATTERN, type MeshData } from '@/gen/mesh';
 
 /** `edge` is stored as a uint16 in units of 1 / EDGE_SCALE. */
@@ -218,7 +219,7 @@ function growBounds(pool: VertexPool, p: Float32Array): void {
   }
 }
 
-/** Writes a mesh into the pool's arrays at a vertex offset. Returns whether it holds beam vertices. */
+/** Writes a mesh into the pool's arrays at a vertex offset. Returns whether it holds beam or mist vertices (the overlay pass). */
 function pack(pool: VertexPool, offset: number, mesh: MeshData, slot: number): boolean {
   const n = mesh.position.length / 3;
   pool.position.set(mesh.position, offset * 3);
@@ -236,7 +237,7 @@ function pack(pool: VertexPool, offset: number, mesh: MeshData, slot: number): b
     color[o4 + 2] = mc[v * 3 + 2]!;
     const pattern = mp[v]!;
     color[o4 + 3] = pattern;
-    if (pattern === PATTERN.beam) beams = true;
+    if (pattern === PATTERN.beam || pattern === MIST) beams = true;
     const o2 = (offset + v) * 2;
     ink[o2] = mi[v]!;
     const e = me[v]! * EDGE_SCALE;

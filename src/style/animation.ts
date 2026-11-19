@@ -97,15 +97,19 @@ export const WINDY = defineStyle(
   {
     // L02 smoke.
     /** Puffs alive over one chimney by day, and at dawn and dusk (the stove is lit). */
-    smokePuffs: 4,
-    smokePuffsBusy: 6,
+    smokePuffs: 3,
+    smokePuffsBusy: 4,
     /** Seconds a puff lives. */
-    smokeLife: 3.6,
-    smokeRise: 0.8,
-    /** How far a puff has drifted downwind by the end of its life, per unit of wind strength. */
-    smokeLean: 0.6,
-    smokeSize: 0.12,
-    smokeGrow: 2.3,
+    smokeLife: 4.6,
+    smokeRise: 1.0,
+    /** Columns a second a puff drifts downwind, per unit of wind strength. */
+    smokeLean: 0.3,
+    /** Width of a puff leaving the pot, and how many times that it grows to. */
+    smokeSize: 0.16,
+    smokeGrow: 3.1,
+    /** Opacity of the wash by day, and at dawn and dusk. */
+    smokeOpacity: 0.62,
+    smokeOpacityBusy: 0.82,
     // L03 sails.
     /** Radians a second at wind strength 1; a mill in calm air still creeps at sailIdle. */
     sailSpeed: 1.9,
@@ -125,9 +129,11 @@ export const WINDY = defineStyle(
     smokePuffsBusy: [0, 8, 1],
     smokeLife: [1, 8, 0.1],
     smokeRise: [0.2, 2, 0.05],
-    smokeLean: [0, 3, 0.05],
-    smokeSize: [0.03, 0.2, 0.005],
+    smokeLean: [0, 2, 0.02],
+    smokeSize: [0.03, 0.4, 0.005],
     smokeGrow: [1, 4, 0.1],
+    smokeOpacity: [0, 1, 0.01],
+    smokeOpacityBusy: [0, 1, 0.01],
     sailSpeed: [0, 6, 0.1],
     sailIdle: [0, 1, 0.02],
     sailInertia: [0.1, 4, 0.1],

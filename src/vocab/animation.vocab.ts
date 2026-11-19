@@ -79,6 +79,7 @@ declare module '@/core/vocab' {
     'puff/dust': true;
     'puff/smoke': true;
     'puff/pop': true;
+    'puff/mist': true; //              a soft wash with no outline (smoke, cloud): MIST in src/gen/airborne.ts
     'puff.look': number; //            which of a few hand-drawn puff shapes
   }
 }

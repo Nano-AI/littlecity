@@ -7,7 +7,7 @@
 
 import { definePart } from '@/gen/api';
 import { PALETTE } from '@/style/palette';
-import { ball } from './kit';
+import { ball, mistPuff } from './kit';
 
 /** Lobe layouts: [x, y, z, radius] beside the main ball of radius 0.4. */
 const LOBES: readonly (readonly (readonly [number, number, number, number])[])[] = [
@@ -23,6 +23,10 @@ export default definePart({
     const b = ctx.mesh();
     const variant = item.variant ?? 'smoke';
     const look = Math.abs(Math.round(item.params?.look ?? 0)) % LOBES.length;
+    if (variant === 'mist') {
+      mistPuff(b, look);
+      return { mesh: b.build(), animated: true };
+    }
     b.setColor(variant === 'dust' ? PALETTE.path : PALETTE.white).setInk('puff');
     // Coarse on purpose: a big town has several hundred puffs in the air, and the pen line does the drawing.
     ball(b, 0, 0, 0, 0.4, 0.37, 0.4, 8, 4);

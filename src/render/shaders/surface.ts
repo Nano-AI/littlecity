@@ -72,9 +72,11 @@ void main(){
     n = vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n));
   }
   float pat = color.a * 255.0;
+  // The AIRBORNE bit (src/gen/airborne.ts) only matters to the grounding picture.
+  if (pat > 127.5) pat -= 128.0;
   // Three passes share this shader and each draws its own triangles: the page (everything solid),
-  // OVERLAY (light beams) and GHOST (the preview: slots whose glow is negative).
-  bool beam = abs(pat - 27.0) < 0.5;
+  // OVERLAY (light beams and mist) and GHOST (the preview: slots whose glow is negative).
+  bool beam = abs(pat - 27.0) < 0.5 || abs(pat - 28.0) < 0.5;
   bool ghost = params.x < -0.5;
 #if defined(GHOST)
   if (!ghost || beam) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -164,6 +166,8 @@ uniform vec2 uCanvas;
 uniform vec3 uStar;
 uniform vec3 uMagic;
 uniform vec3 uRed;
+uniform vec3 uTint;
+uniform vec3 uLift;
 #endif
 #ifdef OVERLAY
 out vec4 oColor;
@@ -255,8 +259,24 @@ void main(){
 #if defined(OVERLAY)
   // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
-  float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0);
-  oColor = vec4(uStar * a, 0.0);
+  vec3 vn = normalize(vVN);
+  if (pat == 28) {
+    // Mist (smoke, cloud): a watercolour wash, thick where the puff faces you and thinning to
+    // nothing at its rim, so it has no edge to ink; a slow grain breaks it up like pigment on paper.
+    // Graded like the page (it is drawn after the grade). Param a is its opacity.
+    vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
+    float face = smoothstep(0.0, 0.5, abs(vn.z));
+    float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
+    float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
+    vec3 c = toSrgb(base) * uTint + uLift;
+    oColor = vec4(c * a, a);
+  } else {
+    // A shaft of light. Seen end on (pointing at you) its walls are edge-on: it fades away there,
+    // instead of laying a flat sheet of light over the lighthouse it comes out of.
+    float side = smoothstep(0.15, 0.55, abs(vn.z));
+    float a = pow(clamp(1.0 - vEdge, 0.0, 1.0), 1.4) * (0.10 + 0.42 * uGlow) * max(vParams.x, 0.0) * side;
+    oColor = vec4(uStar * a, 0.0);
+  }
 #elif defined(GHOST)
   // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
   // the ghost composite then outlines in pencil. Anything hidden behind the finished drawing is left out.

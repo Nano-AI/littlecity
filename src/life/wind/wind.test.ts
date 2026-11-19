@@ -10,7 +10,7 @@ import { createLife } from '../runtime';
 import { createSignals } from '../signals';
 import { recordingStage, step } from '../testing/stage';
 import sails, { sailSpeed } from './sails.behaviour';
-import smoke, { dayPuff } from './smoke.behaviour';
+import smoke, { dayPuff, puffOpacity } from './smoke.behaviour';
 import vane from './weathervane.behaviour';
 
 function fixture() {
@@ -26,8 +26,9 @@ function fixture() {
 const finite = (m: ArrayLike<number>): boolean => Array.from(m).every(Number.isFinite);
 
 describe('L02 smoke', () => {
-  test('by day 4 of 6 puffs smoke, evenly spread; all 6 at dusk; each chimney draws on twos', () => {
+  test('by day 3 of 4 puffs smoke, evenly spread; all 4 at dusk; each chimney draws on twos', () => {
     expect([0, 1, 2, 3, 4, 5].filter((i) => dayPuff(i, 6, 4))).toHaveLength(4);
+    expect([0, 1, 2, 3].filter((i) => dayPuff(i, 4, 3))).toHaveLength(3);
     const { rec, signals, life, dressing } = fixture();
     const chimneys = dressing.actors.filter((a) => a.type === 'smoke');
     const puffs = (): number => rec.spawned.filter((s) => s.visible).length + chimneys.filter((c) => rec.of(c.id).visible).length;
@@ -42,6 +43,20 @@ describe('L02 smoke', () => {
     signals.hold('day');
     step(life, signals, WINDY.smokeLife * 1.2);
     expect(puffs()).toBe(chimneys.length * WINDY.smokePuffs);
+  });
+
+  test('a puff fades in at the pot and out at the end, and the plume is fuller at dusk than by day', () => {
+    expect(puffOpacity(0)).toBe(0);
+    expect(puffOpacity(1)).toBe(0);
+    expect(puffOpacity(0.25)).toBeGreaterThan(0.9);
+    const { rec, signals, life } = fixture();
+    const peak = (): number => Math.max(...rec.spawned.filter((s) => s.visible).map((s) => s.params[0]));
+    step(life, signals, WINDY.smokeLife * 2);
+    const day = peak();
+    signals.hold('dusk');
+    step(life, signals, WINDY.smokeLife * 2);
+    expect(peak()).toBeGreaterThan(day * 1.2);
+    expect(peak()).toBeLessThanOrEqual(1);
   });
 
   test('puffs rise from the pot and lean downwind, never upwind; nothing is ever NaN', () => {
