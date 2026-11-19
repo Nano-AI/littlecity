@@ -61,7 +61,7 @@ const CASES: [string, string | undefined, object | undefined, number, number][] 
   ['worn-track', undefined, { mask: 15 }, 40, 1],
   ['espalier', undefined, { look: 3, face: 1 }, 320, 1],
   ['trough', undefined, undefined, 60, 1],
-  ['grazer', 'sheep', { turn: 3, look: 1 }, 180, 3],
+  ['grazer', 'sheep', { turn: 3, look: 1 }, 240, 3],
   ['grazer', 'cow', { turn: 5, look: 2 }, 220, 3],
   ['goods-stack', 'crates', { look: 1 }, 160, 3],
   ['goods-stack', 'barrels', { look: 2 }, 420, 3],

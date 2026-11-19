@@ -191,14 +191,30 @@ export const grazer = definePart({
       const coat = cow ? (r('coat') < 0.5 ? PALETTE.trunk : PALETTE.white) : mixColor(PALETTE.white, PALETTE.stoneShade, r('coat') * 0.5);
       const dark = cow ? mixColor(PALETTE.trunk, PALETTE.metal, 0.4) : PALETTE.metal;
       b.with({ color: dark, pattern: PATTERN.none, ink: 'legs' }, () => {
-        for (const [x, z] of [[-0.075, -0.04], [-0.075, 0.04], [0.07, -0.04], [0.07, 0.04]] as const) b.boxAt([x * k, 0, z * k], [0.026 * k, 0.09 * k, 0.026 * k], { skip: ['bottom', 'top'] });
+        const legH = cow ? 0.09 : 0.075;
+        for (const [x, z] of [[-0.075, -0.04], [-0.075, 0.04], [0.07, -0.04], [0.07, 0.04]] as const) b.boxAt([x * k, 0, z * k], [0.026 * k, legH * k, 0.026 * k], { skip: ['bottom', 'top'] });
       });
-      b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
-        lump(b, 0, 0.135 * k, 0, 0.125 * k, 0.075 * k, 0.07 * k, { seg: 8, rings: 5 });
-        if (cow) b.with({ color: coat === PALETTE.white ? PALETTE.trunk : PALETTE.white }, () => lump(b, -0.03, 0.17 * k, 0.045, 0.06, 0.05, 0.04, { seg: 6, rings: 4 }));
-      });
-      // The head, down at the grass.
-      b.with({ color: cow ? coat : dark, pattern: PATTERN.none, ink: 'head' }, () => lump(b, 0.155 * k, 0.07 * k, 0, 0.05 * k, 0.04 * k, 0.036 * k, { seg: 6, rings: 4 }));
+      if (cow) {
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
+          lump(b, 0, 0.135 * k, 0, 0.125 * k, 0.075 * k, 0.07 * k, { seg: 8, rings: 5 });
+          b.with({ color: coat === PALETTE.white ? PALETTE.trunk : PALETTE.white }, () => lump(b, -0.03, 0.17 * k, 0.045, 0.06, 0.05, 0.04, { seg: 6, rings: 4 }));
+        });
+        // The head, down at the grass.
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'head' }, () => lump(b, 0.155 * k, 0.07 * k, 0, 0.05 * k, 0.04 * k, 0.036 * k, { seg: 6, rings: 4 }));
+      } else {
+        // A sheep is a cloud of wool on short dark legs: a few puffs in one outline, sitting low, so
+        // it reads as an animal and not a stool. Its black face pokes out in front.
+        b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
+          const puffs: [number, number, number, number][] = [[0, 0.15, 0, 0.1], [-0.07, 0.135, 0.02, 0.075], [0.06, 0.14, -0.02, 0.075], [0.01, 0.13, 0.055, 0.07], [-0.01, 0.135, -0.055, 0.07]];
+          for (const [x, y, z, rr] of puffs) lump(b, x, y, z, rr, rr * 0.85, rr, { seg: 7, rings: 3, twist: r('tw', x) });
+        });
+        const graze = r('graze') < 0.6;
+        b.with({ color: dark, pattern: PATTERN.none, ink: 'head' }, () => {
+          lump(b, 0.135, graze ? 0.075 : 0.15, 0, 0.045, 0.04, 0.035, { seg: 6, rings: 3 });
+          // two little ears
+          for (const z of [-0.035, 0.035]) b.boxAt([0.115, graze ? 0.1 : 0.175, z], [0.02, 0.012, 0.03]);
+        });
+      }
     });
     return { mesh: b.build() };
   },
