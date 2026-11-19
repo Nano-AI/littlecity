@@ -356,8 +356,8 @@ export const stairPots = definePart({
     for (let i = 0; i < n; i++) {
       if (!(mask & (1 << i))) continue;
       const z = -0.5 + (i + 0.5) / n, y = ((i + 1) * CELL_H) / n;
-      const x = side * (0.4 - r('x', i) * 0.03);
-      const s = 0.8 + r('s', i) * 0.35;
+      const x = side * (0.37 - r('x', i) * 0.03);
+      const s = 1.1 + r('s', i) * 0.35;
       b.at(compose(translation(x, y, z), scaling(s)), () => {
         pot(b, 0.05, 0.08, i % 2 ? PALETTE.brick : mixColor(PALETTE.brick, PALETTE.white, 0.25), `stair-pot${i}`);
         posy(b, 0, 0.08, 0, 0.055, fl[Math.floor(r('f', i) * fl.length)]!, r, i, `stair-pot${i}`);
