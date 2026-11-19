@@ -16,8 +16,9 @@
 //
 // The pen: line position wanders by up to about half a CSS pixel and the
 // weight and ink density swell and thin slowly along the stroke. The noise
-// is anchored to the world, so lines do not crawl when the view pans, and it
-// is static unless LOOK.boil is on.
+// lives on the things drawn (see penAt), so a line keeps its own wobble when
+// the view pans, orbits or zooms instead of crawling through a noise field
+// fixed to the screen, and it is static unless LOOK.boil is on.
 //
 // Then the dusk grade (grade.ts), lit windows with a warm halo, stars on
 // the bare paper, and last the paper grain, added after everything so that
@@ -81,6 +82,12 @@ uniform vec2 uOut;         // this pass's target size, device pixels
 uniform float uPR;         // device pixels per CSS pixel in this target
 uniform vec2 uOrigin;      // the world origin on screen, CSS pixels from the bottom left
 uniform float uTime;
+uniform vec3 uEye;         // the camera: centre of its plane, right and up times the half size,
+uniform vec3 uRight;       // the way it looks, and the near plane's distance (world units)
+uniform vec3 uUp;
+uniform vec3 uForward;
+uniform float uNear;
+uniform float uCss;        // CSS pixels per world unit
 uniform float uThick;      // line width of a silhouette, CSS pixels
 uniform float uInner;      // width of seams and creases, as a share of it
 uniform float uDepthRange; // far - near, world units
@@ -105,6 +112,54 @@ uniform float uHalo;
 
 ${NOISE}
 ${COLOR}
+
+// Value noise in 3D, four channels at once, from an integer hash: steady at any distance from the origin.
+vec4 hash4(ivec3 c){
+  uvec3 v = uvec3(c) * uvec3(1664525u, 1013904223u, 2654435761u);
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  uvec4 w = uvec4(v, v.x ^ v.y ^ v.z) * 747796405u;
+  w ^= w >> 15u;
+  return vec4(w & 0xffffu) / 65535.0;
+}
+vec4 n3(vec3 p){
+  vec3 i = floor(p), f = p - i;
+  f = f * f * (3.0 - 2.0 * f);
+  ivec3 c = ivec3(i);
+  vec4 a = mix(hash4(c), hash4(c + ivec3(1, 0, 0)), f.x);
+  vec4 b = mix(hash4(c + ivec3(0, 1, 0)), hash4(c + ivec3(1, 1, 0)), f.x);
+  vec4 d = mix(hash4(c + ivec3(0, 0, 1)), hash4(c + ivec3(1, 0, 1)), f.x);
+  vec4 e = mix(hash4(c + ivec3(0, 1, 1)), hash4(c + ivec3(1, 1, 1)), f.x);
+  return mix(mix(a, b, f.y), mix(d, e, f.y), f.z);
+}
+
+// The pen at this pixel: x, y the line's wobble (-0.5 to 0.5, CSS pixels), z its weight and w its
+// ink density (0 to 1, slow). The noise is read at the world point under the pixel, so it travels
+// with the drawing. Across an outline the two sides lie far apart, so it is read at the nearest
+// surface within two pixels: both sides of a line, and the line itself, share one point. Its scale
+// follows the zoom in powers of two, blended (as the hatching's spacing is), so the wobble stays
+// about five pixels long at every zoom and nothing jumps while zooming.
+vec4 penAt(vec2 uv, float t){
+  vec2 r = 2.0 * uPR / uOut;
+  float d = texture(tDepth, uv).x;
+  d = min(d, min(texture(tDepth, uv + vec2(r.x, 0.0)).x, texture(tDepth, uv - vec2(r.x, 0.0)).x));
+  d = min(d, min(texture(tDepth, uv + vec2(0.0, r.y)).x, texture(tDepth, uv - vec2(0.0, r.y)).x));
+  vec2 ndc = uv * 2.0 - 1.0;
+  vec3 p = uEye + uRight * ndc.x + uUp * ndc.y + uForward * (uNear + d * uDepthRange) + t;
+  float lod = log2(max(uCss, 1e-3));
+  float o = floor(lod), fr = lod - o, s = exp2(o);
+  // Each pair of octaves spans a factor of two on the page around the pen's own scale: about five
+  // pixels for the wobble (0.21 a pixel) and a few dozen for weight and density (0.04).
+  // The finer octave of one zoom is the coarser of the next, offset and all, so there is no seam.
+  vec2 slow = mix(n3(p * s * 0.04 + 41.0).zw, n3(p * s * 0.08 + 41.0).zw, fr);
+#ifdef INK_TEX
+  return vec4(0.0, 0.0, slow);          // the lines were found in the ink pass; only the density is left
+#else
+  vec2 wob = mix(n3(p * s * 0.21).xy, n3(p * s * 0.42).xy, fr);
+  return vec4(wob - 0.5, slow);
+#endif
+}
 
 vec3 decN(vec4 s){ vec2 xy = s.xy * 2.0 - 1.0; return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy)))); }
 
@@ -153,10 +208,10 @@ void main(){
   float t = uBoil * floor(uTime * 2.0) * 17.31;
   float steady = min(uWobble, 1.0);
 
+  vec4 pen = penAt(vUv, t);
 #ifndef INK_TEX
-  vec2 w = vec2(n2(fw * 0.21 + t), n2(fw * 0.21 + 31.7 + t)) - 0.5;
-  float weight = mix(1.0, 0.72 + 0.56 * n2(fw * 0.03 + 11.0 + t), steady);
-  float e = edge(vUv + w * uWobble * uPR / uOut, uThick * weight);
+  float weight = mix(1.0, 0.72 + 0.56 * pen.z, steady);
+  float e = edge(vUv + pen.xy * uWobble * uPR / uOut, uThick * weight);
 #else
   float e = texture(tInk, vUv).r;
 #endif
@@ -238,7 +293,7 @@ void main(){
     }
   }
 
-  float dens = mix(1.0, 0.8 + 0.2 * n2(fw * 0.07 + 3.0 + t), steady);
+  float dens = mix(1.0, 0.8 + 0.2 * pen.w, steady);
   g = mix(g, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);
 
   // Paper grain, after everything: per-pixel tooth, short fibres, soft mottling, the odd fleck.

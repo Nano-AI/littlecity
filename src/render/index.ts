@@ -334,6 +334,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uPR: { value: 1 },
     uOrigin: { value: new THREE.Vector2() },
     uTime: { value: 0 },
+    uEye: v3(),
+    uRight: v3(),
+    uUp: v3(),
+    uForward: v3(),
+    uNear: { value: CAMERA_NEAR },
+    uCss: { value: 1 },
     uThick: { value: 1.5 },
     uInner: { value: 1 },
     uDepthRange: { value: CAMERA_FAR - CAMERA_NEAR },
@@ -1009,6 +1015,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const origin = project(frame, [0, 0, 0], width, height);
       cu.uOrigin.value.set(origin[0], height - origin[1]);
       cu.uTime.value = seconds;
+      cu.uEye.value.copy(pu.uEye.value);
+      cu.uRight.value.copy(pu.uRight.value);
+      cu.uUp.value.copy(pu.uUp.value);
+      cu.uForward.value.copy(pu.uForward.value);
+      cu.uCss.value = css;
       // Line weight by zoom. Out at the overview every line is the thin far width. Coming in, the
       // outline grows toward inkWidth; the lines inside a shape follow it to playing zoom and then
       // ease back to inkWidthInner, so a close-up is a pen drawing and not a sticker.
