@@ -66,3 +66,30 @@ never get the event and need the timer.
 - Pop-in or any pass that shows every plan instance will un-hide the
   `resident` stand-ins; the people system hides them again each frame, so
   nothing is needed, but do not animate them.
+
+## 5. After integration with Dressing and Animation
+
+- **Props in walkable cells (for Dressing).** Decoration props are not
+  blocks, so the walking graph now reads them from the dressing draft
+  (`FOOTPRINTS` in `src/resolve/nav.ts`): `garden-fence`, `hedge`,
+  `retaining-wall` and `espalier` at an edge slot cut that side
+  (`garden-fence/gate` and `hedge/gap` are ways through); a lamp, signpost,
+  boulder or shrub at an edge slot is walked round; a bench, café table,
+  street tree, goods stack, cart, kiosk, grazer, flower bed, net rack,
+  trough, shed, woodpile or wall fountain makes its side or its cell a last
+  resort (never a cut). Corner slots, socket props and line props are
+  ignored. **A new prop type is treated as a small post**; add it to the
+  table if it is a run or something wide. Asked: a front garden or hedge
+  ring always needs its gate or gap, or the household inside is stranded.
+- **`NavNode.clutter` and `NavLink.post`** are new optional fields in
+  `src/resolve/plan.ts`; `NAV.clutter` and `PEOPLE.laneWide` in the style.
+- **Animation's lamp system has one new export**, `deferLamp(stage, propId,
+  seconds)` in `src/life/dusk/lamps.system.ts`: a lamp on the lamplighter's
+  round stays dark until that many seconds into the evening unless
+  `lightLamp` comes first. In a scene HELD at dusk the lamps ahead of the
+  lamplighter are therefore still dark; held at night everything is lit.
+- **Which lamps are on the round:** lamp posts wherever they stand (streets,
+  squares, bridge parapets, pier ends), the ten nearest the biggest square
+  that can be walked between. Hanging lanterns and door lanterns are not:
+  they light on Animation's timer, as does every post beyond the ten.
+- **Window lights** now follow who is home through `setOccupied`.
