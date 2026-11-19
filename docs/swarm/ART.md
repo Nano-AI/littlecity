@@ -6,6 +6,39 @@ examples are real code: `scenarios/look/fixtures/` holds the spike's house,
 tree, marble, pillar, stairs and lamp rebuilt with `MeshBuilder`, and every
 picture here comes from `npm run shots -- 'look-*'`.
 
+## Changes since Stage 1
+
+Nothing below asks you to redo anything; every rule in the rest of this
+guide still stands. These are things the page now does for you, and what
+follows from them.
+
+1. **Pieces are grounded by the page** (new section 11). Contact shade round
+   the foot of everything, shade under anything that overhangs, a short cast
+   shade on the side away from the light, a darker foot on walls. You do
+   nothing, and you must not fake any of it: no dark base bands, no shadow
+   quads, no darker colour under an eave. Do build real overhangs (eaves,
+   awnings, balconies, arch soffits) of 0.08 or more: they now shade what is
+   under them. And pieces must still really stand on the ground: the shade
+   is worked out from above and does not hide a gap under a piece.
+2. **Hatching lies on the surface**, in the surface's own plane, and each ink
+   group gets a slightly different stroke angle. It needs nothing but correct
+   normals. It no longer slides when the view orbits or zooms.
+3. **The ghost preview is a pencil sketch of your piece**: a pale wash of its
+   colours with pencil lines exactly where its ink lines will be (section
+   4). Patterns are left out. So a piece with good ink groups previews well,
+   and one with none previews as a blank shape.
+4. **Terrain grass is a step lighter on each terrace above the first**, and
+   has wandering patches of deeper meadow. A lawn or garden piece that should
+   melt into the ground it lies on takes its colour from
+   `terraceGrass(level)` in `src/style/terrain.ts` (level 1 is the lowest
+   land, and is `PALETTE.grass` as before). `PALETTE.grassHigh` is new.
+5. **Any style value you change redraws the town**, in the game's tuning
+   panel and in the gallery. Read style values inside `build`, never at
+   module load, or the redraw will not see the change.
+6. **Water**: things standing in `PATTERN.water` (a dock post, a hull) get a
+   soft contact shade on the water by themselves. The sea keeps its blue at
+   dusk. Nothing changes in how you use the pattern.
+
 ![The look](art/hero.jpg)
 
 The look is **an ink-and-coloured-pencil drawing on cream paper**: flat
@@ -33,7 +66,8 @@ You do **not** shade, outline, hatch, light or darken anything yourself. Never
 bake a shadow into a colour, never add a dark box to fake an outline, never
 pick a darker colour for "the side in shade": the shader steps the tone from
 the face's normal (top 100%, then 90, 79, 71, 66%, drifting cool) and hatches
-the darker steps. Give it correct normals and it draws.
+the darker steps. Give it correct normals and it draws. The same goes for
+the shade a piece throws on the ground and on itself (section 11).
 
 ## 2. Palette
 
@@ -312,3 +346,48 @@ Terrain, for reference: rounded terraces, earth banks with a grass lip,
 rock where the drop is two levels or more, a beach that slopes into the sea.
 
 ![Terrain](art/terrain.jpg)
+
+## 11. Grounding (the page does this; added after Stage 1)
+
+![Grounding](art/grounding.jpg)
+
+Pieces sit on the ground in a soft pencilled shade, drawn the way an
+illustrator shades rather than the way a renderer casts shadows:
+
+- **contact**: a darker, cooler tone hugging the foot of anything that
+  stands on a surface, on every side;
+- **cover**: whatever is under a crown, an arch, a deck, a house on stilts
+  or an eave is in shade, with the outline of the thing above it;
+- **cast**: a short shade on the side away from the light (north-west),
+  with a wandering edge; longer at dusk, faint at night;
+- **foot**: walls darken a little where they meet the ground and just under
+  an overhang.
+
+It all comes from one picture of the town's heights seen from straight
+above, so it follows directly from your geometry:
+
+- It sees the **highest surface over each point**, and nothing else. What
+  matters is the outline of your piece from above, and how high it is.
+- **Overhangs shade what is under them.** An eave 0.12 out gives the wall a
+  band of shade under it; an awning shades the door; a bridge shades the
+  water. Model them as real geometry and you get this free.
+- **Things must still touch.** The shade is worked out from above, so it
+  cannot tell that a piece hovers 0.01 over the ground: the gap still shows
+  as a line of light under it. Keep feet on the ground.
+- Thin things throw thin shade (a lamp post's is a pencil line). Do not
+  thicken them to get more.
+- Light beams and the ghost throw none. Props and actors do, like
+  everything else.
+
+Its strength is `LOOK.ground` and the light's angle by time of day is in the
+`grade` style (`daySlope`, `duskSlope`, and so on); they are the page's.
+
+The ghost preview, for reference: a wash of the piece's colours with pencil
+lines where its ink lines will be.
+
+![The ghost preview](art/ghost.jpg)
+
+A generated island, by day and at dusk: lighter terraces, meadow patches,
+the sea paling toward the shore in two contoured steps.
+
+![A generated island](art/island.jpg)

@@ -184,6 +184,20 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('hatching belongs to the surface: it does not pop where its spacing halves as the view zooms in', async () => {
+    // The stroke spacing halves each time the zoom doubles (here at 64 CSS pixels per unit: zoom 7.68 at
+    // this size). Old strokes stay where they are and new ones fade in between, so a hair either side of
+    // that zoom the picture is the same, just as it is for a hair's change anywhere else.
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    const at = async (zoom: number): Promise<FrameSummary> => {
+      await look(`window.__look.camera({ yaw: 215, pitch: 30, zoom: ${zoom}, target: [21, 1.5, 24.5] })`);
+      return settled();
+    };
+    const across = differ(await at(7.675), await at(7.685));
+    const elsewhere = differ(await at(7.2), await at(7.21));
+    expect(across).toBeLessThan(elsewhere * 1.5 + 0.05);
+  });
+
   test('flat ground and open sea never ink over, however far out or low the view (phone, half ink)', async () => {
     for (const ink of ['half', 'full']) {
       await look(`window.__look.open('look-isle-1', { ink: '${ink}', pixelRatio: 2, width: 390, height: 844 })`);

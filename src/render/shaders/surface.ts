@@ -5,7 +5,7 @@
 //   vertex    slot matrix (things that move), wind sway, varyings
 //   fragment  flat stepped shading from one fixed light (3–4 tones, shadows
 //             drifting cool), then the surface's pencil pattern, then
-//             screen-space pencil hatching in the shaded tones
+//             pencil hatching in the shaded tones and the grounding shade
 //   outputs   location 0: colour (sRGB) and glow in alpha
 //             location 1: view normal (xy) and the ink id (two bytes), which
 //             the composite pass turns into ink lines
@@ -198,6 +198,25 @@ float grounding(vec3 n){
     return max(foot, eave);
   }
   return 0.0;
+}
+
+// One layer of pencil strokes on a surface. p is a position in the surface's own plane (world
+// units) and dir the direction the strokes run in that plane, so the strokes belong to the surface
+// and do not slide over it when the view moves. Their spacing on the page still stays near
+// uHatchSpacing at every zoom: each time the zoom doubles the spacing halves, and the new strokes
+// fade in between the old ones, which stay exactly where they were.
+float hatchLayer(vec2 p, vec2 dir, float seed){
+  float lod = log2(max(uCss, 1.0) / 32.0);
+  float o = floor(lod), fr = lod - o, scr = exp2(fr);
+  vec2 q = p * (32.0 * exp2(o) / uHatchSpacing);          // in stroke spacings
+  float hv = dot(q, vec2(-dir.y, dir.x)) + (mix(n2(q * 0.16 + seed), n2(q * 0.32 + seed), fr) - 0.5) * 1.1 / scr;
+  float ha = dot(q, dir);
+  float d = abs(fract(hv) - 0.5);
+  float stroke = 1.0 - smoothstep(0.14 / scr, 0.36 / scr, d);
+  float between = (1.0 - smoothstep(0.14 / scr, 0.36 / scr, 0.5 - d)) * smoothstep(0.1, 0.9, fr);
+  // The pencil lifts here and there: patches of strokes, not a ruled screen.
+  float lifted = mix(n2(vec2(hv * 0.9 + seed, ha * 0.2)), n2(vec2(hv * 1.8 + seed, ha * 0.4)), fr);
+  return max(stroke, between) * smoothstep(0.3, 0.62, lifted);
 }
 
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
@@ -596,26 +615,21 @@ void main(){
       col = mix(col, shade(uFoam, s), lineAA(abs(fract(x) - 0.5), 0.08) * step(0.5, h1(vec2(floor(x), 0.0))) * 0.5 * fade(0.11));
     }
 
-    // ── pencil hatching in the shade. It is laid on the page, not on the surface (strokes keep one
-    //    density at every zoom), but it is anchored to the world so it does not slide when you pan.
-    vec2 sp = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
-    float ang = 0.95 + (h1(vId * 91.7) - 0.5) * 0.4;
+    // ── pencil hatching in the shade, laid on the surface itself (see hatchLayer): it stays put when
+    //    the view pans, orbits or zooms.
+    bool flatish = abs(n.y) > 0.7;
+    vec2 hp = flatish ? vW.xz : vec2(dot(vW.xz, tang), vW.y);
+    float ang = (flatish ? 0.35 : 0.95) + (h1(vId * 91.7) - 0.5) * 0.4;
     vec2 hd = vec2(cos(ang), sin(ang));
-    float hv = dot(sp, vec2(-hd.y, hd.x)) / uHatchSpacing + (n2(sp * 0.03) - 0.5) * 1.1;
-    float ha = dot(sp, hd);
-    float stroke = 1.0 - smoothstep(0.14, 0.36, abs(fract(hv) - 0.5));
-    float broken = smoothstep(0.3, 0.62, n2(vec2(floor(hv) * 7.3, ha * 0.04)));
     float depth = s > 0.95 ? 0.22 : (s > 0.85 ? 0.5 : (s > 0.75 ? 0.8 : 1.0));
     // Grounding: a cooler, darker tone, and the pencil pressed harder there.
     float gnd = hatchable > 0.5 ? grounding(n) * uGround : 0.0;
     col *= mix(vec3(1.0), vec3(0.76, 0.77, 0.9), gnd);
     depth = max(depth, gnd * 1.15);
-    float amount = stroke * broken * depth;
+    float amount = hatchLayer(hp, hd, 0.0) * depth;
     if (s < 0.75) {
       // the darkest faces get a second, crossing layer
-      float hv2 = dot(sp, hd) / (uHatchSpacing * 1.3) + (n2(sp * 0.03 + 9.0) - 0.5) * 1.1;
-      float stroke2 = 1.0 - smoothstep(0.14, 0.36, abs(fract(hv2) - 0.5));
-      amount = max(amount, stroke2 * smoothstep(0.35, 0.65, n2(vec2(floor(hv2) * 5.1, dot(sp, vec2(-hd.y, hd.x)) * 0.04))) * 0.6);
+      amount = max(amount, hatchLayer(hp / 1.3, vec2(-hd.y, hd.x), 9.0) * 0.6);
     }
     col *= 1.0 - uHatch * hatchable * amount * 0.17;
     col = mix(col, uInk, clamp(pen * uPencil, 0.0, 1.0));

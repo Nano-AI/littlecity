@@ -85,6 +85,36 @@ No change. `LifeStage` and `InstanceHandle` are implemented as written.
 - New style modules: `look` and `grade` (`src/style/look.ts`), `terrain`,
   `wind`. All live, all with slider ranges for the gallery.
 
+## Second pass (during Stage 2)
+
+No further changes to frozen files. Things that changed for other owners:
+
+- **Grounding.** The view draws the town from straight above into a height
+  picture (only when geometry changes or something moves) and shades the
+  ground from it: contact, cover under overhangs, a short cast shade, a
+  darker foot on walls. `docs/swarm/ART.md` section 11 says what follows for
+  geometry. Strength: `LOOK.ground` (0 switches it off). For Animation and
+  People: anything that moves makes the picture redraw, at most every other
+  frame; it costs one extra pass over the geometry on those frames.
+- **Draw calls.** A still town is still about 11 calls a frame. A frame in
+  which geometry changed or something moved adds about 10 (the height
+  picture); a frame with the ghost showing adds 2.
+- **`styleVersion()` is in every cache key.** A changed style value rebuilds
+  every mesh on the next `setTown` or, failing that, the next `render`, and
+  keeps lifted structures lifted and props on their slots (the handles life
+  holds stay valid). Values in the modules `look`, `grade`, `wind` and
+  `time` are read every frame and cost no rebuild.
+- **`setParams`**: a negative `a` (glow) is reserved; the view marks its own
+  ghost slots with it. `c` and `d` are free.
+- **The ghost** is drawn from the same generators with pencil lines where
+  the ink groups change. Interface need not do anything.
+- **New style values**: `PALETTE.grassHigh`; `TERRAIN.levelTint`;
+  `LOOK.ground`, `LOOK.seaKeep`; `GRADE.<part>Slope` and `GRADE.<part>Cast`.
+  `terraceGrass(level)` in `src/style/terrain.ts` gives the terrain's grass
+  colour at a level, for lawn and garden pieces that should match it.
+- **New look scenarios**: `look-generated`, `look-generated-2`, `-3`, `-4`
+  (the real generator, four seeds, four sides).
+
 ## Requests
 
 None outstanding.

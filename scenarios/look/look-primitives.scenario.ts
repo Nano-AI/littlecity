@@ -84,6 +84,10 @@ export default scenario({
     { name: 'night', yaw: 45, pitch: 32, zoom: 3.3, target: [23, 1, 23.5], time: 'night' },
     { name: 'night-close', yaw: 45, pitch: 32, zoom: 8.5, target: [23, 2, 26], time: 'night' },
     { name: 'dawn', yaw: 135, pitch: 30, zoom: 5, target: [23, 1.5, 24], time: 'dawn' },
+    // From the north-west the shadow side faces the viewer: the grounding shade, by day and at dusk.
+    { name: 'shade', yaw: 215, pitch: 30, zoom: 7.5, target: [21, 1.5, 24.5] },
+    { name: 'shade-dusk', yaw: 215, pitch: 30, zoom: 7.5, target: [21, 1.5, 24.5], time: 'dusk' },
+    { name: 'shade-night', yaw: 215, pitch: 30, zoom: 7.5, target: [21, 1.5, 24.5], time: 'night' },
   ],
   expect(plan, dressing, check) {
     check.kind(20, 3, 24, 'house');

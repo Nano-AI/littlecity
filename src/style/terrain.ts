@@ -2,6 +2,7 @@
 // src/gen/terrain. All lengths are world units (a cell is 1 wide, 0.8 tall).
 
 import { defineStyle } from '@/core/style';
+import { PALETTE } from './palette';
 
 export const TERRAIN = defineStyle(
   'terrain',
@@ -48,3 +49,18 @@ export const TERRAIN = defineStyle(
     earthDepth: [0.2, 2, 0.05],
   },
 );
+
+/**
+ * The grass colour of the terrain at a level (1 is the lowest land): each terrace above the first
+ * leans a step toward PALETTE.grassHigh, so plateaus read from every side. A lawn or garden piece
+ * that should melt into the ground it lies on uses this instead of PALETTE.grass.
+ */
+export function terraceGrass(level: number): [number, number, number] {
+  const rgb = (hex: string): [number, number, number] => {
+    const n = Number.parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const a = rgb(PALETTE.grass), b = rgb(PALETTE.grassHigh);
+  const t = Math.min(1, Math.max(0, level - 1) * TERRAIN.levelTint);
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+}

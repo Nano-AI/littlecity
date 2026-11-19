@@ -5,6 +5,8 @@
     npm run shots -- look-island     --scale 2 --out .context/art
     npm run shots -- look-swatches   --scale 2 --out .context/art --size 1600x900
     npm run shots -- look-dodont     --scale 2 --out .context/art --size 1600x700
+    npm run shots -- look-generated-2 --scale 2 --out .context/art
+    node docs/swarm/art/ghost-shot.mjs
     python3 docs/swarm/art/make-images.py
 
 Needs Pillow. Every output is a JPEG under 300 kB.
@@ -197,6 +199,36 @@ def terrain():
     save(out, "terrain.jpg", 80)
 
 
+def grounding():
+    names = [("look-primitives-shade", "day: contact, cover and a short cast shade"), ("look-primitives-shade-dusk", "dusk: the light is low, the shade reaches further")]
+    w = 800
+    tiles = [fit(shot(n), w) for n, _ in names]
+    h = tiles[0].size[1]
+    out = Image.new("RGB", (w * 2 + 8, h), PAPER)
+    d = ImageDraw.Draw(out)
+    for i, (tile, (_, text)) in enumerate(zip(tiles, names)):
+        out.paste(tile, (i * (w + 8), 0))
+        label(d, (i * (w + 8) + 12, 10), text)
+    save(out, "grounding.jpg", 82)
+
+
+def ghost():
+    im = shot("ghost")
+    w, h = im.size
+    save(fit(im.crop((round(w * 0.14), round(h * 0.08), round(w * 0.92), round(h * 0.86))), 1000), "ghost.jpg", 84)
+
+
+def island():
+    a, b = fit(shot("look-generated-2-sw"), 800), fit(shot("look-generated-2-dusk"), 800)
+    out = Image.new("RGB", (1608, a.size[1]), PAPER)
+    out.paste(a, (0, 0))
+    out.paste(b, (808, 0))
+    d = ImageDraw.Draw(out)
+    label(d, (12, 10), "a generated island by day")
+    label(d, (820, 10), "and at dusk")
+    save(out, "island.jpg", 80)
+
+
 def quarters():
     names = ["hero", "hero-se", "hero-nw", "hero-ne"]
     w = 560
@@ -210,6 +242,6 @@ def quarters():
 
 if __name__ == "__main__":
     only = sys.argv[1:]
-    for fn in (hero, spike_vs_engine, proportions, patterns, do_dont, times, night_close, terrain, quarters):
+    for fn in (hero, spike_vs_engine, proportions, patterns, do_dont, times, night_close, terrain, quarters, grounding, ghost, island):
         if not only or fn.__name__ in only:
             fn()
