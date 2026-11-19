@@ -8,14 +8,16 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - L02 smoke, L03 sails + weathervanes (`src/life/wind/`, fixture `L02.smoke`).
 - L07 windows, lamps, L09 beam (`src/life/dusk/`, fixture `L07.window-light`).
 - Birds L11/L12/L13/L16 (`src/life/birds/`, fixtures `L11`–`L16`); boats and rings L06/L17/L19 (`src/life/boats/`, `src/life/water/`, fixture `L17.rowboats`, gallery `part.boats`, `part.birds`).
-- `docs/swarm/requests/animation.md` written. Bench with life: 60 fps, CPU 0.4 ms median.
+- Tier 2: L10 fireflies (`src/life/dusk/firefly.behaviour.ts`, fixture `L10.fireflies`).
+- `docs/swarm/requests/animation.md` written. Bench with life: 60 fps on a quiet machine, CPU 0.5 ms median; triangles drawn go from 0.29 M to 1.0 M on frames where the grounding picture redraws.
 
 ## In the middle of
 - Nothing half-done. Next step is the list below.
 
 ## Next, in order
-1. Main merged at f96fa30 and `npm run check` is green (65 files, 968 tests, 74 s). Merge again before reporting if main moved.
-2. Tier 2/3 if budget allows, cheapest first: L29 (fountain jets at `water-jet` sockets, clock hands at `clock-hands`, bell at `bell`), L18 fishing boat (mesh and a floating behaviour exist; needs the rule and a dawn/dusk route on the sea lane), L10 fireflies, L05 falling leaves, L14 sparrows. Sound (F06) last.
+1. Main is merged up to 5418dac and `npm run check` is green. Merge again before reporting if main moved.
+2. More of tier 2/3, cheapest first: L18 fishing boat (mesh and a floating behaviour exist; needs the rule and a dawn-out, dusk-home route on the sea lane), L05 falling leaves, L14 sparrows, L15 characters. Sound (F06) last.
+3. Not doable without another owner (see the requests file): the mill cap yawing (baked by Houses' generator); swinging bells, clock hands and animated fountain jets (the tower and fountain generators already bake static ones: an actor would draw them twice).
 
 ## Gotchas
 - Shell: compound commands with heredocs or `cd` elsewhere are refused; use the Write tool for files and plain commands from the worktree.

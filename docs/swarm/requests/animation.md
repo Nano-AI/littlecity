@@ -36,6 +36,16 @@ the wind than side-on) but the cap does not come round to the wind.
 `mill-cap`, at a socket on the tower's neck, owning `mill-hub`). Then a
 behaviour can yaw it and the sails follow, with no other change.
 
+## 2b. For Monuments and Ground: mechanisms that are baked (L29)
+
+The tower generator bakes a static bell into the belfry and fixed hands on
+each clock face; the fountain generator bakes a static jet. The sockets for
+the moving versions exist (`bell`, `clock-hands`, `water-jet`), but an actor
+there would draw the thing twice. **Asked:** leave those three out of the
+baked mesh when a part for `bell`, `clock-hands` or `water-jet` actors is
+registered (`parts.has('actor', …)`), and I will add the parts and
+behaviours (L29).
+
 ## 3. For Look: which pane lights when (L07)
 
 Windows are lit pane by pane by the surface shader, in an order hashed from
