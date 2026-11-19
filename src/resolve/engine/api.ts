@@ -131,9 +131,14 @@ export interface RuleDef<D = undefined> {
    * roles, tags, features and sockets of S and of those block structures; and
    * style values. Not floor regions' or edge runs' outputs, not town-wide
    * facts, not the plan's global lists. `local` must cover the reach of every
-   * fact it reads (facades: 4; roofRegions, structureInfo, houseFacts: 1).
+   * fact it reads (facades: 3; roofRegions, structureInfo, houseFacts: 1).
    */
   local?: number;
+  /**
+   * With `local`: a digest of anything else apply reads that the reach does
+   * not cover (facades' alley flags: `facades(facts).alleyDigest(s)`).
+   */
+  localAlso?(ctx: RuleContext, c: Candidate<D>): number;
   /** Pure. Where could this rule apply? */
   find(ctx: RuleContext): Candidate<D>[];
   /** Seeded chance per candidate, 0 < chance ≤ 1. Omitted means always. */

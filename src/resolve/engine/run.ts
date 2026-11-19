@@ -102,11 +102,15 @@ interface StageEnv {
   beforePart?(part: RulePart): void;
   /** Reuse of earlier resolves' work for rules marked `local` (shape stage). */
   reuse?: ShapeReuse;
+  /** makeOut ignores the candidate: one emitter per rule will do. */
+  outPerRule?: boolean;
 }
 
 function runParts(rules: readonly Rule[], env: StageEnv): void {
   const sorted = sortedRules(rules);
   const { ctx, claims, inherited, opts } = env;
+  // One emitter per rule when it does not depend on the candidate (the shape stage).
+  const outs = env.outPerRule ? new Map<Rule, RuleOut>() : null;
   const seed = ctx.seed;
   for (const part of env.parts) {
     env.beforePart?.(part);
@@ -150,10 +154,11 @@ function runParts(rules: readonly Rule[], env: StageEnv): void {
           continue;
         }
         for (const s of wanted) claims.set(s, rule.id);
-        const applyCtx: ApplyContext = { ...ctx, ...candidateRandom(seed, rule.id, c) };
+        const out = outs ? (outs.get(rule) ?? outs.set(rule, env.makeOut(rule, c)).get(rule)!) : env.makeOut(rule, c);
         try {
-          if (env.reuse && rule.local !== undefined) env.reuse.apply(rule, c, env.makeOut(rule, c), (out) => rule.apply(c, out, applyCtx));
-          else rule.apply(c, env.makeOut(rule, c), applyCtx);
+          if (env.reuse && rule.local !== undefined) {
+            env.reuse.apply(rule, c, ctx, out, (o) => rule.apply(c, o, { ...ctx, ...candidateRandom(seed, rule.id, c) }));
+          } else rule.apply(c, out, { ...ctx, ...candidateRandom(seed, rule.id, c) } as ApplyContext);
         } catch (err) {
           throw annotate(err, `rule ${rule.id} apply() at cell ${c.anchor}`);
         }
@@ -345,6 +350,7 @@ export function runShapeStage(base: FactsBase, rules: readonly Rule[], opts: Res
     opts,
     makeOut,
     reuse,
+    outPerRule: true,
   });
 
   // A structure's hash reads its cells and their neighbours (the columns within 1), the supports

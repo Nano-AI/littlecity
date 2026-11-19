@@ -62,6 +62,13 @@ export interface Facades {
   list: readonly Facade[];
   byStructure: ReadonlyMap<StructureId, readonly Facade[]>;
   at(cell: CellKey, dir: Dir4): Facade | undefined;
+  /**
+   * A digest of which of a structure's facades look onto an alley. The one
+   * part of a facade that can depend on cells far away (an alley run is
+   * found from its first cell), for keys that cover a structure's
+   * neighbourhood (RuleDef.localAlso).
+   */
+  alleyDigest(s: StructureId): number;
 }
 
 const SURFACE: readonly (Faced | null)[] = [null, 'street', 'plaza', 'garden', 'water', 'ground'];
@@ -92,27 +99,44 @@ function surfaceUnder(occ: Occupancy, cell: CellKey, out: { drop: number }): num
   }
 }
 
-// A structure's facades read the columns within facadeReach of it, straight
-// down each of them, and whether the cell outside is in an alley, which is
-// decided within alleyMin + 1 of that cell. Kept across resolves by the
-// content of the columns within that reach (see content-keys.fact.ts).
+// A structure's facades, all but their alley flags, read the columns within
+// facadeReach of it and straight down each of them: they are kept across
+// resolves by the content of those columns (see content-keys.fact.ts). The
+// alley flags come from the alleys fact every time.
 const memo = registerMemo(new RegionMemo<Facade[]>());
 
 export const facades = defineFact<Facades>('facades', (f) => {
   const list: Facade[] = [];
   const byStructure = new Map<StructureId, Facade[]>();
+  const digests = new Map<StructureId, number>();
   const keys = contentKeys(f);
   const k = regionKey();
-  const reach = Math.max(FACTS.facadeReach, FACTS.alleyMin + 1) + 1;
   memo.begin();
   let env: Env | null = null;
+  const alleyCells = alleys(f).byCell;
   const ids = [...f.structures.keys()].sort((a, b) => a - b);
   for (const id of ids) {
     const s = f.structures.get(id)!;
     if (!FACADE_KINDS.has(s.kind) || !s.cells.length) continue;
-    saltKey(saltKey(keys.around(s.cells, reach, k), FACTS.facadeReach), FACTS.alleyMin);
+    saltKey(keys.around(s.cells, FACTS.facadeReach, k), FACTS.facadeReach);
     let mine = memo.get(id, k);
-    if (!mine) memo.put(id, k, (mine = facadesOf(f, id, (env ??= envOf(f)))));
+    if (!mine) {
+      mine = facadesOf(f, id, (env ??= envOf(f)));
+      for (const fc of mine) fc.alley = alleyCells.has(neighbor(fc.cell, fc.dir));
+      memo.put(id, k, mine);
+    }
+    // The alley flags, from the alleys fact: a remembered list whose flags differ is copied.
+    let digest = 0x2f;
+    for (let i = 0; i < mine.length; i++) {
+      const fc = mine[i]!;
+      const alley = alleyCells.has(neighbor(fc.cell, fc.dir));
+      if (alley !== fc.alley) {
+        mine = mine.map((x) => ({ ...x, alley: alleyCells.has(neighbor(x.cell, x.dir)) }));
+        memo.put(id, k, mine);
+      }
+      if (alley) digest = (Math.imul(digest, 31) + i + 1) | 0;
+    }
+    digests.set(id, digest);
     if (!mine.length) continue;
     byStructure.set(id, mine);
     for (const fc of mine) list.push(fc);
@@ -125,17 +149,16 @@ export const facades = defineFact<Facades>('facades', (f) => {
     }
     return index.get(cell * 4 + dir);
   };
-  return { list, byStructure, at };
+  return { list, byStructure, at, alleyDigest: (s) => digests.get(s) ?? 0 };
 });
 
 interface Env {
   occ: Occupancy;
   sun: ReturnType<typeof sunnySide>;
-  alleyCells: ReadonlyMap<CellKey, unknown>;
 }
 
 function envOf(f: Facts): Env {
-  return { occ: occupancy(f), sun: sunnySide(f), alleyCells: alleys(f).byCell };
+  return { occ: occupancy(f), sun: sunnySide(f) };
 }
 
 function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
@@ -170,7 +193,7 @@ function facadesOf(f: Facts, id: StructureId, env: Env): Facade[] {
         touching: undefined,
         edge: edgeBetween(f, cell, dir),
         drop: 0,
-        alley: env.alleyCells.has(out),
+        alley: false, // set by the fact, from the alleys fact
         sunny: sun.isSunny(dir),
       };
       const outKind = occ.kind[out]!;

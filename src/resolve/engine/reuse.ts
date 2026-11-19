@@ -20,7 +20,7 @@ import type { Role, Tag } from '@/core/vocab';
 import { contentKeys, memosOn, regionKey, type RegionKey } from '../facts/content-keys.fact';
 import type { Facts } from '../facts/api';
 import type { Feature, Socket, StructureId } from '../plan';
-import type { Candidate, Rule, RuleOut } from './api';
+import type { Candidate, Rule, RuleContext, RuleOut } from './api';
 
 function mix(h: number, k: number): number {
   k = Math.imul(k | 0, 0xcc9e2d51);
@@ -93,6 +93,7 @@ function codeOf(str: string | undefined): Lane {
   return c;
 }
 const NO_CODE: Lane = { a: 0x51ed270b, b: 0x2c1b3c6d };
+const EMPTY_LANE: Lane = { a: SEED_A, b: SEED_B };
 
 /** Running digests of what the shape rules emitted onto each structure. */
 export class OutputLanes {
@@ -201,6 +202,10 @@ export class OutputLanes {
   get orphanB(): number {
     return this.orphan.b;
   }
+  /** A structure's lanes now (do not keep: they change as rules emit). */
+  of(s: StructureId): Lane {
+    return this.lanes.get(s) ?? EMPTY_LANE;
+  }
   laneA(s: StructureId): number {
     return this.lanes.get(s)?.a ?? SEED_A;
   }
@@ -221,6 +226,8 @@ interface Entry {
   a: number;
   b: number;
   calls: Call[];
+  /** Some id was renamed (`~2`) when recorded. */
+  renamed: boolean;
 }
 
 /** What the engine gives the reuse: its id set and a way to put a remembered item back in the plan. */
@@ -277,7 +284,7 @@ interface Scope {
  * structures, and scopes per structure and reach.
  */
 export class ShapeReuse {
-  private byColumn: StructureId[][] | null = null;
+  private byColumn: (StructureId[] | undefined)[] | null = null;
   private scopes = new Map<number, Scope>();
   private boxes = new Map<StructureId, Box>();
   private readonly k: RegionKey = regionKey();
@@ -296,12 +303,14 @@ export class ShapeReuse {
     this.recording?.push(call);
   }
 
-  private columns(): StructureId[][] {
+  private columns(): (StructureId[] | undefined)[] {
     if (this.byColumn) return this.byColumn;
-    const cols: StructureId[][] = Array.from({ length: SIZE_X * SIZE_Z }, () => []);
+    const cols: (StructureId[] | undefined)[] = new Array(SIZE_X * SIZE_Z);
     for (const [c, id] of this.facts.structureAt) {
-      const list = cols[columnIndex(keyX(c), keyZ(c))]!;
-      if (!list.includes(id)) list.push(id);
+      const i = columnIndex(keyX(c), keyZ(c));
+      const list = cols[i];
+      if (!list) cols[i] = [id];
+      else if (!list.includes(id)) list.push(id);
     }
     return (this.byColumn = cols);
   }
@@ -328,23 +337,23 @@ export class ShapeReuse {
     const own = this.boxOf(s);
     const box = { ...own };
     const cols = this.columns();
-    const near: StructureId[] = [];
+    const near = new Set<StructureId>();
     for (let z = Math.max(0, own.z0 - reach); z <= Math.min(SIZE_Z - 1, own.z1 + reach); z++) {
       for (let x = Math.max(0, own.x0 - reach); x <= Math.min(SIZE_X - 1, own.x1 + reach); x++) {
-        for (const id of cols[columnIndex(x, z)]!) {
-          if (id === s || near.includes(id)) continue;
-          near.push(id);
-          // The key covers every near structure whole (its facts read all of it).
-          const nb = this.boxOf(id);
-          if (nb.x0 < box.x0) box.x0 = nb.x0;
-          if (nb.x1 > box.x1) box.x1 = nb.x1;
-          if (nb.z0 < box.z0) box.z0 = nb.z0;
-          if (nb.z1 > box.z1) box.z1 = nb.z1;
-        }
+        const list = cols[columnIndex(x, z)];
+        if (list) for (const id of list) if (id !== s) near.add(id);
       }
     }
+    // The key covers every near structure whole (its facts read all of it).
+    for (const id of near) {
+      const nb = this.boxOf(id);
+      if (nb.x0 < box.x0) box.x0 = nb.x0;
+      if (nb.x1 > box.x1) box.x1 = nb.x1;
+      if (nb.z0 < box.z0) box.z0 = nb.z0;
+      if (nb.z1 > box.z1) box.z1 = nb.z1;
+    }
     const k = contentKeys(this.facts).region(box.x0 - reach, box.z0 - reach, box.x1 + reach, box.z1 + reach, this.k);
-    sc = { a: k.a, b: k.b, near: near.sort((p, q) => p - q) };
+    sc = { a: k.a, b: k.b, near: [...near].sort((p, q) => p - q) };
     this.scopes.set(sk, sc);
     return sc;
   }
@@ -353,23 +362,30 @@ export class ShapeReuse {
    * Applies a local rule's candidate: replays its recorded output if every
    * input it may read is unchanged, else calls apply and records it.
    */
-  apply(rule: Rule, c: Candidate<unknown>, out: RuleOut, run: (out: RuleOut) => void): void {
+  apply(rule: Rule, c: Candidate<unknown>, ctx: RuleContext, out: RuleOut, run: (out: RuleOut) => void): void {
     if (!memosOn() || rule.local === undefined || c.structure === undefined) return run(out);
     let memo = memos.get(rule);
     if (!memo) memos.set(rule, (memo = new RuleMemo()));
     const sc = this.scope(c.structure, rule.local);
     const L = this.lanes;
-    let a = mix(mix(mix(sc.a, this.style), c.structure), L.laneA(c.structure));
-    let b = mix(mix(mix(sc.b, this.style), c.structure), L.laneB(c.structure));
+    const own = L.of(c.structure);
+    let a = mix(mix(mix(sc.a, this.style), c.structure), own.a);
+    let b = mix(mix(mix(sc.b, this.style), c.structure), own.b);
     for (const id of sc.near) {
-      a = mix(a, L.laneA(id));
-      b = mix(b, L.laneB(id));
+      const l = L.of(id);
+      a = mix(a, l.a);
+      b = mix(b, l.b);
+    }
+    if (rule.localAlso) {
+      const also = rule.localAlso(ctx, c);
+      a = mix(a, also);
+      b = mix(b, also ^ 0x3c6ef372);
     }
     a = fmix(mix(a, L.orphanA));
     b = fmix(mix(b, L.orphanB));
     const key = c.key === undefined ? `${c.anchor}` : `${c.anchor}:${typeof c.key}:${c.key}`;
     const hit = memo.get(key, a, b);
-    if (hit && this.canReplay(hit.calls)) {
+    if (hit && this.canReplay(hit)) {
       for (const call of hit.calls) {
         if (call.m === 'role') out.role(call.s, call.role);
         else if (call.m === 'tag') out.tag(call.s, call.tag);
@@ -385,11 +401,20 @@ export class ShapeReuse {
     } finally {
       this.recording = null;
     }
-    memo.cur.set(key, { a, b, calls });
+    const renamed = calls.some((x) => (x.m === 'feature' ? x.f.id !== x.base : x.m === 'socket' && x.s.id !== x.base));
+    memo.cur.set(key, { a, b, calls, renamed });
   }
 
   /** A replay hands out the very ids recorded (the engine's `~2` renaming included). */
-  private canReplay(calls: readonly Call[]): boolean {
+  private canReplay(entry: Entry): boolean {
+    const calls = entry.calls;
+    if (!entry.renamed) {
+      // Recorded ids are their bases and distinct: they come back as long as none is taken.
+      for (const call of calls) {
+        if (call.m === 'feature' ? this.emitter.hasId(call.f.id) : call.m === 'socket' && this.emitter.hasId(call.s.id)) return false;
+      }
+      return true;
+    }
     let taken: Set<string> | null = null;
     for (const call of calls) {
       if (call.m !== 'feature' && call.m !== 'socket') continue;
