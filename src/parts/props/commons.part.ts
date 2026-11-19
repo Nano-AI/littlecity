@@ -509,8 +509,9 @@ export const kite = definePart({
     const colors = [PALETTE.red, PALETTE.yellow, PALETTE.glass, PALETTE.magic, PALETTE.pink];
     const a = colors[Math.floor(r('a') * colors.length)]!, c = colors[(Math.floor(r('a') * colors.length) + 2) % colors.length]!;
     const turn = r('turn') * Math.PI * 2;
-    b.at(compose(translation(0, top - 0.06, 0), rotationY(turn), translation(0, 0, 0.16), rotationZ(0.5 + r('tilt') * 0.4), rotationX(-0.35)), () => {
-      const s = 0.13;
+    // Caught on the crown's flank, sticking out of the leaves where it can be seen.
+    b.at(compose(translation(0, top * 0.78, 0), rotationY(turn), translation(0, 0, 0.27), rotationZ(0.5 + r('tilt') * 0.4), rotationX(-0.25)), () => {
+      const s = 0.19;
       const diamond = (z: number, col: string, half: 'l' | 'r'): void => {
         b.with({ color: col, pattern: PATTERN.cloth, ink: 'kite', sway: 0.2 }, () => {
           const pts: Vec3[] = half === 'l' ? [[0, -s * 1.5, z], [0, s, z], [-s, 0, z]] : [[0, s, z], [0, -s * 1.5, z], [s, 0, z]];
