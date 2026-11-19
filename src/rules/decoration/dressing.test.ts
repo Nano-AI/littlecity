@@ -51,8 +51,11 @@ describe('stability: props come only from seeded chance', () => {
       b.plaza(36, 32, 39, 35);
       b.put('tree', 30, 34).put('fountain', 37, 33);
     });
-    // Wild ground thins out near new buildings by design; everything else in the west is untouched.
-    const keep = (p: Prop): boolean => inWest(p) && p.rule !== 'D24.wild-ground';
+    // Wild ground thins out near new buildings by design, and town-wide rules (the pump goes when a
+    // fountain is built anywhere; the viewpoint, the stork, the kite follow the whole town) may move;
+    // everything else in the west is untouched.
+    const townWide = new Set(['D13-T.tallest-flag', 'D14-T.stork-nest', 'D31.viewpoint', 'D33.hand-pump', 'D34.lost-kite']);
+    const keep = (p: Prop): boolean => inWest(p) && p.rule !== 'D24.wild-ground' && !townWide.has(p.rule);
     expect(signature(more.dressing.props, keep)).toEqual(signature(base.dressing.props, keep));
     // And wild ground changes only near the new quarter.
     const wild = (p: Prop): boolean => p.rule === 'D24.wild-ground' && keyX(anchorCell(p)) <= 21 && keyZ(anchorCell(p)) <= 22;
