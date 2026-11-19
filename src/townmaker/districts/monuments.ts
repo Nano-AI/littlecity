@@ -210,7 +210,7 @@ export function buildHilltop(town: Town): boolean {
       g.mark(x, z, CLAIM.built);
     } else {
       g.put('house', x, top, z, g.colorFor('house', [[x, top, z]], 'lookout'));
-      for (let dz = -3; dz <= 3; dz++) for (let dx = -3 + Math.abs(dz); dx <= 3 - Math.abs(dz); dx++) g.mark(x + dx, z + dz, CLAIM.keep);
+      for (let dz = -3; dz <= 3; dz++) for (let dx = -3 + Math.abs(dz); dx <= 3 - Math.abs(dz); dx++) g.mark(x + dx, z + dz, CLAIM.clear);
       g.mark(x, z, CLAIM.built);
     }
     made++;

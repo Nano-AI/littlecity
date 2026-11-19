@@ -45,6 +45,8 @@ export const CLAIM = {
   keep: 4,
   /** Streets may pass, but nothing else may be built here (an approach, a quay edge). */
   open: 8,
+  /** Streets may pass, but no block may ever stand here (round the lookout cottage, which wants no neighbour). */
+  clear: 16,
 } as const;
 
 /** One recorded edit, with the district that made it (for the watching order). */

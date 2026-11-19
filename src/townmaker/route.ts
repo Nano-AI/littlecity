@@ -6,7 +6,7 @@
 // keeps clear, and prefers to join existing streets rather than run beside
 // them.
 
-import { columnIndex, inBounds, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
+import { columnIndex, type Dir4, inBounds, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
 import { CLAIM, type Grower } from './grower';
 import { D4 } from './site';
 
@@ -95,6 +95,10 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
   if (arrived(fx, fz)) return [];
   const cost = new Float64Array(N).fill(Infinity);
   const prev = new Int32Array(N).fill(-1);
+  /** Reached from prev[] by a climb up or down a cliff of two levels (see buildClimb). */
+  const climbed = new Uint8Array(N);
+  /** A column a climb may stand stairs or a landing on: free, flat ground nobody uses. */
+  const climbable = (x: number, z: number): boolean => canPave(g, x, z) && !onNetwork(g, x, z);
   const heap = new Heap();
   const start = columnIndex(fx, fz);
   cost[start] = 0;
@@ -131,16 +135,59 @@ export function route(g: Grower, from: readonly [number, number], opts: RouteOpt
       if (next < cost[j]!) {
         cost[j] = next;
         prev[j] = i;
+        climbed[j] = 0;
+        heap.push(j, next);
+      }
+    }
+    // A cliff of two levels: three columns on, through a landing and two flights of stairs.
+    for (const [dx, dz] of D4) {
+      const ax = x + dx, az = z + dz, bx = x + 2 * dx, bz = z + 2 * dz, ex = x + 3 * dx, ez = z + 3 * dz;
+      if (!canPave(g, ex, ez, opts.allow, opts.relaxed)) continue;
+      const end = g.h(ex, ez);
+      const down = g.h(ax, az) === here - 2 && g.h(bx, bz) === here - 2 && end === here - 2;
+      const up = g.h(ax, az) === here && g.h(bx, bz) === here && end === here + 2;
+      if (!(down || up) || !climbable(ax, az) || !climbable(bx, bz)) continue;
+      const j = columnIndex(ex, ez);
+      const next = c + 9;
+      if (next < cost[j]!) {
+        cost[j] = next;
+        prev[j] = i;
+        climbed[j] = 1;
         heap.push(j, next);
       }
     }
   }
   if (goal < 0) return null;
-  const cells: [number, number][] = [];
-  for (let i = prev[goal]!; i !== -1; i = prev[i]!) cells.push([i % SIZE_X, Math.floor(i / SIZE_X)]);
-  cells.reverse();
-  for (const [x, z] of cells) pave(g, x, z);
-  return cells;
+  const chain: number[] = [];
+  for (let i = goal; i !== -1; i = prev[i]!) chain.push(i);
+  chain.reverse();
+  const xz = (i: number): [number, number] => [i % SIZE_X, Math.floor(i / SIZE_X)];
+  for (let k = 0; k < chain.length; k++) {
+    if (k > 0 && climbed[chain[k]!]) buildClimb(g, xz(chain[k - 1]!), xz(chain[k]!));
+    if (k < chain.length - 1) pave(g, ...xz(chain[k]!));
+  }
+  return chain.slice(0, -1).map(xz);
+}
+
+/**
+ * Up a cliff of two levels between two columns three apart in a line: the
+ * high end H, then L1 (a marble landing with stairs on it climbing to H),
+ * L2 (stairs climbing onto the landing), and the low end, all three at the
+ * foot of the cliff. Both ends get a path.
+ */
+function buildClimb(g: Grower, a: readonly [number, number], b: readonly [number, number]): void {
+  const [hi, lo] = g.h(a[0], a[1]) > g.h(b[0], b[1]) ? [a, b] : [b, a];
+  const dx = Math.sign(lo[0] - hi[0]), dz = Math.sign(lo[1] - hi[1]);
+  const l1: [number, number] = [hi[0] + dx, hi[1] + dz];
+  const l2: [number, number] = [hi[0] + 2 * dx, hi[1] + 2 * dz];
+  const toHigh = D4.findIndex(([x, z]) => x === -dx && z === -dz) as Dir4;
+  const y = g.h(lo[0], lo[1]);
+  g.put('marble', l1[0], y, l1[1], g.colorFor('marble', [[l1[0], y, l1[1]]], 'landing'));
+  g.put('stairs', l1[0], y + 1, l1[1], 0, toHigh);
+  g.put('stairs', l2[0], y, l2[1], 0, toHigh);
+  for (const [x, z] of [l1, l2]) g.mark(x, z, CLAIM.built);
+  pave(g, hi[0], hi[1]);
+  pave(g, lo[0], lo[1]);
 }
 
 /** A path on the terrain top of a column, and the street claim. */

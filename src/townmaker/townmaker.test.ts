@@ -100,6 +100,8 @@ describe('grow a town', () => {
       const plan = planTown(generateTerrain(seed), seed);
       expect(plan.fellBack, `seed ${seed}`).toBe(false);
       expect(plan.unjoined.length, `seed ${seed}: ${plan.unjoined.join(', ')}`).toBeLessThanOrEqual(2);
+      // The summits too: up cliffs of two levels by a marble landing and stairs.
+      expect(plan.unjoined.filter((n) => n === 'lookout' || n === 'observatory'), `seed ${seed}`).toEqual([]);
     }
   });
 

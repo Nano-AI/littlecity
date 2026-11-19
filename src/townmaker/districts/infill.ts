@@ -31,7 +31,7 @@ function quietAround(g: Grower, x: number, z: number, levels: number): boolean {
 function buildable(g: Grower, x: number, z: number): boolean {
   // Ground left over, or a district's open margin (the streets are laid by now, so margins may fill).
   if (!g.inMap(x, z) || g.h(x, z) === 0 || g.groundTaken(x, z)) return false;
-  if (g.claimed(x, z, CLAIM.street | CLAIM.built | CLAIM.keep)) return false;
+  if (g.claimed(x, z, CLAIM.street | CLAIM.built | CLAIM.keep | CLAIM.clear)) return false;
   return !g.world.floors.has(key(x, g.h(x, z), z));
 }
 
