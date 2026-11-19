@@ -476,6 +476,57 @@ Actors and motion. All read the signals in the design, section 13.
 
 ---
 
+## U — Urban fill
+
+Rules that make leftover and in-between space into something, the way real
+towns do. This part is a seed: discovery passes (design section 21) are
+expected to at least double it. New terms: a **leftover** is a connected
+patch of bare grass cells bounded on every side by structures, floors,
+fences, walls, cliffs or water. A **verge** is a bare grass cell beside a
+street cell.
+
+- **U01 · 2 · Pocket park** — a leftover of 2–12 cells touching a street or
+  plaza → a bench, one or two flowerbeds or shrubs, a low hedge on its open
+  sides.
+- **U02 · 2 · Paddock or walled garden** — grass of 6+ cells fully enclosed
+  by player-placed fences or walls: with 3+ trees inside → a park with
+  benches and a worn loop track; enclosed by walls → a walled garden with
+  beds and espalier trees; otherwise → a paddock with 2–4 grazing animals
+  and a trough.
+- **U03 · 1 · Front garden** — exactly one grass cell between a house's main
+  door and a street → a derived picket fence along the street edge with a
+  gate at the door, flowers either side of a short walk.
+- **U04 · 2 · Back yards** — a leftover of up to 6 cells behind row houses
+  (facing no street) → divided per house by low fences; sheds, vegetable
+  patches, washing poles.
+- **U05 · 2 · Street trees** — a straight street segment of 6+ with verge
+  cells along one side → a small derived tree every 3rd verge cell (a prop,
+  not a block).
+- **U06 · 2 · Town edge** — a street dead end facing wild grass → the paving
+  frays into a dirt trail for 2–3 cells with a signpost; outward-facing rear
+  walls on the town's edge get woodpiles and vegetable plots p=0.4.
+- **U07 · 1 · Retaining wall** — a terrain step of 1+ beside a street or
+  plaza → a stone retaining wall face with drain holes and creepers in place
+  of raw earth.
+- **U08 · 2 · Nooks** — an empty ground cell under a deck or bridge, or
+  beside a stair or grand steps, enclosed on 2+ sides → by seed: stacked
+  crates and barrels, a small kiosk, a wall fountain, a cart, a sleeping
+  cat.
+- **U09 · 2 · Vista end** — a straight street of 5+ ending at a structure's
+  facade → that facade cell gets a feature: clock, statue niche, grand
+  doorway or oriel window, by the structure's role.
+- **U10 · 2 · Corners** — a house at a street junction with two street-facing
+  sides → corner entrance with a chamfer, or a corner oriel on the upper
+  storey; shops become corner shops with windows on both sides.
+- **U11 · 2 · Civic hall** — a house structure with footprint ≥ 8 cells and
+  a facade on a square (a role, evaluated before R-H06) → town hall: arcaded
+  ground storey, balcony over the door, clock gable, flag.
+- **U12 · 2 · Centre and edge** — houses within 4 cells of a square get a
+  stone ground storey and richer trim; houses more than 10 cells from any
+  floor get rustic variants (thatch, timber, rough stone).
+
+---
+
 ## F — Feedback
 
 - **F01 · 1 · Landing** — a placed piece drops 0.4 of a cell, squashes to
@@ -500,6 +551,6 @@ Actors and motion. All read the signals in the design, section 13.
 
 ## Counts
 
-Roles 46 · Joinery 28 · Decoration 32 · Life 34 · Feedback 8 = 148 rules
-here, plus 5 kind rules and 4 support rules in the design. 78 of the 148 are
-tier 1.
+Roles 46 · Joinery 28 · Decoration 32 · Life 34 · Urban fill 12 ·
+Feedback 8 = 160 rules here, plus 5 kind rules and 4 support rules in the
+design. 80 of the 160 are tier 1. Discovery passes add to every part.

@@ -1,6 +1,7 @@
 # Little City — design
 
 Date: 2026-11-19. Status: awaiting Derek's approval.
+Build plan: [swarm master plan](../plans/2026-11-19-little-city-swarm-master.md).
 Companion file: [rule catalogue](2026-11-19-little-city-rule-catalogue.md).
 Reference build: `spike/primitives/` (throwaway look mockup; proves the art style).
 
@@ -37,6 +38,10 @@ Townscaper, and is the easiest possible city builder to play.
   seeded imperfection. No imported art.
 - Works on Mac (mouse, trackpad) and phone (touch).
 - Built by a swarm of parallel agents, so module contracts are fixed up front.
+- **Open-ended.** Adding a rule, a part, a role or even a new tray piece
+  after the first build is a small, local change (section 20). The first
+  catalogue is a starting point; discovery passes (section 21) keep growing
+  it.
 
 **Non-goals (first version)**
 
@@ -527,6 +532,27 @@ interface MeshData {
 interface Socket { id: string; type: SocketType; cell: Cell; pos: Vec3; facing: Vec3; structure: StructureId }
 ```
 
+**Features, props and parts.** Rules never produce geometry. They emit small
+records, and a registry of **parts** draws them:
+
+- A **feature** is something built into a structure (a door, a window, a
+  roof type for a region, a chimney, an awning, battlements). Role and
+  joinery rules emit features; they are part of the structure's content
+  hash.
+- A **prop** is a free-standing or attached object from a decoration rule (a
+  lamp, a bench, a laundry line). An **actor** is a moving thing from a life
+  rule.
+- Each has a `type` string. `definePart({ type, build })` supplies the mesh
+  for that type and is discovered automatically, like rules. A structure's
+  generator builds the shell (walls, roof surfaces) and asks the registry to
+  draw the structure's features.
+- Features, props and actors are placed by logical position (a cell and
+  side, a slot, or a socket id), never by raw coordinates. The part that
+  owns a socket supplies its exact transform at build time.
+
+A new idea therefore usually means one rule file, sometimes one part file,
+and no change to any generator.
+
 Generators: terrain and sea; house walls; roofs; tower and lighthouse; arch,
 bridge and generated supports; marble; pillar; dock; stairs; fence and wall
 (cell and edge); floors; windmill; tree; fountain; stall. Parts library:
@@ -666,8 +692,9 @@ src/
   world/     World, edit commands, undo, save, share codec
   terrain/   generate(seed) → Terrain
   resolve/   kinds, structures, supports, facts, rule engine, plan types
-  rules/     roles/ joinery/ decoration/ life/   one file per rule
-  gen/       generators, parts library, MeshData helpers
+  rules/     roles/ joinery/ decoration/ life/ urban/   one file per rule
+  gen/       one generator per kind, MeshData helpers
+  parts/     one file per feature, prop or actor mesh
   life/      signals, behaviours, birds, boats, people, walking graph
   render/    shaders, ink pipeline, chunks, instancing, camera, grading
   ui/        tray, pointer and touch input, ghost, menus, dev panel
@@ -733,6 +760,8 @@ gallery.
 
 ## 18. Risks
 
+See also sections 20 and 21, which follow section 19.
+
 - **Phone performance is unproven.** The spike has never been measured on
   real hardware. Wave 0 measures it; section 14 lists the fallbacks.
 - **Generated buildings looking computed.** Mitigated by the variation knobs
@@ -753,3 +782,87 @@ roof-mesh algorithm beyond the required outcomes; the binary share format;
 hash function choice; A* details and crowd spacing; sound design; the dev
 panel's layout; how instance animation is split between CPU and shader;
 which tier 2 and 3 rules to group into one task.
+
+## 20. Extending the game
+
+The first build is a foundation to keep adding to. These are the supported
+ways to extend it, from cheapest to most expensive. Each is a checklist a
+single agent can finish alone.
+
+| To add | You touch | Nothing else changes because |
+|---|---|---|
+| A **rule** (new decoration, role, life behaviour, urban fill) | one file in `src/rules/<part>/`, one fixture in `scenarios/rules/`, one test | rules are auto-discovered; claims and priority settle conflicts |
+| A **part** (a new prop or feature mesh) | one file in `src/parts/`, one gallery entry | parts are looked up by `type` |
+| A **fact** (new vocabulary for rules, e.g. "leftover space", "vista end") | one file in `src/resolve/facts/` that registers a lazily computed fact | facts are computed on first use and cached per resolve |
+| A **role** for an existing kind | a role rule, plus the features it emits | generators draw features generically |
+| A **signal** or event | one entry in `src/life/signals.ts` | behaviours subscribe by name |
+| A **tray piece** (a new kind) | the kind table (solid, merges, placement, Auto-eligible), a generator, a tray icon, a save-format version bump with migration | every kind-specific behaviour lives in that one table |
+
+Rules for extension:
+
+- New rules get the next free ID in their part. IDs are never reused.
+- A new rule must state which facts it reads, what it claims, its tier, and
+  whether it is town-wide.
+- New tray pieces are the exception, not the norm. A piece earns a slot only
+  if a rule cannot produce it, and the tray is grouped into drawers
+  (Build, Ground, Nature, Tools) so it never becomes one long row.
+- New Auto kinds are not added without Derek: they change the K rules, which
+  are the one place predictability matters most.
+
+## 21. Discovery passes
+
+After the catalogue's rules are built, the swarm runs review rounds whose
+job is to find what a town like this is missing and add it. This is how the
+game gets rules nobody wrote down in advance.
+
+Each round:
+
+1. **Build towns.** Explorer agents each build several towns as scenario
+   files, from a brief: fishing harbour, hill town, castle, market core,
+   temple hill, stilt village, farm edge, wild vertical stack, an Auto-only
+   town clicked at random, a tiny hamlet. They render each from four angles,
+   by day and at dusk, and print what the rules decided.
+2. **Look and question.** Each explorer studies its screenshots through
+   fixed lenses and writes proposals. The lenses come from how real towns
+   work:
+   - **No leftover space.** Every outdoor patch is something: a yard, a
+     pocket park, a paddock, a drying green, a market corner.
+   - **Edges and thresholds.** Where two things meet there is a transition:
+     front gardens, stoops, kerbs, retaining walls, quays, hedges.
+   - **Active frontage.** Ground floors on streets and squares do something;
+     blank walls get a reason or a fix.
+   - **Desire lines.** People cut corners; worn tracks appear where they
+     would walk.
+   - **Hierarchy.** Main street, side street, alley; square, court, yard.
+     Bigger and more ornate toward the centre, rustic at the edge.
+   - **Landmarks and vistas.** Street ends, corners, hilltops and the
+     waterfront get something worth looking at.
+   - **Topography.** Slopes produce terraces, switchbacks, retaining walls,
+     stepped streets, lookouts.
+   - **Back-of-house.** Sheds, woodpiles, washing, bins, workshops behind the
+     pretty fronts.
+   - **Green network.** Street trees, courtyard trees, orchards, verges.
+   - **Recognition.** "This combination is obviously a ___" (a church, a
+     town hall, a harbour master's office, a walled garden).
+   - **Life.** Anything static that should move; any place people should
+     gather but do not.
+   - **Faults.** Glitches, clashing rules, bare or repetitive areas, bad
+     silhouettes.
+3. **Curate.** One agent merges all proposals, removes duplicates and
+   anything already in the catalogue, scores the rest (delight × how often
+   it would appear ÷ cost), rejects vague ones, and writes the survivors into
+   the catalogue as precise rules across all tiers, including new parts,
+   facts, roles and, sparingly, new tray pieces.
+4. **Build.** Implementer agents take a few rules each, in parallel.
+5. **Refute.** Fresh reviewers try to break each new rule: it never fires,
+   it fires where it should not, it clashes, it flickers, it breaks the
+   performance budget, or it does not look good. Failures go back to step 4.
+6. **Merge and log.** The round's result is committed and summarised in
+   `docs/swarm/discovery-log.md` with before and after screenshots.
+
+Rounds repeat until one yields fewer than 8 accepted proposals, or the run's
+time is up. The final round is a pure quality pass: art-director agents score
+every part and generator in the gallery against the look rubric and anything
+below the bar is redone.
+
+The catalogue's part U (urban fill) holds a first seed of these rules.
