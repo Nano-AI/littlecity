@@ -180,3 +180,9 @@ removed; the merge commits carry the real times (all between 11:08 and
 **11:55** Merged held length `9772953` (scroll or the − n + stepper
 stretches run pieces; `src/ui/length.ts`). Full check green: 1,117 tests.
 Published. Running: People (final check), dressing-depth, life-depth.
+
+**12:00** Merged People `8f9901d` (walking graph, L21–L28, L32, L08 round).
+Typecheck and lint green; 5 unit tests fail at the seam with real Dressing
+props and Animation actors (lamp and pigeon counts, shut-in residents,
+children). Sent back to the People agent to fix on `swarm/people`; NOT
+published until green. Last published build: held length (`5bb587c`).
