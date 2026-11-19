@@ -249,8 +249,9 @@ export default defineGenerator({
               b.boxAt([0, WALL.curtainSpring + half - 0.03, 0], [0.1, Math.min(0.13, H - WALL.curtainSpring - half + 0.02), T + 0.1], { skip: ['bottom', 'top'] }),
             );
           } else {
+            // Its faces 0.004 proud of a pier's (as thick as the wall + 0.1), which it meets beside a corner.
             const ring = 0.12, half = WALL.archHalf;
-            b.with({ color: stone, pattern: PATTERN.stone, ink: 'gate' }, () => archSlab(b, half + ring, T + 0.1, half, WALL.archSpring, 'round', true));
+            b.with({ color: stone, pattern: PATTERN.stone, ink: 'gate' }, () => archSlab(b, half + ring, T + 0.108, half, WALL.archSpring, 'round', true));
             b.with({ color: shade, pattern: PATTERN.none, ink: 'keystone' }, () =>
               b.boxAt([0, WALL.archSpring + half - 0.02, 0], [0.11, ring + 0.05, T + 0.14], { skip: ['bottom'] }),
             );
