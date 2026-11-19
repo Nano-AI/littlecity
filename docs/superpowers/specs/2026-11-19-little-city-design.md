@@ -278,8 +278,35 @@ targets `(x, 0, z)`.
 | Pan | right drag | two-finger drag |
 | Zoom | scroll or pinch | pinch |
 | Paint a run (floors, fences, walls, marble) | Shift + drag | not in v1 |
+| Set the held piece's length (see "Held length") | scroll over the island, or the − / + stepper | the − / + stepper |
 | Undo / redo | ⌘Z / ⇧⌘Z or buttons | buttons |
 | Pick tool | keys 1–9, 0 | tap tray |
+
+**Held length** (Derek's request, 2026-11-19). Pieces that usually come in
+runs can be stretched before they are placed.
+
+- **Which pieces.** Upward: pillar, tower, lighthouse. Along the ground:
+  fence, wall (cell and edge pieces), path, plaza, garden, dock, arch,
+  marble. Every other piece has no length.
+- **Changing it.** With such a piece selected and the pointer over a valid
+  target, scrolling up adds one to the length and scrolling down removes one
+  (trackpads: one step per 40 px of scroll). A small − n + stepper beside the
+  tray does the same and is the only way on touch. Length runs from 1 to 12,
+  is remembered per piece for the session, and starts at 1.
+- **Zoom while holding one.** Pinch (and Ctrl or ⌘ + scroll) always zooms.
+  Plain scroll zooms whenever the selected piece has no length or the pointer
+  is not over a valid target.
+- **Direction.** Upward pieces grow straight up from the target cell. Ground
+  pieces grow from the target cell toward the edge of the pointed-at face
+  that is nearest the pointer, so nudging the pointer within the cell swings
+  the run round; an edge fence or wall grows along its boundary line, toward
+  the nearer end. A ground run follows terrain steps of one level up or down
+  (so a path or fence climbs a slope) and stops at a bigger step.
+- **What gets placed.** The ghost shows the whole run and its count. Cells
+  are tried in order from the target; the run ends at the first cell where
+  the piece cannot go, and a click places the part that fits. If the first
+  cell is illegal the click is refused. The whole run is one undo step and
+  uses the first cell's colour throughout.
 
 **Placement rules**
 
