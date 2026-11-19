@@ -1,11 +1,12 @@
 // R-M03 · Keep. A marble structure at least 3 tall whose footprint holds a
-// 2 × 2: battlements along every exposed edge of its walkable tops, and
-// arrow slits in its upper walls.
+// 2 × 2: battlements along every exposed edge of its walkable tops, and an
+// opening to every two cells of wall: arrow slits below, glazed round-headed
+// windows on the top storey. (The generator builds it of the towers' coursed
+// stone, with string courses, quoins and a corbel table.)
 
-import { above, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
-import { KINDS } from '@/core/kinds';
-import { rand } from '@/core/rand';
+import { columnIndex, keyX, keyY, keyZ } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
+import { battlements, wallOpenings } from './R-M03.castle';
 import { columnCount, grandSteps } from './R-M04.steps';
 
 export default defineRule({
@@ -14,7 +15,7 @@ export default defineRule({
   tier: 2,
   priority: 5970,
   about:
-    'Reads: marble structures with no role, 3+ storeys, a 2 × 2 in the footprint. Emits: role keep; a battlement on each exposed edge of a walkable top; arrow-slits on upper walls.',
+    'Reads: marble structures with no role, 3+ storeys, a 2 × 2 in the footprint. Emits: role keep; a battlement on each exposed edge of a walkable top; arrow-slits, and windows (socket window) on top storeys.',
   find({ plan }) {
     const out = [];
     for (const s of plan.structures.values()) {
@@ -33,24 +34,8 @@ export default defineRule({
   apply(c, out, { plan }) {
     const s = plan.structures.get(c.structure!)!;
     out.role(s.id, 'keep');
-    const mine = new Set(s.cells);
-    const minY = keyY(s.cells[0]!);
-    const stair = new Set(grandSteps(s, plan).map((st) => st.cell));
-    for (const cell of s.cells) {
-      if (stair.has(cell)) continue; // a row of its stair: no battlements across the treads
-      const walkableTop = !plan.kinds.has(above(cell));
-      for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
-        const n = neighbor(cell, d);
-        if (n !== NO_CELL && mine.has(n)) continue;
-        const kind = n === NO_CELL ? undefined : plan.kinds.get(n);
-        const ground = n !== NO_CELL && plan.terrain.height[columnIndex(keyX(n), keyZ(n))]! > keyY(cell);
-        if (ground || (kind !== undefined && KINDS[kind].solid)) continue;
-        if (walkableTop) out.feature({ type: 'battlement', structure: s.id, cell, dir: d });
-        // Slits on the upper storeys, about one wall in three, never crowded.
-        if (keyY(cell) - minY >= 1 && rand(s.seed, 'slit', cell, d) < 0.34 && (keyX(cell) + keyZ(cell) + keyY(cell)) % 2 === 0) {
-          out.feature({ type: 'arrow-slit', structure: s.id, cell, dir: d });
-        }
-      }
-    }
+    const stair = new Set(grandSteps(s, plan).map((st) => st.cell)); // no battlements across the treads of its stair
+    battlements(s, plan, out, stair);
+    wallOpenings(s, plan, out, stair);
   },
 });
