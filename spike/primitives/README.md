@@ -17,16 +17,20 @@ cd spike/primitives && python3 -m http.server 8765
 
 Three.js 0.170 loads from the jsDelivr CDN through an importmap, so it needs a
 network connection. Drag to orbit, right-drag to pan, scroll to zoom. The
-"whole island / primitives / stacking" buttons jump between views.
+buttons under the title jump between views (whole island, primitives, stacking,
+joinery, trees + paths).
 
 ## What's in it
 
 - **Grid:** 1 cell wide, one storey `H = 0.8` tall, ground at `G = 0.3`. Every
   vertical piece is a multiple of `H`, so pieces stack flush.
-- **Primitives** (factory functions in `index.html`): `house` (stackable floors,
-  optional roof), `stoneWall`, `fence`, `pillar`, `arch`, `stairs`, `tree`,
-  `cypress`, `bush`, `windmill`, `lighthouse`, `lamp`, `magicBlock`, plus
-  props: `person`, `boat`, `rowboat`, `bench`, `flowerBed`, `flagPole`, `gull`.
+- **Primitives:** house, marble block, stone wall, fence, pillar, arch, stairs,
+  round tree, cypress, bush, windmill, lighthouse, lamp, magic block, plus
+  props (people, boats, bench, flower bed, flag, gulls).
+- **A tiny cell map** (see the `cell model` section of `index.html`):
+  `put(type, i, k, level)` records a piece at a grid cell, and a build step
+  reads each cell's neighbours before emitting geometry. Paths and plaza tiles
+  live in a second, ground-level map.
 - **Motion:** windmill sails, walkers, chimney smoke, boats, swaying trees,
   lighthouse beam, drifting water.
 
@@ -38,35 +42,50 @@ network connection. Drag to orbit, right-drag to pan, scroll to zoom. The
    colour + depth, then a per-mesh ID + normal pass, then a full-screen
    composite that draws an ink line wherever depth jumps, the surface creases,
    or the mesh ID changes. New pieces get outlines with no per-asset line work.
-3. **Paper.** Cream background, grain and slight line wobble are added in the
-   composite.
+3. **Paper and pen.** The composite adds paper grain (after the sRGB
+   conversion, or it disappears) and a small static irregularity in line
+   position and weight. The time-based "line boil" is off by default.
+
+## Joinery rules the spike already implements
+
+These are hand-written, per-type neighbour checks. They are the first evidence
+that "look at the neighbours, then draw" gives the merged look.
+
+- **Pillar:** a vertical stack becomes one continuous shaft, with a base only on
+  the bottom cell and a capital only on the top.
+- **Marble block:** only faces that border a non-marble cell are emitted, so a
+  cluster reads as one solid mass.
+- **Arch:** no cornice between stacked tiers; the cornice and parapet run
+  through neighbouring arches, so a 2×2 group reads as one viaduct.
+- **Wall and fence:** segments join along a run with continuous caps and rails;
+  ends and corners get posts or piers.
+- **House:** a stack is one building, with base trim only at the bottom and a
+  roof only on top. The roof becomes a flat terrace if something sits above.
+- **Paths:** all path cells build into one mesh with rounded ends and corners.
 
 ## What this means for the rule logic
 
 - **Seams follow mesh IDs.** Two parts with different IDs get an ink line
-  between them; parts that share an ID (or one merged geometry) read as one
-  surface. So "merge these neighbours" is mostly "give them one ID". That is the
-  mechanism for joined roofs, long pillars and solid masses.
-- **In this snapshot every piece is hand-placed and blind to its neighbours.**
-  Two stacked pillars still show two bases and two capitals. There is no cell
-  map and no rules yet.
+  between them; parts merged into one geometry read as one surface. So "merge
+  these neighbours" is mostly "emit them as one mesh and skip the faces between
+  them". The spike batches geometry by part, colour and pattern.
+- **There are no magic-block rules yet.** Every piece type is chosen by hand in
+  the scene script. The magic block is only a visual placeholder.
 
-## Known gaps in this snapshot
+## Known gaps
 
-- **Performance is unmeasured and the build style won't scale.** One house is
-  about 50 meshes; the scene is about 1,210 meshes and about 2,500 draw calls
-  per frame. A real game needs each block's parts merged or instanced, with the
-  ink ID carried per part. The 20 fps counter came from a browser with no
+- **Performance is unmeasured.** The scene is about 1,000 meshes and about
+  2,100 draw calls per frame. The 20 fps counter came from a browser with no
   graphics card and says nothing about real speed.
-- Line wobble is too strong and reads as jitter.
-- Paper grain is too faint to see.
-- All trees are identical.
-- Overlapping path strips show seams at junctions.
-- Detail density is well below the reference art; open grass looks bare.
-
-A second round is in progress on these (neighbour-aware merging for pillars,
-walls, fences, arches and a new marble block; calmer lines; varied trees; merged
-paths; visible grain).
+- **Batching is global.** All marble in the world is one mesh. A real game would
+  rebuild per area on each edit.
+- **Houses are not merged.** The map drives them, but each is still about 50
+  separate meshes, and side-by-side houses don't join into row houses.
+- **Arches only run east–west.** Arch rotation isn't supported.
+- **Walls and fences only join their own type on the same level.** They don't
+  attach to houses.
+- **The marble bevel is drawn in the shader,** not a real chamfer.
+- Detail density is still well below the reference art; open grass looks bare.
 
 ## Design decisions from the planning chat
 

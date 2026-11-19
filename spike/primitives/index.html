@@ -24,10 +24,11 @@
   <h1>Little City · primitive assets (spike)</h1>
   <p>drag to orbit · right-drag to pan · scroll to zoom</p>
   <label><input type="checkbox" id="ink" checked> ink lines</label>
-  <label><input type="checkbox" id="wob" checked> hand wobble</label>
+  <label><input type="checkbox" id="wob" checked> pen wobble</label>
+  <label><input type="checkbox" id="boil"> line boil</label>
   <label><input type="checkbox" id="paper" checked> paper grain</label>
   <label><input type="checkbox" id="labels" checked> labels</label>
-  <div class="views"><button data-v="hero">whole island</button><button data-v="rows">primitives</button><button data-v="stack">stacking</button></div>
+  <div class="views"><button data-v="hero">whole island</button><button data-v="rows">primitives</button><button data-v="stack">stacking</button><button data-v="merge">joinery</button><button data-v="garden">trees + paths</button></div>
 </div>
 <div id="labelLayer"></div>
 <div id="stats"></div>
@@ -58,6 +59,7 @@ const C = {
   shirt: ['#e86a5c', '#5f86d6', '#f2c14e', '#6cbf8e', '#b28ad9', '#ffffff', '#f49ab8'],
   hair: ['#3b2a22', '#6b4a2f', '#e2b25c', '#2c2c38', '#a0522d'],
   pants: '#4c4862', magic: '#c6b2ff', magicInk: '#6a4fd0', metal: '#4b4a55',
+  marble: '#f8f5ef',
 };
 const FLOWERS = [C.red, C.pink, C.yellow, C.white, '#b48ce0'];
 const H = 0.8;   // one storey: every vertical piece is a multiple of this
@@ -71,17 +73,20 @@ function rng(seed) { let a = (seed * 9301 + 49297) | 0; return () => { a |= 0; a
 // Optional procedural "pencil" patterns (grass ticks, roof rows, stone courses...) in world space.
 const LIGHT = new THREE.Vector3(0.35, 1, 0.6).normalize();
 const shadeVert = `
-varying vec3 vN; varying vec3 vW;
+attribute float aEdge;
+varying vec3 vN; varying vec3 vW; varying float vEdge;
 void main(){
   vec4 w = modelMatrix * vec4(position, 1.0);
-  vW = w.xyz;
+  vW = w.xyz; vEdge = aEdge;
   vN = normalize(mat3(transpose(inverse(modelMatrix))) * normal);
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 const shadeFrag = `
 uniform vec3 uColor; uniform vec3 uLight; uniform float uEmissive; uniform int uPat; uniform vec3 uInk;
-varying vec3 vN; varying vec3 vW;
+varying vec3 vN; varying vec3 vW; varying float vEdge;
 float h(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
 float lineAA(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, d); }
 void main(){
   vec3 n = normalize(vN);
@@ -126,6 +131,18 @@ void main(){
     pen += lineAA(0.5 - max(g.x, g.y), 0.008) * 0.08;
   } else if (uPat == 6 && n.y > 0.9) {      // wood planks
     pen = lineAA(abs(fract(vW.z * 9.0) - 0.5), 0.05) * 0.25;
+  } else if (uPat == 8) {                    // marble: soft tone drift, faint veins, bevel at the mass's top edge
+    vec2 p = abs(n.y) > 0.5 ? vW.xz : (abs(n.x) > abs(n.z) ? vec2(vW.z, vW.y) : vec2(vW.x, vW.y));
+    col *= 0.955 + 0.08 * n2(p * 0.8 + 7.0);                          // soft cloudy tone shifts
+    float warp = n2(p * 1.3) * 1.8 + n2(p * 3.1) * 0.6;
+    float v = abs(fract((p.x * 0.6 + p.y * 0.4) * 1.0 + warp) - 0.5);
+    float fade = smoothstep(0.25, 0.7, n2(p * 0.6 + 3.0));
+    col = mix(col, col * vec3(0.9, 0.9, 0.96), lineAA(v, 0.05) * fade * 0.5);   // vein halo
+    col = mix(col, col * vec3(0.7, 0.72, 0.84), lineAA(v, 0.007) * fade * 0.8);  // vein core
+    if (abs(n.y) < 0.5) {
+      col = mix(col, uColor * 1.02, lineAA(abs(vEdge - 0.032), 0.032));  // lit bevel strip under the top edge
+      pen = lineAA(abs(vEdge - 0.07), 0.006) * 0.5;                     // and the pencil line that defines it
+    }
   } else if (uPat == 7) {                     // glass: a diagonal glint
     float g = fract((vW.x - vW.z) * 2.2 + vW.y * 2.6);
     col = mix(col, vec3(1.0), smoothstep(0.02, 0.0, abs(g - 0.35) - 0.06) * 0.45);
@@ -250,50 +267,17 @@ function house({ wall = C.wall[0], roof = C.roof[0], floors = 1, hasRoof = true,
   }
   return g;
 }
-function stoneWall() {
-  const g = new THREE.Group();
-  boxB(1, 0.3, 0.26, C.stone, 0, 0, 0, g, { pat: 4 });
-  boxB(1.04, 0.05, 0.32, C.stoneShade, 0, 0.3, 0, g);
-  for (const x of [-0.38, 0, 0.38]) boxB(0.2, 0.13, 0.28, C.stone, x, 0.35, 0, g);
-  return g;
-}
-function fence() {
-  const g = new THREE.Group();
-  for (let i = 0; i < 5; i++) {
-    const x = -0.4 + i * 0.2;
-    boxB(0.07, 0.3, 0.04, C.white, x, 0, 0, g);
-    const tip = mesh(cached('fenceTip', () => new THREE.ConeGeometry(0.05, 0.07, 4)), C.white, x, 0.335, 0, g);
-    tip.rotation.y = Math.PI / 4;
-  }
-  boxB(1, 0.04, 0.03, C.white, 0, 0.08, -0.035, g);
-  boxB(1, 0.04, 0.03, C.white, 0, 0.21, -0.035, g);
-  return g;
-}
-function pillar() {
-  const g = new THREE.Group();
-  boxB(0.5, 0.1, 0.5, C.stoneShade, 0, 0, 0, g);
-  boxB(0.42, 0.05, 0.42, C.stone, 0, 0.1, 0, g);
-  cyl(0.15, 0.17, H - 0.27, 14, C.stone, 0, 0.15, 0, g);
-  boxB(0.42, 0.05, 0.42, C.stone, 0, H - 0.12, 0, g);
-  boxB(0.5, 0.07, 0.5, C.stoneShade, 0, H - 0.07, 0, g);
-  return g;
-}
-function arch(color = C.stone) {
-  // a full cell-sized block with an arched passage: stacks flush with houses
-  const g = new THREE.Group();
-  const geo = cached('arch', () => {
+function archGeo() {
+  // a full cell-sized block with an arched passage (tunnel runs along z)
+  return cached('arch', () => {
     const s = new THREE.Shape();
     const r = 0.27, spring = 0.36;
     s.moveTo(-0.5, 0); s.lineTo(-r, 0); s.lineTo(-r, spring);
     s.absarc(0, spring, r, Math.PI, 0, true);
     s.lineTo(r, 0); s.lineTo(0.5, 0); s.lineTo(0.5, H); s.lineTo(-0.5, H); s.closePath();
-    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.86, bevelEnabled: false, curveSegments: 16 });
-    geo.translate(0, 0, -0.43); return geo;
+    const geo = new THREE.ExtrudeGeometry(s, { depth: 1.0, bevelEnabled: false, curveSegments: 16 });
+    geo.translate(0, 0, -0.5); return geo;
   });
-  mesh(geo, color, 0, 0, 0, g, { pat: 4 });
-  for (const z of [0.43, -0.43]) boxB(0.13, 0.15, 0.04, C.stoneShade, 0, 0.36 + 0.27 - 0.07, z, g); // keystones
-  boxB(1.04, 0.06, 0.92, C.stoneShade, 0, H - 0.055, 0, g);
-  return g;
 }
 function stairs() {
   // 4 steps: rises one storey (H) over one cell, climbing toward -z
@@ -306,36 +290,55 @@ function stairs() {
   return g;
 }
 const swayers = [];
+// procedural plants: one seed -> small variations of the same family (never clones)
+function vary(base, r, amt = 1) {
+  const c = new THREE.Color(base), hsl = {}; c.getHSL(hsl);
+  c.setHSL(hsl.h + (r() - 0.5) * 0.05 * amt, Math.min(1, hsl.s * (0.9 + r() * 0.2)), hsl.l + (r() - 0.5) * 0.08 * amt);
+  return '#' + c.getHexString();
+}
+const unitSphere = () => cached('unitSphere', () => new THREE.SphereGeometry(1, 18, 12));
+function blob(r, color, x, y, z, parent) { const m = mesh(unitSphere(), color, x, y, z, parent); m.scale.setScalar(r); return m; }
 function tree(seed = 0, s = 1) {
-  const g = new THREE.Group();
-  cyl(0.05, 0.065, 0.34, 8, C.trunk, 0, 0, 0, g);
-  const crown = group(g, 0, 0.3, 0);
-  sphere(0.29, C.leaf, 0, 0.22, 0, crown);
-  sphere(0.21, C.leaf, 0.19, 0.12, 0.1, crown);
-  sphere(0.2, C.leaf, -0.15, 0.36, -0.05, crown);
-  sphere(0.17, C.leaf, 0.04, 0.12, 0.21, crown);
-  g.scale.setScalar(s);
-  swayers.push({ obj: crown, phase: seed * 1.7 });
+  const r = rng(seed * 31 + 7), g = new THREE.Group();
+  const th = 0.26 + r() * 0.12, tr = +(0.045 + r() * 0.015).toFixed(3);
+  const trunk = cyl(+(tr * 0.8).toFixed(3), tr, +th.toFixed(2), 8, vary(C.trunk, r, 0.6), 0, 0, 0, g);
+  trunk.rotation.z = (r() - 0.5) * 0.12;
+  const crown = group(g, 0, th - 0.05, 0);
+  const col = vary(C.leaf, r), R0 = 0.23 + r() * 0.07;
+  blob(R0, col, 0, R0 * 0.85, 0, crown);
+  const extra = 1 + Math.floor(r() * 4), a0 = r() * 6.28;       // 2..5 blobs in total
+  for (let j = 0; j < extra; j++) {
+    const a = a0 + j * 6.28 / extra + (r() - 0.5) * 0.8, d = R0 * (0.5 + r() * 0.35), rr = R0 * (0.5 + r() * 0.28);
+    blob(rr, col, Math.cos(a) * d, R0 * (0.45 + r() * 0.85), Math.sin(a) * d, crown);
+  }
+  g.scale.setScalar(s * (0.88 + r() * 0.24));
+  swayers.push({ obj: crown, phase: seed * 1.7, amt: 0.03 + r() * 0.02 });
   return g;
 }
 function cypress(seed = 0, s = 1) {
-  const g = new THREE.Group();
+  const r = rng(seed * 17 + 3), g = new THREE.Group();
   cyl(0.04, 0.05, 0.2, 6, C.trunk, 0, 0, 0, g);
-  const c = group(g, 0, 0.12, 0);
-  const a = sphere(1, C.leafDark, 0, 0.55, 0, c); a.scale.set(0.18, 0.52, 0.18);
-  const b = sphere(1, C.leafDark, 0, 0.98, 0, c); b.scale.set(0.12, 0.3, 0.12);
+  const c = group(g, 0, 0.12, 0), col = vary(C.leafDark, r);
+  const hgt = 0.9 + r() * 0.4, rad = 0.15 + r() * 0.05;
+  blob(1, col, 0, hgt * 0.5, 0, c).scale.set(rad, hgt * 0.5, rad);
+  if (r() < 0.6) blob(1, col, (r() - 0.5) * 0.04, hgt * 0.9, 0, c).scale.set(rad * 0.62, hgt * 0.25, rad * 0.62);
   g.scale.setScalar(s);
-  swayers.push({ obj: c, phase: seed * 2.3, amt: 0.03 });
+  swayers.push({ obj: c, phase: seed * 2.3, amt: 0.02 + r() * 0.015 });
   return g;
 }
-function bush(seed = 0) {
-  const g = new THREE.Group(); const r = rng(seed);
-  sphere(0.15, C.bush, 0, 0.1, 0, g);
-  sphere(0.12, C.bush, 0.14, 0.07, 0.05, g);
-  sphere(0.11, C.bush, -0.11, 0.07, 0.08, g);
-  if (r() < 0.6) for (let i = 0; i < 3; i++) sphere(0.028, pick(FLOWERS, Math.floor(r() * 5)), (r() - 0.5) * 0.25, 0.17 + r() * 0.05, 0.08 + r() * 0.06, g);
+function bush(seed = 0, s = 1) {
+  const g = new THREE.Group(); const r = rng(seed * 11 + 1);
+  const col = vary(C.bush, r, 0.8), n = 2 + Math.floor(r() * 3);
+  blob(0.13 + r() * 0.04, col, 0, 0.1, 0, g);
+  for (let j = 0; j < n - 1; j++) {
+    const a = r() * 6.28, d = 0.1 + r() * 0.06, rr = 0.09 + r() * 0.04;
+    blob(rr, col, Math.cos(a) * d, rr * 0.75, Math.sin(a) * d, g);
+  }
+  if (r() < 0.5) for (let i = 0; i < 3; i++) sphere(0.028, pick(FLOWERS, Math.floor(r() * 5)), (r() - 0.5) * 0.25, 0.17 + r() * 0.05, 0.08 + r() * 0.06, g);
+  g.scale.setScalar(s);
   return g;
 }
+function plant(seed, s = 1) { const v = rng(seed * 3 + 101)(); return v < 0.5 ? tree(seed, s) : v < 0.78 ? cypress(seed, s) : bush(seed, s); }
 function flowerBed(cols = 8, rows = 4, seed = 0) {
   const g = new THREE.Group(); const r = rng(seed);
   const w = cols * 0.11 + 0.08, d = rows * 0.12 + 0.08;
@@ -546,10 +549,10 @@ function slab(shape, y0, y1, top, side, sideOpts, topOpts) {
   return mesh(geo, [top, side], 0, 0, 0, scene, [topOpts || {}, sideOpts || {}]);
 }
 // diorama base: sea layer over an earth layer
-const SEA = [-7.7, -4.85, 7.3, 4.15, 1.0];
+const SEA = [-7.8, -4.8, 7.8, 4.8, 1.0];
 slab(roundedRect(...SEA), -0.95, -0.4, C.dirt, C.dirt, { pat: 3 });
 slab(roundedRect(...SEA), -0.4, -0.02, C.seaSide, C.seaSide);
-const ISLE = [-6.5, -3.6, 6.1, 2.9, 0.7];
+const ISLE = [-6.6, -3.6, 6.6, 3.6, 0.7];
 const water = new THREE.Mesh(new THREE.ShapeGeometry(roundedRect(...SEA), 10), new THREE.ShaderMaterial({
   uniforms: { uTime: { value: 0 }, uA: { value: new THREE.Color(C.sea) }, uDeep: { value: new THREE.Color(C.seaDeep) },
     uFoam: { value: new THREE.Color(C.foam) }, uShallow: { value: new THREE.Color(C.shallow) },
@@ -598,7 +601,7 @@ water.rotation.x = -Math.PI / 2; water.position.y = 0; scene.add(water);
     vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader: `uniform vec3 uInk; varying vec3 vW;
       float sdRB(vec2 p, vec2 b, float r){ vec2 q = abs(p)-b+r; return length(max(q,0.0)) + min(max(q.x,q.y),0.0) - r; }
-      void main(){ float d = sdRB(vW.xz - vec2(-0.2, -0.35), vec2(7.4, 4.4), 1.1);
+      void main(){ float d = sdRB(vW.xz - vec2(0.0, 0.0), vec2(7.6, 4.6), 1.1);
         gl_FragColor = vec4(uInk, 0.16 * (1.0 - smoothstep(-0.6, 1.4, d)));
 #include <colorspace_fragment>
 }`,
@@ -609,11 +612,6 @@ water.rotation.x = -Math.PI / 2; water.position.y = 0; scene.add(water);
 slab(roundedRect(...ISLE), -0.3, 0.16, C.dirt, C.dirt, { pat: 3 });
 slab(roundedRect(...ISLE), 0.16, G, C.grass, C.grassSide, {}, { pat: 1 });
 
-// ground surfaces
-boxB(8.3, 0.012, 0.62, C.path, -2.0, G, -0.4);           // main path
-boxB(0.56, 0.013, 3.0, C.path, 0.75, G, 1.25);           // path to the dock
-boxB(4.0, 0.014, 4.0, C.plaza, 4.0, G, -1.0, scene, { pat: 5 }); // paved plaza: one tile = one grid cell
-
 // labels
 const labels = [];
 function label(text, x, y, z) {
@@ -623,78 +621,266 @@ function label(text, x, y, z) {
 }
 function place(obj, x, z, y = G, rotY = 0) { obj.position.set(x, y, z); obj.rotation.y = rotY; scene.add(obj); return obj; }
 
-// ---- left half: the primitive "catalogue", two rows either side of the path
-const X = [-5.6, -4.2, -2.8, -1.45, -0.05];
-const R1 = -2.1, R2 = 1.15;
-const X2 = [-5.75, -4.55, -3.05, -1.35, -0.15]; // row 2 is spaced for the windmill's sails
-place(house({ wall: C.wall[0], roof: C.roof[0], seed: 1 }), X[0], R1); label('house', X[0], G, R1 + 0.75);
-place(stoneWall(), X[1], R1); label('wall', X[1], G, R1 + 0.5);
-place(fence(), X[2], R1); label('fence', X[2], G, R1 + 0.4);
-place(pillar(), X[3], R1); label('pillar', X[3], G, R1 + 0.5);
-place(arch(), X[4], R1); label('arch', X[4], G, R1 + 0.7);
-place(stairs(), X2[0], R2); label('stairs', X2[0], G, R2 + 0.75);
-place(tree(1), X2[1] - 0.25, R2 - 0.05); place(cypress(2), X2[1] + 0.33, R2 - 0.15); place(bush(3), X2[1] + 0.05, R2 + 0.45);
-label('trees', X2[1], G, R2 + 0.8);
-place(windmill(), X2[2], R2 - 0.15, G, Math.PI / 4); label('windmill', X2[2] + 0.1, G, R2 + 0.65);
-place(lighthouse(), X2[3], R2 + 0.05); label('lighthouse', X2[3], G, R2 + 0.65);
-place(magicBlock(), X2[4], R2); label("✦ magic block", X2[4], G, R2 + 0.75);
-place(flowerBed(8, 4, 0), X2[2] + 0.1, 2.35);
-place(flowerBed(5, 3, 2), X2[0] + 0.2, 2.3);
-// garden behind the catalogue
-place(tree(9, 1.15), -6.0, -3.0); place(cypress(10, 1.2), -4.65, -3.05); place(bush(11), -3.2, -2.95);
-place(tree(12, 0.9), -1.7, -3.0); place(bush(13), 0.1, -3.05); place(cypress(14, 1.1), 1.4, -2.8);
-place(bush(15), -6.05, 0.45); place(tree(16), -6.0, 2.0); place(bush(17), 1.3, 2.2); place(bush(18), -1.75, 2.45);
-place(tree(19, 0.85), 1.5, 0.55);
-for (const [x, z] of [[-4.65, -0.95], [-1.65, -0.95], [1.3, -0.95], [-3.15, 0.15], [-0.2, 0.15]]) place(lamp(), x, z);
-place(bench(), -3.9, -0.95); place(bench(), -2.4, 0.18, G, Math.PI); place(bench(), 0.6, -0.95);
-// dock
-boxB(0.62, 0.06, 0.8, C.wood, 0.75, 0.14, 3.2, scene, { pat: 6 });
-for (const x of [0.5, 1.0]) for (const z of [2.95, 3.55]) cyl(0.03, 0.03, 0.42, 6, C.wood, x, -0.22, z);
-const theRowboat = place(rowboat(), 1.3, 3.2, 0.02, Math.PI / 2);
+// ================================================================ cell model
+// A tiny voxel map: (i, level, k) -> piece. Cell (i, k) is centred at (i + .5, k + .5); level l sits at G + l*H.
+// place-time only records intent; build() looks at neighbours and emits geometry. Same-part geometry is merged
+// into one mesh (= one ink id), so the outline pass draws silhouettes and real creases but no seams.
+const cells = new Map(), ground = new Map();
+const ck = (i, l, k) => i + ',' + l + ',' + k;
+const put = (type, i, k, l = 0, o = {}) => cells.set(ck(i, l, k), { type, i, k, l, ...o });
+const at = (i, l, k) => cells.get(ck(i, l, k));
+const isT = (type, i, l, k) => at(i, l, k)?.type === type;
+const wx = (i) => i + 0.5, wz = (k) => k + 0.5, wy = (l) => G + l * H;
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const putGround = (type, i, k) => ground.set(i + ',' + k, type);
 
-// ---- right half: stacking vignette on a 4x4 paved plaza; every piece sits on a cell centre (x.5, z.5).
-// In this iso view cells on the same (x - z) diagonal hide each other, so tall stacks go at the back.
-// back row: tower A (+flag) · two stacked arches = bridge · tower B with a lighthouse on its roof · 3-storey house
-place(house({ wall: C.wall[1], roof: C.roof[1], floors: 2, door: C.wood, seed: 2 }), 2.5, -2.5);
-place(flagPole(C.red), 2.5, -2.5, G + 2 * H + 0.3);
-place(arch(), 3.5, -2.5, G);
-place(arch(), 3.5, -2.5, G + H);
-place(fence(), 3.5, -2.5 + 0.41, G + 2 * H);
-place(fence(), 3.5, -2.5 - 0.41, G + 2 * H);
-place(house({ wall: C.wall[3], floors: 2, hasRoof: false, door: C.redDark, seed: 4 }), 4.5, -2.5);
-place(lighthouse(), 4.5, -2.5, G + 2 * H + 0.04).scale.setScalar(0.85);
-place(house({ wall: C.wall[4], roof: C.roof[4], floors: 3, seed: 6, door: C.redDark }), 5.5, -2.5);
-// middle: stairs climb one storey straight into the upper arch's passage
-place(stairs(), 3.5, -1.5);
-place(bush(20), 2.45, -1.5); place(bench(), 4.5, -1.75); place(lamp(), 5.0, -1.75); place(bush(22), 5.6, -1.45);
-// front row: flowers · house on an arch · house on two stacked pillars · cottage
-place(flowerBed(4, 3, 4), 2.5, 0.45); place(lamp(), 2.15, 0.85);
-place(arch(), 3.5, 0.5);
-place(house({ wall: C.wall[0], roof: C.roof[0], seed: 5, door: C.glass }), 3.5, 0.5, G + H);
-place(pillar(), 4.5, 0.5); place(pillar(), 4.5, 0.5, G + H);
-place(house({ wall: C.wall[2], roof: C.roof[2], seed: 3 }), 4.5, 0.5, G + 2 * H);
-place(house({ wall: C.wall[5], roof: C.roof[3], seed: 7, door: C.wood }), 5.5, 0.5);
-// lawn in front of the plaza
-place(bush(21), 4.5, 1.55); place(stoneWall(), 5.5, 1.6); place(tree(4, 0.95), 2.4, 2.0); place(cypress(5, 0.9), 5.75, -3.3 + 0.1);
-label('stacking: arches · pillars · storeys · roof-top lighthouse', 4.0, G, 1.35);
+// ---- geometry batches (one merged mesh per part+colour+pattern)
+const batches = new Map();
+function batch(part, color, opts = {}) {
+  const key = part + '|' + color + '|' + (opts.pat ?? 0);
+  if (!batches.has(key)) batches.set(key, { part, color, opts, pos: [], nor: [], edge: [] });
+  return batches.get(key);
+}
+const _v = new THREE.Vector3(), _nm = new THREE.Matrix3();
+function pushGeo(b, geo, m) {
+  const g = geo.index ? cached('ni' + geo.uuid, () => geo.toNonIndexed()) : geo;
+  const P = g.attributes.position, N = g.attributes.normal;
+  _nm.getNormalMatrix(m);
+  for (let i = 0; i < P.count; i++) {
+    _v.fromBufferAttribute(P, i).applyMatrix4(m); b.pos.push(_v.x, _v.y, _v.z);
+    _v.fromBufferAttribute(N, i).applyMatrix3(_nm).normalize(); b.nor.push(_v.x, _v.y, _v.z);
+    b.edge.push(9);
+  }
+}
+const Mx = (x, y, z, ry = 0) => new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
+const bBox = (b, w, h, d, x, y, z) => pushGeo(b, cached(`b${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d)), Mx(x, y + h / 2, z));
+function pushTri(b, p0, p1, p2, nrm, e = [9, 9, 9]) {
+  const v0 = new THREE.Vector3(...p0), flip = new THREE.Vector3(...p1).sub(v0).cross(new THREE.Vector3(...p2).sub(v0)).dot(new THREE.Vector3(...nrm)) < 0;
+  const pts = flip ? [p0, p2, p1] : [p0, p1, p2], es = flip ? [e[0], e[2], e[1]] : e;
+  for (let i = 0; i < 3; i++) { b.pos.push(...pts[i]); b.nor.push(...nrm); b.edge.push(es[i]); }
+}
+function pushQuad(b, q, nrm, e = [9, 9, 9, 9]) {
+  pushTri(b, q[0], q[1], q[2], nrm, [e[0], e[1], e[2]]);
+  pushTri(b, q[0], q[2], q[3], nrm, [e[0], e[2], e[3]]);
+}
+function flushBatches() {
+  for (const b of batches.values()) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(b.nor, 3));
+    g.setAttribute('aEdge', new THREE.Float32BufferAttribute(b.edge, 1));
+    const m = new THREE.Mesh(g, mat(b.color, b.opts)); m.userData.part = b.part; scene.add(m);
+  }
+  batches.clear();
+}
+
+// ---- builders: each reads its neighbours
+const BUILD = {
+  house(c) {
+    if (isT('house', c.i, c.l - 1, c.k)) return;                    // the bottom storey builds the whole stack
+    let n = 1; while (isT('house', c.i, c.l + n, c.k)) n++;
+    const above = at(c.i, c.l + n, c.k);                              // roof only if nothing sits on top
+    place(house({ wall: c.wall, roof: c.roof, door: c.door, seed: c.seed, floors: n, hasRoof: !above }), wx(c.i), wz(c.k), wy(c.l), c.rot || 0);
+  },
+  pillar(c) {
+    if (isT('pillar', c.i, c.l - 1, c.k)) return;                   // a run of stacked pillars = ONE column
+    let n = 1; while (isT('pillar', c.i, c.l + n, c.k)) n++;
+    const x = wx(c.i), z = wz(c.k), y0 = wy(c.l), top = y0 + n * H;
+    const trim = batch('pillarTrim', C.stoneShade), collar = batch('pillarCollar', C.stone);
+    bBox(trim, 0.5, 0.1, 0.5, x, y0, z); bBox(collar, 0.42, 0.05, 0.42, x, y0 + 0.1, z);          // base: bottom cell only
+    bBox(collar, 0.42, 0.05, 0.42, x, top - 0.12, z); bBox(trim, 0.5, 0.07, 0.5, x, top - 0.07, z); // capital: top cell only
+    const len = +(n * H - 0.27).toFixed(3);
+    pushGeo(batch('pillarShaft', C.stone), cached('shaft' + len, () => new THREE.CylinderGeometry(0.15, 0.15 + 0.012 * n + 0.008, len, 18, 1)), Mx(x, y0 + 0.15 + len / 2, z));
+  },
+  arch(c) {
+    const x = wx(c.i), z = wz(c.k), y = wy(c.l);
+    pushGeo(batch('arch', C.stone, { pat: 4 }), archGeo(), Mx(x, y, z));           // all arch bodies share one mesh
+    for (const sz of [1, -1]) bBox(batch('keystone', C.stoneShade), 0.13, 0.15, 0.04, x, y + 0.56, z + sz * 0.5);
+    if (isT('arch', c.i, c.l + 1, c.k)) return;                    // stacked: no cornice between tiers -> one viaduct
+    const reach = (di) => at(c.i + di, c.l, c.k) ? 0.5 : 0.53;       // run the cornice through to neighbours
+    const x0 = x - reach(-1), x1 = x + reach(1);
+    bBox(batch('archCap', C.stoneShade), +(x1 - x0).toFixed(3), 0.06, 1.06, (x0 + x1) / 2, y + H - 0.055, z);
+    if (!at(c.i, c.l + 1, c.k)) for (const sz of [1, -1])          // walkable top gets a continuous parapet
+      bBox(batch('parapet', C.stone, { pat: 4 }), +(x1 - x0).toFixed(3), 0.1, 0.07, (x0 + x1) / 2, y + H + 0.005, z + sz * 0.49);
+  },
+  marble(c) {
+    // voxel faces: only emit faces that border a non-marble cell, so a cluster is one seamless solid
+    const b = batch('marble', C.marble, { pat: 8 });
+    const x = wx(c.i), y = wy(c.l), z = wz(c.k), s = 0.5;
+    const Mn = (di, dl, dk) => isT('marble', c.i + di, c.l + dl, c.k + dk);
+    const topOpen = !Mn(0, 1, 0);
+    if (topOpen) pushQuad(b, [[x - s, y + H, z - s], [x + s, y + H, z - s], [x + s, y + H, z + s], [x - s, y + H, z + s]], [0, 1, 0]);
+    if (!Mn(0, -1, 0)) pushQuad(b, [[x - s, y, z - s], [x + s, y, z - s], [x + s, y, z + s], [x - s, y, z + s]], [0, -1, 0]);
+    const eT = topOpen ? 0 : 9, eB = topOpen ? H : 9;                // aEdge = distance below an exposed top edge (bevel line)
+    for (const [di, dk] of DIRS) {
+      if (Mn(di, 0, dk)) continue;
+      const fx = x + di * s, fz = z + dk * s, tx = dk ? s : 0, tz = di ? s : 0;
+      pushQuad(b, [[fx - tx, y, fz - tz], [fx + tx, y, fz + tz], [fx + tx, y + H, fz + tz], [fx - tx, y + H, fz - tz]], [di, 0, dk], [eB, eB, eT, eT]);
+    }
+  },
+  fence(c) {
+    const x = wx(c.i), z = wz(c.k), y = wy(c.l);
+    const real = DIRS.filter(([di, dk]) => isT('fence', c.i + di, c.l, c.k + dk));
+    const L = real.length ? real : [[1, 0], [-1, 0]];                // a lone piece is a short E-W run
+    const straight = L.length === 2 && L[0][0] === -L[1][0] && L[0][1] === -L[1][1];
+    const pk = batch('picket', C.white), rail = batch('fenceRail', C.white), post = batch('fencePost', C.white);
+    const picket = (px, pz, alongX) => {
+      bBox(pk, alongX ? 0.07 : 0.04, 0.3, alongX ? 0.04 : 0.07, px, y, pz);
+      pushGeo(pk, cached('fenceTip', () => new THREE.ConeGeometry(0.05, 0.07, 4)), Mx(px, y + 0.335, pz, alongX ? Math.PI / 4 : Math.PI / 4));
+    };
+    const bigPost = (px, pz) => { bBox(post, 0.1, 0.4, 0.1, px, y, pz); pushGeo(post, cached('postTop', () => new THREE.ConeGeometry(0.085, 0.09, 4)), Mx(px, y + 0.445, pz, Math.PI / 4)); };
+    if (straight) picket(x, z, L[0][0] !== 0); else bigPost(x, z);    // corner / end / tee -> a proper post
+    for (const [di, dk] of L) {
+      for (const ry of [0.08, 0.21]) bBox(rail, di ? 0.5 : 0.03, 0.04, dk ? 0.5 : 0.03, x + di * 0.25, y + ry, z + dk * 0.25);
+      for (const t of [0.2, 0.4]) picket(x + di * t, z + dk * t, di !== 0);
+      if (!real.length) bigPost(x + di * 0.46, z + dk * 0.46);
+    }
+  },
+  wall(c) {
+    const x = wx(c.i), z = wz(c.k), y = wy(c.l);
+    const real = DIRS.filter(([di, dk]) => isT('wall', c.i + di, c.l, c.k + dk));
+    const L = real.length ? real : [[1, 0], [-1, 0]];
+    const straight = L.length === 2 && L[0][0] === -L[1][0] && L[0][1] === -L[1][1];
+    const body = batch('wallBody', C.stone, { pat: 4 }), cap = batch('wallCap', C.stoneShade), mer = batch('merlon', C.stone);
+    bBox(body, 0.26, 0.3, 0.26, x, y, z); bBox(cap, 0.32, 0.05, 0.32, x, y + 0.3, z);
+    for (const [di, dk] of L) {
+      bBox(body, di ? 0.5 : 0.26, 0.3, dk ? 0.5 : 0.26, x + di * 0.25, y, z + dk * 0.25);
+      bBox(cap, di ? 0.5 : 0.32, 0.05, dk ? 0.5 : 0.32, x + di * 0.25, y + 0.3, z + dk * 0.25);
+      const mt = (straight || !real.length) ? 0.25 : 0.34;
+      bBox(mer, di ? 0.18 : 0.28, 0.13, dk ? 0.18 : 0.28, x + di * mt, y + 0.35, z + dk * mt);
+    }
+    if (!straight && real.length) {                                   // corner / end / tee pier
+      bBox(batch('wallPier', C.stone, { pat: 4 }), 0.38, 0.52, 0.38, x, y, z);
+      bBox(batch('wallPierCap', C.stoneShade), 0.44, 0.06, 0.44, x, y + 0.52, z);
+    }
+  },
+  stairs(c) { place(stairs(), wx(c.i), wz(c.k), wy(c.l), c.rot || 0); },
+  prop(c) { const o = place(c.make(), wx(c.i) + (c.dx || 0), wz(c.k) + (c.dz || 0), wy(c.l), c.rot || 0); if (c.scale) o.scale.multiplyScalar(c.scale); },
+};
+
+// ---- paths / plaza: every ground cell goes into ONE merged mesh per type
+function rrShape(x0, y0, x1, y1, r) {   // r = [bl, br, tr, tl]
+  const s = new THREE.Shape();
+  s.moveTo(x0 + r[0], y0); s.lineTo(x1 - r[1], y0); if (r[1]) s.quadraticCurveTo(x1, y0, x1, y0 + r[1]);
+  s.lineTo(x1, y1 - r[2]); if (r[2]) s.quadraticCurveTo(x1, y1, x1 - r[2], y1);
+  s.lineTo(x0 + r[3], y1); if (r[3]) s.quadraticCurveTo(x0, y1, x0, y1 - r[3]);
+  s.lineTo(x0, y0 + r[0]); if (r[0]) s.quadraticCurveTo(x0, y0, x0 + r[0], y0);
+  return s;
+}
+function buildGround() {
+  const T = { path: { color: C.path, m: 0.13, r: 0.25, y: 0.004 }, plaza: { color: C.plaza, m: 0, r: 0, y: 0.008, pat: 5 } };
+  for (const [key, type] of ground) {
+    const [i, k] = key.split(',').map(Number), t = T[type];
+    const b = batch('ground-' + type, t.color, { pat: t.pat || 0 });
+    const x = wx(i), z = wz(k), y = G + t.y, a = 0.5 - t.m;
+    const con = (di, dk) => { const o = ground.get((i + di) + ',' + (k + dk)); return type === 'plaza' ? o === 'plaza' : !!o; };
+    const E = con(1, 0), W = con(-1, 0), S = con(0, 1), N = con(0, -1);
+    const rad = (p, q) => (!p && !q) ? t.r : 0;                      // round outer corners only
+    const geo = new THREE.ShapeGeometry(rrShape(-a, -a, a, a, [rad(W, S), rad(E, S), rad(E, N), rad(W, N)]), 6);
+    geo.rotateX(-Math.PI / 2); pushGeo(b, geo, Mx(x, y, z));          // shape y = -z
+    if (!t.m) continue;
+    const up = [0, 1, 0];
+    const rect = (x0, z0, x1, z1) => pushQuad(b, [[x + x0, y, z + z0], [x + x1, y, z + z0], [x + x1, y, z + z1], [x + x0, y, z + z1]], up);
+    if (E) rect(a, -a, 0.5, a); if (W) rect(-0.5, -a, -a, a); if (S) rect(-a, a, a, 0.5); if (N) rect(-a, -0.5, a, -a);
+    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      if (!con(sx, 0) || !con(0, sz)) continue;
+      if (con(sx, sz)) { rect(Math.min(sx * a, sx * 0.5), Math.min(sz * a, sz * 0.5), Math.max(sx * a, sx * 0.5), Math.max(sz * a, sz * 0.5)); continue; }
+      // inner (concave) corner: a little fillet so the junction reads as one poured path
+      const f = t.m, cx = x + sx * a, cz = z + sz * a;
+      const P = (u) => [x + sx * (a + f) - sx * f * Math.cos(u), y, z + sz * (a + f) - sz * f * Math.sin(u)];
+      for (let j = 0; j < 6; j++) pushTri(b, [cx, y, cz], P(j / 6 * Math.PI / 2), P((j + 1) / 6 * Math.PI / 2), up);
+    }
+  }
+}
+
+// ================================================================ the island, described as cells
+// ---- left: the primitive catalogue
+put('house', -6, -3, 0, { wall: C.wall[0], roof: C.roof[0], seed: 1 });
+put('marble', -5, -3);
+put('pillar', -4, -3);
+put('arch', -3, -3);
+put('stairs', -2, -3);
+put('prop', -1, -3, 0, { make: magicBlock });
+[['house', -6], ['marble block', -5], ['pillar', -4], ['arch', -3], ['stairs', -2], ['✦ magic block', -1]].forEach(([t, i]) => label(t, wx(i), G, -1.9));
+put('prop', -4, 0, 0, { make: () => { const g = new THREE.Group();
+  const t = tree(1); t.position.set(-0.18, 0, -0.12); g.add(t);
+  const c = cypress(2); c.position.set(0.3, 0, -0.22); g.add(c); const b = bush(3); b.position.set(0.12, 0, 0.3); g.add(b); return g; } });
+put('prop', -6, 0, 0, { make: windmill, rot: Math.PI / 4, dx: 0.1 });
+put('prop', -3, 0, 0, { make: lighthouse });
+for (const [i, seeds] of [[-2, [21, 22]], [-1, [23, 24, 25]]]) put('prop', i, 0, 0, { make: () => {
+  const g = new THREE.Group(); seeds.forEach((sd, j) => { const p = plant(sd); p.position.set(-0.25 + j * 0.5 / Math.max(1, seeds.length - 1), 0, (j % 2 ? 0.22 : -0.15)); g.add(p); }); return g; } });
+[['trees', -4, 1.1], ['windmill', -6.3, 1.0], ['lighthouse', -3, 1.1], ['procedural plants', -1.5, 1.1]].forEach(([t, i, z]) => label(t, wx(i), G, z));
+// fence run: L with a corner post at the turn and posts at both ends; encloses a little garden
+for (const [i, k] of [[-6, 2], [-5, 2], [-4, 2], [-4, 1]]) put('fence', i, k);
+// wall run: corner + tee + three ends
+for (const [i, k] of [[-3, 1], [-3, 2], [-2, 2], [-1, 2]]) put('wall', i, k);
+label('fence run', wx(-5), G, 3.12); label('wall run', wx(-2), G, 3.12);
+
+// ---- right: stacking + joinery vignette on a 5x5 paved plaza
+put('house', 1, -3, 0, { wall: C.wall[4], roof: C.roof[4], seed: 6, door: C.redDark });
+put('house', 1, -3, 1, { wall: C.wall[4] }); put('house', 1, -3, 2, { wall: C.wall[4] });
+for (const i of [2, 3]) for (const l of [0, 1]) put('arch', i, -3, l);                 // 2x2 arches -> one viaduct
+for (const i of [4, 5]) for (const k of [-3, -2]) for (const l of [0, 1]) put('marble', i, k, l); // 2x2x2 marble foundation
+put('marble', 4, -1); put('marble', 5, -1);                                             // ...with a one-storey step in front
+put('prop', 5, -3, 2, { make: lighthouse, scale: 0.85 });
+put('prop', 4, -2, 2, { make: () => tree(41, 1.05) });
+put('house', 5, -2, 2, { wall: C.wall[3], roof: C.roof[1], seed: 4, door: C.redDark });
+put('stairs', 2, -2);                                                                   // climbs into the upper arch passage
+put('pillar', 3, 0, 0); put('pillar', 3, 0, 1);                                         // two stacked pillars = one long column
+put('house', 3, 0, 2, { wall: C.wall[2], roof: C.roof[2], seed: 3 });
+put('arch', 2, 1, 0); put('house', 2, 1, 1, { wall: C.wall[0], roof: C.roof[0], seed: 5, door: C.glass });
+for (const l of [0, 1, 2]) put('pillar', 1, 1, l);                                     // a three-storey monument column
+put('house', 5, 1, 0, { wall: C.wall[5], roof: C.roof[3], seed: 7, door: C.wood });
+label('stacking + joinery', 3.2, G, 2.25);
+
+// ---- ground: paths (merged, rounded ends, filleted junctions) + plaza
+for (let i = -6; i <= 0; i++) putGround('path', i, -1);
+putGround('path', -6, -2); putGround('path', -3, -2);                                   // to the house door, to the arch
+for (const k of [0, 1, 2]) putGround('path', 0, k);                                     // to the dock
+for (let i = 1; i <= 5; i++) for (let k = -3; k <= 1; k++) putGround('plaza', i, k);
+
+// ---- build
+for (const c of cells.values()) BUILD[c.type](c);
+buildGround();
+flushBatches();
+
+// ---- free-placed dressing (not part of the grid)
+place(flowerBed(6, 3, 0), wx(-6) + 0.1, wz(1)); place(flowerBed(6, 3, 2), wx(-5), wz(1) - 0.05);
+place(flowerBed(4, 3, 4), wx(1), wz(0) - 0.05); place(lamp(), 1.15, 0.92);
+{ const top = wy(3); sphere(0.11, C.yellow, wx(1), top + 0.1, wz(1), scene, { emissive: 0.3 }); }
+place(flagPole(C.red), wx(1), wz(-3), wy(3) + 0.2);
+place(bench(), wx(3) + 0.1, wz(-2) - 0.1); place(lamp(), wx(3) + 0.42, wz(-2) - 0.2);
+place(bench(), wx(4) + 0.1, wz(-1) - 0.1, wy(1)); place(bush(52), wx(5), wz(-1), wy(1));
+place(bench(), wx(4), wz(1) + 0.1); place(bench(), -3.6, -0.95); place(bench(), -1.4, 0.05, G, Math.PI);
+for (const [x, z] of [[-4.95, -0.95], [-1.95, -0.95], [0.95, -0.95], [-3.95, 0.05], [-0.45, 0.05]]) place(lamp(), x, z);
+// scattered plants, each with its own seed
+for (const [x, z, sd, sc] of [[-6.3, -1.4, 60, 1], [-4.95, -3.35, 61, 0.9], [-2.95, -3.35, 62, 0.8], [-0.97, -3.35, 63, 0.9],
+  [0.45, -3.0, 64, 1.1], [0.5, -2.1, 65, 0.9], [1.5, -1.6, 66, 0.8], [6.25, -1.0, 67, 1], [6.2, 0.6, 68, 1.05], [6.25, -3.1, 69, 0.9],
+  [1.5, 2.6, 70, 1], [3.3, 2.6, 71, 1.1], [4.4, 2.55, 72, 0.9], [5.6, 2.55, 73, 1], [-0.75, 3.25, 76, 0.85]])
+  place(plant(sd, sc), x, z);
+// dock (starts on the shore) + moored rowboat
+boxB(0.62, 0.06, 1.3, C.wood, 0.5, G - 0.04, 3.55, scene, { pat: 6 });
+for (const x of [0.25, 0.75]) for (const z of [3.75, 4.15]) cyl(0.03, 0.03, 0.55, 6, C.wood, x, -0.25, z);
+const theRowboat = place(rowboat(), 1.05, 3.95, 0.02, Math.PI / 2);
 
 // sailing boat + gulls
 const theBoat = boat(); scene.add(theBoat);
-const boatLane = roundedRect(-7.05, -4.3, 6.65, 3.75, 1.3);
+const boatLane = roundedRect(-7.2, -4.2, 7.2, 4.45, 1.3);
 const gulls = [gull(), gull(), gull()]; gulls.forEach(gg => scene.add(gg.g));
 
 // people
 const walkers = [];
 const routes = [
-  { pts: [[-6.0, -0.28], [1.9, -0.28]], speed: 0.32 },
-  { pts: [[1.9, -0.52], [-6.0, -0.52]], speed: 0.27 },
-  { pts: [[0.67, 0.0], [0.67, 3.45]], speed: 0.22, y: (x, z) => z > 2.85 ? 0.2 : G },
-  { pts: [[2.0, -0.45], [5.9, -0.45]], speed: 0.24 },
-  { pts: [[3.5, 1.5], [3.5, -0.7]], speed: 0.2 },               // walks through the arch tunnel
-  { pts: [[-3.0, -0.4], [-0.6, -0.4]], speed: 0.18 },
-  { pts: [[5.9, -0.8], [2.1, -0.8]], speed: 0.21 },
-  { pts: [[3.42, -0.55], [3.42, -2.75]], speed: 0.17, y: (x, z) => G + H * Math.min(1, Math.max(0, (-0.95 - z) / 0.9)) }, // up the stairs, into the bridge
-  { pts: [[-5.2, -0.36], [-4.0, -0.36]], speed: 0.15 },
+  { pts: [[-5.8, -0.35], [1.4, -0.35]], speed: 0.32 },
+  { pts: [[1.4, -0.65], [-5.8, -0.65]], speed: 0.27 },
+  { pts: [[-5.5, -0.5], [-5.5, -2.05]], speed: 0.15 },                                  // to the house door
+  { pts: [[-2.5, -0.6], [-2.5, -3.4]], speed: 0.18 },                                   // through the catalogue arch
+  { pts: [[0.42, -0.4], [0.42, 4.05]], speed: 0.22, y: (x, z) => z > 2.9 ? G + 0.02 : G },
+  { pts: [[1.2, -0.5], [3.8, -0.5]], speed: 0.22 },
+  { pts: [[2.5, 2.7], [2.5, -0.6]], speed: 0.2 },                                        // through the arch under the yellow house
+  { pts: [[3.88, 1.9], [3.88, -1.4]], speed: 0.19 },                                     // under the stilt house
+  { pts: [[2.42, -0.6], [2.42, -2.75]], speed: 0.17, y: (x, z) => G + H * Math.min(1, Math.max(0, (-1.05 - z) / 0.9)) }, // up the stairs
+  { pts: [[-4.2, -0.5], [-3.0, -0.5]], speed: 0.15 },
 ];
 routes.forEach((r, i) => {
   const p = person(i); scene.add(p.g);
@@ -703,8 +889,8 @@ routes.forEach((r, i) => {
 });
 // people standing around (idle bob + look around)
 const idlers = [];
-for (const [x, z, ry, i, y] of [[-2.55, 0.05, Math.PI, 8, G], [-2.3, -0.95, 0.3, 9, G], [2.95, 1.25, -0.8, 10, G],
-  [3.2, 1.1, 2.4, 11, G], [0.75, 3.45, 0, 12, 0.2], [3.6, -2.35, 0.2, 13, G + 2 * H], [-5.0, 2.0, 2.2, 14, G], [4.55, -1.72, 0, 15, G + 0.1]]) {
+for (const [x, z, ry, i, y] of [[-1.6, 0.25, Math.PI, 10, G], [-3.3, -0.95, 0.3, 11, G], [1.75, 1.3, -0.8, 12, G],
+  [0.6, 4.1, 0, 13, G + 0.02], [3.0, -2.5, 0.2, 14, wy(2) + 0.005], [4.6, -2.6, -0.6, 15, wy(2)], [4.9, -0.55, 0.4, 16, wy(1)], [-5.0, 1.9, 2.2, 17, G]]) {
   const p = person(i); place(p.g, x, z, y, ry); idlers.push({ ...p, y, ry, phase: i });
 }
 
@@ -724,7 +910,7 @@ renderer.info.autoReset = false;
 document.body.appendChild(renderer.domElement);
 
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 20, 90);
-const target = new THREE.Vector3(-0.2, 0.0, -0.35);
+const target = new THREE.Vector3(0, 0, 0);
 const AZ = Math.PI / 4, EL = THREE.MathUtils.degToRad(32), DIST = 50;
 camera.position.set(target.x + Math.cos(EL) * Math.sin(AZ) * DIST, target.y + Math.sin(EL) * DIST, target.z + Math.cos(EL) * Math.cos(AZ) * DIST);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -740,13 +926,13 @@ const post = new THREE.ShaderMaterial({
   uniforms: {
     tColor: { value: colorRT.texture }, tDepth: { value: colorRT.depthTexture }, tId: { value: idRT.texture },
     uRes: { value: new THREE.Vector2() }, uTime: { value: 0 }, uInk: { value: INK },
-    uInkOn: { value: 1 }, uWobble: { value: 1 }, uPaper: { value: 1 }, uThick: { value: 1.6 }, uPR: { value: 2 },
+    uInkOn: { value: 1 }, uWobble: { value: 1 }, uBoil: { value: 0 }, uPaper: { value: 1 }, uThick: { value: 1.6 }, uPR: { value: 2 },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
   fragmentShader: `
     uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tId;
     uniform vec2 uRes; uniform float uTime; uniform vec3 uInk;
-    uniform float uInkOn; uniform float uWobble; uniform float uPaper; uniform float uThick; uniform float uPR;
+    uniform float uInkOn; uniform float uWobble; uniform float uBoil; uniform float uPaper; uniform float uThick; uniform float uPR;
     varying vec2 vUv;
     float h(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
     float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -765,25 +951,36 @@ const post = new THREE.ShaderMaterial({
       return e;
     }
     // 4 rotated-grid sub-samples: cheap anti-aliasing for the ink
-    float edge(vec2 uv){
-      vec2 px = uThick * uPR * 0.5 / uRes;
+    float edge(vec2 uv, float thick){
+      vec2 px = thick * uPR * 0.5 / uRes;
       vec2 q = 0.5 / uRes;
       return 0.25 * (edgeAt(uv + vec2(q.x, 0.5*q.y), px) + edgeAt(uv + vec2(-0.5*q.x, q.y), px)
                    + edgeAt(uv + vec2(-q.x, -0.5*q.y), px) + edgeAt(uv + vec2(0.5*q.x, -q.y), px));
     }
     void main(){
       vec2 fc = gl_FragCoord.xy / uPR;     // css-pixel coords so grain/wobble don't depend on DPR
-      float boil = floor(uTime * 4.0);
-      vec2 w = vec2(n(fc*0.06 + boil*7.13), n(fc*0.06 + 31.7 + boil*3.1)) - 0.5;
-      float e = edge(vUv + w * uWobble * 1.4 * uPR / uRes) * uInkOn;
+      // A steady pen: the line is STATIC by default. Irregularity is small (<= ~0.5 css px) and fairly
+      // high-frequency along the stroke, plus a slow swell/thin of the line weight and ink density.
+      // (Optional 'boil' re-rolls the noise twice a second.)
+      float t = uBoil * floor(uTime * 2.0) * 17.31;
+      vec2 w = vec2(n(fc * 0.21 + t), n(fc * 0.21 + 31.7 + t)) - 0.5;
+      float weight = mix(1.0, 0.75 + 0.5 * n(fc * 0.03 + 11.0 + t), uWobble);
+      float e = edge(vUv + w * uWobble * 1.0 * uPR / uRes, uThick * weight) * uInkOn;
       vec3 col = texture2D(tColor, vUv).rgb;
-      float g = n(fc*1.3)*0.5 + n(fc*0.35)*0.3 + n(fc*0.04)*0.2;
-      col *= 1.0 - uPaper * (g - 0.5) * 0.12;
-      // ink is a bit darker where it pools (line weight variation)
-      float pool = 0.85 + 0.15 * n(fc*0.08 + 3.0);
-      col = mix(col, uInk, clamp(e * 1.15, 0.0, 1.0) * pool);
-      gl_FragColor = vec4(col, 1.0);
-      #include <colorspace_fragment>
+      float dens = mix(1.0, 0.8 + 0.2 * n(fc * 0.07 + 3.0 + t), uWobble);
+      col = mix(col, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);
+      // Paper grain is applied AFTER the sRGB encode (it used to be a +/-1.6% multiply in linear space, which
+      // the encode squashed to ~1 grey level, then the 2x->1x downsample averaged its finest octave away).
+      vec4 o = linearToOutputTexel(vec4(col, 1.0));
+      vec4 sid = texture2D(tId, vUv);
+      float bg = 1.0 - step(0.5 / 255.0, sid.z + sid.w);             // empty paper vs. drawn objects
+      float speck = h(floor(fc)) - 0.5;                                // per-css-pixel tooth
+      float fibre = n(vec2(fc.x * 0.08 + fc.y * 0.03, fc.y * 0.9 - fc.x * 0.25)) - 0.5; // short elongated fibres
+      float mott = (n(fc * 0.011) - 0.5) + 0.6 * (n(fc * 0.032 + 5.0) - 0.5);          // soft cloudy mottling
+      float fleck = step(0.9965, h(floor(fc * 0.5) + 3.1));            // the odd darker fleck
+      float grain = speck * 0.05 + fibre * 0.04 + mott * 0.05 - fleck * 0.06;
+      o.rgb += uPaper * grain * mix(0.3, 1.0, bg);
+      gl_FragColor = o;
     }`,
   depthTest: false, depthWrite: false,
 });
@@ -807,7 +1004,7 @@ scene.traverse((o) => {
 const noInk = [];
 scene.traverse((o) => { if ((o.isMesh && o.userData.noInk) || o.isLineSegments) noInk.push(o); });
 
-const FRUSTUM = 12.2;
+const FRUSTUM = 13.0;
 function resize() {
   const w = innerWidth, h = innerHeight, pr = renderer.getPixelRatio();
   renderer.setSize(w, h);
@@ -821,7 +1018,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // camera presets (also handy for screenshots: window.spike.view('stack'))
-const VIEWS = { hero: [[-0.2, 0.0, -0.35], 1], rows: [[-2.7, 0.6, -0.4], 1.7], stack: [[4.3, 1.15, -1.25], 2.15] };
+const VIEWS = { hero: [[0, 0, 0], 1], rows: [[-3.3, 0.5, -0.7], 1.6], stack: [[3.3, 1.2, -1.0], 1.95], merge: [[3.5, 1.3, -1.3], 2.7], garden: [[-3.3, 0.3, 1.0], 2.4] };
 function view(name) {
   const [t, z] = VIEWS[name]; const off = camera.position.clone().sub(controls.target);
   controls.target.set(...t); camera.position.copy(controls.target).add(off);
@@ -833,6 +1030,7 @@ document.querySelectorAll('.views button').forEach(b => b.addEventListener('clic
 const bind = (id, fn) => document.getElementById(id).addEventListener('change', (e) => fn(e.target.checked));
 bind('ink', (v) => post.uniforms.uInkOn.value = v ? 1 : 0);
 bind('wob', (v) => post.uniforms.uWobble.value = v ? 1 : 0);
+bind('boil', (v) => post.uniforms.uBoil.value = v ? 1 : 0);
 bind('paper', (v) => post.uniforms.uPaper.value = v ? 1 : 0);
 bind('labels', (v) => document.getElementById('labelLayer').style.display = v ? '' : 'none');
 
@@ -892,7 +1090,7 @@ function animate() {
   theRowboat.position.y = 0.02 + Math.sin(t * 1.9) * 0.015; theRowboat.rotation.z = Math.sin(t * 1.4) * 0.04;
   gulls.forEach((gg, i) => {
     const a = t * 0.35 + i * 2.1;
-    gg.g.position.set(1.5 + Math.cos(a) * (3 + i), 3.6 + i * 0.3 + Math.sin(t * 0.8 + i) * 0.15, -0.5 + Math.sin(a) * (2 + i * 0.6));
+    gg.g.position.set(0.5 + Math.cos(a) * (3 + i), 3.6 + i * 0.3 + Math.sin(t * 0.8 + i) * 0.15, -0.3 + Math.sin(a) * (2 + i * 0.6));
     gg.g.rotation.y = -a - Math.PI / 2;   // face along the direction of flight
     const flap = Math.sin(t * 8 + i * 2) * 0.5;
     gg.wl.rotation.x = -0.35 + flap; gg.wr.rotation.x = 0.35 - flap;
