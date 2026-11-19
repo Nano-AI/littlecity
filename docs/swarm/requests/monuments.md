@@ -72,3 +72,27 @@ the monument generators read. Two things are pinned by J15 as feature
 params for that reason and need no change: the depth of a pier (it reaches
 past the neighbourhood) and the shape of an opening that spans several
 cells. No widening of the hash is asked for.
+
+## 7. `bollard` is shared with docks (Ground, J23)
+
+R-M05 puts `bollard` features (with their `mooring` sockets) on quay walls.
+As with caps and doors, the marble generator draws those itself and does not
+ask the registry, so Ground is free to register a `bollard` part for docks.
+
+## 8. Sockets waiting for their owners (Animation, Dressing)
+
+Declared and placed by Monuments, with nothing drawn on them yet:
+`lantern` in a lighthouse's lantern room (L09's beam); `bell` in a belfry and
+`clock-hands` on each clock face (L29; the faces show fixed hands until
+then); `telescope` on an observatory dome (L29); `flag-mount` on every tower
+cap and lighthouse gallery (D13); `bridge-end` on a stone bridge's end posts
+(D20); `arch-crown` under every arch (D06); `statue-base` on a plinth (D19);
+`seat` on grand steps; `mooring` on quay bollards; `perch` on free pillar
+tops, turret battlements, dovecotes and galleries.
+
+## 9. A timing test that fails under load (Logic)
+
+`src/terrain/terrain.test.ts` ("every required feature on 200 seeds") runs
+for 2 s alone but passed the default 5 s timeout twice during full
+`npm run check` runs while other worktrees were busy. It needs an explicit
+timeout. Nothing in Monuments touches it.
