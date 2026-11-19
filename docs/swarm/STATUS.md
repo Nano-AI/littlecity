@@ -162,3 +162,13 @@ line can cross above a public stair.
 (remaining D and U rules; may edit Houses files for U09–U11) and
 `swarm/life-depth` (remaining L rules, L29 unblock, cap yaw, sound, smoke
 tuning; may edit the generators that bake bell, clock hands and jets).
+
+**13:55** Merged Look fix pass `61ba162` (L1–L4; actors kept out of the
+grounding picture). Orchestrator relaxed one assertion in
+`src/render/view.e2e.test.ts` (actor pool may exist at rest). Full check
+green: 1,095 tests. Published. Open from Look's bench: geometry rebuild
+after one Auto edit is 11 ms median / 30 ms p95 on bench-2000 (budget 8 ms),
+almost all inside structure generators rebuilding a whole merged structure;
+`npm run bench -- everything` throws (use
+`node src/render/testing/bench.mjs <scenario>`); ART.md pictures are stale.
+Running: People (finishing), held-length, dressing-depth, life-depth.
