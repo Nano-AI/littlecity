@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CDPSession, Page } from 'playwright';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
 
 const SHOTS = path.resolve(__dirname, '../../.context/shots');
@@ -31,11 +31,19 @@ beforeAll(async () => {
 afterAll(async () => {
   await app?.close();
 });
+// (Animation, Stage 3.) Every test opens its own pages. They used to stay open until the end of the
+// file, which was harmless while a town stood still; now each one is a living town drawing every
+// frame, and twenty of them starved the last tests of the GPU. So a test's pages close when it ends.
+const openPages: Page[] = [];
+afterEach(async () => {
+  for (const page of openPages.splice(0)) await page.context().close().catch(() => {});
+});
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
 async function open(url: string, opts: Record<string, unknown> = DESKTOP): Promise<{ page: Page; errors: string[] }> {
   const opened = await app.open(url, opts);
+  openPages.push(opened.page);
   await opened.page.waitForFunction('window.__lc !== undefined && window.__lc.ui !== null');
   return opened;
 }

@@ -11,8 +11,6 @@ import type { ShopType } from '@/core/vocab';
 import { defineRule, slot, type Rule } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
-import { structureInfo } from '@/resolve/facts/structure.fact';
-import { WINDMILL } from '@/style/houses';
 
 /** D07: an awning over every shopfront and a hanging sign at the shop door. */
 const shopDressing = defineRule<{ socket: string; kind: 'awning' | 'sign' }>({
@@ -67,19 +65,6 @@ const flowerBoxes = defineRule<{ socket: string; sunny: boolean }>({
   },
 });
 
-/** L03: four sails on every mill hub (the Animation owner's behaviour turns them). */
-const sails = defineRule<{ socket: string }>({
-  id: 'X-L03.sails',
-  part: 'life',
-  tier: 1,
-  priority: 970,
-  about: 'Stand-in for L03. Reads: mill-hub sockets. Emits: one windmill-sails actor per hub.',
-  find: ({ facts }) => socketsOfType(facts, 'mill-hub').map((s) => ({ anchor: s.cell, structure: s.structure, data: { socket: s.id } })),
-  apply(c, out, ctx) {
-    const storeys = c.structure === undefined ? 1 : (structureInfo(ctx.facts).get(c.structure)?.storeys ?? 1);
-    const size = Math.min(WINDMILL.sailMax, WINDMILL.sail + (storeys - 1) * WINDMILL.sailPerCell);
-    out.actor({ type: 'windmill-sails', at: { socket: c.data.socket }, home: c.structure, params: { size: Math.round(size * 100) / 100 } });
-  },
-});
+// (The L03 stand-in lived here until the real rule arrived: src/rules/life/L03.sails.rule.ts.)
 
-export const houseDressing: readonly Rule[] = [shopDressing, flowerBoxes, sails];
+export const houseDressing: readonly Rule[] = [shopDressing, flowerBoxes];
