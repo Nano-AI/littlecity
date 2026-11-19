@@ -13,7 +13,7 @@
 // the code is the truth, the catalogue is the plan.
 
 import type { Kind } from '@/core/kinds';
-import type { PropType, Role } from '@/core/vocab';
+import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
 
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town';
@@ -36,7 +36,9 @@ export type Proof =
   /** Auto blocks resolved to every one of these kinds. */
   | { autoKinds: readonly Kind[] }
   /** A prop placed by this rule (dressing stage), optionally of one type. */
-  | { prop: { rule: string; type?: PropType } };
+  | { prop: { rule: string; type?: PropType } }
+  /** An actor placed by this rule (dressing stage), optionally of one type. */
+  | { actor: { rule: string; type?: ActorType } };
 
 export interface Recipe {
   ground?: (t: TerrainBuilder) => void;
@@ -66,6 +68,13 @@ export interface GuideEntry {
   view: { yaw: number; pitch: number };
   /** Extra room round the recipe in the picture, in cells (default 0.4). */
   pad?: number;
+  /**
+   * Draw the picture with the castle's people (troop, rider) on, frozen after `settle` seconds of
+   * simulated day. Every other picture leaves people, birds and boats out.
+   */
+  life?: { settle: number };
+  /** Frame only these columns (inclusive), `top` levels high, instead of the whole recipe. */
+  frame?: readonly [x0: number, z0: number, x1: number, z1: number, top: number];
 }
 
 /** The sea to the south (z ≥ 21) of flat land: the default view looks at it over the town. */
@@ -74,6 +83,25 @@ const seaSouth = (t: TerrainBuilder): void => {
   t.water(4, 21, 43, 43);
 };
 const FRONT = { yaw: 40, pitch: 30 };
+
+/** A small walled castle: a ring of walls with a gatehouse (two marble blocks and an arch) on a path. */
+function smallCastle(b: TownBuilder): void {
+  for (let x = 18; x <= 22; x++) b.put('wall', x, 18);
+  for (let z = 19; z <= 21; z++) b.put('wall', 18, z).put('wall', 22, z);
+  b.put('wall', 18, 22).put('wall', 22, 22);
+  b.stack('marble', 19, 22, { floors: 2 }).stack('marble', 21, 22, { floors: 2 });
+  b.path(20, 22, 20, 25).put('arch', 20, 22);
+}
+/** A keep with a gateway (an arch over a path) beside it. */
+function keepAndGate(b: TownBuilder): void {
+  b.fill('marble', 19, 19, 20, 20, { floors: 3 });
+  b.path(18, 21, 23, 21).put('arch', 21, 21);
+}
+/** The keep and its gateway, with the path running on from the gate to a little plaza. */
+function keepGateAndPlaza(b: TownBuilder): void {
+  keepAndGate(b);
+  b.path(23, 22, 23, 23).plaza(22, 24, 24, 25);
+}
 
 export const ENTRIES: readonly GuideEntry[] = [
   // ── the Auto block ────────────────────────────────────────────────────
@@ -658,7 +686,8 @@ export const ENTRIES: readonly GuideEntry[] = [
     build(b) {
       b.fenceAround(19, 19, 21, 21, 'wall');
     },
-    view: FRONT,
+    view: { yaw: 40, pitch: 42 },
+    pad: -0.1,
   },
   {
     id: 'paddock',
@@ -670,7 +699,8 @@ export const ENTRIES: readonly GuideEntry[] = [
     build(b) {
       b.fenceAround(19, 19, 21, 21);
     },
-    view: FRONT,
+    view: { yaw: 40, pitch: 42 },
+    pad: -0.1,
   },
   {
     id: 'pocket-park',
@@ -732,7 +762,45 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.house(19, 21, { w: 2, floors: 3, color: 2 });
       b.path(18, 20, 21, 20);
     },
-    view: { yaw: 90, pitch: 16 },
+    view: { yaw: 72, pitch: 22 },
+  },
+  {
+    id: 'garrison',
+    group: 'town',
+    name: 'Garrison',
+    how: 'Ring a yard with castle walls and a gatehouse or castle turret, or put a gateway beside a keep: a troop of soldiers marches round it.',
+    proof: { actor: { rule: 'L36.garrison', type: 'garrison' } },
+    seed: 7704,
+    build: smallCastle,
+    also: [
+      {
+        build(b) {
+          b.tower(18, 18, { floors: 3 });
+          for (let x = 19; x <= 22; x++) b.put('wall', x, 18).put('wall', x, 21);
+          for (let z = 19; z <= 20; z++) b.put('wall', 18, z).put('wall', 22, z);
+          b.put('wall', 18, 21);
+        },
+      },
+      { build: keepAndGate },
+    ],
+    view: FRONT,
+    pad: 0.2,
+    life: { settle: 42 },
+    frame: [19, 21, 23, 24, 2],
+  },
+  {
+    id: 'rider',
+    group: 'town',
+    name: 'Rider',
+    how: 'Lay a path from the gate of a castle with a garrison to a plaza: a rider on horseback waits by the gate and rides out to the plaza.',
+    proof: { actor: { rule: 'L37.rider', type: 'rider' } },
+    seed: 7705,
+    build: keepGateAndPlaza,
+    also: [{ build: (b) => void (smallCastle(b), b.plaza(19, 26, 21, 27)) }],
+    view: FRONT,
+    pad: 0.2,
+    life: { settle: 64 },
+    frame: [19, 20, 24, 22, 3],
   },
 ];
 
