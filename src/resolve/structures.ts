@@ -1,7 +1,11 @@
 // Pass 3: group pieces into structures (design sections 6 and 10). Owner: Logic.
 //
 // Blocks merge by their RESOLVED kind, per KINDS[kind].merge:
-//   house, marble        touching (all six faces), same colour
+//   house, marble        touching (all six faces), same colour; a house also
+//                        joins a same-colour house one level up or down in a
+//                        side-adjacent column, when the higher one rests on
+//                        terrain or on a solid block that is not a building
+//                        (a step: they would touch if the ground were level)
 //   dock                 touching
 //   tower                directly above/below, same colour
 //   lighthouse, pillar,  directly above/below
@@ -137,6 +141,22 @@ function blocksMerge(w: World, kind: Kind, a: CellKey, b: CellKey, dir: Dir4 | '
   }
 }
 
+/** Kinds whose blocks are buildings of their own: a house never joins another house through one. */
+const BUILDINGS: ReadonlySet<Kind> = new Set<Kind>(['house', 'tower', 'lighthouse', 'windmill']);
+
+/**
+ * The cell under the higher half of a split-level house is a step it can
+ * stand on: terrain, or a solid block that is not another building (marble,
+ * an arch, a dock, a pillar are steps; a house or a tower is a building, and
+ * the two do not join through it).
+ */
+function restsOnStep(w: World, t: Terrain, kinds: ReadonlyMap<CellKey, Kind>, cell: CellKey): boolean {
+  if (keyY(cell) < t.height[columnIndex(keyX(cell), keyZ(cell))]!) return true;
+  if (!w.blocks.has(cell)) return false;
+  const k = kinds.get(cell);
+  return k !== undefined && KINDS[k].solid && !BUILDINGS.has(k);
+}
+
 export function buildStructures(w: World, t: Terrain, kinds: ReadonlyMap<CellKey, Kind>): StructureSet {
   const structures = new Map<StructureId, Structure>();
   const structureAt = new Map<CellKey, StructureId>();
@@ -160,6 +180,17 @@ export function buildStructures(w: World, t: Terrain, kinds: ReadonlyMap<CellKey
     tryMerge(i, cell, kind, neighbor(cell, E), E);
     tryMerge(i, cell, kind, neighbor(cell, S), S);
     tryMerge(i, cell, kind, above(cell), 'up');
+    if (kind === 'house') {
+      // A split-level house: the block beside this one, one level up, standing on the step.
+      for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+        const side = neighbor(cell, d);
+        if (side === NO_CELL) continue;
+        const up = above(side);
+        if (up === NO_CELL || kinds.get(up) !== 'house' || w.blocks.get(up)!.color !== w.blocks.get(cell)!.color) continue;
+        if (!restsOnStep(w, t, kinds, side)) continue;
+        uf.union(i, index.get(up)!);
+      }
+    }
     if (kind === 'stairs') {
       // Continuing the flight: one level up, one step forward, same rot.
       const rot = w.blocks.get(cell)!.rot;

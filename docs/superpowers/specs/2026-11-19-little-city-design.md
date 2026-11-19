@@ -252,7 +252,7 @@ stays a pure function of the save.
 | Piece | Stored as | Auto can become | Solid | Merges with |
 |---|---|---|---|---|
 | ✨ Auto | block | — | yes | per resolved kind |
-| House | block | yes | yes | touching houses, same colour (sideways and up/down) |
+| House | block | yes | yes | touching houses, same colour (sideways and up/down); also across a one-level step in the ground: a same-colour house in a side-adjacent column one level higher, standing on terrain or a solid block that is not another building (a house, tower, lighthouse or windmill). Not across two levels, not diagonally |
 | Tower | block | yes | yes | same-colour tower directly above/below |
 | Lighthouse | block | yes | yes | lighthouse directly above/below |
 | Arch / bridge | block | yes | yes | arches in the same run or tier |
