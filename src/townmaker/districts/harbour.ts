@@ -33,10 +33,31 @@ function near(a: readonly [number, number], f: Frame): number {
 
 export function buildHarbour(town: Town): boolean {
   const { g } = town;
-  // The quay first: it decides where the harbour is.
-  let Q = 6;
-  let quay = null;
-  for (; Q >= 4 && !quay; Q--) {
+  // The quay first: it decides where the harbour is. Best is a berth for a big ship (a galleon wants
+  // a straight run of 8 docks, open sea 3 wide alongside, a clear lane out to the map edge).
+  const berth = search(g, 'berth8', (f) => {
+    let land = 0;
+    for (let u = 0; u < 8; u++) {
+      if (!openWater(g, f.x(u, 1), f.z(u, 1)) || besideSeaBlock(g, f.x(u, 1), f.z(u, 1))) return null;
+      const h = g.h(f.x(u, 0), f.z(u, 0));
+      if (h === 0) continue;
+      if (h !== 1 || !landFree(g, f.x(u, 0), f.z(u, 0), 1)) return null;
+      land++;
+    }
+    if (land < 5) return null;
+    for (let v = 2; v <= 4; v++) for (let u = -1; u <= 8; u++) if (!openWater(g, f.x(u, v), f.z(u, v))) return null;
+    for (const u of [0, 4, 7]) {
+      for (let v = 5; ; v++) {
+        const x = f.x(u, v), z = f.z(u, v);
+        if (!g.inMap(x, z)) break;
+        if (!openWater(g, x, z)) return null;
+      }
+    }
+    const d = town.square ? Math.abs(f.ox - town.square.x) + Math.abs(f.oz - town.square.z) : 0;
+    return { score: d, data: 8 };
+  });
+  let quay = berth;
+  for (let Q = 6; Q >= 4 && !quay; Q--) {
     const len = Q;
     quay = search(g, `quay${len}`, (f) => {
       for (let u = 0; u < len; u++) {
@@ -57,15 +78,20 @@ export function buildHarbour(town: Town): boolean {
   const Lq = new Local(g, qf);
   // The promenade and the landing behind the quay, then the docks (Auto over the sea is a dock).
   for (let u = -1; u <= qlen; u++) {
-    if (g.h(qf.x(u, -1), qf.z(u, -1)) > 0) pave(g, qf.x(u, -1), qf.z(u, -1));
+    if (g.h(qf.x(u, -1), qf.z(u, -1)) > 0 && g.h(qf.x(u, 0), qf.z(u, 0)) > 0) pave(g, qf.x(u, -1), qf.z(u, -1));
   }
-  for (let u = 0; u < qlen; u++) pave(g, qf.x(u, 0), qf.z(u, 0));
+  for (let u = 0; u < qlen; u++) if (g.h(qf.x(u, 0), qf.z(u, 0)) > 0) pave(g, qf.x(u, 0), qf.z(u, 0));
   Lq.claim(0, 0, qlen - 1, 2, CLAIM.built);
   const rows = qlen >= 5 ? 1 : 2;
   for (let v = 1; v <= rows; v++) for (let u = 0; u < qlen; u++) Lq.put('auto', u, 0, v, 'auto');
   // A fish stall on the landing.
-  Lq.put('stall', qlen - 1, 1, 0);
-  d.ways.push([qf.x(0, -1), qf.z(0, -1)]);
+  if (g.h(qf.x(qlen - 1, 0), qf.z(qlen - 1, 0)) > 0) Lq.put('stall', qlen - 1, 1, 0);
+  for (let u = 0; u < qlen; u++) {
+    if (g.h(qf.x(u, 0), qf.z(u, 0)) > 0) {
+      d.ways.push([qf.x(u, 0), qf.z(u, 0)]);
+      break;
+    }
+  }
   const anchor: [number, number] = [qf.x(qlen / 2, 0), qf.z(qlen / 2, 0)];
 
   buildPier(town, d, anchor);
@@ -139,7 +165,7 @@ function buildStiltHouse(town: Town, d: District, anchor: readonly [number, numb
 }
 
 /** A boathouse on the beach, its boat doors onto a short landing stage that joins the beach beside it. */
-function buildBoathouse(town: Town, d: District, anchor: readonly [number, number]): boolean {
+export function buildBoathouse(town: Town, d: District, anchor: readonly [number, number]): boolean {
   const { g } = town;
   const found = search(g, 'boathouse', (f) => {
     if (!landFree(g, f.ox, f.oz, 1) || !landFree(g, f.x(1, 0), f.z(1, 0), 1) || !landFree(g, f.x(2, 0), f.z(2, 0), 1)) return null;

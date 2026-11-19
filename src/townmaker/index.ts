@@ -26,10 +26,11 @@ import { buildCastle } from './districts/castle';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour } from './districts/harbour';
+import { buildRiverside } from './districts/riverside';
 import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
-import { buildSquare } from './districts/square';
+import { buildSmallSquare, buildSquare } from './districts/square';
 import { buildBoardwalk, buildBridge, buildJetty, buildViaduct } from './districts/water';
 import { Grower, type Made } from './grower';
 import { joinedStreets, route } from './route';
@@ -61,19 +62,21 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   // One town in five has no fountain anywhere, so the hand pump (D33, which needs a town without one) shows too.
   const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
 
-  buildSquare(town);
+  if (!buildSquare(town)) buildSmallSquare(town);
   buildWillow(town);
   buildHilltop(town);
   buildCliffHouse(town);
   buildCastle(town);
   buildAcropolis(town);
   buildFolly(town);
+  if (town.site.land < 750) buildManor(town);
   buildHarbour(town);
   buildLighthouse(town);
+  reserveFarmstead(town);
+  buildRiverside(town);
   buildHousing(town, 0, 9);
   buildCourtyard(town, 0, 8);
-  reserveFarmstead(town);
-  buildManor(town);
+  if (town.site.land >= 750) buildManor(town);
   buildHousing(town, 1, 11);
   buildChapel(town);
   buildMill(town);
@@ -116,7 +119,8 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
  */
 function joinStreets(town: Town): string[] {
   const { g } = town;
-  const sq = town.districts.find((d) => d.name === 'square') ?? town.districts[0];
+  // The square's streets, or (no square fitted) the first district that laid any.
+  const sq = town.districts.find((d) => d.name === 'square') ?? town.districts.find((d) => g.streetOf.includes(d.id));
   if (!sq) return [];
   const roots = (): CellKey[] => {
     const out: CellKey[] = [];
