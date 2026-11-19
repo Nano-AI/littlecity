@@ -338,3 +338,14 @@ left as is: a row of identical same-style houses joins into one building
 (workaround: a different swatch colour per house, or gaps).
 Running: animation-polish (night windows, fireflies), terrain2, coplanar,
 house-styles follow-ups.
+
+**Night windows and firefly removal merged** (`b6ead9e`): houses put lights
+out through the first half of the night until about one in six stays lit;
+inns stay lit; silhouettes (four at most) in lit windows; a held night
+still changes; fireflies deleted everywhere. Cause of "all lit": the sun
+button held the night at its midpoint while homes went to bed at a random
+30–85% of the night. Full check green: 1,509 tests. Published.
+Still open from animation: gust front not visible; everything-town troop
+has no loop; bell small; gulls, small birds, sailboats near piers and the
+rower's route not watched.
+Running: terrain2, coplanar, house-styles follow-ups.
