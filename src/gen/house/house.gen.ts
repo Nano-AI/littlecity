@@ -217,6 +217,8 @@ function shell(h: House): void {
 // ───────────────────────────────────────────────────────────── the roofs ──
 
 type Side = 'free' | 'party' | 'wall' | 'tower';
+/** Thickness of a stepped gable's parapet. */
+const STEP_GABLE = 0.09;
 
 function roofs(h: House): void {
   const { b, s, plan, has, solid, persona } = h;
@@ -259,7 +261,7 @@ function roofs(h: House): void {
         // gable: the sides along the ridge are eaves, the ends are cut.
         const end = ridge === 'x' ? d === 1 || d === 3 : d === 0 || d === 2;
         if (!end) return what === 'free' ? 'eave' : what === 'wall' ? 'gutter' : 'eave0';
-        return what === 'free' ? (stepped ? 'cut' : 'rake') : what === 'wall' ? 'wall' : 'cut';
+        return what === 'free' ? (stepped ? 'inset' : 'rake') : what === 'wall' ? 'wall' : 'cut';
       };
       const length = Math.max(region.width, region.depth);
       const field = roofField({
@@ -275,6 +277,7 @@ function roofs(h: House): void {
         eave: HOUSE.eave,
         rake: HOUSE.rake,
         into: HOUSE.inset + 0.005,
+        trim: HOUSE.inset + STEP_GABLE - 0.005,
       });
       for (const c of cells) h.fields.set(c, field);
       emitRoof(b, field, {
@@ -290,10 +293,10 @@ function roofs(h: House): void {
         for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
           if (roofed.has(neighbor(c, d))) continue;
           const m = field.mode(c, d);
-          if (m !== 'rake' && m !== 'cut') continue;
+          if (m !== 'rake' && m !== 'cut' && m !== 'inset') continue;
           const inner = has(neighbor(c, d)); // towards a pierced cell: flush with the cell line
           const e = inner ? wallEdge((k) => roofed.has(k), c, d) : wallEdge(has, c, d);
-          const stepsHere = stepped && side(c, d) === 'free';
+          const stepsHere = m === 'inset';
           gableWall(h, field, e, inner ? 0 : HOUSE.inset, top, stepsHere);
         }
       }
@@ -334,7 +337,8 @@ function gableWall(h: House, field: RoofField, e: WallEdge, inset: number, top: 
   const xl = leftX(e, inset), xr = rightX(e, inset);
   const heightAt = (x: number): number => {
     const p = transformPoint(frame, [x, 0, -inset - 0.001]);
-    return field.heightAt(e.cell, p[0], p[2]) - top;
+    // A hair under the roof, so the wall's top edge never shows through the slope it meets.
+    return field.heightAt(e.cell, p[0], p[2]) - top - 0.012;
   };
   b.at(compose(frame, translation(0, top - keyY(e.cell) * CELL_H, 0)), () => {
     if (!stepped) {
@@ -350,12 +354,13 @@ function gableWall(h: House, field: RoofField, e: WallEdge, inset: number, top: 
       return;
     }
     // A stepped (crow-step) gable: the wall rises past the roof in steps, each with a coping.
-    const n = 5, thick = 0.09, back = inset + thick;
+    // The roof stops at the parapet's back (the 'inset' edge mode), so nothing shows in front.
+    const n = 5, back = inset + STEP_GABLE;
     const w = (xr - xl) / n;
     const tops: number[] = [];
     for (let k = 0; k < n; k++) {
       const a = xl + k * w, c = a + w;
-      tops.push(Math.max(heightAt(a), heightAt(c), heightAt((a + c) / 2)) + 0.07);
+      tops.push(Math.max(heightAt(a), heightAt(c), heightAt((a + c) / 2)) + 0.085);
     }
     b.with({ color: mat.color, pattern: mat.pattern, ink: 'walls' }, () => {
       for (let k = 0; k < n; k++) {
@@ -472,7 +477,7 @@ function gableFrame(h: House, f: Feature): Mat4Like | null {
   if (f.cell === undefined || f.dir === undefined) return null;
   const field = h.fields.get(f.cell);
   const m = field?.mode(f.cell, f.dir);
-  if (!field || (m !== 'rake' && m !== 'cut')) return null;
+  if (!field || (m !== 'rake' && m !== 'cut' && m !== 'inset')) return null;
   // The run of cells that share this gable end.
   let lo = 0, hi = 0;
   const L = leftOf(f.dir), R = rightOf(f.dir);

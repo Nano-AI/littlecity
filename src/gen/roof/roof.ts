@@ -24,6 +24,8 @@
 //              runs level into that wall
 //     rake     a gable end: cut off, overhanging a little, closed by a wall
 //     cut      cut off flush with the cell line (party walls, towers), closed by a wall
+//     inset    cut off short of the cell line, behind a parapet that rises past the roof
+//              (a stepped gable)
 //     wall     runs on into a taller wall of the same building
 //
 // The distance field of right-angled outlines only ever creases along
@@ -38,7 +40,7 @@ import type { Vec3 } from '@/core/mat4';
 import type { ColorInput, MeshBuilder } from '@/gen/mesh';
 import { leftOf, rightOf } from '@/gen/house/outline';
 
-export type EdgeMode = 'eave' | 'eave0' | 'gutter' | 'rake' | 'cut' | 'wall';
+export type EdgeMode = 'eave' | 'eave0' | 'gutter' | 'rake' | 'cut' | 'inset' | 'wall';
 
 export interface RoofInput {
   /** The cells under the roof, all on one level. */
@@ -62,6 +64,8 @@ export interface RoofInput {
   rake: number;
   /** How far a roof runs into a taller wall of its own building (the wall inset). */
   into: number;
+  /** How far inside the cell line an 'inset' edge stops (the back of the parapet). Default 0. */
+  trim?: number;
 }
 
 export interface RoofField {
@@ -95,10 +99,11 @@ const OVER: Record<EdgeMode, (i: RoofInput) => number> = {
   gutter: (i) => i.into,
   rake: (i) => i.rake,
   cut: () => 0,
+  inset: () => 0,
   wall: (i) => i.into,
 };
-const IS_EAVE: Record<EdgeMode, boolean> = { eave: true, eave0: true, gutter: true, rake: false, cut: false, wall: false };
-const HAS_FASCIA: Record<EdgeMode, boolean> = { eave: true, eave0: false, gutter: false, rake: true, cut: false, wall: false };
+const IS_EAVE: Record<EdgeMode, boolean> = { eave: true, eave0: true, gutter: true, rake: false, cut: false, inset: false, wall: false };
+const HAS_FASCIA: Record<EdgeMode, boolean> = { eave: true, eave0: false, gutter: false, rake: true, cut: false, inset: false, wall: false };
 
 /** Builds the height field of one roof. */
 export function roofField(input: RoofInput): RoofField {
@@ -258,12 +263,15 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
     b.quad([p[0], yp - look.thick, p[1]], [q[0], yq - look.thick, q[1]], [q[0], yq, q[1]], [p[0], yp, p[1]]);
   };
 
+  const trimOf = (cell: CellKey, d: Dir4): number => (f.mode(cell, d) === 'inset' ? (input.trim ?? 0) : 0);
   b.with({ color: look.color, pattern: look.pattern, ink: look.ink }, () => {
     for (const cell of input.cells) {
       const cx = keyX(cell), cz = keyZ(cell);
+      // An 'inset' edge stops the roof short of the cell line.
+      const x0 = cx + trimOf(cell, 3), x1 = cx + 1 - trimOf(cell, 1), z0 = cz + trimOf(cell, 0), z1 = cz + 1 - trimOf(cell, 2);
       for (let j = 0; j < 2; j++) {
         for (let i = 0; i < 2; i++) {
-          const xa = cx + i / 2, xb = xa + 0.5, za = cz + j / 2, zb = za + 0.5;
+          const xa = Math.max(x0, cx + i / 2), xb = Math.min(x1, cx + (i + 1) / 2), za = Math.max(z0, cz + j / 2), zb = Math.min(z1, cz + (j + 1) / 2);
           patch(cell, [xa, za], [xa, zb], [xb, zb], [xb, za]);
         }
       }
@@ -291,17 +299,20 @@ export function emitRoof(b: MeshBuilder, f: RoofField, look: RoofLook): void {
         return Math.min(o, other ? OVER[other](input) : 0);
       };
       if (o > 0) {
-        const cl = concave(L), cr = concave(R);
+        // Where the strip starts and ends along the edge: mitred at a concave end, cut short at an inset one.
+        const cl = Math.max(concave(L), f.has(neighbor(cell, L)) ? 0 : trimOf(cell, L));
+        const cr = Math.max(concave(R), f.has(neighbor(cell, R)) ? 0 : trimOf(cell, R));
+        const il = f.has(neighbor(cell, L)) ? 0 : trimOf(cell, L), ir = f.has(neighbor(cell, R)) ? 0 : trimOf(cell, R);
         b.with({ color: look.color, pattern: look.pattern, ink: look.ink }, () => {
-          patch(cell, P(0, 0), P(cl, o), P(0.5, o), P(0.5, 0));
-          patch(cell, P(0.5, 0), P(0.5, o), P(1 - cr, o), P(1, 0));
+          patch(cell, P(il, 0), P(cl, o), P(0.5, o), P(0.5, 0));
+          patch(cell, P(0.5, 0), P(0.5, o), P(1 - cr, o), P(1 - ir, 0));
         });
         if (HAS_FASCIA[m]) {
           b.with({ color: look.fascia, ink: look.fasciaInk }, () => {
             fascia(cell, P(cl, o), P(0.5, o));
             fascia(cell, P(0.5, o), P(1 - cr, o));
-            soffit(cell, P(0, 0), P(cl, o), P(0.5, o), P(0.5, 0));
-            soffit(cell, P(0.5, 0), P(0.5, o), P(1 - cr, o), P(1, 0));
+            soffit(cell, P(il, 0), P(cl, o), P(0.5, o), P(0.5, 0));
+            soffit(cell, P(0.5, 0), P(0.5, o), P(1 - cr, o), P(1 - ir, 0));
           });
         }
       }
