@@ -61,8 +61,11 @@ export function attachPointer(canvas: HTMLElement, sink: GestureSink): () => voi
       e.preventDefault();
       const r = canvas.getBoundingClientRect();
       const pixels = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * r.height : e.deltaY;
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      // A pinch (ctrlKey) and Ctrl or ⌘ + scroll always zoom; a plain scroll may set a held piece's length.
+      if (!e.ctrlKey && !e.metaKey && sink.scroll?.(pixels, e.deltaMode !== 0, x, y)) return;
       const rate = e.ctrlKey ? INPUT.pinchZoom : INPUT.wheelZoom;
-      sink.zoom(Math.exp(-pixels * rate), e.clientX - r.left, e.clientY - r.top);
+      sink.zoom(Math.exp(-pixels * rate), x, y);
     },
     { passive: false },
   );

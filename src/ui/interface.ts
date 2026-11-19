@@ -21,12 +21,14 @@ import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
-import { ghostFor } from './ghost';
+import { ghostFor, ghostForRun } from './ghost';
+import { clampLength, createScrollSteps, growthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
 import { createMenu } from './menu';
 import { faceZone, pickCell, type Pick } from './pick';
 import { DRAWER_IDS, drawerItems, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
 import { attachPointer } from './pointer';
+import { createStepper } from './stepper';
 import { createTray, type Tray } from './tray';
 import { createTuningPanel } from './tuning';
 import { INPUT } from '@/style/input';
@@ -55,7 +57,19 @@ export interface Interface {
   /** The world or the history changed: refresh the buttons and the ghost. */
   sync(): void;
   /** What the interface is showing, for browser tests and the console. */
-  debug(): { item: ItemId; drawer: DrawerId; swatch: number | 'auto'; time: TimeHold; ghost: GhostSummary | null; markers: CellKey[]; sound: boolean };
+  debug(): {
+    item: ItemId;
+    drawer: DrawerId;
+    swatch: number | 'auto';
+    time: TimeHold;
+    ghost: GhostSummary | null;
+    markers: CellKey[];
+    sound: boolean;
+    /** The held piece's length, or null when the selected item has none. */
+    length: number | null;
+    /** How many cells of the held run the ghost shows (null when there is no run on show). */
+    run: number | null;
+  };
   dispose(): void;
 }
 
@@ -93,6 +107,7 @@ export function createInterface(host: InterfaceHost): Interface {
   const tray = createTray();
   const markers = createMarkers(view);
   const feedback = createFeedback(root);
+  const count = el('div', { class: 'lc-count', attrs: { 'data-ui': 'run-count', 'aria-hidden': 'true', hidden: '' } });
   let sound = readSound();
   let tuning: HTMLElement | null = null;
 
@@ -133,6 +148,7 @@ export function createInterface(host: InterfaceHost): Interface {
     el('div', { class: 'lc-card lc-corner lc-corner-left' }, [menu.button]),
     el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, undoButton, redoButton]),
     tray.el,
+    count,
     menu.el,
     menu.file,
     feedback.el,
@@ -204,15 +220,94 @@ export function createInterface(host: InterfaceHost): Interface {
     view.setGhost(next);
   };
 
+  /** The run on show under the mouse, while a piece is held longer than 1. */
+  let shownRun: Run | null = null;
+
+  const showCount = (): void => {
+    const n = shownRun?.edits.length ?? 0;
+    count.toggleAttribute('hidden', !hoverAt || n === 0);
+    if (!hoverAt || n === 0) return;
+    const length = heldLength();
+    count.textContent = n < (length ?? 0) ? `${n} of ${length}` : String(n);
+    const r = canvas.getBoundingClientRect();
+    count.style.transform = `translate(${Math.round(hoverAt.x + r.left + 16)}px, ${Math.round(hoverAt.y + r.top + 14)}px)`;
+  };
+
   const updateGhost = (): void => {
-    if (!hoverAt || isToolId(tray.state.item)) return setGhost(null, '');
-    const seen = look(hoverAt.x, hoverAt.y);
-    if (!seen) return setGhost(null, '');
-    const plan = planUse(tool(), seen.pick, seen.ctx);
-    // The same piece on the same target in the same world: nothing to work out again.
-    const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${plan.at}|${JSON.stringify(plan.tries[0] ?? plan.refusal ?? null)}`;
-    if (key === ghostKey) return;
-    setGhost(ghostFor(plan, game), key);
+    if (placingRun) return;
+    const ghostOf = (): void => {
+      if (!hoverAt || isToolId(tray.state.item)) return setGhost(null, '');
+      const seen = look(hoverAt.x, hoverAt.y);
+      if (!seen) return setGhost(null, '');
+      const length = heldLength();
+      if (length !== null && length > 1) {
+        // A held run: worked out again only when the target, the direction, the length or the piece changes.
+        const run = planRun(tool(), seen.pick, seen.ctx, length);
+        shownRun = run;
+        const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${length}|${run.at}|${run.dir}|${JSON.stringify(run.edits[0] ?? run.refusal)}`;
+        if (key === ghostKey) return;
+        return setGhost(ghostForRun(run, game), key);
+      }
+      const plan = planUse(tool(), seen.pick, seen.ctx);
+      // The same piece on the same target in the same world: nothing to work out again.
+      const key = `${worldVersion}|${tray.state.item}|${tray.state.swatch}|${plan.at}|${JSON.stringify(plan.tries[0] ?? plan.refusal ?? null)}`;
+      if (key === ghostKey) return;
+      setGhost(ghostFor(plan, game), key);
+    };
+    shownRun = null;
+    ghostOf();
+    showCount();
+  };
+
+  // ── held length (design section 7) ─────────────────────────────────────
+  /** Length per piece, for this session; every piece starts at 1. */
+  const lengths = new Map<ItemId, number>();
+  const heldLength = (): number | null => (growthOf(tray.state.item) === null ? null : (lengths.get(tray.state.item) ?? 1));
+  const stepper = createStepper((by) => changeLength(by));
+  tray.el.append(stepper.el);
+  const scrollSteps = createScrollSteps();
+  /** True while a run is being placed: the ghost waits until it is all down. */
+  let placingRun = false;
+
+  const changeLength = (by: number): void => {
+    const length = heldLength();
+    if (length === null) return;
+    const next = clampLength(length + by);
+    if (next === length) return;
+    lengths.set(tray.state.item, next);
+    stepper.show(next);
+    updateGhost();
+  };
+
+  /** A plain scroll: changes the length when a piece with one is held over a valid target; otherwise it zooms. */
+  const scrollLength = (dy: number, notch: boolean, x: number, y: number): boolean => {
+    if (heldLength() === null) return false;
+    const seen = look(x, y);
+    if (!seen || !planUse(tool(), seen.pick, seen.ctx).tries.some((e) => game.can(e).ok)) {
+      scrollSteps.reset();
+      return false;
+    }
+    const steps = scrollSteps.feed(dy, notch);
+    if (steps !== 0) changeLength(steps);
+    return true;
+  };
+
+  /** A click with a piece held longer than 1: the part of the run that fits, as one undo step. */
+  const placeRun = (x: number, y: number, seen: { pick: Pick; ctx: ActionContext }, length: number): void => {
+    const run = planRun(tool(), seen.pick, seen.ctx, length);
+    if (run.edits.length === 0) {
+      if (run.refusal) refuse(run.refusal, x, y);
+      return;
+    }
+    placingRun = true;
+    game.begin();
+    try {
+      for (const edit of run.edits) if (!game.edit(edit).ok) break;
+    } finally {
+      game.end();
+      placingRun = false;
+    }
+    if (hoverAt) updateGhost();
   };
 
   // ── Shift-drag: paint a run (floors, fences, walls, marble) ────────────
@@ -270,7 +365,10 @@ export function createInterface(host: InterfaceHost): Interface {
     use(x, y) {
       if (dismissing) return;
       const seen = look(x, y);
-      if (seen) perform(planUse(tool(), seen.pick, seen.ctx), x, y);
+      if (!seen) return;
+      const length = heldLength();
+      if (length !== null && length > 1) placeRun(x, y, seen, length);
+      else perform(planUse(tool(), seen.pick, seen.ctx), x, y);
     },
     erase(x, y) {
       if (dismissing) return;
@@ -283,13 +381,16 @@ export function createInterface(host: InterfaceHost): Interface {
       view.zoomBy(factor, x, y);
       if (hoverAt) updateGhost();
     },
+    scroll: scrollLength,
     hover(x, y) {
       hoverAt = { x, y };
       updateGhost();
     },
     hoverEnd() {
       hoverAt = null;
+      shownRun = null;
       setGhost(null, '');
+      showCount();
     },
     runStart(x, y) {
       if (dismissing || !paintsRuns(tray.state.item)) return false;
@@ -344,6 +445,13 @@ export function createInterface(host: InterfaceHost): Interface {
   };
   window.addEventListener('keydown', onKey);
 
+  // The page itself never zooms: a pinch or Ctrl + scroll over the tray or a card does nothing (over the town it zooms the town).
+  const noPageZoom = (e: Event): void => {
+    if (e.type !== 'wheel' || (e as WheelEvent).ctrlKey) e.preventDefault();
+  };
+  window.addEventListener('wheel', noPageZoom, { passive: false });
+  window.addEventListener('gesturestart', noPageZoom);
+
   // ── towns in and out ───────────────────────────────────────────────────
   const share = async (): Promise<void> => {
     const link = shareLink(game.world);
@@ -377,8 +485,11 @@ export function createInterface(host: InterfaceHost): Interface {
 
   tray.onChange(() => {
     ghostKey = '';
+    scrollSteps.reset();
+    stepper.show(heldLength());
     updateGhost();
   });
+  stepper.show(heldLength());
 
   const api: Interface = {
     el: root,
@@ -402,11 +513,15 @@ export function createInterface(host: InterfaceHost): Interface {
       ghost: ghost ? { show: [...ghost.show], shimmer: [...(ghost.shimmer ?? [])], refuse: ghost.refuse ?? null } : null,
       markers: markers.cells(),
       sound,
+      length: heldLength(),
+      run: shownRun && ghost ? shownRun.edits.length : null,
     }),
     dispose() {
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('wheel', noPageZoom);
+      window.removeEventListener('gesturestart', noPageZoom);
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDrop);
       view.setGhost(null);

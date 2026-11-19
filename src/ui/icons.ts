@@ -266,6 +266,9 @@ const DRAWINGS: Record<string, string> = {
   tune:
     `<path stroke-width="2.4" d="M8 14 L40 13.8 M8 24.2 L40 24 M8 34.2 L40 34"/>` +
     `<circle cx="17" cy="14" r="3.6" fill="${C.yellow}"/><circle cx="31" cy="24" r="3.6" fill="${C.pink}"/><circle cx="21" cy="34" r="3.6" fill="${C.sea}"/>`,
+  // The held-length stepper's − and +.
+  less: `<path stroke-width="3.2" d="M12.4 24.6 Q24 23.2 35.8 24.2"/>`,
+  more: `<path stroke-width="3.2" d="M12.4 24.6 Q24 23.2 35.8 24.2 M24.4 12.2 Q23.4 24 24.2 35.8"/>`,
   close: `<path stroke-width="2.8" d="M13 13.4 L35 34.8 M35 13.2 L13.2 35"/>`,
   // The colour swatch on "auto": four pastel quarters and a sparkle.
   'swatch-auto':
