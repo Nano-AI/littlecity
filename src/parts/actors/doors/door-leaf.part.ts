@@ -1,4 +1,4 @@
-// L36: a door's leaf as its own instance, so life can swing it open
+// L29: a door's leaf as its own instance, so life can swing it open
 // (src/life/doors/door-leaf.behaviour.ts). The drawing is the still door's
 // own (src/parts/openings/door-leaf.ts, towerLeaf in the monuments'
 // openings), with a back and edges added so it reads once it has swung round.

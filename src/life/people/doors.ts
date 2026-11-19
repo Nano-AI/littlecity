@@ -1,4 +1,4 @@
-// Doors that open (L36; design section 13, "Doors and thresholds"). Pure.
+// Doors that open (L29; design section 13, "Doors and thresholds"). Pure.
 //
 // The crowd owns one of these. Every step it says which doors somebody is
 // about to go through (claim), and the table swings each door toward open

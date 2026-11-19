@@ -4,7 +4,7 @@ import '@/core/vocab';
 
 declare module '@/core/vocab' {
   interface ActorVocab {
-    // L36. The leaf of a door, at its 'door' socket (a derived roof hatch: at the hatch's cell). Drawn by
+    // L29. The leaf of a door, at its 'door' socket (a derived roof hatch: at the hatch's cell). Drawn by
     // src/parts/actors/doors/door-leaf.part.ts, swung by src/life/doors/door-leaf.behaviour.ts; while the
     // part exists the door's own part leaves the leaf out and draws a dark doorway.
     'door-leaf': true;

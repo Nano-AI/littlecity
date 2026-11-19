@@ -1,4 +1,4 @@
-// L36: a door's leaf swings open as somebody reaches the threshold and shuts
+// L29: a door's leaf swings open as somebody reaches the threshold and shuts
 // after them (design section 13, "Doors and thresholds"). Who needs which
 // door is the crowd's business (src/life/people/doors.ts: it also keeps
 // people out of a doorway until its door is open); this only draws the

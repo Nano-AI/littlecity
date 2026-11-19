@@ -1,4 +1,5 @@
-// L36 · Doors that open (design section 13, "Doors and thresholds"). One
+// L29 · Mechanisms: doors open as people pass through (design section 13,
+// "Doors and thresholds"). One
 // 'door-leaf' actor for every door: its leaf as its own instance, which life
 // swings open as somebody reaches the threshold and closes after them
 // (src/life/doors/door-leaf.behaviour.ts, driven by the crowd's door table
@@ -25,7 +26,7 @@ function kindOf(variant: string | undefined, structureKind: string, rule: string
 }
 
 export default defineRule<Data>({
-  id: 'L36.door-leaves',
+  id: 'L29.door-leaves',
   part: 'life',
   tier: 1,
   priority: 990,

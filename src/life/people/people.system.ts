@@ -220,7 +220,7 @@ export default defineSystem<State>({
       },
     });
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
-    // L36: the door leaves swing as the crowd's door table says.
+    // L29: the door leaves swing as the crowd's door table says.
     setDoorTable(ctx.stage, crowd.doors);
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;

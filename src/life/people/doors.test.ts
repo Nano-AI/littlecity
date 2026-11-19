@@ -1,4 +1,4 @@
-// Doors that open (L36), stepped with fixed time steps: the door table on its
+// Doors that open (L29), stepped with fixed time steps: the door table on its
 // own, then a crowd walking a whole town in and out of its doors with the
 // leaves where the table says they are. Nobody may stand where a leaf is,
 // and a door nobody is near is shut.
@@ -132,8 +132,8 @@ function walkThrough(town: TestTown, seconds: number): { problems: string[]; thr
   return { problems: [...problems, ...w.problems], throughDoors, shutChecks };
 }
 
-describe('people and doors (L36)', () => {
-  test('every door of the everything town has a leaf, and every derived hatch a lid (L36)', () => {
+describe('people and doors (L29)', () => {
+  test('every door of the everything town has a leaf, and every derived hatch a lid (L29)', () => {
     const town = scenarioTown(everything);
     const leaves = new Set(town.dressing.actors.filter((a) => a.type === 'door-leaf').map((a) => (a.at && 'socket' in a.at ? a.at.socket : a.at && 'cell' in a.at ? `hatch@${a.at.cell}` : '')));
     const doors = town.shape.features.filter((f) => f.type === 'door');

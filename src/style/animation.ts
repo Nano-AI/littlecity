@@ -224,7 +224,7 @@ export const MECHANISMS = defineStyle(
   },
 );
 
-/** L36: doors that open (design section 13, "Doors and thresholds"). Lengths are along the walk, from the threshold. */
+/** L29: doors that open (design section 13, "Doors and thresholds"). Lengths are along the walk, from the threshold. */
 export const DOORS = defineStyle(
   'doors',
   {

@@ -1,4 +1,4 @@
-// Where the door-leaf behaviour finds the crowd's door table (L36): the
+// Where the door-leaf behaviour finds the crowd's door table (L29): the
 // people system publishes its crowd's table for its stage. No table (no
 // people system, a test stage) means every door stays shut.
 

@@ -1,4 +1,4 @@
-// L36: the moving door leaf sits exactly where the still door drew its leaf,
+// L29: the moving door leaf sits exactly where the still door drew its leaf,
 // for every door look and stoop, and swings out about its hinge.
 
 import { describe, expect, test } from 'vitest';
@@ -27,7 +27,7 @@ const parts = allParts();
 const leaf = (variant: string, params: Record<string, number> = {}) =>
   parts.actor({ id: `door-leaf@test:${variant}`, type: 'door-leaf', variant, params, at: { socket: 'x' }, home: house.id, rule: 'test', hash: 1 } as Actor, { plan });
 
-describe('door leaves (L36)', () => {
+describe('door leaves (L29)', () => {
   test('the part exists, so doors draw a dark doorway and leave the leaf to it', () => {
     expect(parts.has('actor', 'door-leaf')).toBe(true);
   });
