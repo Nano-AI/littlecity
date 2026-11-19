@@ -147,6 +147,7 @@ export function createGuide(host: GuideHost): Guide {
     open() {
       if (api.isOpen) return;
       panel.removeAttribute('hidden');
+      panel.parentElement?.classList.add('lc-guide-open');
       panel.style.translate = '';
       button.setAttribute('aria-expanded', 'true');
       scroller.scrollTop = scrollTop;
@@ -161,6 +162,7 @@ export function createGuide(host: GuideHost): Guide {
       scrollTop = scroller.scrollTop;
       const hadFocus = panel.contains(document.activeElement);
       panel.setAttribute('hidden', '');
+      panel.parentElement?.classList.remove('lc-guide-open');
       button.setAttribute('aria-expanded', 'false');
       if (hadFocus) button.focus({ preventScroll: true });
       return true;

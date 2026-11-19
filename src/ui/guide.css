@@ -178,7 +178,7 @@
 
 /* Desktop: the tray moves over to stay clear of the page. */
 @media (min-width: 641px) {
-  .lc-ui:has(> .lc-guide:not([hidden])) .lc-tray {
+  .lc-ui.lc-guide-open .lc-tray {
     left: calc((100% - var(--lc-guide-w, 344px) - 20px) / 2);
   }
 }
