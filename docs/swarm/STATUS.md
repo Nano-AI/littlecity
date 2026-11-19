@@ -101,3 +101,13 @@ files, monuments 12 files, ground and look at the start of their passes.
 
 To stay inside the limit from here: no forks; discovery rounds cut to 2
 with one explorer and one builder each; logic-only work goes to Opus 5.5.
+
+**10:40 (second resume).** The session restarted a minute after the first
+resume and stopped all seven again; resumed again by message.
+
+**Standing instruction from Derek:** if an agent dies on the Fable usage
+limit, do not wait: relaunch that owner as a fresh Opus 5.5 agent pointed at
+the SAME worktree path (no new worktree), with a handoff brief: read
+`git status`, `git log`, the owner's original brief (in this log's stage
+sections and the plan), `docs/swarm/requests/<owner>.md`, then continue.
+Worktree paths: `git worktree list`.
