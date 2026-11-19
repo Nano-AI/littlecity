@@ -67,10 +67,14 @@ export default defineRule<Placed[]>({
         const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
         const inset = x1 - x0 >= 4 && z1 - z0 >= 4 ? 1 : 0;
         const ring = new Set(field.cells.filter((c) => Math.min(keyX(c) - x0, x1 - keyX(c), keyZ(c) - z0, z1 - keyZ(c)) === inset));
+        // A tree standing on the ring does not break the loop: the track runs up to its cell on both
+        // sides and passes under its crown.
+        const onRing = (c: CellKey): boolean =>
+          ring.has(c) || (facts.kinds.get(c) === 'tree' && keyX(c) >= x0 && keyX(c) <= x1 && keyZ(c) >= z0 && keyZ(c) <= z1 && Math.min(keyX(c) - x0, x1 - keyX(c), keyZ(c) - z0, z1 - keyZ(c)) === inset);
         if (ring.size >= 4 && x1 - x0 >= 2 && z1 - z0 >= 2) {
           for (const c of ring) {
             let mask = 0;
-            for (const d of DIRS) if (ring.has(neighbor(c, d)) && plot.beyond(c, d) === 'in') mask |= 1 << d;
+            for (const d of DIRS) if (onRing(neighbor(c, d)) && plot.beyond(c, d) !== 'fence') mask |= 1 << d;
             if (mask) p.put({ type: 'worn-track', cell: c, pos: 'c', face: 2, params: { mask, look: look('track', c) } });
           }
         }

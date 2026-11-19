@@ -33,9 +33,9 @@
 //                  greenhouse, a dovecote, a reed bed
 //   the west       a boardwalk over an inlet to a beach cottage, a watchtower
 //
-// `houseDressing` stands in for D07, D09 and L03 (awnings and signs, flower
-// boxes, windmill sails) until Stage 3's rules land; drop it from `rules`
-// then.
+// `houseDressing` stands in for L03 (the windmill's sails) until the
+// Animation owner's rule lands; drop it from `rules` then. D07 and D09
+// (awnings and signs, flower boxes) are real rules now and need no stand-in.
 
 import { key } from '@/core/grid';
 import { scenario } from '@/scenario';

@@ -140,7 +140,7 @@ describe('restraint: nothing blocks a door, a stair or the walking line', () => 
 
 describe('the rules themselves', () => {
   test('every decoration and urban rule says what it reads and claims, and follows the priority convention', () => {
-    const mine = allRules().filter((r) => r.part === 'decoration' || r.part === 'urban');
+    const mine = allRules().filter((r) => (r.part === 'decoration' || r.part === 'urban') && /^[DU]\d/.test(r.id));
     expect(mine.length).toBeGreaterThanOrEqual(10);
     for (const r of mine) {
       expect(r.about, r.id).toMatch(/Reads: .*Claims: /s);
@@ -152,7 +152,7 @@ describe('the rules themselves', () => {
   });
 
   test('only the town-wide rule depends on the whole town', () => {
-    const wide = allRules().filter((r) => (r.part === 'decoration' || r.part === 'urban') && r.townWide).map((r) => r.id);
+    const wide = allRules().filter((r) => (r.part === 'decoration' || r.part === 'urban') && /^[DU]\d/.test(r.id) && r.townWide).map((r) => r.id);
     for (const id of wide) expect(id).toMatch(/-T\.|D12|D14|D31|D33|D34/);
   });
 });

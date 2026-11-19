@@ -21,6 +21,33 @@ commit and passes when run alone. It fails under load (the yaw has not moved
 yet when it is read). Interface: it needs a wait on the camera, not a fixed
 number of frames.
 
+## 2b. Urban-fill rules that need the Houses owner (not built)
+
+Four catalogue rules change how a HOUSE is drawn, which only a shape-stage
+feature or a personality choice can do, and both live in Houses' files
+(`src/gen/house`, `src/parts/openings`, `src/style/houses.ts`). A dressing
+rule can only add props, so I did not fake them:
+
+- **U09 vista end**: the facade cell a straight street of 5+ runs into gets a
+  clock, a statue niche, a grand doorway or an oriel. Needs `window/oriel`,
+  a wall clock and a niche as features with parts, chosen by a joinery rule.
+  The cell is easy to find: `streets(facts).segments`, then
+  `facades(facts).at(cell, dir)` one step beyond the last cell.
+- **U10 corners**: a corner entrance with a chamfer, or a corner oriel. Needs
+  the house shell to cut a corner.
+- **U11 civic hall**: a role (`town-hall`) with an arcaded ground storey, a
+  balcony and a clock gable. Needs the role in the vocabulary and a generator
+  branch. D13 would then fly its flag from a `flag-mount` the hall declares.
+- **U12, the edge half**: thatch, timber and rough stone on houses more than
+  10 steps from any floor. `personalityOf` picks roof cover and wall finish;
+  a tag such as `rustic` read there would do it. The centre half IS built
+  (`src/rules/urban/U12.centre-and-edge.rule.ts`, a shape-stage rule that
+  tags `stone-ground`, which the house generator already draws).
+
+Also for Houses: `R-H99.role-props` and D11 (doorsteps) both dress a door.
+D11 runs second and, where R-H99 put something at a door, adds only the mat
+(and no second lantern on an inn).
+
 ## 3. Reading of the catalogue worth a second opinion
 
 - **D05 "both facade cells have windows"**: J09 leaves half the windows off
