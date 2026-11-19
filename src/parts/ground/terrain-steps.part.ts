@@ -23,10 +23,13 @@ export default definePart({
   feature: 'terrain-steps',
   build(item, ctx) {
     const b = ctx.mesh();
-    // Two flights can leave one cell (round a corner), crossing each other there: those climbing east or
-    // west stand their nosings and cheeks a hair (0.004) higher, so the crossing pieces never share a plane.
-    const k = item.dir !== undefined && item.dir % 2 === 1 ? 0.004 : 0;
-    const half = 0.5 - FLOOR.pathMargin - 0.01;
+    // Up to four flights can leave one cell (round a corner, or both ways up a dip), crossing or facing
+    // each other there. So no two of them share a plane, each direction stands its nosings and cheeks
+    // its own number of hairs (0.004) higher, and flights climbing south or west are a hair wider (the
+    // cheeks of two facing flights would otherwise stand in the same planes, and their treads' ends).
+    const dir = item.dir ?? 0;
+    const k = 0.004 * dir;
+    const half = 0.5 - FLOOR.pathMargin - 0.01 + (dir >= 2 ? 0.004 : 0);
     const tread = RUN / STEPS, rise = CELL_H / STEPS;
     // The treads: one stone mass, so the creases between them are the drawing. Each tread is a little
     // out of true (seeded), as worn steps are.

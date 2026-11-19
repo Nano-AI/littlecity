@@ -44,7 +44,9 @@ export function archExtras(b: MeshBuilder, anchors: Record<string, Mat4Like>, f:
       // A hair (0.004) past the bridge's end, so the post's face covers the ends of the parapet, coping
       // and cornice rather than lying in their plane.
       const u = lo ? 0.086 : 0.914;
-      const tall = MONUMENTS.parapet + 0.11;
+      // Where a bridge turns a corner the posts of two ends can stand side by side: those facing east or
+      // west stand a hair (0.004) taller, so their caps never share a plane.
+      const tall = MONUMENTS.parapet + 0.11 + (f.dir !== undefined && f.dir % 2 === 1 ? 0.004 : 0);
       const sockets: Record<string, Mat4Like> = {};
       for (const front of [true, false]) {
         const t = front ? 1 - MONUMENTS.parapetThick / 2 + 0.01 : MONUMENTS.parapetThick / 2 - 0.01;
