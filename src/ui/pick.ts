@@ -1,10 +1,17 @@
-// STUB (Stage 0, working). Owner: Interface (Stage 1).
+// Targeting (design section 7). Owner: Interface.
 //
-// Targeting (design section 7): the pointer picks a face of terrain, a block
-// or the water surface; the target cell is the cell on the other side of
-// that face. Pure: a voxel walk along the ray, no renderer needed.
+// The pointer picks a face of terrain, a block or the water surface; the
+// target cell is the cell on the other side of that face. Pure: a voxel walk
+// along the ray, no renderer needed. Every block fills its whole cell here,
+// whatever it is drawn as, so a click always lands on the grid the player
+// is building on.
+//
+// Fences and walls read the top face more finely: faceZone() says whether
+// the point lies in the centre (a cell piece) or in one of the four edge
+// strips (an edge piece on that boundary).
 
-import { CELL_H, columnIndex, inBounds, key, NO_CELL, SEA_Y, SIZE_X, SIZE_Y, SIZE_Z, type CellKey } from '@/core/grid';
+import { CELL_H, columnIndex, E, inBounds, key, keyX, keyZ, N, NO_CELL, S, SEA_Y, SIZE_X, SIZE_Y, SIZE_Z, W, type CellKey, type Dir4 } from '@/core/grid';
+import { INPUT } from '@/style/input';
 import type { Vec3 } from '@/core/mat4';
 import type { Terrain, World } from '@/core/world';
 
@@ -105,4 +112,32 @@ export function pickCell(ray: { origin: Vec3; dir: Vec3 }, world: World, terrain
     if (cell[axis]! < 0 || cell[axis]! >= size[axis]!) return null;
   }
   return null;
+}
+
+/**
+ * Fences and walls (design section 7): the top face you point at is split
+ * into a centre zone and four edge strips, the outer `strip` (25%) on each
+ * side. Returns the side whose strip holds the point, or null for the centre
+ * and for anything that is not a top face of terrain or of a block. In a
+ * corner the nearer side wins.
+ */
+export function faceZone(pick: Pick, strip: number = INPUT.edgeStrip): Dir4 | null {
+  if (pick.hit === 'water' || pick.normal[1] !== 1) return null;
+  const fx = pick.point[0] - keyX(pick.cell);
+  const fz = pick.point[2] - keyZ(pick.cell);
+  const sides: readonly (readonly [Dir4, number])[] = [
+    [N, fz],
+    [E, 1 - fx],
+    [S, 1 - fz],
+    [W, fx],
+  ];
+  let best: Dir4 | null = null;
+  let bestDist = strip;
+  for (const [dir, dist] of sides) {
+    if (dist < bestDist) {
+      best = dir;
+      bestDist = dist;
+    }
+  }
+  return best;
 }
