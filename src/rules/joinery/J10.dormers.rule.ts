@@ -55,6 +55,7 @@ export default defineRule<{ region: RoofRegion }>({
   part: 'joinery',
   tier: 2,
   priority: 900,
+  local: 1, // apply reads only its roof regions and the cells beside them (RuleDef.local)
   about: 'Reads: roofRegions, roof features, the main door, roles. Emits: dormer features (gabled, cross-gable, skylight) on eave cells.',
   find(ctx) {
     const regions = roofRegions(ctx.facts);

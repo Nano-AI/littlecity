@@ -117,20 +117,26 @@ export function boxOf(cells: readonly CellKey[]): Box {
 
 /** The largest k such that a k × k square of `cells` lies at one level. */
 export function largestSquare(cells: readonly CellKey[]): number {
-  const byLevel = new Map<number, Set<number>>();
-  for (const c of cells) {
-    let s = byLevel.get(keyY(c));
-    if (!s) byLevel.set(keyY(c), (s = new Set()));
-    s.add(columnIndex(keyX(c), keyZ(c)));
-  }
+  if (!cells.length) return 0;
+  // Dynamic programming over the cells' bounding columns only, one level at a time.
+  const box = boxOf(cells);
+  const w = box.x1 - box.x0 + 1;
+  const d = box.z1 - box.z0 + 1;
+  const levels = box.y1 - box.y0 + 1;
+  const at = new Uint8Array(w * d * levels);
+  for (const c of cells) at[(keyY(c) - box.y0) * w * d + (keyZ(c) - box.z0) * w + keyX(c) - box.x0] = 1;
   let best = 0;
-  for (const cols of byLevel.values()) {
-    const dp = new Uint8Array(SIZE_X * SIZE_Z);
-    for (let z = 0; z < SIZE_Z; z++) {
-      for (let x = 0; x < SIZE_X; x++) {
-        const i = columnIndex(x, z);
-        if (!cols.has(i)) continue;
-        const v = x > 0 && z > 0 ? 1 + Math.min(dp[i - 1]!, dp[i - SIZE_X]!, dp[i - 1 - SIZE_X]!) : 1;
+  const dp = new Uint8Array(w * d);
+  for (let y = 0; y < levels; y++) {
+    const base = y * w * d;
+    for (let z = 0; z < d; z++) {
+      for (let x = 0; x < w; x++) {
+        const i = z * w + x;
+        if (!at[base + i]) {
+          dp[i] = 0;
+          continue;
+        }
+        const v = x > 0 && z > 0 ? 1 + Math.min(dp[i - 1]!, dp[i - w]!, dp[i - 1 - w]!) : 1;
         dp[i] = v;
         if (v > best) best = v;
       }

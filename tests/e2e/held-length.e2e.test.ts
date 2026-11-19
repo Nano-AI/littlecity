@@ -184,7 +184,7 @@ describe('phone: held length', () => {
     // Every button a finger must hit, the stepper's included, is at least 44 px.
     const small = await js<string[]>(
       page,
-      `[...document.querySelectorAll('.lc-ui button')].filter((b) => b.offsetParent !== null).map((b) => { const r = b.getBoundingClientRect(); return r.width < 44 || r.height < 44 ? (b.dataset.item ?? b.dataset.ui) + ' ' + r.width.toFixed(0) + 'x' + r.height.toFixed(0) : null; }).filter(Boolean)`,
+      `[...document.querySelectorAll('.lc-ui button')].filter((b) => b.offsetParent !== null).map((b) => { const w = b.offsetWidth, h = b.offsetHeight; return w < 44 || h < 44 ? (b.dataset.item ?? b.dataset.ui) + ' ' + w + 'x' + h : null; }).filter(Boolean)`,
     );
     expect(small).toEqual([]);
 

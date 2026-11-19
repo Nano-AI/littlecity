@@ -11,14 +11,14 @@ export const WIND = defineStyle(
     /** How far the direction wanders from the prevailing bearing, in radians. */
     wander: 0.7,
     /** Seconds between gusts (each is jittered by up to a third of this). */
-    gustEvery: 11,
+    gustEvery: 14,
     /** How fast a gust front crosses the map, in columns per second. */
-    gustSpeed: 9,
+    gustSpeed: 6,
     /** Peak strength a gust adds. */
-    gustPeak: 0.6,
+    gustPeak: 0.7,
     /** Length of the sharp leading edge and of the tail behind the front, in columns. */
-    gustLead: 2.5,
-    gustTail: 10,
+    gustLead: 2,
+    gustTail: 8,
   },
   {
     base: [0, 1, 0.01],

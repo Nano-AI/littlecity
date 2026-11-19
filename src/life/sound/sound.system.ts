@@ -62,9 +62,10 @@ const hasAudio = (): boolean => typeof window !== 'undefined' && typeof window.A
 
 function readWanted(): boolean {
   try {
-    return window.localStorage.getItem(SOUND_KEY) !== 'off';
+    // Off until the player turns it on.
+    return window.localStorage.getItem(SOUND_KEY) === 'on';
   } catch {
-    return true;
+    return false;
   }
 }
 

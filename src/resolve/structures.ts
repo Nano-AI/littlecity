@@ -49,9 +49,21 @@ export interface StructureSet {
   edgeAt: Map<EdgeKey, StructureId>;
 }
 
+const seeds = new Map<number, number>();
+let seedsFor = NaN;
 /** The personality seed of a structure. */
 export function structureSeed(worldSeed: number, id: StructureId): number {
-  return hash(worldSeed, 'structure', id);
+  // Remembered per world seed: every resolve asks again for every structure.
+  if (worldSeed !== seedsFor) {
+    seeds.clear();
+    seedsFor = worldSeed;
+  }
+  let s = seeds.get(id);
+  if (s === undefined) {
+    if (seeds.size > 1 << 16) seeds.clear();
+    seeds.set(id, (s = hash(worldSeed, 'structure', id)));
+  }
+  return s;
 }
 
 const styles = new WeakMap<Structure, number>();
@@ -137,17 +149,17 @@ export function buildStructures(w: World, t: Terrain, kinds: ReadonlyMap<CellKey
   const index = new Map<CellKey, number>();
   cells.forEach((c, i) => index.set(c, i));
   const uf = new UnionFind(cells.length + edges.length);
+  const tryMerge = (i: number, cell: CellKey, kind: Kind, n: CellKey, dir: Dir4 | 'up'): void => {
+    if (n === NO_CELL || kinds.get(n) !== kind) return;
+    if (blocksMerge(w, kind, cell, n, dir)) uf.union(i, index.get(n)!);
+  };
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i]!;
     const kind = kinds.get(cell)!;
     if (KINDS[kind].merge === 'none') continue;
-    const tryMerge = (n: CellKey, dir: Dir4 | 'up'): void => {
-      if (n === NO_CELL || kinds.get(n) !== kind) return;
-      if (blocksMerge(w, kind, cell, n, dir)) uf.union(i, index.get(n)!);
-    };
-    tryMerge(neighbor(cell, E), E);
-    tryMerge(neighbor(cell, S), S);
-    tryMerge(above(cell), 'up');
+    tryMerge(i, cell, kind, neighbor(cell, E), E);
+    tryMerge(i, cell, kind, neighbor(cell, S), S);
+    tryMerge(i, cell, kind, above(cell), 'up');
     if (kind === 'stairs') {
       // Continuing the flight: one level up, one step forward, same rot.
       const rot = w.blocks.get(cell)!.rot;

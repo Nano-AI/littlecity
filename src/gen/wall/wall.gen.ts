@@ -118,7 +118,10 @@ export default defineGenerator({
     for (const t of plan.tags.get(s.id) ?? []) if (t.startsWith('stone:')) tint = Number(t.slice(6));
     const stone: ColorInput = curtain && tint >= 0 ? rampColor('tower', tint) : rampColor('wall', s.color);
     const shade: ColorInput = PALETTE.stoneShade;
-    const run = buildRun(s, plan);
+    // J20-F: an edge piece with nothing flat to stand on (round a pitched roof's eaves) is not drawn.
+    const bare = new Set<number>();
+    for (const f of plan.featuresByStructure.get(s.id) ?? []) if (f.type === 'run-bare' && f.edge !== undefined) bare.add(f.edge);
+    const run = buildRun(bare.size ? { ...s, edges: s.edges.filter((e) => !bare.has(e)) } : s, plan);
     const T = curtain ? WALL.curtainThick : WALL.thick;
     // A curtain wall, bottom to top: body, corbel course, parapet band, merlons. One storey in all.
     const H = curtain ? CELL_H - WALL.merlonHeight - WALL.band - WALL.corbel : style === 'garden-wall' ? WALL.gardenHeight : WALL.height;
@@ -303,7 +306,7 @@ export default defineGenerator({
       }
     }
 
-    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' ? null : undefined));
+    placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'gate' || f.type === 'run-end' || f.type === 'run-inset' || f.type === 'run-bare' ? null : undefined));
     return { mesh: b.build(), anchors };
   },
 });

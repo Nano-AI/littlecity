@@ -24,12 +24,13 @@ import { columnIndex, key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain } from '@/core/world';
 import { buildCastle } from './districts/castle';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
+import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour } from './districts/harbour';
-import { buildHousing } from './districts/housing';
+import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
 import { buildSquare } from './districts/square';
-import { buildBoardwalk, buildBridge, buildJetty } from './districts/water';
+import { buildBoardwalk, buildBridge, buildJetty, buildViaduct } from './districts/water';
 import { Grower, type Made } from './grower';
 import { joinedStreets, route } from './route';
 import { readSite } from './site';
@@ -57,7 +58,8 @@ export function growTown(terrain: Terrain, seed: number): Edit[] {
 
 export function planTown(terrain: Terrain, seed: number): GrownTown {
   const g = new Grower(terrain, seed);
-  const town: Town = { g, site: readSite(terrain), square: null, districts: [] };
+  // One town in five has no fountain anywhere, so the hand pump (D33, which needs a town without one) shows too.
+  const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
 
   buildSquare(town);
   buildWillow(town);
@@ -69,6 +71,8 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildHarbour(town);
   buildLighthouse(town);
   buildHousing(town, 0, 9);
+  buildCourtyard(town, 0, 8);
+  reserveFarmstead(town);
   buildManor(town);
   buildHousing(town, 1, 11);
   buildChapel(town);
@@ -81,12 +85,14 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
   buildWatchtower(town);
   buildPaddock(town);
   buildStairs(town);
+  buildViaduct(town);
   for (let n = 2; n < 6; n++) buildHousing(town, n, 8 + n * 2);
   const unjoined = joinStreets(town);
   buildFlowerBed(town, 0);
   buildFlowerBed(town, 1);
   for (let ring = 0; ring < 4; ring++) buildInfill(town, ring);
   buildTrees(town);
+  buildFarmstead(town);
 
   const { edits, fellBack } = watchingOrder(town);
   const counts = new Map<number, number>();

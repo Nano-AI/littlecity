@@ -5,7 +5,7 @@
 //     and src/scenario there is no Math.random, no clock, no DOM. Chance
 //     comes from rand(seed, ...) in src/core/rand.ts.
 //  2. THE LAYERS. core, vocab ← style ← world, terrain ← resolve, rules, townmaker ←
-//     scenario ← gen, parts ← life, render ← ui, app. A module may import
+//     scenario, guide ← gen, parts ← life, render ← ui, app. A module may import
 //     from its own layer and the ones before it, never from a later one.
 //     (Checked on '@/...' imports: use the alias to import across modules.)
 
@@ -17,13 +17,13 @@ const LAYERS = [
   ['style'],
   ['world', 'terrain'],
   ['resolve', 'rules', 'townmaker'],
-  ['scenario'],
+  ['scenario', 'guide'],
   ['gen', 'parts'],
   ['life', 'render'],
   ['ui', 'app'],
 ];
 
-const PURE = ['core', 'terrain', 'resolve', 'rules', 'townmaker', 'gen', 'parts', 'scenario'];
+const PURE = ['core', 'terrain', 'resolve', 'rules', 'townmaker', 'gen', 'parts', 'scenario', 'guide'];
 /** Pure code that may not use Three.js at all (gen and parts may use its maths). */
 const NO_THREE = ['core', 'vocab', 'style', 'world', 'terrain', 'resolve', 'rules', 'townmaker', 'scenario'];
 

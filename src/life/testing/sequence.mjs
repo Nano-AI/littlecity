@@ -120,6 +120,45 @@ try {
   );
   await play(warm);
 
+  // --door [n]: play on (up to --wait ms) until somebody is about to go in or come out of a door (or a
+  // hatch), then aim the camera at that door. n skips the first n doors found.
+  if (flags.door !== undefined) {
+    const skip = flags.door === true ? 0 : Number(flags.door);
+    const lead = Number(flags.lead ?? 1.1);
+    const seen = new Set();
+    let found = null;
+    for (let waited = 0; waited < Number(flags.wait ?? 120000) && !found; waited += 100) {
+      const hit = await page.evaluate((lead) => {
+        const crowd = window.__lcPeople;
+        if (!crowd) return null;
+        for (const p of crowd.people) {
+          if (p.mode !== 'walk' || !p.walk) continue;
+          const cur = p.walk[p.at], next = p.walk[p.at + 1];
+          if (!cur || !next || next.kind !== 'door') continue;
+          const key = `${next.door?.feature}`;
+          if (cur.kind === 'move' && (1 - p.t) * cur.length < lead) return { key, x: next.x0, y: next.base, z: next.z0, out: false };
+          if (cur.kind === 'hide' || (p.at === 0 && cur.kind === 'door')) return { key, x: next.x1, y: next.base, z: next.z1, out: true };
+        }
+        for (const p of crowd.people) {
+          if (p.mode !== 'walk' || !p.walk || p.at !== 0) continue;
+          const cur = p.walk[0];
+          if (cur.kind === 'door' && p.t < 0.3) return { key: `${cur.door?.feature}`, x: cur.x1, y: cur.base, z: cur.z1, out: true };
+        }
+        return null;
+      }, lead);
+      if (hit && !seen.has(hit.key)) {
+        seen.add(hit.key);
+        if (seen.size > skip) found = hit;
+      }
+      if (!found) await play(100);
+    }
+    if (!found) console.log('--door: nobody went through a door in time');
+    else {
+      console.log(`--door: ${found.out ? 'out of' : 'into'} ${found.key} at ${found.x.toFixed(2)},${found.y.toFixed(2)},${found.z.toFixed(2)}`);
+      await page.evaluate(([x, y, z, zoom]) => window.__lc.view.setCamera({ target: [x, y + 0.25, z], ...(zoom ? { zoom } : {}) }), [found.x, found.y, found.z, flags.zoom === undefined ? undefined : Number(flags.zoom)]);
+    }
+  }
+
   const applyEdits = (list) =>
     page.evaluate((edits) => {
       const lc = window.__lc;
@@ -148,6 +187,55 @@ try {
   const after = Number(flags.after ?? 0);
   if (first.length) console.log(`edits: ${(await applyEdits(first)).join(', ')}`);
 
+  // --shore: after the edits, play on until somebody is about to come ashore (a new home's people) or step
+  // off at a way out (an erased home's), and aim the camera there.
+  if (flags.shore) {
+    let hit = null;
+    for (let waited = 0; waited < Number(flags.wait ?? 60000) && !hit; waited += 50) {
+      hit = await page.evaluate((which) => {
+        const crowd = window.__lcPeople;
+        for (const p of crowd.people) {
+          if (p.mode === 'wait' && p.fade === 0 && (p.edgeX || p.edgeZ) && p.timer < 0.3) return { x: p.x, y: p.y, z: p.z, what: 'ashore' };
+          if (which !== 'ashore' && p.mode === 'walk' && p.goal?.kind === 'leave' && p.walk && p.at === p.walk.length - 1 && p.t > 0.5) return { x: p.x, y: p.y, z: p.z, what: 'leaving' };
+        }
+        return null;
+      }, flags.shore);
+      if (!hit) await play(50);
+    }
+    if (!hit) console.log('--shore: nobody came ashore or left in time');
+    else {
+      console.log(`--shore: ${hit.what} at ${hit.x.toFixed(2)},${hit.y.toFixed(2)},${hit.z.toFixed(2)}`);
+      await page.evaluate(([x, y, z]) => window.__lc.view.setCamera({ target: [x, y + 0.2, z] }), [hit.x, hit.y, hit.z]);
+    }
+  }
+
+  // --aim '<expression>': aim the camera at [x, y, z] from an expression evaluated in the page, e.g.
+  //   --aim '(g => [g.list[0].troop.soldiers[0].x, g.list[0].troop.soldiers[0].y, g.list[0].troop.soldiers[0].z])(window.__lcGarrison)'
+  // --follow re-aims it before every frame.
+  const aim = async () => {
+    const at = await page.evaluate((expr) => (0, eval)(expr), String(flags.aim));
+    if (Array.isArray(at)) await page.evaluate((p) => window.__lc.view.setCamera({ target: [p[0], p[1] + 0.25, p[2]] }), at);
+  };
+  if (flags.aim) await aim();
+
+  // --gust: play on until a gust front is about to reach the middle of the map (it is felt 12 columns
+  // upwind of it), so the frames that follow show it crossing.
+  if (flags.gust) {
+    for (let waited = 0; waited < 40000; waited += 50) {
+      const near = await page.evaluate(() => {
+        const s = window.__lc.signals;
+        const c = s.wind(24, 24);
+        const up = s.wind(24 - c.dirX * 12, 24 - c.dirZ * 12);
+        return up.strength > c.strength + 0.25;
+      });
+      if (near) break;
+      await play(50);
+    }
+  }
+
+  // --delay ms: play this long before the first frame (after any --door or --shore aim).
+  if (flags.delay) await play(Number(flags.delay));
+
   const shots = [];
   let secondDone = second.length === 0;
   for (let i = 0; i < frames; i++) {
@@ -159,8 +247,17 @@ try {
       console.log(`then: ${(await applyEdits(second)).join(', ')}`);
       await play(FRAME);
     }
+    if (flags.aim && flags.follow) await aim();
     const png = await page.locator('#town').screenshot();
     shots.push({ png, label: `${Math.round(at)} ms` });
+    // --open all | --open door@<cell>:<dir>,…: after the first frame, those doors swing open and stay open.
+    if (i === 0 && flags.open) {
+      await page.evaluate((which) => {
+        const crowd = window.__lcPeople;
+        const keys = which === 'all' || which === true ? crowd.nav.doors.map((d) => d.feature) : String(which).split(',');
+        for (const k of keys) crowd.doors.stand(k, true, 0);
+      }, flags.open);
+    }
     if (flags.keep) {
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(path.join(outDir, `${scenario}-${name}-${String(i).padStart(2, '0')}.png`), png);

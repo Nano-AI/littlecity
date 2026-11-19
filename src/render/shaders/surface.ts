@@ -99,7 +99,9 @@ void main(){
   if (sway > 0.0) {
     vec2 w = (textureLod(uWind, (p.xz + 8.0) / 64.0, 0.0).rg * 2.0 - 1.0) * 1.25;
     float st = length(w);
-    float ph = uTime * (1.3 + st * 1.6) + p.x * 0.9 + p.z * 1.3 + params.y;
+    // A fixed rate: a rate that followed the strength would spin the phase (uTime is large) and make
+    // everything shiver as a gust arrived, instead of leaning into it.
+    float ph = uTime * 2.1 + p.x * 0.9 + p.z * 1.3 + params.y;
     vec2 d = w * (0.55 + 0.45 * sin(ph)) + vec2(-w.y, w.x) * 0.25 * sin(ph * 1.7 + 1.3);
     p.xz += d * sway * uSway;
     p.y -= st * sway * uSway * 0.15 * (0.5 + 0.5 * sin(ph));
@@ -348,10 +350,15 @@ void main(){
     vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
     float face = smoothstep(0.0, 0.5, abs(vn.z));
     // Param d > 0: a soft round patch lying flat (a cloud's shadow), d its radius in world units.
-    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.35, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
+    // It has no flat middle: it fades from its centre all the way out, so it reads as a passing shade.
+    if (vParams.w > 0.0) face = 1.0 - smoothstep(0.0, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
     float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
     float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
     vec3 c = toSrgb(base) * uTint + uLift;
+    // A cloud's shadow darkens what it falls on and cools it a little, keeping each surface's own
+    // colour (warm stone stays warm stone): nearly black, so the wash scales the page down rather
+    // than mixing grey into it.
+    if (vParams.w > 0.0) c = toSrgb(base) * uTint * 0.18;
     // Param c > 0.5: a cloud, whose wash is edged with a soft graphite line where it thins.
     if (vParams.z > 0.5 && vParams.w <= 0.0) {
       float rim = smoothstep(0.04, 0.16, face) * (1.0 - smoothstep(0.18, 0.42, face));

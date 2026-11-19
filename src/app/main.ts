@@ -9,6 +9,11 @@
 //   ?seed=<n>          a fresh island with that seed
 //   otherwise          the autosaved town, or a fresh island
 //
+// The phone fallbacks of design section 14 pick themselves on a small touch
+// screen (half-resolution ink in the view, a smaller crowd in life); for
+// measuring, ?ink=full|half and ?density=1|2|3 (the highest rule tier that
+// dresses the town) override them.
+//
 // window.__lc is the debug handle browser tests and the console use.
 
 import { hash } from '@/core/rand';
@@ -69,9 +74,16 @@ if (shared?.ok) {
   start = freshIsland(seedParam !== null ? Number(seedParam) | 0 : newSeed());
 }
 
+// ── device settings ──────────────────────────────────────────────────────
+const inkParam = params.get('ink');
+const densityParam = Number(params.get('density'));
+const density = densityParam === 1 || densityParam === 2 || densityParam === 3 ? densityParam : undefined;
+/** The town with the decoration density (rule tiers) asked for in the URL, if any. */
+const tiered = (s: GameStart): GameStart => (density === undefined ? s : { ...s, resolve: { ...s.resolve, maxTier: density } });
+
 // ── the parts ────────────────────────────────────────────────────────────
 const canvas = document.getElementById('town') as HTMLCanvasElement;
-const view = createTownView(canvas);
+const view = createTownView(canvas, { ink: inkParam === 'full' || inkParam === 'half' ? inkParam : 'auto' });
 let signals: SignalsDriver = createSignals(start.world.seed);
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
@@ -83,7 +95,7 @@ const autosave = createAutosave({
 });
 autosave.enabled = !scn && !visiting;
 
-const game = createGame(start, {
+const game = createGame(tiered(start), {
   // CONTRACTS section 12: setTown before life.sync, so the instances exist.
   show(shape: ShapePlan, landed: Edit | null) {
     view.setTown(shape, null);
@@ -104,7 +116,7 @@ function open(next: GameStart): void {
   signals = createSignals(next.world.seed);
   signals.hold(holding);
   life = createLife(view.stage, signals);
-  game.restart(next);
+  game.restart(tiered(next));
 }
 
 function leaveSpecialTown(): void {
@@ -194,6 +206,7 @@ function frame(now: number): void {
   if (ready) {
     view.setDressing(ready.dressing);
     life.sync(ready);
+    ui?.dressed(ready.dressing);
   }
   life.update(dt);
   render();

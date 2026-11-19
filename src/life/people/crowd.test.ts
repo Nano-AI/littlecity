@@ -520,6 +520,20 @@ describe('the town changes (L27)', () => {
     expect(newcomers.length).toBe(2);
     for (const p of newcomers) expect(p.cell).toBe(landing.cell);
     expect(crowd.atHome.get(home) ?? 0).toBe(0);
+    // They climb up out of the water at the dock's end first, then walk (design 13: no fading in).
+    for (const p of newcomers) expect(Math.hypot(p.edgeX, p.edgeZ)).toBeGreaterThan(0.3);
+    const first = newcomers[0]!;
+    const at = [first.x, first.z];
+    let rose = false;
+    for (let i = 0; i < 30 * 6 && first.mode === 'wait'; i++) {
+      step(1 / 30);
+      if (first.fade > 0 && first.fade < 1) {
+        rose = true;
+        expect(first.visible).toBe(true);
+        expect([first.x, first.z]).toEqual(at);
+      }
+    }
+    expect(rose).toBe(true);
     step(60);
     // They walked home (the first trip of each ends at the door).
     expect(newcomers.every((p) => p.trips >= 1)).toBe(true);
@@ -536,7 +550,13 @@ describe('the town changes (L27)', () => {
       for (const y of [2, 1]) for (const x of [13, 14]) bb.erase(x, y, 16);
     });
     expect(home.every((p) => p.leaving)).toBe(true);
-    step(90);
+    // They leave down the dock and step off its end out of view (design 13: no fading out).
+    const stepping = new Set<string>();
+    for (let i = 0; i < 90 * 30; i++) {
+      step(1 / 30);
+      for (const p of home) if (p.goal?.kind === 'leave' && p.mode === 'linger' && (p.edgeX !== 0 || p.edgeZ !== 0)) stepping.add(p.id);
+    }
+    expect(stepping.size).toBe(home.length);
     expect(crowd.people.some((p) => home.includes(p))).toBe(false);
     expect(crowd.atHome.get(gone.seq) ?? 0).toBe(0);
     expect(w.problems).toEqual([]);

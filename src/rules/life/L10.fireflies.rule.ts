@@ -24,7 +24,7 @@ export default defineRule<{ index: number }>({
       const n = Math.min(8, Math.max(2, Math.floor(g.cells.length / 2)));
       for (let i = 0; i < n; i++) {
         // Spread evenly through the region's cells (they are in ascending order), a different start per town.
-        const cell = g.cells[(Math.floor((i * g.cells.length) / n) + (seed % g.cells.length)) % g.cells.length]!;
+        const cell = g.cells[(Math.floor((i * g.cells.length) / n) + ((seed >>> 0) % g.cells.length)) % g.cells.length]!;
         out.push({ anchor: cell, key: `g${g.id}:${i}`, data: { index: i } });
       }
     }

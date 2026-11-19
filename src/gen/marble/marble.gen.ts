@@ -321,7 +321,7 @@ export default defineGenerator({
       } else if (f.type === 'door' && face && f.rule.startsWith('R-M')) {
         const mb = sub();
         const at = faceFrame(f.cell!, f.dir as Dir4);
-        ownSockets(plan, anchors, f.id, at, towerDoor(mb, PALETTE.stoneShade, PALETTE.wood));
+        ownSockets(plan, anchors, f.id, at, towerDoor(mb, PALETTE.stoneShade, PALETTE.wood, 0, parts.has('actor', 'door-leaf')));
         b.add(mb, at);
       } else if (f.type === 'pediment' && face) {
         const p = (f.params ?? {}) as { width?: number; offset?: number; depth?: number };
