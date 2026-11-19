@@ -25,6 +25,7 @@ import {
 import { AUTO_KINDS, EDGE_KINDS, FLOOR_KINDS, KINDS, PALETTE_SIZE, placedInfo, type EdgeKind, type PlacedKind } from '@/core/kinds';
 import { hash } from '@/core/rand';
 import type { Edit, EditResult, Rot, Terrain, World } from '@/core/world';
+import { isHouseStyle } from '@/style/houses';
 
 export type { Block, Edit, EditResult, Rot, World } from '@/core/world';
 
@@ -179,6 +180,7 @@ function verdict(w: World, t: Terrain, e: Edit): EditResult {
       if (!validPlacedKind(e.kind)) return no('unknown piece');
       if (e.color !== 'auto' && !validColor(e.color)) return no('unknown colour');
       if (e.rot !== undefined && !validRot(e.rot)) return no('unknown rotation');
+      if (e.style !== undefined && !isHouseStyle(e.style)) return no('unknown house style');
       if (insideTerrain(t, e.cell)) return no('inside the ground');
       if (w.blocks.has(e.cell)) return no('something is already there');
       return canPlaceBlockKind(w, t, e.cell, e.kind);
@@ -265,7 +267,9 @@ export function applyEdit(w: World, t: Terrain, e: Edit): World {
       let rot: Rot = 0;
       if (e.kind === 'stairs') rot = e.rot ?? stairsUpDirs(w, t, e.cell)[0] ?? 0;
       const blocks = new Map(w.blocks);
-      blocks.set(e.cell, { kind: e.kind, color, rot, seq: w.nextSeq });
+      // Only a house keeps a style (design section 7: Auto blocks have none); 0 is Random and is not stored.
+      const style = e.kind === 'house' && e.style ? e.style : 0;
+      blocks.set(e.cell, style ? { kind: e.kind, color, rot, seq: w.nextSeq, style } : { kind: e.kind, color, rot, seq: w.nextSeq });
       const next: World = { ...w, blocks, nextSeq: w.nextSeq + 1 };
       return afterBlockChange(next, t, e.cell);
     }

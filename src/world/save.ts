@@ -2,13 +2,19 @@
 //
 // The share code is the town packed to binary, deflated and base64url'd:
 //
-//   "LC" 0x01 | checksum (u32 LE, of the payload) | deflate(payload)
+//   "LC" version | checksum (u32 LE, of the payload) | deflate(payload)
 //   payload = seed (i32 LE) | nextSeq (varint)
 //           | blocks: count, then per block in seq order: seq gap (varint),
 //             dx, dy, dz from the previous block (zigzag varints),
-//             kind | colour << 4 (byte), rot (byte, stairs only)
+//             kind | colour << 4 | styled << 7 (byte), rot (byte, stairs only),
+//             style (byte, version 2 and styled only)
 //           | floors: count, then key delta (varint), kind (byte)
 //           | edges:  count, then key delta (varint), kind (byte)
+//
+// Version 2 (2026-11-19, house styles) differs from version 1 only in the
+// styled bit and the style byte after it. A town with no styled block is
+// still written as version 1, byte for byte as before, so links made before
+// styles and links to unstyled towns are the same; the decoder reads both.
 //
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
@@ -17,13 +23,17 @@
 import { inBounds, key, keyX, keyY, keyZ, NO_CELL, edgeCells, type CellKey, type EdgeKey } from '@/core/grid';
 import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 import type { Block, Rot, World } from '@/core/world';
+import { isHouseStyle } from '@/style/houses';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
 export type DecodeResult = { ok: true; world: World } | { ok: false; reason: string };
 
 /** Above this many characters a share link is too long; offer the town file instead (design section 15). */
 export const SHARE_LINK_MAX = 6000;
-const VERSION = 1;
+/** The first format, still written for towns with no styled block. */
+const VERSION_1 = 1;
+/** Version 1 plus a house style on blocks that have one. */
+const VERSION_2 = 2;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -103,6 +113,7 @@ function sortedKeys<K extends number>(m: ReadonlyMap<K, unknown>): K[] {
 
 /** A URL-safe string holding the whole town. */
 export function encodeTown(w: World): string {
+  const version = codecVersion(w);
   const p = new Writer();
   p.u32(w.seed | 0);
   p.varint(w.nextSeq);
@@ -120,8 +131,10 @@ export function encodeTown(w: World): string {
     px = keyX(cell);
     py = keyY(cell);
     pz = keyZ(cell);
-    p.byte(PLACED.indexOf(b.kind) | (b.color << 4));
+    const styled = version === VERSION_2 && !!b.style;
+    p.byte(PLACED.indexOf(b.kind) | (b.color << 4) | (styled ? 0x80 : 0));
     if (b.kind === 'stairs') p.byte(b.rot);
+    if (styled) p.byte(b.style!);
   }
   let prev = -1;
   const floors = sortedKeys(w.floors);
@@ -143,13 +156,19 @@ export function encodeTown(w: World): string {
   const head = new Writer();
   head.byte(0x4c);
   head.byte(0x43);
-  head.byte(VERSION);
+  head.byte(version);
   head.u32(checksum(payload));
   const packed = deflateRaw(payload);
   const all = new Uint8Array(head.bytes.length + packed.length);
   all.set(head.bytes);
   all.set(packed, head.bytes.length);
   return toBase64Url(all);
+}
+
+/** The codec version a town needs: 2 if any block has a house style, else 1. */
+export function codecVersion(w: World): 1 | 2 {
+  for (const b of w.blocks.values()) if (b.style) return VERSION_2;
+  return VERSION_1;
 }
 
 function cellOk(cell: number): boolean {
@@ -170,7 +189,8 @@ function decode(code: string): DecodeResult {
   const bytes = fromBase64Url(code.trim());
   if (!bytes || bytes.length < 2 || bytes[0] !== 0x4c || bytes[1] !== 0x43) return { ok: false, reason: NOT_A_TOWN };
   if (bytes.length < 3) return { ok: false, reason: DAMAGED };
-  if (bytes[2] !== VERSION) return { ok: false, reason: OTHER_VERSION };
+  const version = bytes[2];
+  if (version !== VERSION_1 && version !== VERSION_2) return { ok: false, reason: OTHER_VERSION };
   if (bytes.length < 8) return { ok: false, reason: DAMAGED };
   const head = new Reader(bytes.subarray(3, 7));
   const sum = head.u32();
@@ -201,7 +221,8 @@ function decode(code: string): DecodeResult {
     if (blocks.has(cell) || seq >= nextSeq) return { ok: false, reason: DAMAGED };
     const kc = r.byte();
     const kind = PLACED[kc & 15];
-    const color = kc >> 4;
+    const styled = version === VERSION_2 && (kc & 0x80) !== 0;
+    const color = styled ? (kc >> 4) & 7 : kc >> 4;
     if (kind === undefined || color >= PALETTE_SIZE) return { ok: false, reason: DAMAGED };
     let rot: Rot = 0;
     if (kind === 'stairs') {
@@ -209,7 +230,11 @@ function decode(code: string): DecodeResult {
       if (rr > 3) return { ok: false, reason: DAMAGED };
       rot = rr as Rot;
     }
-    blocks.set(cell, { kind, color, rot, seq });
+    if (styled) {
+      const style = r.byte();
+      if (style === 0 || !isHouseStyle(style)) return { ok: false, reason: DAMAGED };
+      blocks.set(cell, { kind, color, rot, seq, style });
+    } else blocks.set(cell, { kind, color, rot, seq });
   }
   const floors = new Map<CellKey, FloorKind>();
   let prev = -1;
@@ -264,7 +289,7 @@ export function townFileName(w: World): string {
 
 /** The contents of a town file: a small JSON wrapper around the share code. */
 export function townFileText(w: World): string {
-  return JSON.stringify({ littleCity: VERSION, town: encodeTown(w) }) + '\n';
+  return JSON.stringify({ littleCity: codecVersion(w), town: encodeTown(w) }) + '\n';
 }
 
 /** Reads a dropped town file (or a pasted link or code). Never throws. */

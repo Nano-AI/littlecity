@@ -7,9 +7,11 @@
 // id with no drawing gets a plain box, so a new kind still shows up in the
 // tray before anyone has drawn it.
 
+import { houseStyle, styleAccent, styleRoof } from '@/style/houses';
 import { PALETTE, RAMPS } from '@/style/palette';
 
 const C = {
+  ink: PALETTE.ink,
   wall: RAMPS.wall[0]!,
   roof: RAMPS.roof[0]!,
   roofBlue: RAMPS.roof[1]!,
@@ -292,9 +294,91 @@ const DRAWINGS: Record<string, string> = {
     sparkle(24, 24, 7.6, `fill="${C.white}" stroke-width="1.6"`),
   // The ✨ over an Auto block while the Change tool is selected.
   sparkle: sparkle(22, 26, 18, `fill="${C.white}" stroke-width="3"`) + sparkle(39, 9, 7, `fill="${C.yellow}" stroke-width="2.4"`),
+  // Random house style: a die, its three faces showing one, two and three.
+  dice:
+    `<path d="${CUBE_LEFT}" fill="${C.white}"/><path d="${CUBE_RIGHT}" fill="${C.stoneShade}"/><path d="${CUBE_TOP}" fill="${C.white}"/>` +
+    `<g fill="${C.ink}" stroke="none"><ellipse cx="24.1" cy="15.9" rx="2.3" ry="1.4"/>` +
+    `<circle cx="12.6" cy="22.4" r="1.7"/><circle cx="19.5" cy="35.4" r="1.7"/>` +
+    `<circle cx="28.3" cy="34.6" r="1.7"/><circle cx="32.2" cy="29" r="1.7"/><circle cx="36.1" cy="23.4" r="1.7"/></g>`,
   // A kind with no drawing yet.
   unknown: `<path d="${CUBE_LEFT}" fill="${C.stone}"/><path d="${CUBE_RIGHT}" fill="${C.stoneShade}"/><path d="${CUBE_TOP}" fill="${C.white}"/>`,
 };
+
+// ─────────────────────────────────────────────────────────── house styles ──
+
+/** A window on the house front at (x, y): its family's shape, glass, a cross bar, and shutters if it has them. */
+function styleWindow(family: string, x: number, y: number, accent: string): string {
+  const f = (n: number): string => n.toFixed(1);
+  if (family === 'tall') {
+    return `<rect x="${f(x)}" y="${f(y - 2.6)}" width="4.6" height="9.6" rx="0.6" fill="${C.glass}"/><path ${thin} d="M${f(x + 2.3)} ${f(y - 2.4)} L${f(x + 2.3)} ${f(y + 6.8)} M${f(x + 0.2)} ${f(y + 1.6)} L${f(x + 4.4)} ${f(y + 1.6)}"/>`;
+  }
+  if (family === 'arched') {
+    return `<path d="M${f(x)} ${f(y + 6.6)} L${f(x)} ${f(y + 1.6)} Q${f(x + 2.9)} ${f(y - 2.6)} ${f(x + 5.8)} ${f(y + 1.6)} L${f(x + 5.8)} ${f(y + 6.6)} Z" fill="${C.glass}"/><path ${thin} d="M${f(x + 2.9)} ${f(y - 0.6)} L${f(x + 2.9)} ${f(y + 6.4)}"/>`;
+  }
+  const pane = `<rect x="${f(x)}" y="${f(y)}" width="6.2" height="6" rx="0.7" fill="${C.glass}"/><path ${thin} d="M${f(x + 3.1)} ${f(y + 0.2)} L${f(x + 3.1)} ${f(y + 5.8)} M${f(x + 0.2)} ${f(y + 3)} L${f(x + 6)} ${f(y + 3)}"/>`;
+  if (family !== 'shuttered') return pane;
+  return pane + `<rect ${thin} x="${f(x - 2.8)}" y="${f(y - 0.2)}" width="2.5" height="6.4" fill="${accent}"/><rect ${thin} x="${f(x + 6.5)}" y="${f(y - 0.2)}" width="2.5" height="6.4" fill="${accent}"/>`;
+}
+
+/** The front door at x = 15.6–22.3, standing on the ground line. */
+function styleDoor(door: string, accent: string): string {
+  if (door === 'arched') return `<path d="M15.6 40.6 L15.7 32.4 Q19 27.6 22.2 32.4 L22.3 40.5 Z" fill="${accent}"/>`;
+  if (door === 'glazed') return `<path d="M15.7 40.6 L15.8 30.6 L22.2 30.5 L22.3 40.5 Z" fill="${accent}"/><rect ${thin} x="17.3" y="32" width="3.4" height="3.6" fill="${C.glass}"/>`;
+  if (door === 'panel') return `<path d="M15.7 40.6 L15.8 30.6 L22.2 30.5 L22.3 40.5 Z" fill="${accent}"/><path ${thin} d="M17.2 32.2 L20.8 32.2 L20.8 35 L17.2 35 Z M17.2 36.4 L20.8 36.4 L20.8 39.2 L17.2 39.2 Z"/>`;
+  return `<path d="M15.7 40.6 L15.8 30.6 L22.2 30.5 L22.3 40.5 Z" fill="${accent}"/><path ${thin} d="M18 30.8 L18 40.4 M20.1 30.7 L20.1 40.4"/>`;
+}
+
+/**
+ * A tiny house in a style (design section 7, "House style"), for the House
+ * button's flyout: the style's roof, walls, windows, door and chimney over
+ * the given wall colour (a palette index; the roof follows the style's
+ * stand-in for colours its own would clash with). Style 0 is the dice.
+ */
+export function styleIcon(style: number, wallIndex: number): string {
+  const st = houseStyle(style);
+  if (!st) return icon('dice');
+  const c = ((wallIndex % 8) + 8) % 8;
+  const wall = RAMPS.wall[c]!;
+  const accent = styleAccent(st, c);
+  const roof = st.cover === 'thatch' ? PALETTE.sand : RAMPS.roof[styleRoof(st, c)]!;
+  const stack = st.chimney.stack === 'stone' ? PALETTE.stoneShade : st.chimney.stack === 'plaster' ? PALETTE.white : C.brick;
+  const pots = st.chimney.pots === 2 ? `<path ${thin} d="M31.6 9.2 L31.6 7.2 M34.4 9.2 L34.4 7.2"/>` : `<path ${thin} d="M33 9.2 L33 7"/>`;
+  const plankLines = (y0: number, y1: number): string => {
+    let d = '';
+    for (let y = y0; y < y1; y += 3.4) d += `M11 ${y.toFixed(1)} L37.3 ${(y - 0.2).toFixed(1)} `;
+    return `<path ${thin} stroke="${C.woodDark}" stroke-opacity="0.55" d="${d}"/>`;
+  };
+  let body =
+    `<path d="M30.5 9.4 L30.8 19 L35.6 19.2 L35.4 9.2 Z" fill="${stack}"/>` + pots +
+    `<path d="M10.4 23.6 L10.8 40.7 L37.5 40.3 L37.8 23.4 Z" fill="${wall}"/>`;
+  // Walls.
+  if (st.walls === 'planks') body += plankLines(27, 40);
+  else if (st.plankUpper) body += plankLines(27, 31);
+  if (st.walls === 'timber') {
+    body += `<path stroke-width="1.7" stroke="${C.trunk}" d="M10.8 31.4 L37.5 31.2 M13.4 23.8 L13.6 40.4 M25 23.6 L25 40.4 M34.8 23.5 L34.8 40.3 M13.6 31.4 L25 23.8 M25 31.2 L34.8 23.6"/>`;
+  }
+  if (st.storeyBands) body += `<path stroke-width="1.6" d="M10.6 30.4 L37.6 30.2"/>`;
+  // Roof.
+  if (st.cover === 'thatch') {
+    body +=
+      `<path d="M5.4 25.4 Q6 23 9 21.4 L22.6 9 Q24 7.4 25.4 9 L39.6 21.4 Q42.4 23.2 42.6 25.2 Q24 27.4 5.4 25.4 Z" fill="${roof}"/>` +
+      `<path ${thin} stroke="${C.dirtDark}" d="M13 19.4 L11.4 23.6 M18 15 L16.6 24.4 M24 10.8 L24 24.8 M30 15 L31.4 24.4 M35 19.4 L36.6 23.6"/>`;
+  } else {
+    body += `<path d="M6.3 24.6 L23.7 8.6 L41.8 24.2 Z" fill="${roof}"/>`;
+    if (st.timberGable) {
+      // The gable end under the eaves, half-timbered.
+      body +=
+        `<path ${thin} d="M13.4 23.8 L23.8 14.2 L34.4 23.6 Z" fill="${wall}"/>` +
+        `<path ${thin} stroke="${C.trunk}" d="M18.6 19.2 L29 19.1 M23.8 14.6 L23.8 23.6 M19.6 23.6 L23.8 19.2 L28.2 23.6"/>`;
+    } else body += `<path ${thin} stroke-opacity="0.45" d="M14.6 19.2 L33 19 M19.6 14.4 L28 14.3"/>` + `<circle cx="23.9" cy="18.2" r="2.4" fill="${C.white}"/>`;
+  }
+  // Openings: the door on the left, a window on the right.
+  body += styleDoor(st.door, accent) + styleWindow(st.family, 27.4, 31.4, accent);
+  return (
+    `<svg class="lc-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false" fill="none" stroke="${PALETTE.ink}" ` +
+    `stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g filter="url(#lc-wobble)">${body}</g></svg>`
+  );
+}
 
 export function hasIcon(id: string): boolean {
   return id in DRAWINGS && id !== 'unknown';

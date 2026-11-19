@@ -18,6 +18,12 @@ export interface Block {
   rot: Rot;
   /** Placement counter: unique, increasing, starts at 1. */
   seq: number;
+  /**
+   * House style 1–6 (design section 7, "House style"); absent or 0 = Random,
+   * the look rolled from the structure's seed. A structure takes the style of
+   * its lowest-seq block. (Added 2026-11-19, docs/swarm/requests/house-styles.md.)
+   */
+  style?: number;
 }
 
 /** Everything that is saved. Immutable: applyEdit returns a new World. */
@@ -42,6 +48,8 @@ export type Edit =
       /** The block whose face was clicked, or null for terrain or water. */
       from: CellKey | null;
       rot?: Rot;
+      /** House style 1–6; absent or 0 = Random. Stored only on a house. */
+      style?: number;
     }
   | { type: 'placeFloor'; cell: CellKey; floor: FloorKind }
   | { type: 'placeEdge'; edge: EdgeKey; kind: EdgeKind }

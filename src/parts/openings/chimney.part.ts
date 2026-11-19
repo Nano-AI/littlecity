@@ -28,6 +28,14 @@ export default definePart({
       });
       return { mesh: b.build(), anchors: { 'chimney-top': translation(0, h + 0.09, 0) } };
     }
+    // A chosen house style fixes the stack (brick, stone or whitewash) and its pots; Random keeps brick.
+    const stack = p.chimney?.stack ?? 'brick';
+    const stackLook =
+      stack === 'stone'
+        ? { color: PALETTE.stoneShade, pattern: PATTERN.stone }
+        : stack === 'plaster'
+          ? { color: PALETTE.white, pattern: PATTERN.plaster }
+          : { color: PALETTE.brick, pattern: PATTERN.brick };
     const tall = variant === 'tall-flue';
     const against = item.params?.against;
     if (tall && against !== undefined) {
@@ -35,7 +43,7 @@ export default definePart({
       // roof's wall top. Brick, 0.2 wide and 0.1 proud, to `height`, with a cap and one pot.
       const h = item.params?.height ?? 1.05;
       const hw = 0.1, d = 0.1;
-      b.with({ color: PALETTE.brick, pattern: PATTERN.brick, ink: 'stack' }, () => b.box([-hw, -0.45, -d], [hw, h, 0], { skip: ['bottom', 'top', 's'] }));
+      b.with({ ...stackLook, ink: 'stack' }, () => b.box([-hw, -0.45, -d], [hw, h, 0], { skip: ['bottom', 'top', 's'] }));
       b.with({ color: p.trim, ink: 'cap' }, () => b.box([-hw - 0.025, h, -d - 0.025], [hw + 0.025, h + 0.045, 0]));
       b.with({ color: PALETTE.redDark, ink: 'pots' }, () =>
         b.at(translation(0, h + 0.045, -d / 2), () => b.lathe([[0.03, 0], [0.026, 0.065]], { segments: 6, capTop: true })));
@@ -44,13 +52,14 @@ export default definePart({
     // Free-standing: a tall one is stout, has a shoulder half-way, and never towers.
     const h = tall ? Math.min(0.8, item.params?.height ?? 0.7) : (item.params?.height ?? 0.3 + ctx.rand('h') * 0.08);
     const w = tall ? 0.18 : 0.165;
-    b.with({ color: PALETTE.brick, pattern: PATTERN.brick, ink: 'stack' }, () => {
+    b.with({ ...stackLook, ink: 'stack' }, () => {
       b.boxAt([0, -below, 0], [w, h + below, w], { skip: ['bottom', 'top'] });
       if (tall) b.boxAt([0, -below, 0], [w + 0.06, h * 0.5 + below, w + 0.06], { skip: ['bottom'] });
     });
     b.with({ color: p.trim, ink: 'cap' }, () => b.boxAt([0, h, 0], [w + 0.055, 0.045, w + 0.055]));
     // Pots: one or two short clay tubes on the cap.
-    const pots = tall ? 1 : ctx.rand('pots') < 0.5 ? 1 : 2;
+    const rolled = ctx.rand('pots') < 0.5 ? 1 : 2;
+    const pots = tall ? 1 : (p.chimney?.pots ?? rolled);
     b.with({ color: PALETTE.redDark, ink: 'pots' }, () => {
       for (let i = 0; i < pots; i++) {
         const x = pots === 1 ? 0 : i === 0 ? -0.042 : 0.042;
