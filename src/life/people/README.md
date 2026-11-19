@@ -95,6 +95,16 @@ reached only through its house.
   every square and viewpoint (the kite flies only while the wind is above
   `PEOPLE.kiteWind`) and every pigeon's cell.
 
+## Props in the way
+
+Decoration props are not blocks, so the graph reads them itself
+(`FOOTPRINTS` in `src/resolve/nav.ts`). Runs along a side (fence, hedge,
+retaining wall) cut the link; their gates and gaps are single-file ways
+through. A post on a side (a lamp) is walked round. Wide things on a side
+and anything solid in the middle of a cell cost 20 more and are passed to
+one side: dear, but never a cut, so only a real fence can shut a place off.
+Nobody is sent to linger in a cluttered cell, except to sit at its seats.
+
 ## Readings of the catalogue worth knowing
 
 - **Shut-ins do not use the cap.** A house whose door opens onto nothing

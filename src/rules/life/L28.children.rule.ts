@@ -41,8 +41,9 @@ export default defineRule<Data>({
       if (!p.square) continue;
       // An open cell of the square: not on its rim, nothing standing in it.
       const rim = new Set(p.edgeCells);
-      const inner = p.cells.filter((c) => !rim.has(c) && nav.nodeAt.has(c) && !ctx.facts.kinds.has(c));
-      const cells = (inner.length > 0 ? inner : p.cells.filter((c) => nav.nodeAt.has(c))).sort((a, b) => hash(ctx.seed, 'kite', a) - hash(ctx.seed, 'kite', b) || a - b);
+      const clear = (c: CellKey): boolean => nav.nodeAt.has(c) && !ctx.facts.kinds.has(c) && !nav.nodes[nav.nodeAt.get(c)!]!.clutter;
+      const inner = p.cells.filter((c) => !rim.has(c) && clear(c));
+      const cells = (inner.length > 0 ? inner : p.cells.filter(clear)).sort((a, b) => hash(ctx.seed, 'kite', a) - hash(ctx.seed, 'kite', b) || a - b);
       if (cells[0] !== undefined) add(cells[0], 'kite');
     }
     for (const v of viewpoints(ctx, nav)) add(v.cell, 'kite');

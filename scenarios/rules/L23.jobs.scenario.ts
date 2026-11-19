@@ -1,32 +1,15 @@
 // L23 · Jobs (with L08's lamplighter). A town with one of every workplace:
 // shops, a stall, a garden, a pier, a lighthouse, a windmill with its mill
 // house, a keep with stairs up to its top, a chapel with its steeple, and a
-// street of lamps. The lamps come from a rule of this scenario's own, since
-// the real lamp rule (D01) is the Dressing owner's.
+// street that the lamp rules (D01, D02) light.
 
-import { key } from '@/core/grid';
-import { defineRule } from '@/resolve/engine/api';
 import { scenario } from '@/scenario';
-
-const LAMPS: readonly [number, number][] = [[9, 20], [13, 20], [17, 20], [21, 20], [25, 20], [29, 20], [14, 24], [14, 28]];
-
-const lamps = defineRule({
-  id: 'X-L23.lamps',
-  part: 'decoration',
-  tier: 1,
-  priority: 0,
-  about: 'Fixture only: a lamp at the edge of eight street cells.',
-  find: () => LAMPS.map(([x, z]) => ({ anchor: key(x, 1, z) })),
-  apply(c, out) {
-    out.prop({ type: 'lamp', variant: 'post', at: { cell: c.anchor, pos: 'ne' } });
-  },
-});
+import { PEOPLE } from '@/style/people';
 
 export default scenario({
   name: 'L23.jobs',
   seed: 47,
   about: 'One of every workplace, and a street of lamps for the lamplighter.',
-  rules: [lamps],
   terrain(t) {
     t.flat(1);
     t.water(4, 30, 43, 43);
@@ -85,11 +68,19 @@ export default scenario({
     const stall = check.structure(12, 1, 16).id;
     const customer = check.sockets({ type: 'haunt-shop' }).find((s) => s.structure === stall)!;
     check.ok(of('vendor')[0]!.cell !== customer.cell, 'vendor and customer on opposite sides');
-    // The lamplighter's round: every lamp once, each stop next to its lamp, in an order with no long jumps back.
+    // The lamplighter's round: lamp posts only, each once, numbered in order, all in one walkable part
+    // of the town, and no more of them than can be walked in a dusk.
     const round = of('lamplighter').sort((a, b) => Number(a.name!.split('|')[1]) - Number(b.name!.split('|')[1]));
-    check.equal(round.length, 8, 'lamps on the round');
-    check.equal(new Set(round.map((s) => s.name!.split('|')[2])).size, 8, 'distinct lamps');
-    check.ok(round.every((s) => dressing.props.some((p) => p.id === s.name!.split('|')[2] && p.type === 'lamp')), 'each stop names its lamp prop');
+    const refs = round.map((s) => s.name!.split('|')[2]!);
+    const posts = dressing.props.filter((p) => p.type === 'lamp');
+    check.ok(posts.length > 0, 'the street has lamps');
+    check.ok(round.length > 0 && round.length <= PEOPLE.lampRound, `a round of 1 to ${PEOPLE.lampRound} lamps (${round.length})`);
+    check.equal(round.length, Math.min(posts.length, PEOPLE.lampRound), 'lamps on the round');
+    check.equal(new Set(refs).size, round.length, 'distinct lamps on the round');
+    check.ok(round.every((s, i) => Number(s.name!.split('|')[1]) === i), 'numbered in order');
+    check.ok(refs.every((id) => posts.some((p) => p.id === id)), 'each stop names a lamp post');
+    check.ok(!refs.some((id) => dressing.props.some((p) => p.id === id && p.type !== 'lamp')), 'no lanterns on the round');
+    check.equal(new Set(round.map((s) => nav.part[nav.nodeAt.get(s.cell)!])).size, 1, 'parts of the graph the round lies in');
     check.ok(plan.world.blocks.size > 40, 'the town was built');
   },
 });

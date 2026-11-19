@@ -3,7 +3,11 @@
 
 import { describe, expect, test } from 'vitest';
 import { E, key, keyX, keyY, keyZ } from '@/core/grid';
+import { defineRule } from '@/resolve/engine/api';
+import { resolveTown } from '@/resolve/index';
 import { usableDoors } from '@/resolve/nav';
+import { flatTerrain, TownBuilder } from '@/scenario';
+import { emptyWorld } from '@/world/world';
 import bench from '../../../scenarios/bench/bench-2000.scenario';
 import { createRouter } from './route';
 import { scenarioTown, townOf } from './testing';
@@ -110,6 +114,37 @@ describe('routes', () => {
     expect(router.stats.hits).toBeGreaterThanOrEqual(60);
     // Generous: it runs in about 5 ms; the point is that it is nowhere near a frame each.
     expect(ms).toBeLessThan(250);
+  });
+});
+
+describe('round things that stand in the way', () => {
+  test('a walker crosses wide of a post on a boundary, and wide of whatever stands in the middle of a cell', () => {
+    const crate = defineRule({
+      id: 'X-WALK.props', part: 'decoration', tier: 1, priority: 0,
+      find: () => [{ anchor: key(12, 1, 10) }],
+      apply(c, out) {
+        out.prop({ type: 'lamp', variant: 'four-arm', at: { cell: c.anchor, pos: 'c' } });
+      },
+    });
+    const terrain = flatTerrain(7);
+    const b = new TownBuilder(emptyWorld(7), terrain);
+    b.path(8, 10, 16, 10);
+    b.fenceAround(8, 10, 16, 10); // a corridor: the only way is through the cell with the lamp
+    const nav = resolveTown(b.world, terrain, { rules: [crate] }).dressing.nav;
+    const route = createRouter(nav).find(nav.nodeAt.get(key(8, 1, 10))!, nav.nodeAt.get(key(16, 1, 10))!)!;
+    expect(route.nodes).toHaveLength(9);
+    expect(route.cost).toBe(8 + 20);
+    const walk = buildWalk(nav, route, { lane: 0.1 });
+    const at = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
+    let nearest = Infinity;
+    for (const piece of walk) {
+      for (let i = 0; i <= 20; i++) {
+        pieceAt(piece, i / 20, at);
+        nearest = Math.min(nearest, Math.hypot(at.x - 12.5, at.z - 10.5));
+      }
+    }
+    // The lamp stands at (12.5, 10.5); nobody comes within a quarter of a cell of it.
+    expect(nearest).toBeGreaterThan(0.25);
   });
 });
 

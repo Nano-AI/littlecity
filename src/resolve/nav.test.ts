@@ -5,6 +5,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { E, key, keyX, keyY, keyZ, N, S, W, type CellKey } from '@/core/grid';
+import { defineRule } from '@/resolve/engine/api';
 import { resolveTown } from '@/resolve/index';
 import { flatTerrain, TerrainBuilder, TownBuilder } from '@/scenario';
 import { emptyWorld } from '@/world/world';
@@ -366,6 +367,79 @@ describe('cut off', () => {
     expect(connected(t.nav, door.node, t.at(9, 1, 9))).toBe(false);
     expect(t.nav.partFloors[t.nav.part[door.node]!]).toBe(0);
     expect(t.outdoors(door.node).size).toBe(8);
+  });
+});
+
+describe('props standing in walkable cells', () => {
+  // A rule of this test's own stands props at chosen slots; nothing else dresses the town.
+  type Stand = { x: number; z: number; pos: 'c' | 'n' | 'e' | 's' | 'w' | 'ne'; type: string; variant?: string };
+  const dressed = (stands: Stand[], build: (b: TownBuilder) => void = () => {}) => {
+    const rule = defineRule<Stand>({
+      id: 'X-NAV.props', part: 'decoration', tier: 1, priority: 0,
+      find: () => stands.map((s, i) => ({ anchor: key(s.x, 1, s.z), key: i, data: s })),
+      // The vocabulary types each prop; a test table of any of them has to step round that.
+      apply: (c, out) => void (out.prop as (p: object) => string)({ type: c.data.type, ...(c.data.variant ? { variant: c.data.variant } : {}), at: { cell: c.anchor, pos: c.data.pos } }),
+    });
+    const terrain = flatTerrain(5);
+    const b = new TownBuilder(emptyWorld(5), terrain);
+    build(b);
+    const nav = resolveTown(b.world, terrain, { rules: [rule] }).dressing.nav;
+    const at = (x: number, z: number): number => nav.nodeAt.get(key(x, 1, z)) ?? -1;
+    const link = (a: number, c: number): NavLink | undefined => nav.links.find((l) => (l.a === a && l.b === c) || (l.a === c && l.b === a));
+    return { nav, at, link };
+  };
+
+  test('a fence or hedge along a side cuts the link across it; a gate or a gap in it is a single-file way through', () => {
+    const t = dressed([
+      { x: 10, z: 10, pos: 's', type: 'garden-fence', variant: 'picket' },
+      { x: 11, z: 10, pos: 's', type: 'garden-fence', variant: 'gate' },
+      { x: 12, z: 10, pos: 's', type: 'hedge', variant: 'run' },
+      { x: 13, z: 10, pos: 's', type: 'hedge', variant: 'gap' },
+      { x: 14, z: 11, pos: 'n', type: 'retaining-wall' }, // named from the other side of the same boundary
+    ]);
+    expect(t.link(t.at(10, 10), t.at(10, 11))).toBeUndefined();
+    expect(t.link(t.at(11, 10), t.at(11, 11))).toMatchObject({ via: 'gate' });
+    expect(t.link(t.at(12, 10), t.at(12, 11))).toBeUndefined();
+    expect(t.link(t.at(13, 10), t.at(13, 11))).toMatchObject({ via: 'gate' });
+    expect(t.link(t.at(14, 10), t.at(14, 11))).toBeUndefined();
+    // Nothing else is touched.
+    expect(t.link(t.at(10, 10), t.at(11, 10))).toMatchObject({ via: 'walk' });
+    expect(t.link(t.at(10, 10), t.at(10, 9))).toMatchObject({ via: 'walk' });
+    expect(t.nav.runOf[t.nav.links.indexOf(t.link(t.at(11, 10), t.at(11, 11))!)]).toBeGreaterThanOrEqual(0);
+  });
+
+  test('a post on a side is walked round; something wide on a side makes the crossing a last resort; neither cuts anything off', () => {
+    const t = dressed([
+      { x: 10, z: 10, pos: 'e', type: 'lamp', variant: 'post' },
+      { x: 10, z: 12, pos: 'e', type: 'bench', variant: 'wood' },
+      { x: 10, z: 14, pos: 'ne', type: 'lamp', variant: 'post' }, // a corner: clear of every line walked
+    ]);
+    expect(t.link(t.at(10, 10), t.at(11, 10))).toMatchObject({ via: 'walk', post: true, cost: 0 });
+    expect(t.link(t.at(10, 12), t.at(11, 12))).toMatchObject({ via: 'walk', post: true, cost: 20 });
+    const plain = t.link(t.at(10, 14), t.at(11, 14))!;
+    expect(plain.post).toBeUndefined();
+    expect(plain.cost).toBe(0);
+    expect(new Set(t.nav.part).size).toBe(1);
+  });
+
+  test('something solid in the middle of a cell: the cell stays on the graph, dear and marked; flat things change nothing', () => {
+    const t = dressed([
+      { x: 10, z: 10, pos: 'c', type: 'goods-stack', variant: 'crates' },
+      { x: 12, z: 10, pos: 'c', type: 'street-tree' },
+      { x: 14, z: 10, pos: 'c', type: 'tuft', variant: 'grass' },
+      { x: 16, z: 10, pos: 'c', type: 'bench', variant: 'wood' },
+    ]);
+    expect(t.nav.nodes[t.at(10, 10)]).toMatchObject({ clutter: true, cost: 3 + 20 });
+    expect(t.nav.nodes[t.at(12, 10)]).toMatchObject({ clutter: true });
+    expect(t.nav.nodes[t.at(14, 10)]!.clutter).toBeUndefined();
+    expect(t.nav.nodes[t.at(14, 10)]!.cost).toBe(3);
+    expect(t.nav.nodes[t.at(16, 10)]).toMatchObject({ clutter: true });
+    expect(t.link(t.at(10, 10), t.at(11, 10))).toBeDefined();
+  });
+
+  test('a run of props never closes a street: between two cells of one floor region it is only a post', () => {
+    const t = dressed([{ x: 11, z: 10, pos: 'e', type: 'garden-fence', variant: 'picket' }], (b) => b.path(8, 10, 14, 10));
+    expect(t.link(t.at(11, 10), t.at(12, 10))).toMatchObject({ via: 'walk', post: true });
   });
 });
 

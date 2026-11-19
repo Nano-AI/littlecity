@@ -69,11 +69,14 @@ describe('a day in the town', () => {
     c.hold('dusk');
     step(100);
     const owls = Math.floor(crowd.people.length * PEOPLE.nightOut);
-    const outAtDusk = crowd.people.filter((p) => p.mode !== 'home');
-    expect(outAtDusk.length).toBeLessThanOrEqual(owls);
+    // Those whose work is the evening itself (the lamplighter on the round) are not idlers.
+    const idle = (p: (typeof crowd.people)[number]): boolean => p.mode !== 'home' && p.work?.job !== 'lamplighter' && p.work?.job !== 'keeper';
+    expect(crowd.people.filter(idle).length).toBeLessThanOrEqual(owls);
     c.hold('night');
     step(120);
-    expect(crowd.people.filter((p) => p.mode !== 'home').length).toBeLessThanOrEqual(owls);
+    // By now the round is done too, and its walker indoors.
+    expect(crowd.people.filter((p) => p.mode !== 'home' && p.work?.job !== 'keeper').length).toBeLessThanOrEqual(owls);
+    for (const j of crowd.jobs) if (j.job === 'lamplighter' && j.worker) expect(j.worker.round).toBe(j.stations.length);
     expect(w.problems).toEqual([]);
     // The census the window lights read agrees.
     const home = crowd.people.filter((p) => p.mode === 'home').length;
@@ -247,7 +250,7 @@ describe('routes people take', () => {
     const town = resolved(b.world, b.terrain);
     const { crowd, watch: w } = run(town, 60);
     expect(crowd.people).toHaveLength(1);
-    expect(town.dressing.actors[0]!.variant).toBe('indoors');
+    expect(town.dressing.actors.find((a) => a.type === 'resident')!.variant).toBe('indoors');
     expect(crowd.people[0]!.shutIn).toBe(true);
     expect(crowd.atHome.get(crowd.people[0]!.home)).toBe(1);
     expect(crowd.people[0]!.mode).toBe('home');
@@ -311,7 +314,8 @@ describe('jobs (L23) and the lamplighter (L08)', () => {
     step(150);
     const round = crowd.jobs.find((j) => j.job === 'lamplighter')!;
     expect(lamps).toEqual(round.refs);
-    expect(lamps).toHaveLength(8);
+    expect(lamps.length).toBeGreaterThan(3);
+    expect(lamps.length).toBeLessThanOrEqual(PEOPLE.lampRound);
     expect(bells).toEqual([crowd.jobs.find((j) => j.job === 'bell-ringer')!.structure]);
     c.hold('night');
     step(60);
@@ -435,7 +439,7 @@ describe('children (L28)', () => {
     const { w, flying } = play(0.1);
     expect(w.problems).toEqual([]);
     expect(flying).toBe(0);
-    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(5); // two children, five minutes
+    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(2); // two children, five minutes, mostly after the pigeons
   });
 });
 

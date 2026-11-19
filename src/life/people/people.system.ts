@@ -18,6 +18,8 @@ import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig 
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
 import { PEOPLE, PERSON } from '@/style/people';
+import { deferLamp, lightLamp } from '../dusk/lamps.system';
+import { setOccupied } from '../dusk/occupancy';
 import { createCrowd, type Crowd, type Person } from './crowd';
 import { markCensusReady, recordHome } from './home';
 
@@ -145,12 +147,15 @@ export default defineSystem<State>({
         home(home, count) {
           recordHome(ctx.signals, home, count);
           emit(ctx.signals, 'residentHome', { home, count });
+          // L07, L25: a house's windows light only while somebody is in.
+          setOccupied(ctx.stage, home, count > 0);
         },
         passed(cell) {
           emit(ctx.signals, 'personPassed', cell);
         },
         lamp(lamp) {
           emit(ctx.signals, 'lampReached', { lamp });
+          lightLamp(ctx.stage, lamp); // L08: it lights as they reach it
         },
         bell(structure) {
           emit(ctx.signals, 'bellRung', structure);
@@ -185,6 +190,10 @@ export default defineSystem<State>({
     for (const h of state.standIns) h.setVisible(false);
     state.crowd.sync(next.shape, next.dressing, ctx.signals.time);
     state.fresh = true;
+    // The lamps on the lamplighter's round wait for them: each a little longer than the walk to it
+    // should take, so a lamp they never reach still lights, in round order.
+    const round = state.crowd.jobs.find((j) => j.job === 'lamplighter' && j.worker !== null);
+    if (round) round.refs.forEach((lamp, k) => deferLamp(ctx.stage, lamp, PEOPLE.lampWait + k * PEOPLE.lampStep));
     markCensusReady(ctx.signals);
   },
   update(state, dt, signals, ctx) {
