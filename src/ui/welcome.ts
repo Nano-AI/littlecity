@@ -1,9 +1,11 @@
-// The first-visit card (Derek's request): someone opening the game for the
-// first time is pointed at "Grow a town", or sent off to build their own.
-// It shows once per browser, and only on an island with nothing built yet,
-// so a saved town or a shared link never gets it.
+// The first-visit note (Derek's request): someone opening the game for the
+// first time is pointed at "Grow a town". It is a small closable card beside
+// the menu button, never over the town and never in the way of building. It
+// shows once per browser and only on an island with nothing built yet, so a
+// saved town or a shared link never gets it; it goes away when closed, when
+// a town is grown, or as soon as the player starts building.
 
-import { el } from './dom';
+import { el, iconButton } from './dom';
 
 const KEY = 'lc:welcomed';
 
@@ -29,44 +31,50 @@ export interface WelcomeHost {
   growTown(): void;
 }
 
-/** Shows the card if this is a first visit to an empty island. Returns a function that takes it down (without marking it seen). */
-export function maybeWelcome(root: HTMLElement, host: WelcomeHost): () => void {
-  if (seen() || host.hasTown()) return () => {};
+export interface Welcome {
+  /** Call when the town changes: the note goes once the player has built something. */
+  townChanged(): void;
+  /** Takes the note down without marking it seen. */
+  dispose(): void;
+}
+
+const NONE: Welcome = { townChanged() {}, dispose() {} };
+
+/** Shows the note if this is a first visit to an empty island. */
+export function maybeWelcome(root: HTMLElement, host: WelcomeHost): Welcome {
+  if (seen() || host.hasTown()) return NONE;
+  let open = true;
   const remove = (): void => {
-    veil.remove();
-    window.removeEventListener('keydown', onKey, true);
+    open = false;
+    card.remove();
   };
   const close = (): void => {
     remember();
     remove();
   };
-  const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close();
-  };
-  const grow = el('button', {
-    class: 'lc-text-btn lc-primary',
-    text: 'Grow a town',
-    attrs: { type: 'button', 'data-ui': 'welcome-grow' },
-    on: {
-      click: () => {
-        close();
-        host.growTown();
+  const card = el('div', { class: 'lc-card lc-welcome', attrs: { 'data-ui': 'welcome', role: 'status', 'aria-label': 'Welcome to Little City' } }, [
+    iconButton('close', 'Close', { class: 'lc-welcome-close', attrs: { 'data-ui': 'welcome-close' }, on: { click: close } }),
+    el('strong', { text: 'Welcome to Little City' }),
+    el('p', { text: 'Try growing a town to see what this island can become, or just start building.' }),
+    el('button', {
+      class: 'lc-text-btn lc-primary',
+      text: 'Grow a town',
+      attrs: { type: 'button', 'data-ui': 'welcome-grow' },
+      on: {
+        click: () => {
+          close();
+          host.growTown();
+        },
       },
-    },
-  });
-  const card = el('div', { class: 'lc-card lc-welcome', attrs: { 'data-ui': 'welcome', role: 'dialog', 'aria-label': 'Welcome to Little City' } }, [
-    el('h2', { text: 'Welcome to Little City' }),
-    el('p', { text: 'Try growing a town to see what this island can become, or build your own, block by block.' }),
-    el('div', { class: 'lc-welcome-buttons' }, [
-      grow,
-      el('button', { class: 'lc-text-btn', text: 'Build my own', attrs: { type: 'button', 'data-ui': 'welcome-build' }, on: { click: close } }),
-    ]),
-    el('small', { text: 'You can grow a town any time from the menu at the top left.' }),
+    }),
   ]);
-  // The veil catches clicks beside the card, so a stray click closes it instead of placing a block.
-  const veil = el('div', { class: 'lc-welcome-veil', attrs: { 'data-ui': 'welcome-veil' }, on: { click: (e) => { if (e.target === veil) close(); } } }, [card]);
-  root.append(veil);
-  window.addEventListener('keydown', onKey, true);
-  grow.focus({ preventScroll: true });
-  return remove;
+  root.append(card);
+  return {
+    townChanged() {
+      if (open && host.hasTown()) close();
+    },
+    dispose() {
+      if (open) remove();
+    },
+  };
 }

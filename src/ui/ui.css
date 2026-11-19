@@ -797,51 +797,57 @@
   .lc-btn { transition: none; }
 }
 
-/* ── first-visit welcome card ──────────────────────────────────────────── */
+/* ── first-visit welcome note: a closable card beside the menu button ──── */
 
-.lc-welcome-veil {
+.lc-welcome {
   position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(242, 237, 227, 0.35);
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(10px + 38px + 6px + 3.2px + 10px + env(safe-area-inset-left));
+  box-sizing: border-box;
+  width: 264px;
+  padding: 10px 34px 11px 13px;
   pointer-events: auto;
 }
-.lc-welcome {
-  box-sizing: border-box;
-  width: min(360px, 100%);
-  padding: 18px 20px 14px;
-  text-align: center;
-}
-.lc-welcome h2 {
-  margin: 0 0 8px;
-  font-size: 20px;
+.lc-welcome strong {
+  display: block;
+  font-size: 14.5px;
   font-weight: 700;
+  margin-bottom: 3px;
 }
 .lc-welcome p {
-  margin: 0 0 16px;
-  font-size: 15px;
-  line-height: 1.4;
+  margin: 0 0 9px;
+  font-size: 13px;
+  line-height: 1.35;
 }
-.lc-welcome-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+.lc-welcome .lc-text-btn {
+  font-size: 13.5px;
 }
-.lc-welcome-buttons .lc-text-btn {
-  min-height: 44px;
-  padding-left: 18px;
-  padding-right: 18px;
-  font-size: 15px;
+.lc-welcome-close {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 30px;
+  height: 30px;
+  opacity: 0.7;
 }
-.lc-welcome small {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.75;
+.lc-welcome-close .lc-btn-icon {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 640px), (pointer: coarse) {
+  /* Phones: under the top row, beside the guide button, clear of the buttons at top right. */
+  .lc-welcome {
+    top: calc(10px + 44px + 6px + 3.2px + 7px + env(safe-area-inset-top));
+    left: calc(10px + 44px + 6px + 3.2px + 10px + env(safe-area-inset-left));
+    right: calc(10px + env(safe-area-inset-right));
+    width: auto;
+    max-width: 300px;
+  }
+  .lc-welcome .lc-text-btn {
+    min-height: 44px;
+  }
+  .lc-welcome-close {
+    width: 44px;
+    height: 44px;
+  }
 }

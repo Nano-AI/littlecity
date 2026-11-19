@@ -565,7 +565,7 @@ export function createInterface(host: InterfaceHost): Interface {
   stepper.show(heldLength());
 
   // First visit to an empty island: point at Grow a town (see welcome.ts).
-  const closeWelcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
+  const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
 
   const api: Interface = {
     el: root,
@@ -584,6 +584,7 @@ export function createInterface(host: InterfaceHost): Interface {
       redoButton.disabled = !game.canRedo;
       showTime();
       guide.townChanged();
+      welcome.townChanged();
       if (hoverAt) updateGhost();
     },
     debug: () => ({
@@ -604,7 +605,7 @@ export function createInterface(host: InterfaceHost): Interface {
       growth.stop();
       tray.styles.dispose();
       guide.dispose();
-      closeWelcome();
+      welcome.dispose();
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);
