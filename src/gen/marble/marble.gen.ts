@@ -37,7 +37,7 @@ export interface MarbleCell {
   /** Sides where the ground outside is level with the cell's top. */
   flush: readonly boolean[];
   /**
-   * Open sides against another marble structure's block: no base course or cornice there, which would
+   * Open sides against another marble structure's block: no base course, string course or cornice there, which would
    * reach into it and lie in the planes of its top and of its own bands round the corner.
    */
   against: readonly boolean[];
@@ -213,13 +213,14 @@ export default defineGenerator({
     // A string course at every storey line: the pen lines a tall wall needs.
     if (MONUMENTS.marbleCourse > 0) {
       b.with({ color: castle ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'course' }, () =>
-        band((c, d) => wallOn(c, d) && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
+        band((c, d) => wallOn(c, d) && !c.against[d] && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
       );
     }
     if (castle) {
-      // Quoins up every outer corner: long and short stones in turn, a hair proud.
+      // Quoins up every outer corner: long and short stones in turn, a hair proud (0.024: off the plane of an
+      // arch's voussoir ring, 0.02 proud of the same wall line, where an arch springs beside the corner).
       b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'quoins' }, () => {
-        const n = 5, qh = CELL_H / n, proud = 0.02;
+        const n = 5, qh = CELL_H / n, proud = 0.024;
         for (const c of cells) {
           for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
             const next = ((d + 1) & 3) as Dir4;

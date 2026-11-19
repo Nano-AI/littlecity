@@ -290,9 +290,10 @@ export default defineGenerator({
           if (e === 0) continue;
           const o = c.openings.find((op) => (end === 'lo' ? op.lo < 0.02 && op.hi > 0.02 : op.hi > 0.98 && op.lo < 0.98));
           if (!o) continue;
-          // Its top a hair over the springing: a springing on a storey line is level with the house's floor band.
+          // Its top two hairs over the springing: a springing on a storey line is level with a house's floor
+          // band, or with the top of an arch below (itself one hair over the line).
           b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'impost' }, () =>
-            b.box([end === 'lo' ? -e : 0.93, o.spring - 0.12, t0 - 0.03], [end === 'lo' ? 0.07 : 1 + e, o.spring + TOP_LIFT, t1 + 0.03], { skip: ['bottom', end === 'lo' ? 'w' : 'e'] }),
+            b.box([end === 'lo' ? -e : 0.93, o.spring - 0.12, t0 - 0.03], [end === 'lo' ? 0.07 : 1 + e, o.spring + 2 * TOP_LIFT, t1 + 0.03], { skip: ['bottom', end === 'lo' ? 'w' : 'e'] }),
           );
         }
 
