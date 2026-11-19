@@ -83,6 +83,16 @@ export const TONE = {
   up: [0, 1, 0] as Vec3,
 } as const;
 
+/**
+ * A tone normal anywhere between lit (0) and shade (1). Given to the vertices
+ * of ONE smooth surface it makes the tone change along a soft, curved line
+ * that crosses the facets instead of following their edges (the renderer
+ * steps the tone per pixel from the interpolated normal), with no pen line.
+ */
+export function toneAt(t: number): Vec3 {
+  return tipped(38.5 + 32.5 * Math.max(0, Math.min(1, t)));
+}
+
 export interface LumpOptions {
   /** Sides round the axis (default 8) and steps from pole to pole (default 5). */
   seg?: number;

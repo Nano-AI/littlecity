@@ -15,8 +15,8 @@ export const TREE = defineStyle(
     jitter: 0.12,
     /** Lean of a trunk, radians either way. */
     lean: 0.07,
-    /** Crown lumps beyond the core (the scalloped outline). */
-    lumps: 2,
+    /** Small lumps round a crown's rim (the scalloped outline); one more by seed. */
+    lumps: 5,
     /** How much darker-green the shaded leaf masses are (0 = tone only). */
     shadeMix: 0.22,
     /** Wind sway at the top of a crown (0–1). */
@@ -35,7 +35,7 @@ export const TREE = defineStyle(
     scale: [0.6, 1.8, 0.02],
     jitter: [0, 0.25, 0.01],
     lean: [0, 0.2, 0.01],
-    lumps: [1, 5, 1],
+    lumps: [3, 8, 1],
     shadeMix: [0, 0.6, 0.02],
     sway: [0, 1, 0.05],
     companion: [0, 1, 0.05],
