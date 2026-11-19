@@ -21,6 +21,8 @@ export interface Menu {
   readonly button: HTMLButtonElement;
   /** The pop-up, hidden until the button is pressed. */
   readonly el: HTMLElement;
+  /** The hidden file chooser behind "Open a town file"; it lives beside the menu, not in it. */
+  readonly file: HTMLInputElement;
   readonly isOpen: boolean;
   open(): void;
   close(): void;
@@ -77,7 +79,6 @@ export function createMenu(actions: MenuActions): Menu {
       el('div', { class: 'lc-menu-rule' }),
       sound,
       item('tuning', 'tune', 'Tuning', actions.toggleTuning),
-      file,
     );
   };
 
@@ -107,6 +108,7 @@ export function createMenu(actions: MenuActions): Menu {
   const api: Menu = {
     button,
     el: panel,
+    file,
     get isOpen() {
       return !panel.hasAttribute('hidden');
     },

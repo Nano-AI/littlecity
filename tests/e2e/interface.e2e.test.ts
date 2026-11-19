@@ -477,6 +477,73 @@ describe('desktop: mouse and keys', () => {
     expect([...errors, ...visitor.errors, ...other.errors]).toEqual([]);
   });
 
+  test('a refusal is said where it happened: the ghost turns red, the tool shakes, nothing is built', async () => {
+    const { page, errors } = await open(TOWN);
+    // Whatever the real rules are, this is what the interface does when they say no.
+    await page.evaluate(`{
+      const game = window.__lc.game;
+      game.can = () => ({ ok: false, reason: 'not on a tree' });
+      game.edit = game.can;
+    }`);
+    await pick(page, 'house');
+    const [x, y] = await ground(page, 24, 27);
+    await page.mouse.move(x, y);
+    await page.waitForFunction(`window.__lc.ui.debug().ghost?.refuse === ${key(24, 1, 27)}`);
+    expect(await debug(page, 'ghost.show')).toEqual([]);
+    await page.mouse.click(x, y);
+    await page.waitForSelector('[data-ui="refusal"]');
+    expect(await page.textContent('[data-ui="refusal"]')).toBe('Not on a tree');
+    expect(await page.getAttribute('[data-item="house"]', 'class')).toContain('lc-shake');
+    expect(await count(page)).toBe(5);
+    // The message goes away by itself.
+    await page.waitForSelector('[data-ui="refusal"]', { state: 'detached' });
+    expect(errors).toEqual([]);
+  });
+
+  test('a town goes out as a file and comes back; the postcard is a picture of the view', async () => {
+    const { page, errors } = await open(TOWN);
+    await pick(page, 'house');
+    await page.mouse.click(...(await ground(page, 24, 27)));
+    await page.waitForFunction(`window.__lc.world().blocks.size === 6`);
+
+    const menuItem = async (id: string): Promise<void> => {
+      await page.click('[data-ui="menu-button"]');
+      await page.click(`[data-menu="${id}"]`);
+    };
+    const [townFile] = await Promise.all([page.waitForEvent('download'), menuItem('download')]);
+    expect(townFile.suggestedFilename()).toBe('my-town.littlecity');
+    const saved = path.join(SHOTS, 'town-file-test.littlecity');
+    await townFile.saveAs(saved);
+
+    const [card] = await Promise.all([page.waitForEvent('download'), menuItem('postcard')]);
+    expect(card.suggestedFilename()).toBe('little-city-postcard.png');
+    const png = path.join(SHOTS, 'postcard.png');
+    await card.saveAs(png);
+    // A drawn town with a paper border, not an empty canvas.
+    expect(fs.statSync(png).size).toBeGreaterThan(8000);
+
+    // Start over, then open the file: the town is back, as a new history.
+    await menuItem('new');
+    await page.click('[data-menu="new-yes"]');
+    await page.waitForFunction('window.__lc.world().seed !== 11');
+    await page.setInputFiles('[data-ui="town-file"]', saved);
+    await page.waitForFunction('window.__lc.world().seed === 11');
+    expect(await count(page)).toBe(6);
+    expect((await blockAt(page, key(24, 1, 27)))?.kind).toBe('house');
+    expect(await page.isDisabled('[data-ui="undo"]')).toBe(true);
+
+    // A file that is not a town: a plain message, and the town stays.
+    const junk = path.join(SHOTS, 'not-a-town.txt');
+    fs.writeFileSync(junk, 'hello, this is a shopping list');
+    await page.click('[data-ui="menu-button"]');
+    await page.setInputFiles('[data-ui="town-file"]', junk);
+    await page.waitForFunction(`[...document.querySelectorAll('[data-ui="toast"]')].length > 0`);
+    expect(await count(page)).toBe(6);
+    fs.rmSync(saved);
+    fs.rmSync(junk);
+    expect(errors).toEqual([]);
+  });
+
   test('how it looks on a desktop', async () => {
     const { page, errors } = await open(TOWN, { ...DESKTOP, scale: 2 });
     await pick(page, 'house');

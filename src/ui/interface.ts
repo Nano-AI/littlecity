@@ -134,6 +134,7 @@ export function createInterface(host: InterfaceHost): Interface {
     el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, undoButton, redoButton]),
     tray.el,
     menu.el,
+    menu.file,
     feedback.el,
   );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
