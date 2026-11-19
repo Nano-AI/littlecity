@@ -13,7 +13,7 @@ import { DIR4, keyX, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
 import type { MeshData } from '@/gen/mesh';
-import { bubbleMesh, kiteMesh, lineMesh } from '@/parts/people/extras';
+import { bubbleMesh, kiteMesh, lineMesh, TOOL_PIECE, toolMesh, type Tool } from '@/parts/people/extras';
 import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
@@ -36,7 +36,24 @@ interface Drawn {
   bubble: InstanceHandle | null;
   /** A child's kite and its line (L28). */
   kite: { kite: InstanceHandle; line: InstanceHandle } | null;
+  /** What they hold for their work: a broom, a rod, a sack… */
+  tool: { kind: Tool; handle: InstanceHandle } | null;
 }
+
+/** The tool in a person's hands now, from their pose and their job, or null. */
+export function toolOf(p: Person, pose: string): Tool | null {
+  const job = p.work?.job;
+  const atWork = p.mode === 'linger' && p.goal?.haunt?.type === 'workplace';
+  if (pose === 'sweep') return 'broom';
+  if (pose === 'fish') return 'rod';
+  if (pose === 'tend') return 'can';
+  if (job === 'lamplighter' && (p.brisk || atWork)) return pose === 'wave' ? 'reach' : 'pole';
+  if (pose === 'walk' && p.carrying) return job === 'baker' ? 'tray' : 'sack';
+  if (pose === 'carry') return job === 'miller' ? 'sack' : 'tray';
+  return null;
+}
+
+const toolMeshes = new Map<Tool, MeshData>();
 
 interface State {
   crowd: Crowd;
@@ -74,6 +91,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   if (!visible) {
     if (d.shown && d.handles) for (const h of d.handles) h.setVisible(false);
     d.shown = false;
+    d.tool?.handle.release();
+    d.tool = null;
     return;
   }
   if (!d.handles) {
@@ -119,6 +138,18 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
       world[o + 3] = col === 3 ? 1 : 0;
     }
   }
+  // The tool of their trade, in the hand that holds it.
+  const tool = toolOf(p, name);
+  if (d.tool && d.tool.kind !== tool) {
+    d.tool.handle.release();
+    d.tool = null;
+  }
+  if (tool && !d.tool) {
+    let mesh = toolMeshes.get(tool);
+    if (!mesh) toolMeshes.set(tool, (mesh = toolMesh(tool)));
+    d.tool = { kind: tool, handle: stage.spawnMesh(mesh, world.subarray(TOOL_PIECE[tool] * 16, TOOL_PIECE[tool] * 16 + 16)) };
+    d.shown = false; // place it now
+  }
   // A still figure is left alone: nothing moved, so the page need not redraw its shade.
   let same = d.shown;
   for (let i = 0; same && i < 80; i++) same = d.last[i] === world[i];
@@ -129,6 +160,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   if (same) return;
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
+  if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
 }
 
 export default defineSystem<State>({
@@ -174,7 +206,7 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null });
         },
         removed(p) {
           const d = drawn.get(p);
@@ -182,6 +214,7 @@ export default defineSystem<State>({
           d?.bubble?.release();
           d?.kite?.kite.release();
           d?.kite?.line.release();
+          d?.tool?.handle.release();
           drawn.delete(p);
         },
       },
@@ -279,6 +312,7 @@ export default defineSystem<State>({
       d.bubble?.release();
       d.kite?.kite.release();
       d.kite?.line.release();
+      d.tool?.handle.release();
     }
     state.drawn.clear();
   },
