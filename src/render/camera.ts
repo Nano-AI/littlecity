@@ -15,8 +15,14 @@ export const PITCH_MAX = 85;
 export const ZOOM_MAX = 14;
 /** How far the camera sits from its target. Only the clip planes depend on it. */
 export const CAMERA_DISTANCE = 200;
-export const CAMERA_NEAR = 1;
-export const CAMERA_FAR = 520;
+/**
+ * The clip planes keep to what can be drawn: anything within 130 units of the target. From any legal
+ * target that is the whole map, the paper under it and the clouds drifting in from off the page
+ * (camera.test.ts checks it). The tighter the range, the finer the depth buffer's steps; the coplanar
+ * tie-break in the surface shader is counted in those steps (index.ts, Z_STEP).
+ */
+export const CAMERA_NEAR = CAMERA_DISTANCE - 130;
+export const CAMERA_FAR = CAMERA_DISTANCE + 130;
 /** The target may leave the map by this many columns, so the slab's edge can be centred. */
 const TARGET_MARGIN = 3;
 /** Higher is snappier. The shown pose covers 1 − e^(−RATE × dt) of the gap each frame. */

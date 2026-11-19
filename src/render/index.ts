@@ -88,6 +88,16 @@ function geometryStyleKey(): string {
   return JSON.stringify(allStyles().filter((m) => !PAGE_STYLES.has(m.name)).map((m) => [m.name, m.values]));
 }
 
+/**
+ * The coplanar tie-break (shaders/surface.ts): each ink id is drawn 0 to 23 of these nearer the eye,
+ * in clip-space depth. One and a half steps of the 24-bit depth buffer (2.3e-5 units over the
+ * camera's range): more than the rounding that makes two surfaces in one plane fight, so of two such
+ * surfaces the same one wins every frame, unless their ids land on the same level (1 in 24). The
+ * largest nudge, 5.3e-4 units, is less than the depth between a detail and the face it sits on for
+ * every gap parts leave on purpose (0.004 and up at any pitch; 0.002 from 16 degrees up; the odd
+ * 0.001, from 32 degrees up or when the two levels are close).
+ */
+const Z_STEP = 1.5 * (2 / 2 ** 24);
 /** The wind texture covers the map plus this margin, at this many texels a side. */
 const WIND_MARGIN = 8;
 const WIND_TEXELS = 16;
@@ -202,6 +212,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uWind: { value: windTex as THREE.Texture },
     uTime: { value: 0 },
     uSway: { value: 0 },
+    uZStep: { value: Z_STEP },
     uLight: { value: new THREE.Vector3(...LIGHT) },
     uPx: { value: 1 },
     uCss: { value: 1 },

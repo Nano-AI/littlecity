@@ -45,6 +45,7 @@ uniform sampler2D uSlots;
 uniform sampler2D uWind;
 uniform float uTime;
 uniform float uSway;
+uniform float uZStep;     // the coplanar tie-break: one level, in clip-space depth
 
 out vec3 vW;
 out vec3 vN;
@@ -112,6 +113,11 @@ void main(){
   float id = ink.x;
   vId = vec2(floor(id / 256.0), mod(id, 256.0)) / 255.0;
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  // Two surfaces in the same plane (a coping flush with a wall top, a floor laid on a terrace) would
+  // otherwise trade pixels as the view turns, and where their ink ids differ every traded pixel draws
+  // a seam: a scribble that flickers over the face. Each ink id is nudged toward the eye by its own
+  // few depth steps (index.ts, Z_STEP), so one of the two always wins, whichever way the camera looks.
+  gl_Position.z -= floor(fract(id * 0.6180339) * 24.0) * uZStep * gl_Position.w;
 }
 `;
 
