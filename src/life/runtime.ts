@@ -15,6 +15,13 @@
 // `changed` is called when the content hash differs; `dispose` when the
 // place is gone. Between an edit and its dressing nothing is torn down.
 //
+// WHAT KEEPS A POSE. Whenever dressing arrives the renderer puts every item
+// back at its resting frame and shows it. A behaviour that poses on twos
+// would leave its sails or its boat at rest for a few frames after every
+// edit. So a behaviour never holds the renderer's handle: `ctx.instance` is
+// a stand-in that remembers the last matrix, visibility and params the
+// behaviour set, and the runtime puts them back at once after every sync.
+//
 // WHAT KEEPS IT CHEAP. Nothing here allocates per frame: one loop over the
 // systems, one over the running behaviours. A few hundred behaviours cost a
 // few hundred plain function calls. Behaviours pose "on twos" (motion/twos.ts)
@@ -50,6 +57,42 @@ export interface LifeOptions {
 export interface Life extends LifeRuntime {
   /** How many behaviours and systems are running now. */
   readonly counts: { behaviours: number; systems: number };
+}
+
+/** The handle a behaviour holds: it outlives the renderer's own, and remembers what was set. */
+class Posed implements InstanceHandle {
+  real: InstanceHandle;
+  private m: number[] | null = null;
+  private visible: boolean | null = null;
+  private params: [number, number, number, number] | null = null;
+
+  constructor(real: InstanceHandle) {
+    this.real = real;
+  }
+  get base(): InstanceHandle['base'] {
+    return this.real.base;
+  }
+  setMatrix(m: ArrayLike<number>): void {
+    const mine = (this.m ??= new Array<number>(16));
+    for (let i = 0; i < 16; i++) mine[i] = m[i]!;
+    this.real.setMatrix(m);
+  }
+  setVisible(v: boolean): void {
+    this.visible = v;
+    this.real.setVisible(v);
+  }
+  setParams(a: number, b = 0, c = 0, d = 0): void {
+    this.params = [a, b, c, d];
+    this.real.setParams(a, b, c, d);
+  }
+  release(): void {}
+  /** The renderer has a fresh (or reset) instance for the item: put the behaviour's pose back on it. */
+  rebind(real: InstanceHandle): void {
+    this.real = real;
+    if (this.m) real.setMatrix(this.m);
+    if (this.visible !== null) real.setVisible(this.visible);
+    if (this.params) real.setParams(...this.params);
+  }
 }
 
 interface Running {
@@ -113,13 +156,13 @@ export function createLife(stage: LifeStage, signals: Signals, opts: LifeOptions
       // Two items of one type on one socket: the second keeps its own state under its own id.
       if (seen.has(k)) k = `${category}:${item.id}`;
       seen.add(k);
-      const instance = stage.instance(item.id) ?? NO_INSTANCE;
+      const real = stage.instance(item.id) ?? NO_INSTANCE;
       const old = running.get(k);
       if (old && old.behaviour === behaviour) {
         old.ctx.item = item;
         old.ctx.shape = next.shape;
         old.ctx.dressing = dressing;
-        old.ctx.instance = instance;
+        (old.ctx.instance as Posed).rebind(real);
         old.itemId = item.id;
         if (old.hash !== item.hash) {
           old.hash = item.hash;
@@ -140,7 +183,7 @@ export function createLife(stage: LifeStage, signals: Signals, opts: LifeOptions
         rand: (...p) => rand(seed, ...p),
         shape: next.shape,
         dressing,
-        instance,
+        instance: new Posed(real),
         stage,
       };
       try {

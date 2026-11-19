@@ -24,9 +24,9 @@ export default definePart({
     const variant = item.variant ?? 'smoke';
     const look = Math.abs(Math.round(item.params?.look ?? 0)) % LOBES.length;
     b.setColor(variant === 'dust' ? PALETTE.path : PALETTE.white).setInk('puff');
-    const coarse = variant !== 'smoke';
-    ball(b, 0, 0, 0, 0.4, 0.37, 0.4, coarse ? 8 : 10, coarse ? 4 : 6);
-    for (const [x, y, z, r] of LOBES[look]!) ball(b, x, y, z, r, r * 0.92, r, coarse ? 6 : 8, 4);
+    // Coarse on purpose: a big town has several hundred puffs in the air, and the pen line does the drawing.
+    ball(b, 0, 0, 0, 0.4, 0.37, 0.4, 8, 4);
+    for (const [x, y, z, r] of LOBES[look]!) ball(b, x, y, z, r, r * 0.92, r, 6, 3);
     return { mesh: b.build(), animated: true };
   },
 });

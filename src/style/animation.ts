@@ -97,15 +97,15 @@ export const WINDY = defineStyle(
   {
     // L02 smoke.
     /** Puffs alive over one chimney by day, and at dawn and dusk (the stove is lit). */
-    smokePuffs: 3,
-    smokePuffsBusy: 5,
+    smokePuffs: 4,
+    smokePuffsBusy: 6,
     /** Seconds a puff lives. */
     smokeLife: 3.6,
-    smokeRise: 0.85,
+    smokeRise: 0.8,
     /** How far a puff has drifted downwind by the end of its life, per unit of wind strength. */
-    smokeLean: 0.9,
-    smokeSize: 0.085,
-    smokeGrow: 1.9,
+    smokeLean: 0.6,
+    smokeSize: 0.12,
+    smokeGrow: 2.3,
     // L03 sails.
     /** Radians a second at wind strength 1; a mill in calm air still creeps at sailIdle. */
     sailSpeed: 1.9,

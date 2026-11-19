@@ -81,6 +81,7 @@ const DUST: SpawnSpec[] = [0, 1, 2, 3].map((look) => ({ actor: 'puff', variant: 
 const POPS: SpawnSpec[] = [0, 1, 2, 3].map((look) => ({ actor: 'puff', variant: 'pop', params: { look } }));
 const SPARKLES: SpawnSpec[] = [0, 1].map((look) => ({ actor: 'sparkle', params: { look } }));
 const TAU = Math.PI * 2;
+const REST: Mat4 = identity();
 
 // ─────────────────────────────────────────────────────── the curves ──
 
@@ -146,6 +147,8 @@ function poseAct(a: Act): void {
 }
 
 function finish(state: State, stage: LifeStage, a: Act): void {
+  // Back exactly at rest before it is let go: someone else may still hold the lift (dusk/windows).
+  if (a.kind !== 'vanish') a.handle.setMatrix(REST);
   a.handle.release();
   if (state.byStructure.get(a.structure) === a) {
     state.byStructure.delete(a.structure);
