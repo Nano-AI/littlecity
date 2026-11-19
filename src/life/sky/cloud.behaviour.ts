@@ -1,6 +1,7 @@
 // L31: clouds drift over the paper with the wind. A cloud is a few lobes of
-// mist, edged with a soft graphite line by the page, high over the island;
-// under it a soft cool shadow slides across whatever it passes. It goes
+// mist, edged with a soft graphite line by the page, seen over the paper
+// round the map (it thins away over the map itself, so it never washes out
+// the town); its soft cool shadow slides across the island. It goes
 // with the wind where it is (faster in a gust) and, once it has drifted off
 // the paper, comes back in from the far side upwind. The actor is the first
 // lobe; it spawns the rest and the shadow.
@@ -69,10 +70,15 @@ export default defineBehaviour({
     // The cloud lies along the wind.
     const c = wind.dirX, s = wind.dirZ;
     const night = signals.time.isNight ? 0.45 : 1;
+    // A cloud is seen over the paper round the map, never laid over the town itself (it would wash
+    // out the very thing being built): it thins away as it drifts in over the map, and its shadow
+    // crosses the island instead.
+    const outside = Math.max(Math.max(-state.x, state.x - SIZE_X), Math.max(-state.z, state.z - SIZE_Z));
+    const seen = Math.min(1, Math.max(0, (outside + 2) / 8));
     for (const l of state.lobes) {
       const wx = state.x + l.dx * c - l.dz * s, wz = state.z + l.dx * s + l.dz * c;
       l.handle.setMatrix(compose(translation(wx, state.y + l.dy, wz), scaling(l.size, l.size * 0.7, l.size)));
-      l.handle.setParams(0.42 * night, l.dx, 1, 0);
+      l.handle.setParams(0.42 * night * seen, l.dx, 1, 0);
     }
     const r = state.radius;
     state.shadow.setMatrix(compose(translation(state.x, 0.9, state.z), scaling(r, 1, r)));

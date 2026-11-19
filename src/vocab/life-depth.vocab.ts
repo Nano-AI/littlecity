@@ -41,6 +41,17 @@ declare module '@/core/vocab' {
     'balloon': true;
     'balloon.look': number;
 
+    // L14 sparrows and L15 characters: small birds that perch, hop, circle or paddle.
+    'small-bird': true;
+    'small-bird/sparrow': true; //  L14, on a street
+    'small-bird/dove': true; //     L15, at a dovecote's perch
+    'small-bird/stork': true; //    L15, on its nest on a tower's tip
+    'small-bird/owl': true; //      L15, at night, on the tallest tree or the observatory
+    'small-bird/crow': true; //     L15, on the scarecrow
+    'small-bird/duck': true; //     L15, on sheltered water, with ducklings
+    'small-bird/duckling': true; // spawned by the duck
+    'small-bird.height': number; // how high over its anchor it perches, world units
+
     // L29. Mechanisms at the sockets their generators already declare.
     'bell': true; //                at a belfry's 'bell' socket: the pivot under the beam
     'clock-hands': true; //         at a 'clock-hands' socket; the actor is the hour hand
