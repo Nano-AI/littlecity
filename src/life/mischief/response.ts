@@ -46,6 +46,8 @@ export const RESPONSE = {
   /** Water a hose puts on a fire, and a bucket (intensity per second, per thrower). */
   hose: 0.32,
   bucket: 0.22,
+  /** How far (grid steps) the cart's suction hose reaches from where it is set down to the water. */
+  suction: 6,
   /** Brigades at work at once, at most. */
   brigades: 2,
   /** Hands: a bucket chain at most this long; onlookers at most. */
@@ -62,18 +64,48 @@ export const RESPONSE = {
 
 export interface Brigade {
   structure: StructureId;
-  /** Where the water comes from (a well's or the shore's cell middle) and where the cart stands. */
+  /** Where the water comes from (a well's or the shore's cell middle). */
   water: { x: number; y: number; z: number };
-  cart: { x: number; y: number; z: number; face: number } | null;
-  pumper: Person | null;
-  nozzles: Person[];
   buckets: Person[];
-  /** The cell each nozzle and the chain's last hand are aiming at (a burning block), by person. */
+  /** The cell the chain's last hand is aiming at (a burning block), by person. */
   aim: Map<Person, CellKey>;
+}
+
+type At = { x: number; y: number; z: number };
+
+/**
+ * The town's pump cart (one per town, kept by its main well or fountain, in plain sight). At a fire two
+ * hands run to it, wheel it through the streets to near the fire and set it down; the suction hose is
+ * dropped into the water; one takes the nozzle and walks to the fire, the hose paying out behind him on
+ * the ground along the way he walked; the other works the pump; only then does water come. When the fire
+ * is out the hose is walked back in and the cart is wheeled home. Nothing appears or goes from nowhere.
+ */
+export interface PumpCart {
+  /** Where it is kept, and the walking cell there. */
+  home: At & { face: number; cell: CellKey };
+  /** Where it is now, and which way its shafts point. */
+  at: At & { face: number };
+  state: 'home' | 'muster' | 'wheel' | 'lay' | 'work' | 'reel' | 'return';
+  structure: StructureId | null;
+  pumper: Person | null;
+  nozzle: Person | null;
+  /** The cell it is set down in near the fire. */
+  dest: CellKey | null;
+  /** The water the suction hose goes to, and how far it has been let out (0 on the reel, 1 in the water). */
+  water: At | null;
+  suction: number;
+  /** The delivery hose as laid: from the cart, along the ground the nozzle man walked. */
+  hose: At[];
+  /** The pump is being worked and the nozzle is in place: water flows. */
+  flowing: boolean;
+  /** The burning block the jet is aimed at. */
+  aim: CellKey | null;
 }
 
 export interface FireChain extends Chain {
   readonly brigades: ReadonlyMap<StructureId, Brigade>;
+  /** The town's pump cart, or null if the town has nowhere to keep one (only buckets, then). */
+  readonly pump: PumpCart | null;
 }
 
 type DirectorOf = (board: Board) => Director | null;
@@ -212,6 +244,8 @@ export function fireChain(given?: Director): FireChain {
   /** A brigade for an incident, if there is water within reach and hands to spare. */
   const formBrigade = (board: Board, inc: Incident): void => {
     const sid = inc.structure;
+    // The cart is on its way (or free to come): a bucket chain at the same water would only crowd it.
+    if (pump && (pump.state === 'home' || pump.structure === sid)) return;
     const hot = inc.cells;
     const fire = hot[0]!;
     const fireAt = middle(board, fire);
@@ -223,57 +257,237 @@ export function fireChain(given?: Director): FireChain {
     if (src) {
       const ring = ringAround(board, hot, RESPONSE.near, RESPONSE.far).filter((c) => !tooHot(c, hot));
       const w = middle(board, src.w);
-      // The cart parks on the ring cell nearest the water; the hoses go to two other ring cells.
       const byWater = [...ring].sort((a, b) => board.dist(a, src.w) - board.dist(b, src.w) || a - b);
-      const cartCell = byWater[0];
-      if (cartCell !== undefined) {
-        const brigade: Brigade = { structure: sid, water: w, cart: null, pumper: null, nozzles: [], buckets: [], aim: new Map() };
-        const cartAt = middle(board, cartCell);
-        const crew = hands(board, src.w, 3 + Math.min(3, Math.floor(hot.length / 2)), (p) => p.home === sid);
-        const pumper = crew.shift();
-        if (pumper && reaches(board, pumper, cartCell)) {
-          brigade.pumper = pumper;
-          brigade.cart = { ...cartAt, face: facing(cartAt, fireAt) };
-          // To the water, take up the cart (drawn as theirs while it is on the move), then wheel it to the fire.
-          board.assign(pumper, plan(board, [
-            board.stepAt(src.w, { spot: null, face: NaN, pose: 'tend', linger: 0.8, brisk: true, tag: 'fire:fetch-pump' }),
-            board.stepAt(cartCell, { spot: { x: cartAt.x, z: cartAt.z }, face: facing(cartAt, fireAt), pose: 'shake', linger: 1e6, brisk: true, load: 'cart', tag: 'fire:pump', done: (q) => void (q.load = null) }),
-          ]));
-          inc.people.set(pumper, 'pump');
-        }
-        const spots = ring.filter((c) => c !== cartCell);
-        for (const p of crew.splice(0, 2)) {
-          const to = spots.shift();
-          if (to === undefined || !reaches(board, p, to)) continue;
-          const at = middle(board, to);
-          board.assign(p, plan(board, [board.stepAt(to, { spot: { x: at.x, z: at.z }, face: facing(at, fireAt), pose: 'fish', linger: 1e6, brisk: true, tag: 'fire:hose' })]));
-          brigade.nozzles.push(p);
-          inc.people.set(p, 'nozzle');
-        }
-        // The bucket chain: along the line from the water to the nearest ring cell, a hand every 0.7.
-        const end = byWater[0]!;
-        const e = middle(board, end);
-        const len = Math.hypot(e.x - w.x, e.z - w.z);
-        const n = Math.min(RESPONSE.chain, Math.max(2, Math.round(len / 0.75)));
-        const line = hands(board, src.w, n, (p) => p.home === sid);
-        line.forEach((p, i) => {
-          const t = n === 1 ? 1 : i / (n - 1);
-          const x = w.x + (e.x - w.x) * (0.12 + 0.82 * t) + (i % 2 ? 0.15 : -0.15) * ((e.z - w.z) / (len || 1));
-          const z = w.z + (e.z - w.z) * (0.12 + 0.82 * t) - (i % 2 ? 0.15 : -0.15) * ((e.x - w.x) / (len || 1));
-          const cell = key(Math.floor(x), keyY(end), Math.floor(z));
-          const nav = board.nav;
-          const stand = nav?.nodeAt.has(cell) && !tooHot(cell, hot) ? cell : (i < n / 2 ? src.w : end);
-          if (!reaches(board, p, stand)) return;
-          const next = i + 1 < n ? { x: w.x + (e.x - w.x) * (0.12 + 0.82 * ((i + 1) / (n - 1))), z: w.z + (e.z - w.z) * (0.12 + 0.82 * ((i + 1) / (n - 1))) } : fireAt;
-          board.assign(p, plan(board, [board.stepAt(stand, { spot: { x, z }, face: facing({ x, z }, next), pose: 'carry', linger: 1e6, brisk: true, load: i === 0 ? 'bucket' : null, tag: 'fire:bucket' })]));
-          brigade.buckets.push(p);
-          inc.people.set(p, 'bucket');
-        });
-        if (brigade.pumper || brigade.nozzles.length > 0 || brigade.buckets.length > 0) {
-          inc.brigade = brigade;
-          brigades.set(sid, brigade);
-        }
+      const end = byWater[0];
+      if (end === undefined) return;
+      const brigade: Brigade = { structure: sid, water: w, buckets: [], aim: new Map() };
+      // The bucket chain: along the line from the water to the nearest ring cell, a hand every 0.75.
+      const e = middle(board, end);
+      const len = Math.hypot(e.x - w.x, e.z - w.z);
+      const n = Math.min(RESPONSE.chain, Math.max(2, Math.round(len / 0.75)));
+      const line = hands(board, src.w, n, (p) => p.home === sid);
+      line.forEach((p, i) => {
+        const t = n === 1 ? 1 : i / (n - 1);
+        const x = w.x + (e.x - w.x) * (0.12 + 0.82 * t) + (i % 2 ? 0.15 : -0.15) * ((e.z - w.z) / (len || 1));
+        const z = w.z + (e.z - w.z) * (0.12 + 0.82 * t) - (i % 2 ? 0.15 : -0.15) * ((e.x - w.x) / (len || 1));
+        const cell = key(Math.floor(x), keyY(end), Math.floor(z));
+        const nav = board.nav;
+        const stand = nav?.nodeAt.has(cell) && !tooHot(cell, hot) ? cell : i < n / 2 ? src.w : end;
+        if (!reaches(board, p, stand)) return;
+        const next = i + 1 < n ? { x: w.x + (e.x - w.x) * (0.12 + 0.82 * ((i + 1) / (n - 1))), z: w.z + (e.z - w.z) * (0.12 + 0.82 * ((i + 1) / (n - 1))) } : fireAt;
+        board.assign(p, plan(board, [board.stepAt(stand, { spot: { x, z }, face: facing({ x, z }, next), pose: 'carry', linger: 1e6, brisk: true, load: i === 0 ? 'bucket' : null, tag: 'fire:bucket' })]));
+        brigade.buckets.push(p);
+        inc.people.set(p, 'bucket');
+      });
+      if (brigade.buckets.length > 0) {
+        inc.brigade = brigade;
+        brigades.set(sid, brigade);
       }
+    }
+  };
+
+  // ── the pump cart ─────────────────────────────────────────────────────────
+  let pump: PumpCart | null = null;
+
+  /** Where the town keeps its cart: beside the well or fountain with the most of the town round it. */
+  const cartHome = (board: Board): PumpCart['home'] | null => {
+    const shape = board.shape;
+    if (!shape || !board.nav) return null;
+    const posts = [...board.posts('water'), ...board.posts('activity').filter((p) => p.role === 'fetch-water')].filter((p) => board.nav!.nodeAt.has(p.cell));
+    if (posts.length === 0) return null;
+    const houses: CellKey[] = [];
+    for (const [cell, k] of shape.kinds) if (k === 'house' && keyY(cell) <= 3) houses.push(cell);
+    const score = (c: CellKey): number => houses.filter((h) => Math.abs(keyX(h) - keyX(c)) + Math.abs(keyZ(h) - keyZ(c)) <= 8).length;
+    const best = [...posts].sort((a, b) => score(b.cell) - score(a.cell) || a.cell - b.cell)[0]!;
+    const c = middle(board, best.cell);
+    const [dx, dz] = best.dir !== undefined ? DIR4[best.dir]! : [0, 1];
+    // Beside the well, a little to one side, shafts out.
+    const x = c.x - dz * 0.32 - dx * 0.12, z = c.z + dx * 0.32 - dz * 0.12;
+    return { x, y: c.y, z, face: Math.atan2(-dx, -dz), cell: best.cell };
+  };
+
+  /** Two hands for the cart: free grown-ups nearest it. */
+  const cartHands = (board: Board, near: CellKey): Person[] => hands(board, near, 2, () => false);
+
+  /** To the cart: the first hand to its shafts, the second to its side. */
+  const toCart = (board: Board, p: Person, cart: PumpCart, tag: string, side = 0, linger = 1e6): void => {
+    const cell = key(Math.floor(cart.at.x), keyY(cart.home.cell), Math.floor(cart.at.z));
+    const at = board.nav?.nodeAt.has(cell) ? cell : cart.dest ?? cart.home.cell;
+    const f = cart.at.face;
+    const spot = side === 0
+      ? { x: cart.at.x - Math.sin(f) * 0.32, z: cart.at.z - Math.cos(f) * 0.32 }
+      : { x: cart.at.x + Math.cos(f) * 0.3, z: cart.at.z - Math.sin(f) * 0.3 };
+    board.assign(p, plan(board, [board.stepAt(at, { spot, face: f, pose: 'tend', linger, brisk: true, tag })]));
+  };
+
+  const lingering = (p: Person | null, tag: string): boolean => !!p && p.mode === 'linger' && tagOf(p) === tag;
+  /** Someone the cart is waiting on has gone off (called away, gone home): the plan fell through. */
+  const lost = (board: Board, p: Person | null): boolean => !p || p.mode === 'gone' || (!board.plans.has(p) && !tagOf(p).startsWith('fire:'));
+
+  const stepPump = (board: Board, d: Director, dt: number): void => {
+    const cart = pump;
+    if (!cart) return;
+    const burning = (sid: StructureId | null): CellKey[] => (sid === null ? [] : incidents.get(sid)?.cells ?? []);
+    // The cart follows whoever wheels it: just ahead of them, shafts toward them.
+    const follow = (p: Person): void => {
+      cart.at = { x: p.x + Math.sin(p.heading) * 0.34, y: p.y, z: p.z + Math.cos(p.heading) * 0.34, face: p.heading + Math.PI };
+    };
+    switch (cart.state) {
+      case 'home': {
+        // A fire with no cart yet (the oldest first).
+        const inc = [...incidents.values()].sort((a, b) => a.started - b.started || a.structure - b.structure)[0];
+        if (!inc) return;
+        const crew = cartHands(board, cart.home.cell);
+        if (crew.length < 2) return;
+        cart.structure = inc.structure;
+        cart.pumper = crew[0]!;
+        cart.nozzle = crew[1]!;
+        toCart(board, cart.pumper, cart, 'fire:muster', 0);
+        toCart(board, cart.nozzle, cart, 'fire:muster', 1);
+        cart.state = 'muster';
+        return;
+      }
+      case 'muster': {
+        const hot = burning(cart.structure);
+        if (hot.length === 0 || lost(board, cart.pumper) || lost(board, cart.nozzle)) return backHome(board);
+        if (!lingering(cart.pumper, 'fire:muster') || !lingering(cart.nozzle, 'fire:muster')) return;
+        // Where to set it down: near the fire, on the side nearest water.
+        const src = water.filter((w) => !tooHot(w, hot)).sort((a, b) => board.dist(a, hot[0]!) - board.dist(b, hot[0]!) || a - b)[0];
+        const ring = ringAround(board, hot, RESPONSE.near + 0.6, RESPONSE.far + 1).filter((c) => reaches(board, cart.pumper!, c));
+        // As close to the fire as is safe, so long as the suction hose reaches the water from there.
+        const dest = src === undefined
+          ? undefined
+          : [...ring].filter((c) => board.dist(c, src) <= RESPONSE.suction).sort((a, b) => nearestTo(a, hot).d - nearestTo(b, hot).d || board.dist(a, src) - board.dist(b, src) || a - b)[0];
+        if (dest === undefined || src === undefined) return backHome(board);
+        cart.dest = dest;
+        cart.water = middle(board, src);
+        const at = middle(board, dest);
+        const fireAt = middle(board, hot[0]!);
+        board.assign(cart.pumper!, plan(board, [board.stepAt(dest, { spot: { x: at.x, z: at.z }, face: facing(at, fireAt), pose: 'shake', linger: 1e6, tag: 'fire:pump' })]));
+        // The other walks along beside the cart.
+        board.assign(cart.nozzle!, plan(board, [board.stepAt(dest, { spot: { x: at.x + 0.25, z: at.z - 0.2 }, face: facing(at, fireAt), pose: 'stand', linger: 1e6, tag: 'fire:beside' })]));
+        cart.state = 'wheel';
+        return;
+      }
+      case 'wheel': {
+        if (lost(board, cart.pumper)) return backHome(board);
+        follow(cart.pumper!);
+        if (!lingering(cart.pumper, 'fire:pump')) return;
+        // Set down; the suction hose goes into the water; the nozzle man takes the hose to the fire.
+        cart.hose = [{ x: cart.at.x, y: cart.at.y + 0.02, z: cart.at.z }];
+        const hot = burning(cart.structure);
+        if (hot.length === 0 || lost(board, cart.nozzle)) return reel(board);
+        const ring = ringAround(board, hot, RESPONSE.near, RESPONSE.far).filter((c) => c !== cart.dest && reaches(board, cart.nozzle!, c));
+        const to = [...ring].sort((a, b) => board.dist(a, cart.dest!) - board.dist(b, cart.dest!) || a - b)[0];
+        if (to === undefined) return reel(board);
+        const at = middle(board, to);
+        const fireAt = middle(board, hot[0]!);
+        // He takes the hose off the reel at the cart, then walks it out to the fire.
+        const c = middle(board, cart.dest!);
+        board.assign(cart.nozzle!, plan(board, [
+          board.stepAt(cart.dest!, { spot: { x: cart.at.x + Math.cos(cart.at.face) * 0.28, z: cart.at.z - Math.sin(cart.at.face) * 0.28 }, face: facing(c, fireAt), pose: 'tend', linger: 0.7, brisk: true, tag: 'fire:take-hose' }),
+          board.stepAt(to, { spot: { x: at.x, z: at.z }, face: facing(at, fireAt), pose: 'fish', linger: 1e6, tag: 'fire:hose' }),
+        ]));
+        cart.state = 'lay';
+        return;
+      }
+      case 'lay':
+      case 'work': {
+        cart.suction = Math.min(1, cart.suction + dt / 1.5);
+        const n = cart.nozzle;
+        if (lost(board, n) || lost(board, cart.pumper)) return reel(board);
+        // The hose pays out behind him along the ground, from when he has taken it up at the cart.
+        const last = cart.hose[cart.hose.length - 1]!;
+        if (tagOf(n!) === 'fire:hose' && Math.hypot(n!.x - last.x, n!.z - last.z) > 0.18) cart.hose.push({ x: n!.x, y: n!.y + 0.02, z: n!.z });
+        const hot = burning(cart.structure);
+        if (hot.length === 0) return reel(board);
+        if (cart.state === 'lay' && lingering(n, 'fire:hose')) cart.state = 'work';
+        cart.aim = nearestTo(n!.cell, hot).block;
+        cart.flowing = cart.state === 'work' && cart.suction >= 1 && lingering(cart.pumper, 'fire:pump');
+        if (cart.flowing) d.engine.douse(cart.aim, RESPONSE.hose * 1.6 * dt);
+        return;
+      }
+      case 'reel': {
+        cart.flowing = false;
+        cart.aim = null;
+        const n = cart.nozzle;
+        // The hose is walked back in: it ends where he is now, along the way it was laid.
+        if (n && !lost(board, n) && cart.hose.length > 1) {
+          while (cart.hose.length > 1) {
+            const end = cart.hose[cart.hose.length - 1]!;
+            const before = cart.hose[cart.hose.length - 2]!;
+            if (Math.hypot(n.x - before.x, n.z - before.z) < Math.hypot(end.x - before.x, end.z - before.z) - 0.02 || Math.hypot(n.x - end.x, n.z - end.z) < 0.12) cart.hose.pop();
+            else break;
+          }
+        }
+        if (n && !lost(board, n) && !lingering(n, 'fire:reeled')) return;
+        cart.hose = [];
+        cart.suction = Math.max(0, cart.suction - dt / 1.5);
+        if (cart.suction > 0) return;
+        // Wheeled home.
+        const p = lost(board, cart.pumper) ? cartHands(board, cart.dest ?? cart.home.cell)[0] : cart.pumper;
+        if (!p) return;
+        cart.pumper = p;
+        const h = cart.home;
+        if (tagOf(p) !== 'fire:park') {
+          const cell = key(Math.floor(cart.at.x), keyY(h.cell), Math.floor(cart.at.z));
+          const pick = board.nav?.nodeAt.has(cell) ? cell : (cart.dest ?? h.cell);
+          board.assign(p, plan(board, [
+            board.stepAt(pick, { spot: { x: cart.at.x - Math.sin(cart.at.face) * 0.3, z: cart.at.z - Math.cos(cart.at.face) * 0.3 }, face: cart.at.face, pose: 'tend', linger: 0.5, brisk: true, tag: 'fire:take' }),
+            board.stepAt(h.cell, { spot: { x: h.x - Math.sin(h.face) * 0.34, z: h.z - Math.cos(h.face) * 0.34 }, face: h.face, pose: 'tend', linger: 1.2, tag: 'fire:park' }),
+          ]));
+        }
+        if (n && !lost(board, n) && board.plans.get(n)?.chain === chain) sendHome(board, n);
+        cart.nozzle = null;
+        cart.state = 'return';
+        return;
+      }
+      case 'return': {
+        const p = cart.pumper;
+        if (!p || lost(board, p)) {
+          cart.pumper = null;
+          cart.state = 'reel';
+          return;
+        }
+        if (tagOf(p) === 'fire:park') {
+          if (p.mode === 'linger') {
+            cart.at = { x: cart.home.x, y: cart.home.y, z: cart.home.z, face: cart.home.face };
+            sendHome(board, p);
+            cart.pumper = null;
+            cart.structure = null;
+            cart.dest = null;
+            cart.water = null;
+            cart.state = 'home';
+          } else follow(p);
+        }
+        return;
+      }
+    }
+  };
+
+  /** The fire is out (or they cannot get there): the nozzle man walks the hose back to the cart. */
+  const reel = (board: Board): void => {
+    const cart = pump!;
+    cart.flowing = false;
+    cart.state = 'reel';
+    const n = cart.nozzle;
+    if (n && !lost(board, n) && cart.dest !== null) {
+      const c = middle(board, cart.dest);
+      board.assign(n, plan(board, [board.stepAt(cart.dest, { spot: { x: c.x + 0.25, z: c.z - 0.2 }, face: cart.at.face, pose: 'tend', linger: 1e6, tag: 'fire:reeled' })]));
+    }
+  };
+
+  /** Nothing to do with the cart after all: everyone goes home and it stays (or is wheeled back) home. */
+  const backHome = (board: Board): void => {
+    const cart = pump!;
+    for (const p of [cart.pumper, cart.nozzle]) if (p && !lost(board, p)) sendHome(board, p);
+    cart.pumper = cart.nozzle = null;
+    cart.structure = null;
+    if (Math.hypot(cart.at.x - cart.home.x, cart.at.z - cart.home.z) < 0.05) cart.state = 'home';
+    else {
+      cart.nozzle = null;
+      cart.hose = [];
+      cart.state = 'reel';
     }
   };
 
@@ -350,10 +564,23 @@ export function fireChain(given?: Director): FireChain {
   const chain: FireChain = {
     id: 'mischief.fire',
     brigades,
+    get pump() {
+      return pump;
+    },
     sync(board) {
       water = waterCells(board);
+      const home = cartHome(board);
+      if (!home) pump = null;
+      else if (!pump) pump = { home, at: { x: home.x, y: home.y, z: home.z, face: home.face }, state: 'home', structure: null, pumper: null, nozzle: null, dest: null, water: null, suction: 0, hose: [], flowing: false, aim: null };
+      else if (pump.state === 'home') {
+        pump.home = home;
+        pump.at = { x: home.x, y: home.y, z: home.z, face: home.face };
+      }
       const d = dir(board);
-      if (d) d.brigades = brigades;
+      if (d) {
+        d.brigades = brigades;
+        d.pump = pump;
+      }
       if (d && d !== offOn) {
         off?.();
         offOn = d;
@@ -403,21 +630,13 @@ export function fireChain(given?: Director): FireChain {
         }
         for (const inc of [...incidents.values()]) if (!now.has(inc.structure)) finish(board, inc);
       }
-      // Water on the fire: hoses play on the nearest burning block; the chain's last hand throws a bucket now and then.
+      // The pump cart goes about its work.
+      d.pump = pump;
+      stepPump(board, d, dt);
+      // Water on the fire: the chain's last hand throws a bucket now and then.
       for (const inc of incidents.values()) {
         const b = inc.brigade;
         if (!b || inc.cells.length === 0) continue;
-        for (const p of b.nozzles) {
-          if (!atWork(board, p)) {
-            b.aim.delete(p);
-            continue;
-          }
-          const target = nearestTo(p.cell, inc.cells).block;
-          b.aim.set(p, target);
-          // The hose needs the pump going.
-          if (b.pumper && atWork(board, p) && atWork(board, b.pumper)) d.engine.douse(target, RESPONSE.hose * dt);
-          else if (!b.pumper) d.engine.douse(target, RESPONSE.hose * 0.5 * dt);
-        }
         const last = b.buckets[b.buckets.length - 1];
         const ready = b.buckets.length > 0 && b.buckets.every((p) => atWork(board, p));
         if (last && ready) {

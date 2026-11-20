@@ -46,6 +46,32 @@ const squareTown = townOf((b) => {
   for (let i = 0; i < 4; i++) b.house(8, 13 + i * 2, { floors: 1, color: i + 4 });
 });
 
+describe('the pump cart', () => {
+  test('kept by the fountain, wheeled to the fire, hose laid and water on, then wound in and wheeled home', () => {
+    const states = new Set<string>();
+    let home: { x: number; z: number } | null = null;
+    let laid = 0;
+    const r = run(squareTown, {
+      seconds: 150,
+      brigade: true,
+      light: key(15, 1, 12),
+      every: (_t, _d, fire) => {
+        const pump = fire.pump!;
+        home ??= { x: pump.at.x, z: pump.at.z };
+        states.add(pump.state);
+        laid = Math.max(laid, pump.hose.length);
+      },
+    });
+    const pump = r.fire.pump!;
+    expect([...states]).toEqual(expect.arrayContaining(['home', 'muster', 'wheel', 'work', 'reel', 'return']));
+    // The hose lay along the way he walked (more than a straight bar's two ends).
+    expect(laid).toBeGreaterThan(3);
+    // Home again, where it was kept.
+    expect(pump.state).toBe('home');
+    expect(Math.hypot(pump.at.x - home!.x, pump.at.z - home!.z)).toBeLessThan(0.01);
+  }, 240_000);
+});
+
 describe('the town fights a fire', () => {
   const where = scenarioTown(streetTown);
   const light = key(14, 1, 18);
@@ -58,10 +84,12 @@ describe('the town fights a fire', () => {
       brigade: true,
       light,
       every: (_t, _d, fire) => {
+        const crew = fire.pump?.pumper ? 2 : 0;
         for (const b of fire.brigades.values()) {
-          formed = Math.max(formed, (b.pumper ? 1 : 0) + b.nozzles.length + b.buckets.length);
+          formed = Math.max(formed, crew + b.buckets.length);
           if (b.aim.size > 0) wet++;
         }
+        if (fire.pump?.flowing) wet++;
       },
     });
     expect(formed).toBeGreaterThanOrEqual(3);
@@ -99,7 +127,7 @@ describe('the town fights a fire', () => {
     town = r.town;
     expect(bad.slice(0, 5)).toEqual([]);
     // Afterwards, nobody is still held by the fire.
-    const still = town.crowd.people.filter((p) => town.board.plans.get(p)?.chain.id === 'mischief.fire' && town.board.plans.get(p)!.steps[0]!.tag !== 'mischief:home');
-    expect(still.map((p) => p.id)).toEqual([]);
+    const still = town.crowd.people.filter((p) => town.board.plans.get(p)?.chain.id === 'mischief.fire' && town.board.plans.get(p)!.steps[0]!.tag !== 'mischief:home' && !town.board.plans.get(p)!.steps.some((x) => x.tag === 'fire:park')); // (wheeling the cart home is the last job)
+    expect(still.map((p) => `${p.id} ${town.board.plans.get(p)!.steps.map((s) => s.tag).join(',')} busy=${r.d.engine.busy}`)).toEqual([]);
   }, 240_000);
 });

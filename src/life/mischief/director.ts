@@ -28,7 +28,7 @@ export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2 };
 /** A click of the Mend tool: a quarter of the way. */
 const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
-import type { Brigade } from './response';
+import type { Brigade, PumpCart } from './response';
 import { createMischiefEngine, type BlastEvent, type Env, type MischiefEngine } from './engine';
 
 export interface MischiefHost {
@@ -72,6 +72,8 @@ export class Director {
   private listeners: ((e: MischiefEvent) => void)[] = [];
   /** The fire brigades at work (set by the fire chain, src/life/mischief/response.ts; drawn by brigade.system.ts). */
   brigades: ReadonlyMap<StructureId, Brigade> | null = null;
+  /** The town's pump cart (set by the fire chain; drawn by brigade.system.ts), or null if it has none. */
+  pump: PumpCart | null = null;
   /** The town mends its own damage when things are quiet (the menu's Rebuild switch). */
   rebuild = true;
   /** Where the reader looks from (degrees; the app sets it each frame): flames are drawn turned toward them. */
