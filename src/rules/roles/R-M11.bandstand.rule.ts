@@ -5,8 +5,8 @@
 //   (R-M01's temple shape), its roof on 4 cells or fewer;
 //   the pillars stand on the ground (not up on a podium of more than 4
 //   cells: that stays a temple);
-//   at their feet a plaza or garden region of 9 or more cells, or open
-//   grass with no house within 4.
+//   at their feet a plaza or garden region of 9 or more cells (on bare grass
+//   a small temple is left the temple it was built as).
 //
 // Draws (the marble generator, by role): the slab as a thin canopy with an
 // eight-sided tented roof and a finial over it, a railing round its stepped
@@ -14,7 +14,7 @@
 //
 // Priority 5995: before the temple (5990).
 
-import { above, below, columnIndex, inBounds, key, keyX, keyY, keyZ, NO_CELL } from '@/core/grid';
+import { above, below, columnIndex, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { pillarsUnder, stylobates } from './R-M01.temple.rule';
@@ -33,24 +33,15 @@ export function isBandstand(s: Structure, plan: ShapePlan): boolean {
     if (keyY(u) >= plan.terrain.height[columnIndex(keyX(u), keyZ(u))]!) return false;
     feet.add(u);
   }
-  const ground = [...feet].map(above); // the cells the pillars stand in
-  const floor = ground.map((c) => plan.world.floors.get(c)).find((k) => k === 'plaza' || k === 'garden');
-  if (floor !== undefined) {
-    const region = plan.floorAt.get(ground.find((c) => plan.world.floors.get(c) === floor)!);
-    return region !== undefined && (plan.structures.get(region)?.cells.length ?? 0) >= 9;
-  }
-  // Open grass: no house within 4.
+  // The cells the pillars stand in and those beside them (a pillar takes the floor of its own cell).
+  const ground = [...feet].map(above).flatMap((c) => [c, ...([0, 1, 2, 3] as Dir4[]).map((d) => neighbor(c, d))]);
   for (const c of ground) {
-    for (let dx = -4; dx <= 4; dx++) {
-      for (let dz = -4; dz <= 4; dz++) {
-        for (let y = keyY(c) - 1; y <= keyY(c) + 2; y++) {
-          const x = keyX(c) + dx, z = keyZ(c) + dz;
-          if (inBounds(x, y, z) && plan.kinds.get(key(x, y, z)) === 'house') return false;
-        }
-      }
-    }
+    const k = c === NO_CELL ? undefined : plan.world.floors.get(c);
+    if (k !== 'plaza' && k !== 'garden') continue;
+    const region = plan.floorAt.get(c);
+    if (region !== undefined && (plan.structures.get(region)?.cells.length ?? 0) >= 9) return true;
   }
-  return true;
+  return false;
 }
 
 export default defineRule({
@@ -58,7 +49,7 @@ export default defineRule({
   part: 'roles',
   tier: 3,
   priority: 5995,
-  about: 'Reads: marble of 4 cells or fewer on 4+ pillar shafts of 2+, standing on the ground on a plaza or garden of 9+ or on grass with no house within 4. Emits: role bandstand; stylobates.',
+  about: 'Reads: marble of 4 cells or fewer on 4+ pillar shafts of 2+, standing on the ground on a plaza or garden of 9+. Emits: role bandstand; stylobates.',
   find({ plan }) {
     const out = [];
     for (const s of plan.structures.values()) if (s.kind === 'marble' && !plan.roles.has(s.id) && isBandstand(s, plan)) out.push({ anchor: s.cells[0]!, structure: s.id });

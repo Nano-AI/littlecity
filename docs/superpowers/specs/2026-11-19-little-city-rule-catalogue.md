@@ -191,9 +191,10 @@ type and which later rules apply.
 - **R-M11 · 3 · Bandstand** (discovery 1, RC-14) — R-M01's shape (marble on
   4+ placed pillar shafts of 2+) with 4 cells or fewer, its pillars standing
   on the ground (not up on a podium), on a plaza or garden region of 9+
-  cells or on grass with no house within 4 → an eight-sided tented roof
+  cells → an eight-sided tented roof
   with a gilt finial over the slab, stylobates as a temple's, no
-  pediments. Not: a temple on a podium; a slab of 5+ cells. Priority 5995.
+  pediments. Not: a temple on a podium; a slab of 5+ cells; a small temple
+  on bare grass (it stays the temple it was built as). Priority 5995.
 - **R-M12 · 3 · Stoa** (discovery 1, RC-13) — R-M01's shape with 7+ cells, a
   rectangular top at one level 3+ times as long as wide, and plaza at the
   foot of one long side's pillars or 1–2 cells out from it (tag

@@ -593,7 +593,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'bandstand',
     group: 'stone',
     name: 'Bandstand',
-    how: 'Rest marble of four blocks or fewer on four pillars two or more tall, on a plaza or garden of nine or more squares, or on open grass away from houses.',
+    how: 'Rest marble of four blocks or fewer on four pillars two or more tall, standing on a plaza or garden of nine or more squares.',
     proof: { role: 'bandstand' },
     seed: 7310,
     build(b) {
