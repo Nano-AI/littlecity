@@ -27,7 +27,7 @@ import { createLife } from '@/life/runtime';
 import { mischiefOf } from '@/life/mischief/director';
 import { applyCalendar } from '@/life/season';
 import { createSignals, type TownSignals } from '@/life/signals';
-import { createTownView } from '@/render/index';
+import { createTownView, type CameraPose } from '@/render/index';
 import type { ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
@@ -156,11 +156,14 @@ function resize(): void {
 }
 window.addEventListener('resize', resize);
 resize();
-if (scenarioCamera) view.setCamera(scenarioCamera);
-else if (window.innerWidth < window.innerHeight) {
+const opening = view.getCamera();
+/** The whole-island view a new island opens on (Escape with nothing open glides back to it). */
+function homeCamera(): CameraPose {
+  const c = opening;
   // A phone held upright: pull back so the island's width fits the screen.
-  view.setCamera({ zoom: Math.max(0.7, view.getCamera().zoom * Math.min(1, (window.innerWidth / window.innerHeight) * 1.05)) });
+  return window.innerWidth < window.innerHeight ? { ...c, zoom: Math.max(0.7, c.zoom * Math.min(1, (window.innerWidth / window.innerHeight) * 1.05)) } : c;
 }
+view.setCamera(scenarioCamera ?? homeCamera());
 
 function render(): void {
   view.render(signals);
@@ -196,6 +199,7 @@ ui = createInterface({
     holdWeather: (mode) => signals.holdWeather(mode),
   },
   renderNow: render,
+  homeCamera,
   newIsland() {
     leaveSpecialTown();
     open(freshIsland(newSeed()));
@@ -245,6 +249,7 @@ document.addEventListener('visibilitychange', () => {
 // ── the frame loop ───────────────────────────────────────────────────────
 let last = performance.now();
 function frame(now: number): void {
+  const real = Math.min(0.1, Math.max(0, (now - last) / 1000));
   const dt = signals.advance((now - last) / 1000);
   last = now;
   const ready = game.poll();
@@ -253,8 +258,13 @@ function frame(now: number): void {
     life.sync(ready);
     ui?.dressed(ready.dressing);
   }
+  // Fly mode moves the eye on real time (it carries on when the town's clock is held).
+  ui?.fly.frame(real);
+  // Flames turn to whichever eye draws: fly mode's while flying (its pitch is above the horizon, the
+  // orbit camera's below it).
+  const eye = view.getEyeCamera();
   const cam = view.getCamera();
-  mischief.camera = { yaw: cam.yaw, pitch: cam.pitch };
+  mischief.camera = eye ? { yaw: eye.yaw, pitch: -eye.pitch } : { yaw: cam.yaw, pitch: cam.pitch };
   life.update(dt);
   mischief.flush();
   render();

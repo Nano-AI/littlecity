@@ -40,6 +40,12 @@ in float position;       // the vertex's number (gl_VertexID is not dependable o
 
 out vec2 vC;
 out float vA;
+#ifdef PERSP
+// Fly mode: uZOrigin is the eye and uZAxis the unit way it looks; vLin is the distance along it.
+uniform float uFocal;    // CSS pixels per world unit at a distance of one
+uniform vec2 uClip;      // near, far
+out float vLin;
+#endif
 
 uvec3 pcg3d(uvec3 v){
   v = v * 1664525u + 1013904223u;
@@ -87,6 +93,33 @@ void main(){
   vec4 head = projectionMatrix * viewMatrix * vec4(p, 1.0);
   float z = dot(p - uZOrigin, uZAxis);
   vec2 px = 2.0 * uPR / uView;     // one CSS pixel in clip space
+#ifdef PERSP
+  // Fly mode. Nothing at or behind the eye; nearer than the builder ever comes, a particle grows
+  // with its nearness (to a few times its page size), so the near ones read as nearer.
+  vLin = z;
+  if (z < uClip.x + 0.04) return;
+  float grow = clamp(uFocal / z / 40.0, 1.0, 4.0);
+  if (uSnow > 0.5) {
+    float size = (1.2 + 1.8 * r.x * r.x * r.x) * grow;
+    gl_Position = head + vec4(corner * px * size * head.w, 0.0, 0.0);
+  } else {
+    vec3 vel = vec3(uDrift.x, -speed, uDrift.y);
+    vec3 q = p - normalize(vel) * uLen * (0.7 + 0.6 * r.x);
+    float zq = dot(q - uZOrigin, uZAxis);
+    if (zq < uClip.x + 0.04) return;
+    vec4 tail = projectionMatrix * viewMatrix * vec4(q, 1.0);
+    // Across the stroke on the page: its direction on the screen (in pixels), turned a quarter.
+    vec2 seen = (head.xy / head.w - tail.xy / tail.w) / px;
+    vec2 dir = normalize(seen + vec2(1e-5, 0.0));
+    vec2 side = vec2(-dir.y, dir.x) * px;
+    float k = corner.y * 0.5 + 0.5;
+    vec4 mid = mix(tail, head, k);
+    gl_Position = mid + vec4(side * corner.x * 0.75 * grow * mid.w, 0.0, 0.0);
+    vLin = mix(zq, z, k);
+  }
+  vA = 0.55 + 0.45 * r.y;
+  return;
+#endif
   vec2 off;
   if (uSnow > 0.5) {
     float size = 1.2 + 1.8 * r.x * r.x * r.x;
@@ -123,8 +156,24 @@ uniform vec3 uRimCol;
 uniform float uRainInk;
 uniform float uFlakeInk;
 uniform float uAmount;
+#ifdef PERSP
+in float vLin;
+uniform vec2 uClip;        // near, far
+#endif
 void main(){
+#ifdef PERSP
+  // Fly mode: hidden by the drawing in front, compared as distances along the view (index.ts: a
+  // reversed floating-point depth buffer with REVZ, the straight distance written by the surfaces without).
+  float dz = texture(tDepth, gl_FragCoord.xy / uCanvas).x;
+#ifdef REVZ
+  float lz = uClip.x * uClip.y / (dz * (uClip.y - uClip.x) + uClip.x);
+#else
+  float lz = uClip.x + dz * (uClip.y - uClip.x);
+#endif
+  if (vLin > lz * 1.002) discard;
+#else
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
+#endif
   if (uSnow > 0.5) {
     float d = length(vC);
     float fill = 1.0 - smoothstep(0.55, 0.85, d);

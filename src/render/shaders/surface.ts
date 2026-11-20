@@ -54,6 +54,9 @@ uniform float uZStep;     // the coplanar tie-break: one level, in clip-space de
 uniform vec3 uZOrigin;    // depth, worked out near the numbers it works on: the camera's target ...
 uniform vec3 uZAxis;      // ... and the way it looks, over half the depth range
 uniform float uBulbCss;   // Seasons: CSS pixels per world unit, for the bulbs' least size
+#ifdef PERSP
+uniform float uFocal;     // fly mode: CSS pixels per world unit at a distance of one
+#endif
 
 out vec3 vW;
 out vec3 vN;
@@ -65,6 +68,12 @@ flat out float vPat;
 flat out vec2 vId;
 flat out vec3 vOrigin;   // the slot's origin in the world (a glow centre)
 flat out float vCut;     // EDGECUT: 1 if this is cut off at the edge of the map (2: and its cross-section filled)
+#ifdef PERSP
+// Fly mode: the distance along the view (uZOrigin is the eye, uZAxis the unit forward), interpolated
+// exactly (it is affine in the world) and written as the fragment's depth; and the tie-break level.
+out float vLin;
+flat out float vTie;
+#endif
 
 ${SEASON_VERTEX}
 ${COLOR}
@@ -114,7 +123,13 @@ void main(){
   vRest = p;   // Seasons: where the point is at rest, for the falling leaves' dissolve
 #endif
   // Seasons: a festival bulb (edge 207, src/gen/foliage.ts) never draws smaller than a couple of pixels.
-  if (abs(ink.y / 256.0 - 207.0) < 0.5) p += n * max(0.0, 2.2 / max(uBulbCss, 1.0) - 0.04);
+#ifdef PERSP
+  // (Fly mode: the scale of the page at the bulb's own distance from the eye.)
+  float bulbCss = uFocal / max(dot(p - uZOrigin, uZAxis), 1e-3);
+#else
+  float bulbCss = uBulbCss;
+#endif
+  if (abs(ink.y / 256.0 - 207.0) < 0.5) p += n * max(0.0, 2.2 / max(bulbCss, 1.0) - 0.04);
   // Wind: the same field every behaviour samples, so a gust crosses baked trees and moving flags together.
   float sway = max(normal.w, 0.0);
   if (sway > 0.0) {
@@ -138,6 +153,16 @@ void main(){
   float id = ink.x;
   vId = vec2(floor(id / 256.0), mod(id, 256.0)) / 255.0;
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+#ifdef PERSP
+  vLin = dot(p - uZOrigin, uZAxis);
+  vTie = floor(fract(id * 0.6180339) * 24.0);
+#ifdef REVZ
+  // A reversed depth buffer in floating point (index.ts): depth is relatively as fine near as far,
+  // and the coplanar tie-break is relative too: each ink id a few float steps nearer the eye.
+  gl_Position.z += vTie * uZStep * gl_Position.z;
+#endif
+  return;
+#endif
   // The same depth as the matrices give (the camera is orthographic), but measured from the target
   // rather than from the eye 200 units away, where a float's rounding is a whole step of the depth
   // buffer: two surfaces in one plane then come out equal, not a step apart one way or the other.
@@ -165,6 +190,14 @@ flat in float vPat;
 flat in vec2 vId;
 flat in vec3 vOrigin;
 flat in float vCut;
+#ifdef PERSP
+in float vLin;
+flat in float vTie;
+uniform float uFocal;     // CSS pixels per world unit at a distance of one
+uniform vec2 uClip;       // near, far
+uniform float uZStep;
+uniform vec3 uZOrigin;    // the eye
+#endif
 
 uniform vec3 uLight;
 uniform float uSlab;      // the slab's corner radius: the map's edge is a rounded square
@@ -221,6 +254,18 @@ layout(location = 1) out vec4 oId;
 ${NOISE}
 ${COLOR}
 
+// The scale of the page at this fragment. The orbit camera has one for the whole picture; the fly
+// camera's falls off with distance, so patterns, hatching and fading follow each surface's own size on screen.
+#ifdef PERSP
+float cssNow = 1.0;
+float pxNow = 1.0;
+#define CSS cssNow
+#define PX pxNow
+#else
+#define CSS uCss
+#define PX uPx
+#endif
+
 float heightOver(vec2 xz){ return uMap.w - texture(tHeight, (xz - uMap.xy) * uMap.z).x * uMapRange; }
 
 // How much this point is grounded: 0 open, toward 1 in the deepest contact shade. The lookups are
@@ -252,7 +297,7 @@ float grounding(vec3 n){
 // uHatchSpacing at every zoom: each time the zoom doubles the spacing halves, and the new strokes
 // fade in between the old ones, which stay exactly where they were.
 float hatchLayer(vec2 p, vec2 dir, float seed){
-  float lod = log2(max(uCss, 1.0) / 32.0);
+  float lod = log2(max(CSS, 1.0) / 32.0);
   float o = floor(lod), fr = lod - o, scr = exp2(fr);
   vec2 q = p * (32.0 * exp2(o) / uHatchSpacing);          // in stroke spacings
   float hv = dot(q, vec2(-dir.y, dir.x)) + (mix(n2(q * 0.16 + seed), n2(q * 0.32 + seed), fr) - 0.5) * 1.1 / scr;
@@ -331,7 +376,7 @@ vec3 rockLook(vec3 c, bool top, out float pen){
 }
 float band(float d, float w){ float fw = fwidth(d) * 1.2; return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
 // Marks whose period shrinks to a couple of pixels fade out instead of turning to noise.
-float fade(float period){ return clamp((period * uPx - 2.5) / 4.0, 0.0, 1.0); }
+float fade(float period){ return clamp((period * PX - 2.5) / 4.0, 0.0, 1.0); }
 float fadeAt(float period){ return fade(period); }
 
 // The stepped tone for a normal: 1 lit, down to 0.66 facing away.
@@ -352,6 +397,29 @@ float mapEdge(vec2 p) {
 }
 
 void main(){
+#ifdef PERSP
+  cssNow = uFocal / max(vLin, 1e-3);
+  pxNow = cssNow * uPx;   // uPx is the target's device pixels per CSS pixel here
+#ifndef REVZ
+  // Without a reversed float depth buffer (no EXT_clip_control): depth is the distance along the view,
+  // straight, written here, so the near plane can sit at arm's length without costing the far town its
+  // precision; the coplanar tie-break is the orbit camera's. It costs the early depth test.
+  float lin01 = (vLin - uClip.x) / (uClip.y - uClip.x);
+  gl_FragDepth = clamp(lin01 - vTie * uZStep * 0.5, 0.0, 1.0);
+#endif
+#ifdef NEAR_FADE
+  // Things that move (people, birds) are gone when within arm's length, so nobody flies through the
+  // flyer's face. They go over a few centimetres (a quick stipple as they cross the line, never a
+  // standing one). uZOrigin is the eye; vOrigin the thing's own origin.
+  {
+    float away = length(vOrigin.xz - uZOrigin.xz);
+    float keep = smoothstep(0.27, 0.31, away) + step(0.9, abs(vOrigin.y + 0.25 - uZOrigin.y));
+    vec2 q = floor(gl_FragCoord.xy);
+    float dither = fract(dot(q, vec2(0.7548777, 0.5698403)));
+    if (keep < 1.0 && dither > keep) discard;
+  }
+#endif
+#endif
 #if defined(EDGECUT)
   // The edge of the map is a wall: what crosses it is cut off there, bow first, and shown again bow first.
   if (vCut > 0.5 && mapEdge(vW.xz) > 0.0) discard;
@@ -382,6 +450,12 @@ void main(){
 
 #if defined(OVERLAY)
   // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
+#if defined(PERSP) && defined(REVZ)
+  // (Relative: a thousandth of the distance, the orbit camera's allowance at about ten units.)
+  if (gl_FragCoord.z < texture(tDepth, gl_FragCoord.xy / uCanvas).x * 0.999) discard;
+#elif defined(PERSP)
+  if (lin01 > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
+#else
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
   // A soft patch lying flat (a cloud's shadow, param d below) leaves no depth behind. Two clouds' shadows
   // lie in one plane, and where they cross each would otherwise hide the other wherever its own triangles
@@ -389,16 +463,27 @@ void main(){
   // Written as the far plane it passes the overlay's depth test wherever nothing nearer has been drawn,
   // as before, and never stops another from drawing. Puffs and beams keep their depth.
   gl_FragDepth = pat == 28 && vParams.w > 0.0 ? 1.0 : gl_FragCoord.z;
+#endif
   vec3 vn = normalize(vVN);
   if (pat == 28) {
     // Mist (smoke, cloud): a watercolour wash, thick where the puff faces you and thinning to
     // nothing at its rim, so it has no edge to ink; a slow grain breaks it up like pigment on paper.
     // Graded like the page (it is drawn after the grade). Param a is its opacity.
-    vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
+#ifdef PERSP
+    // Fly mode: the page's own pixels (the scale of the page changes across a puff seen in perspective).
+    vec2 spx = gl_FragCoord.xy / uPx;
+#else
+    vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * CSS;
+#endif
     float face = smoothstep(0.0, 0.5, abs(vn.z));
     // Param d > 0: a soft round patch lying flat (a cloud's shadow), d its radius in world units.
     // It has no flat middle: it fades from its centre all the way out, so it reads as a passing shade.
     if (vParams.w > 0.0) face = 1.0 - smoothstep(0.0, 1.0, length(vW.xz - vOrigin.xz) / vParams.w);
+#ifdef PERSP
+    // In perspective a cloud's shadow is what it is, a sheet hanging in the air (from below a dark
+    // shape in the sky, from above a smudge floating over the town): it is not drawn.
+    if (vParams.w > 0.0) discard;
+#endif
     float grain = 0.8 + 0.2 * n2(spx * 0.09 + vParams.y * 17.0) + 0.1 * (n2(spx * 0.33) - 0.5);
     float a = clamp(max(vParams.x, 0.0) * face * grain, 0.0, 1.0);
     vec3 c = toSrgb(base) * uTint + uLift;
@@ -433,7 +518,7 @@ void main(){
   // The ghost preview, into a buffer of its own (colour with its opacity, and normal + ink id), which
   // the ghost composite then outlines in pencil. Anything hidden behind the finished drawing is left out.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
-  vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * uCss;
+  vec2 spx = vec2(dot(vW, uCamRight), dot(vW, uCamUp)) * CSS;
   vec4 fill;
   if (vParams.z > 1.5) {            // an illegal target
     fill = vec4(uRed, 0.88);
@@ -495,19 +580,19 @@ void main(){
     if (near > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.07, r2, 0.55, 0.1, 0.0, 0.11, 0.08, 0.05, 26.0, 0.014, 1.5, 0.7, 0.45, 0.011, fwq) * 0.85 * near);
     // Seen from far off the small marks are too fine to draw, so longer, lazier swells take over.
     float far = (1.0 - fade(0.2)) * open;
-    if (far > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.12, 31.0, 0.4, 0.4, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / uPx), fwq) * 0.7 * far);
+    if (far > 0.0) c = mix(c, uFoam, waveMarks(vW.xz - uTime * 0.155, r2, 1.9, 0.12, 31.0, 0.4, 0.4, 0.2, 5.5, 0.05, 0.9, 0.45, 0.34, max(0.03, 0.75 / PX), fwq) * 0.7 * far);
     if (riv > 0.0) {
       // Flow marks: the same hand as the wave marks, laid along the current and drifting down it, each at
       // its own place on the water. Long and close in the channel; seen from far off, fewer and bolder.
       float fwf = fwidth(dot(vW.xz, vec2(-flow.y, flow.x))) * 1.2;
       float wet = smoothstep(0.12, 0.3, sd) * riv;
       float fm = waveMarks(vW.xz - flow * uTime * 0.22, flow, 0.42, 0.09, 53.0, 0.12, 0.12, 0.06, 14.0, 0.012, 1.1, 0.8, 0.4, 0.011, fwf) * fade(0.2)
-               + waveMarks(vW.xz - flow * uTime * 0.3, flow, 1.1, 0.14, 71.0, 0.32, 0.3, 0.14, 4.0, 0.03, 0.8, 0.5, 0.45, max(0.026, 0.8 / uPx), fwf) * (1.0 - fade(0.2));
+               + waveMarks(vW.xz - flow * uTime * 0.3, flow, 1.1, 0.14, 71.0, 0.32, 0.3, 0.14, 4.0, 0.03, 0.8, 0.5, 0.45, max(0.026, 0.8 / PX), fwf) * (1.0 - fade(0.2));
       c = mix(c, uFoam, clamp(fm, 0.0, 1.0) * 0.8 * wet);
       // and the water catches the light down the middle of the channel
       c = mix(c, uShallow, smoothstep(0.35, 0.75, sd) * inRiver * 0.16 * (0.6 + 0.4 * n2(vW.xz * 0.9 - flow * uTime * 0.1)));
     }
-    float rw = max(0.024, 0.9 / uPx);     // the foam line never thins below a pixel
+    float rw = max(0.024, 0.9 / PX);     // the foam line never thins below a pixel
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
     float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12) * (1.0 - inRiver);
     c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0));
@@ -563,12 +648,12 @@ void main(){
         vec2 p4 = vW.xz * 1.15 + 7.3; vec2 c4 = floor(p4); vec2 f4 = fract(p4) - 0.5;
         float r4 = h1(c4 + 17.0);
         f4 -= (vec2(h1(c4 + 3.3), h1(c4 + 8.1)) - 0.5) * 0.7;
-        float speck = lineAA(length(f4), max(0.07, 1.25 / uPx)) * step(1.0 - 0.55 * drift, r4) * (1.0 - fade(0.2)) * (1.0 - sandy);
+        float speck = lineAA(length(f4), max(0.07, 1.25 / PX)) * step(1.0 - 0.55 * drift, r4) * (1.0 - fade(0.2)) * (1.0 - sandy);
         grass = mix(grass, r4 > 0.85 ? uFlowerA : (r4 > 0.7 ? uFlowerB : uFlowerC), speck * 0.8);
         // ... and the deeper meadow carries a few darker tussocks.
         vec2 p5 = vW.xz * 0.9 + 3.1; vec2 c5 = floor(p5); vec2 f5 = fract(p5) - 0.5;
         f5 -= (vec2(h1(c5 + 5.3), h1(c5 + 1.1)) - 0.5) * 0.7;
-        float tussock = lineAA(length(f5 * vec2(1.0, 1.7)), max(0.09, 1.4 / uPx)) * step(0.62, h1(c5 + 23.0)) * deep * (1.0 - fade(0.3));
+        float tussock = lineAA(length(f5 * vec2(1.0, 1.7)), max(0.09, 1.4 / PX)) * step(0.62, h1(c5 + 23.0)) * deep * (1.0 - fade(0.3));
         grass = mix(grass, grass * vec3(0.8, 0.9, 0.76), tussock * 0.8);
         // sand: stipple
         vec3 sand = shade(uSand, s) * (0.975 + 0.05 * n2(vW.xz * 0.7));

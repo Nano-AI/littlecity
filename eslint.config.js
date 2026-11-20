@@ -19,13 +19,13 @@ const LAYERS = [
   ['resolve', 'rules', 'townmaker'],
   ['scenario', 'guide'],
   ['gen', 'parts'],
-  ['life', 'render'],
+  ['life', 'render', 'fly'],
   ['ui', 'app'],
 ];
 
 const PURE = ['core', 'terrain', 'resolve', 'rules', 'townmaker', 'gen', 'parts', 'scenario', 'guide'];
 /** Pure code that may not use Three.js at all (gen and parts may use its maths). */
-const NO_THREE = ['core', 'vocab', 'style', 'world', 'terrain', 'resolve', 'rules', 'townmaker', 'scenario'];
+const NO_THREE = ['core', 'vocab', 'style', 'world', 'terrain', 'resolve', 'rules', 'townmaker', 'scenario', 'fly'];
 
 const purityRules = {
   'no-restricted-properties': [

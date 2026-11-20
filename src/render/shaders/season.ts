@@ -137,7 +137,7 @@ vec3 seasonGrass(vec3 g){
     float r = h1(fc + 31.0);
     ff -= (vec2(h1(fc + 6.4), h1(fc + 2.2)) - 0.5) * 0.7;
     float drift = smoothstep(0.4, 0.7, n2(vW.xz * 0.27 + 61.0));
-    float bloom = lineAA(length(ff), max(0.075, 1.0 / uPx)) * step(1.0 - uSeason.x * (0.08 + 0.3 * drift), r);
+    float bloom = lineAA(length(ff), max(0.075, 1.0 / PX)) * step(1.0 - uSeason.x * (0.08 + 0.3 * drift), r);
     g = mix(g, r > 0.97 ? uFlowerB : (r > 0.93 ? uFlowerA : uFlowerC), bloom);
   }
   return g;

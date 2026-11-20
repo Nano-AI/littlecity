@@ -312,6 +312,12 @@ const DRAWINGS: Record<string, string> = {
   menu: `<path stroke-width="3" d="M10 15 Q24 13.2 38 15.4 M10 24.6 Q24 23.2 38 24 M10 33 Q24 34.6 38 33.2"/>`,
   undo: `<path stroke-width="2.6" d="M17.4 13.4 L8.8 21 L17.8 28.4"/><path stroke-width="2.6" d="M9.6 21 L28 20.8 Q38.6 21.4 38.6 29.6 Q38.4 37.2 29 37.2 L21.6 37.2"/>`,
   redo: `<path stroke-width="2.6" d="M30.6 13.4 L39.2 21 L30.2 28.4"/><path stroke-width="2.6" d="M38.4 21 L20 20.8 Q9.4 21.4 9.4 29.6 Q9.6 37.2 19 37.2 L26.4 37.2"/>`,
+  // Fly mode: a pair of wings, spread, three feathers each.
+  wings:
+    `<path d="M22.4 22.6 Q14.6 11.8 3.8 12.6 Q5.4 17.4 9.6 19.2 Q6.2 20.6 6.8 24.2 Q10.2 26.6 13.6 25 Q12.2 29.4 15.4 31.6 Q20 31.4 22.4 27.4 Z" fill="${C.white}"/>` +
+    `<path d="M25.6 22.6 Q33.4 11.8 44.2 12.6 Q42.6 17.4 38.4 19.2 Q41.8 20.6 41.2 24.2 Q37.8 26.6 34.4 25 Q35.8 29.4 32.6 31.6 Q28 31.4 25.6 27.4 Z" fill="${C.white}"/>` +
+    `<path ${thin} d="M9.8 19.2 Q16 19.4 21.2 23.8 M13.8 25 Q18 24.6 21.8 26 M38.2 19.2 Q32 19.4 26.8 23.8 M34.2 25 Q30 24.6 26.2 26"/>` +
+    `<path d="M22.2 22.8 Q24 20.6 25.8 22.8 L25.4 33.6 Q24 35.6 22.6 33.6 Z" fill="${C.roof}"/>`,
   // The guide: an open sketchbook, a little house drawn on its right page, a ribbon to keep the place.
   guide:
     `<path d="M4.6 16.4 L4.8 39.6 Q14.4 36.8 24 41 Q33.6 36.8 43.2 39.4 L43.2 16.2" fill="${C.roof}"/>` +

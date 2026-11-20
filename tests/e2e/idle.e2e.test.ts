@@ -1,5 +1,6 @@
-// Nothing in hand: clicking the selected piece again (or Escape) puts it down, so the player can
-// look round the town without a ghost under the pointer or placing anything by accident.
+// Nothing in hand: clicking the selected piece again puts it down, so the player can look round the
+// town without a ghost under the pointer or placing anything by accident. (Escape does not: it goes
+// back to the whole island and keeps the piece in hand; tests/e2e/fly.e2e.test.ts.)
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
 
@@ -44,17 +45,18 @@ describe('nothing in hand', () => {
     await page.context().close();
   });
 
-  test('Escape puts the piece down too, and a fence (which has a length) hides its stepper', async () => {
+  test('a fence (which has a length) put down hides its stepper; Escape keeps it in hand', async () => {
     const { page, errors } = await app.open('/?seed=7&gen=1');
     await page.waitForFunction('window.__lc');
     await page.click('[data-drawer="ground"]');
     await page.click('[data-item="fence"]');
     expect(await page.locator('[data-ui="length"]:visible').count()).toBe(1);
     await page.keyboard.press('Escape');
+    expect(await page.evaluate(pressed)).toEqual(['fence']);
+    expect(await page.locator('[data-ui="length"]:visible').count()).toBe(1);
+    await page.click('[data-item="fence"]');
     expect(await page.evaluate(pressed)).toEqual([]);
     expect(await page.locator('[data-ui="length"]:visible').count()).toBe(0);
-    await page.click('[data-item="fence"]');
-    expect(await page.evaluate(pressed)).toEqual(['fence']);
     expect(errors).toEqual([]);
     await page.context().close();
   });

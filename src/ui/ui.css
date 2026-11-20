@@ -800,6 +800,37 @@
   0%, 100% { scale: 1; rotate: 0deg; }
   50% { scale: 0.72; rotate: 14deg; }
 }
+/* ── fly mode (src/ui/fly.ts) ──────────────────────────────────────────── */
+/* Look only: everything for building goes; toasts stay, banners wait until the eye lands. */
+.lc-ui.lc-flying > *:not(.lc-fly):not(.lc-toasts),
+.lc-ui.lc-flying .lc-banner {
+  display: none !important;
+}
+.lc-fly {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+/* The way out, small and out of the way in the bottom corner. */
+.lc-fly-hint {
+  position: absolute;
+  left: calc(12px + env(safe-area-inset-left));
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 11px;
+  border-radius: 10px;
+  font-weight: 500;
+  opacity: 0.88;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.lc-fly-hint b {
+  font-weight: 700;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lc-marker .lc-icon, .lc-shake { animation: none; }
   .lc-btn { transition: none; }

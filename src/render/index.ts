@@ -38,7 +38,7 @@ import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
 import { TERRAIN } from '@/style/terrain';
 import { SEASON_LOOK } from '@/style/season';
-import type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
+import type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats, EyePose } from './api';
 import {
   CAMERA_FAR,
   CAMERA_NEAR,
@@ -58,12 +58,13 @@ import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
 import { registriesFor, type Registries } from './registries';
-import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
+import { compositeFragment, paperFragment, screenVertex, skyFragment } from './shaders/composite';
 import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
 import { surfaceFragment, surfaceVertex } from './shaders/surface';
 import { SLOT_AIR, SLOT_GROUNDED, SLOT_LIFTED, SLOT_WIDTH, SlotTable } from './slots';
 import { buildTerrainColumns } from '@/gen/terrain/terrain.gen';
 import { createGroundMotion } from './ground-motion';
+import { eyeFrame, type EyeFrame } from './eyecam';
 
 /** While only props and actors move, the grounding picture is redrawn every this many frames. */
 const GROUND_ITEMS = 4;
@@ -75,7 +76,7 @@ const airOf = (mesh: MeshData): boolean => {
   return air;
 };
 
-export type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
+export type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats, EyePose } from './api';
 export { overrideRegistries, registriesFor } from './registries';
 
 /** The fixed light every surface is shaded from (the spike's). */
@@ -294,6 +295,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uTwig: v3(),
     uBlossomA: v3(),
     uBlossomB: v3(),
+    // fly mode only (the PERSP variants)
+    uFocal: { value: 1 },
+    uClip: { value: new THREE.Vector2(0.01, 100) },
     // overlay only
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
     uCanvas: { value: new THREE.Vector2(1, 1) },
@@ -446,6 +450,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uFog: { value: 0 },
     uFogCol: v3(),
     uFogY: { value: SEA_Y },
+    // fly mode only (the PERSP variants)
+    uFocal: { value: 1 },
+    uInkW: { value: new THREE.Vector4() },
+    uInkPx: { value: new THREE.Vector2() },
+    uMoon: { value: new THREE.Vector3(0.45, 0.42, -0.79).normalize() },
+    uFlat: { value: 0 },
   };
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
@@ -474,7 +484,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
   // Seasons: falling rain and snow, drawn over the finished page (./precip.ts).
   const precip = createPrecip(
-    { tHeight: surfaceUniforms.tHeight, tDepth: surfaceUniforms.tDepth, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uZOrigin: surfaceUniforms.uZOrigin, uZAxis: surfaceUniforms.uZAxis, uCanvas: surfaceUniforms.uCanvas },
+    { tHeight: surfaceUniforms.tHeight, tDepth: surfaceUniforms.tDepth, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uZOrigin: surfaceUniforms.uZOrigin, uZAxis: surfaceUniforms.uZAxis, uCanvas: surfaceUniforms.uCanvas, uFocal: surfaceUniforms.uFocal, uClip: surfaceUniforms.uClip },
     halfInk,
     pixelRatio,
   );
@@ -511,6 +521,90 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return ghostRT;
   };
 
+  // ── fly mode (design section 7): the same materials, drawn for a perspective eye ──
+  // Made the first time someone flies; the builder never compiles them. Each is its builder twin with
+  // PERSP defined, so the builder's own shaders are not changed by a single token.
+  const skyUniforms = {
+    uPaper: paperUniforms.uPaper,
+    uInk: paperUniforms.uInk,
+    uSeaWash: v3(),
+    uEye: v3(),
+    uRight: v3(),
+    uUp: v3(),
+    uForward: v3(),
+    uSlab: paperUniforms.uSlab,
+    uSeaY: { value: SEA_Y },
+    uPxAngle: { value: 0.001 },
+    uFlat: { value: 0 },
+    uShadowY: paperUniforms.uShadowY,
+    uShadow: paperUniforms.uShadow,
+  };
+  type Persp = {
+    surface: THREE.RawShaderMaterial;
+    bare: THREE.RawShaderMaterial;
+    movers: THREE.RawShaderMaterial;
+    cap: THREE.RawShaderMaterial;
+    overlay: THREE.RawShaderMaterial;
+    sky: THREE.RawShaderMaterial;
+    composite: THREE.RawShaderMaterial;
+    ink: THREE.RawShaderMaterial | null;
+  };
+  let persp: Persp | null = null;
+  // Fly mode draws into a target of its own with a floating-point depth buffer, reversed (1 at the
+  // near plane, 0 at the far one) through EXT_clip_control: depth is then as fine, relatively, at arm's
+  // length as across the island, and the early depth test still works (writing depth from the fragment
+  // shader, the fallback where the extension is missing, made a flying frame cost twice a builder's).
+  const revz = renderer.extensions.has('EXT_clip_control');
+  /** The fly mode's coplanar tie-break: float steps nearer per level of the ink id, relative. */
+  const EYE_Z_STEP = revz ? 3 * 2 ** -23 : Z_STEP;
+  let eyeRT: THREE.WebGLRenderTarget | null = null;
+  const eyeTarget = (): THREE.WebGLRenderTarget => {
+    if (eyeRT) return eyeRT;
+    eyeRT = new THREE.WebGLRenderTarget(sceneRT.width, sceneRT.height, {
+      count: 2,
+      type: THREE.UnsignedByteType,
+      format: THREE.RGBAFormat,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      generateMipmaps: false,
+      depthBuffer: true,
+      stencilBuffer: false,
+      colorSpace: THREE.NoColorSpace,
+    });
+    eyeRT.depthTexture = new THREE.DepthTexture(sceneRT.width, sceneRT.height, revz ? THREE.FloatType : THREE.UnsignedIntType);
+    eyeRT.textures[0]!.minFilter = eyeRT.textures[0]!.magFilter = THREE.LinearFilter;
+    return eyeRT;
+  };
+  const perspMaterials = (): Persp => {
+    if (persp) return persp;
+    const twin = (m: THREE.RawShaderMaterial, uniforms?: Record<string, THREE.IUniform>, more: Record<string, number> = {}): THREE.RawShaderMaterial => {
+      const c = m.clone();
+      c.uniforms = uniforms ?? m.uniforms;
+      c.defines = { ...m.defines, PERSP: 1, ...(revz ? { REVZ: 1 } : {}), ...more };
+      return c;
+    };
+    // Every material that draws into the scene's depth buffer has a twin here (the movers' and the
+    // ship caps' keep their EDGECUT; people and birds also dissolve at arm's length, NEAR_FADE), and
+    // the rain and snow have theirs in precip.ts.
+    persp = {
+      surface: twin(surfaceMaterial),
+      bare: twin(bareMaterial),
+      movers: twin(moverMaterial, undefined, { NEAR_FADE: 1 }),
+      cap: twin(capMaterial, undefined, { NEAR_FADE: 1 }),
+      overlay: twin(overlayMaterial),
+      sky: new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: screenVertex, fragmentShader: skyFragment, uniforms: skyUniforms, depthTest: false, depthWrite: false }),
+      composite: twin(compositeMaterial),
+      ink: inkMaterial ? twin(inkMaterial, inkUniforms) : null,
+    };
+    return persp;
+  };
+  let eyePose: EyePose | null = null;
+  let lens: EyeFrame | null = null;
+  /** Which set of materials the meshes wear now. */
+  let wearing: 'orbit' | 'fly' = 'orbit';
+  const perspCamera = new THREE.PerspectiveCamera(60, 1, 0.01, 100);
+  perspCamera.matrixAutoUpdate = false;
+
   // ── scenes ───────────────────────────────────────────────────────────────
   const screenGeometry = new THREE.BufferGeometry();
   screenGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -525,8 +619,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   paperMesh.renderOrder = -1;
   scene.add(paperMesh);
   const postScene = new THREE.Scene();
-  postScene.add(screenMesh(compositeMaterial));
-  const inkScene = inkMaterial ? new THREE.Scene().add(screenMesh(inkMaterial)) : null;
+  const postMesh = screenMesh(compositeMaterial);
+  postScene.add(postMesh);
+  const inkMesh = inkMaterial ? screenMesh(inkMaterial) : null;
+  const inkScene = inkMesh ? new THREE.Scene().add(inkMesh) : null;
   const shadeScene = new THREE.Scene().add(screenMesh(shadeMaterial));
   // The height pass ignores this camera's matrices (its shader maps the map square itself), but
   // Three.js still culls against it, so it looks straight down at the whole map from above.
@@ -615,10 +711,54 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     camera.updateMatrixWorld(true);
   };
 
+  const applyEyeCamera = (): void => {
+    if (!eyePose) {
+      lens = null;
+      return;
+    }
+    const f = (lens = eyeFrame(eyePose, width, height));
+    perspCamera.fov = (Math.atan(f.tanY) * 2 * 180) / Math.PI;
+    perspCamera.aspect = width / height;
+    perspCamera.near = f.near;
+    perspCamera.far = f.far;
+    perspCamera.updateProjectionMatrix();
+    const { right: r, up: u, forward: fw, eye: e } = f;
+    perspCamera.matrix.set(r[0], u[0], -fw[0], e[0], r[1], u[1], -fw[1], e[1], r[2], u[2], -fw[2], e[2], 0, 0, 0, 1);
+    perspCamera.matrixWorldNeedsUpdate = true;
+    perspCamera.updateMatrixWorld(true);
+  };
+  /**
+   * Dresses every mesh in the orbit camera's materials or in their fly-mode twins, and the town's
+   * own pools in the bare-tree variant while broadleaves are losing their leaves (Seasons).
+   */
+  const dress = (): void => {
+    const m = wearing === 'fly' ? perspMaterials() : null;
+    for (const p of allPools) {
+      p.mesh.material = p === movers ? (m?.movers ?? moverMaterial) : bareOn ? (m?.bare ?? bareMaterial) : (m?.surface ?? surfaceMaterial);
+      p.overlay.material = m?.overlay ?? overlayMaterial;
+    }
+    moverCaps.material = m?.cap ?? capMaterial;
+    paperMesh.material = m?.sky ?? paperMaterial;
+    postMesh.material = m?.composite ?? compositeMaterial;
+    if (inkMesh && inkMaterial) inkMesh.material = m?.ink ?? inkMaterial;
+    precip.perspective(m ? { PERSP: 1, ...(revz ? { REVZ: 1 } : {}) } : null);
+  };
+  const wear = (mode: 'orbit' | 'fly'): void => {
+    if (wearing === mode) return;
+    wearing = mode;
+    dress();
+    const rt = mode === 'fly' ? eyeTarget() : sceneRT;
+    compositeUniforms.tColor.value = rt.textures[0]!;
+    compositeUniforms.tId.value = rt.textures[1]!;
+    compositeUniforms.tDepth.value = rt.depthTexture!;
+    surfaceUniforms.tDepth.value = rt.depthTexture!;
+  };
+
   const resizeTargets = (): void => {
     const w = Math.max(1, Math.round(width * pixelRatio));
     const h = Math.max(1, Math.round(height * pixelRatio));
     sceneRT.setSize(w * superSample, h * superSample);
+    eyeRT?.setSize(w * superSample, h * superSample);
     inkRT?.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   };
 
@@ -1097,6 +1237,14 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       goal = clampPose(goal, aspect());
       shown = clampPose(shown, aspect());
       applyCamera();
+      applyEyeCamera();
+    },
+    setEyeCamera(pose) {
+      eyePose = pose ? { eye: [pose.eye[0], pose.eye[1], pose.eye[2]], yaw: pose.yaw, pitch: pose.pitch, fov: pose.fov } : null;
+      applyEyeCamera();
+    },
+    getEyeCamera() {
+      return eyePose ? { ...eyePose, eye: [eyePose.eye[0], eyePose.eye[1], eyePose.eye[2]] } : null;
     },
 
     render(signals: Signals) {
@@ -1126,6 +1274,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       // Seasons and weather: a few numbers for the shaders, and the grade and paper they shift.
       const sf = seasonFrame(seasonOf(signals), weatherOf(signals));
       const grade = seasonGrade(gradeAt(signals.time), sf);
+      wear(lens ? 'fly' : 'orbit');
       const css = pixelsPerUnit(shown, height);
       const targetPR = pixelRatio * superSample;
       const su = surfaceUniforms;
@@ -1155,7 +1304,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       if (wantBare !== bareOn) {
         bareOn = wantBare;
         // The movers keep their own material (it cuts ships off at the map's edge); no tree is a mover.
-        for (const p of allPools) if (p !== movers) p.mesh.material = bareOn ? bareMaterial : surfaceMaterial;
+        dress();
       }
       // A tree that has dropped its leaves stops sheltering the ground: redraw the grounding picture
       // as the leaves fall (a step at a time: it is the costliest pass).
@@ -1226,6 +1375,45 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         const paper = paperOf(sf);
         cu.uFogCol.value.set(paper[0] * grade.tint[0] + grade.lift[0], paper[1] * grade.tint[1] + grade.lift[1], paper[2] * grade.tint[2] + grade.lift[2]);
       }
+      if (lens) {
+        // Fly mode: the same page drawn for a perspective eye. Depth is the straight distance along
+        // the view over [near, far]; everything that was "per zoom" above is worked out per pixel.
+        const w = lens;
+        su.uPx.value = targetPR;
+        su.uCss.value = 1;
+        su.uFocal.value = w.focal;
+        su.uClip.value.set(w.near, w.far);
+        su.uZStep.value = EYE_Z_STEP;
+        su.uZOrigin.value.set(...w.eye);
+        su.uZAxis.value.set(...w.forward);
+        su.uCamRight.value.set(...w.right);
+        su.uCamUp.value.set(...w.up);
+        const sk = skyUniforms;
+        sk.uEye.value.set(...w.eye);
+        sk.uRight.value.set(w.right[0] * w.tanX, w.right[1] * w.tanX, w.right[2] * w.tanX);
+        sk.uUp.value.set(w.up[0] * w.tanY, w.up[1] * w.tanY, w.up[2] * w.tanY);
+        sk.uForward.value.set(...w.forward);
+        sk.uPxAngle.value = 1 / w.focal;
+        sk.uFlat.value = w.flat;
+        cu.uFlat.value = w.flat;
+        setSrgb(sk.uSeaWash.value, PALETTE.sea);
+        cu.uEye.value.copy(sk.uEye.value);
+        cu.uRight.value.copy(sk.uRight.value);
+        cu.uUp.value.copy(sk.uUp.value);
+        cu.uForward.value.copy(sk.uForward.value);
+        cu.uNear.value = w.near;
+        cu.uDepthRange.value = w.far - w.near;
+        cu.uCss.value = 1;
+        cu.uFocal.value = w.focal;
+        cu.uInkW.value.set(LOOK.inkWidthFar, LOOK.inkWidth, LOOK.inkWidthInner, LOOK.inkDetailFar);
+        cu.uInkPx.value.set(LOOK.inkFarPx, LOOK.inkNearPx);
+        cu.uWeights.value.set(LOOK.inkSilhouette, LOOK.inkSeam, LOOK.inkCrease);
+        cu.uLightView.value.set(dotL(w.right), dotL(w.up), -dotL(w.forward));
+      } else {
+        su.uZStep.value = Z_STEP;
+        cu.uNear.value = CAMERA_NEAR;
+        cu.uDepthRange.value = CAMERA_FAR - CAMERA_NEAR;
+      }
       if (inkRT) {
         inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
         inkUniforms.uPR.value = pixelRatio / 2;
@@ -1291,9 +1479,14 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       }
       moverCaps.visible = movers.mesh.visible && capSlots.size > 0;
       surfaceUniforms.uSlab.value = TERRAIN.slabRadius;
-      renderer.setRenderTarget(sceneRT);
+      const eyeCamera = lens ? perspCamera : camera;
+      const depthBuffer = renderer.state.buffers.depth;
+      const reversed = lens !== null && revz;
+      renderer.setRenderTarget(lens ? eyeTarget() : sceneRT);
+      if (reversed) depthBuffer.setReversed(true);
       renderer.clear(true, true, false);
-      renderer.render(scene, camera);
+      renderer.render(scene, eyeCamera);
+      if (reversed) depthBuffer.setReversed(false);
       if (inkRT && inkScene) {
         renderer.setRenderTarget(inkRT);
         renderer.render(inkScene, postCamera);
@@ -1302,14 +1495,22 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       renderer.render(postScene, postCamera);
       const weather = weatherOf(signals);
       if (weather.rain > 0.01 || weather.snow > 0.01) {
-        const w = signals.wind(frame.target[0], frame.target[2]);
-        if (precip.update({ frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt) })) renderer.render(precip.scene, camera);
+        const at = lens ? lens.eye : frame.target;
+        const w = signals.wind(at[0], at[2]);
+        const eye = lens ? { eye: { at: lens.eye, forward: lens.forward } } : {};
+        if (precip.update({ frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt), ...eye })) {
+          if (reversed) depthBuffer.setReversed(true);
+          renderer.render(precip.scene, eyeCamera);
+          if (reversed) depthBuffer.setReversed(false);
+        }
       }
       if (overlay) {
+        if (reversed) depthBuffer.setReversed(true);
         renderer.clear(false, true, false);
-        renderer.render(overlayScene, camera);
+        renderer.render(overlayScene, eyeCamera);
+        if (reversed) depthBuffer.setReversed(false);
       }
-      if (ghostKeys.length > 0) {
+      if (ghostKeys.length > 0 && !lens) {
         renderer.setRenderTarget(ghostTarget());
         renderer.clear(true, true, false);
         renderer.render(ghostScene, camera);
@@ -1339,13 +1540,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       shadeRT.dispose();
       sceneRT.depthTexture?.dispose();
       sceneRT.dispose();
+      eyeRT?.depthTexture?.dispose();
+      eyeRT?.dispose();
       inkRT?.dispose();
       slotTex.dispose();
       windTex.dispose();
       noiseTex.dispose();
       screenGeometry.dispose();
       for (const m of [surfaceMaterial, bareMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
-      renderer.dispose();
+      if (persp) for (const m of Object.values(persp)) m?.dispose();      renderer.dispose();
     },
   };
   return view;
