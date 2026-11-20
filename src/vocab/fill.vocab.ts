@@ -24,6 +24,12 @@ declare module '@/core/vocab' {
     'field-gate': true;
     'field-gate.open': 0 | 1;
     'field-gate.look': number;
+    // D36 wayside shrine at a country crossroads: a calvary or a roofed niche on a post, with flowers.
+    // Frame: a floor slot, +Z toward `face` (the crossing).
+    'wayside-shrine': true;
+    'wayside-shrine/calvary': true;
+    'wayside-shrine/niche': true;
+    'wayside-shrine.look': number;
 
     // U14 burgage plots (and U23 orchard). A small fruit tree at a floor slot, square to the world;
     // `fruit` 0 apples, 1 pears. A compost bin at an edge slot against a fence, +Z away from it.

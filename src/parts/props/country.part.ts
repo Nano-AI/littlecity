@@ -2,12 +2,12 @@
 // in one file; each is discovered by its own export. The hedgerow is the
 // hedge prop's 'wild' variant (park.part.ts).
 
-import type { Vec3 } from '@/core/mat4';
+import { translation, type Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { SLOT_INSET } from '@/gen/frames';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
-import { mixColor, rngOf, vary } from './kit';
+import { dab, flowerColors, lump, mixColor, rngOf, vary, TONE } from './kit';
 
 /** The cell line, in an edge slot's frame (+Z into the cell). */
 const LINE = -(0.5 - SLOT_INSET);
@@ -96,6 +96,57 @@ export const fieldGate = definePart({
       b.pop();
     });
     b.pop();
+    return { mesh: b.build() };
+  },
+});
+
+/**
+ * Wayside shrine (D36) at a country crossroads: a stone calvary (a tall
+ * cross on three stepped stones, 'calvary') or a little roofed niche on a
+ * post with a painted figure in it ('niche'), with fresh flowers at its foot.
+ * Frame: a floor slot, +Z toward `face` (the crossing).
+ */
+export const waysideShrine = definePart({
+  prop: 'wayside-shrine',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 983));
+    const stone = vary(PALETTE.stone, r('stone'), 0.4);
+    b.rotateY((r('turn') - 0.5) * 0.2);
+    if (item.variant === 'niche') {
+      b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'post' }, () => b.boxAt([0, 0, 0], [0.06, 0.5, 0.06], { skip: ['bottom'] }));
+      b.with({ color: PALETTE.white, pattern: PATTERN.plaster, ink: 'box' }, () => b.box([-0.09, 0.5, -0.07], [0.09, 0.72, 0.07]));
+      b.with({ color: mixColor(PALETTE.glass, PALETTE.metal, 0.3), pattern: PATTERN.none, ink: 'inside' }, () => b.box([-0.06, 0.53, 0.07], [0.06, 0.68, 0.075], { skip: ['n'] }));
+      b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'figure' }, () => lump(b, 0, 0.6, 0.08, 0.022, 0.05, 0.012, { seg: 5, rings: 3 }));
+      b.with({ color: PALETTE.redDark, pattern: PATTERN.shingles, ink: 'roof' }, () => {
+        const y = 0.72, rise = 0.1, w = 0.12, d = 0.1;
+        b.quad([-w, y, d], [0, y + rise, d], [0, y + rise, -d], [-w, y, -d]);
+        b.quad([0, y + rise, d], [w, y, d], [w, y, -d], [0, y + rise, -d]);
+        b.tri([-w, y, d], [w, y, d], [0, y + rise, d]);
+        b.tri([w, y, -d], [-w, y, -d], [0, y + rise, -d]);
+        b.quad([-w, y, -d], [w, y, -d], [w, y, d], [-w, y, d]);
+      });
+    } else {
+      b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'steps' }, () => {
+        b.box([-0.2, 0, -0.2], [0.2, 0.06, 0.2], { skip: ['bottom'] });
+        b.box([-0.14, 0.06, -0.14], [0.14, 0.12, 0.14], { skip: ['bottom'] });
+        b.box([-0.08, 0.12, -0.08], [0.08, 0.18, 0.08], { skip: ['bottom'] });
+      });
+      b.with({ color: stone, pattern: PATTERN.stone, ink: 'cross' }, () => {
+        b.box([-0.03, 0.18, -0.03], [0.03, 0.95, 0.03], { skip: ['bottom'] });
+        b.box([-0.15, 0.72, -0.028], [-0.03, 0.78, 0.028], { skip: ['e'] });
+        b.box([0.03, 0.72, -0.028], [0.15, 0.78, 0.028], { skip: ['w'] });
+      });
+    }
+    // Fresh flowers at its foot.
+    const colors = flowerColors();
+    for (let i = 0; i < 2; i++) {
+      const x = (i ? 1 : -1) * (item.variant === 'niche' ? 0.09 : 0.13), z = 0.15;
+      b.with({ color: PALETTE.brick, pattern: PATTERN.none, ink: `pot${i}` }, () => b.at(translation(x, item.variant === 'niche' ? 0 : 0.06, z), () => b.lathe([[0.025, 0], [0.04, 0.06], [0.045, 0.065]], { segments: 6 })));
+      b.with({ color: colors[Math.floor(r('fc', i) * colors.length)]!, pattern: PATTERN.none, ink: `pot${i}`, sway: 0.2 }, () => {
+        for (let k = 0; k < 3; k++) dab(b, x + (k - 1) * 0.02, (item.variant === 'niche' ? 0 : 0.06) + 0.08 + (k % 2) * 0.015, z, 0.022, TONE.lit, 5, 0.015);
+      });
+    }
     return { mesh: b.build() };
   },
 });

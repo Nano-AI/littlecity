@@ -376,6 +376,11 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   landing above its two outer top steps, looking down it; a pair of tall
   lamps on the ground before its two outer bottom steps. Outer corner slots
   only (the stair's walking line stays clear); none for narrower flights.
+- **D36 · 3 · Wayside shrine** (DC-01) — a street junction (3+ ways out) on
+  the ground with no building, square, green, stall or fountain within 4 →
+  on a free corner of the junction cell, a stone calvary on three stepped
+  stones or a roofed niche on a post (seeded), with fresh flowers. Runs
+  before D26, so the fingerpost stands beside it.
 
 ---
 
