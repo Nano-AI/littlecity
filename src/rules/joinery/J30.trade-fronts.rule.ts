@@ -10,6 +10,9 @@
 //                  over them ('loading-doors', owning the sockets
 //                  'loading-door' and 'hoist'); J09 leaves the column
 //                  without windows.
+//   smithy         an open forge front with a glowing hearth on a free
+//   (R-H19)        ground-storey wall that is not its door's, facing the
+//                  most open ground ('forge-front'); J09 leaves it windowless.
 //   watermill      the wheel's timber frame and bearing on the river side
 //   (R-H16)        ('mill-race', owning the 'wheel-hub' socket the water
 //                  wheel turns on); J09 leaves that wall cell without a window.
@@ -22,10 +25,11 @@ import { roofRegions } from '@/resolve/facts/roofs.fact';
 import type { Feature } from '@/resolve/plan';
 import { millSide } from '../roles/R-H16.watermill.rule';
 import { waterFacades } from '../roles/R-H17.warehouse.rule';
-import { houseStructures, roleOf, roofOf } from './houses.lib';
+import { facades } from '@/resolve/facts/facades.fact';
+import { doorScore, houseStructures, roleOf, roofOf } from './houses.lib';
 
 interface Front {
-  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors';
+  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors' | 'forge-front';
   cell: number;
   dir: Dir4;
   storeys?: number;
@@ -54,6 +58,15 @@ export default defineRule<Front>({
         const mine = new Set(s.cells);
         for (let c = above(at.cell); mine.has(c); c = above(c)) storeys++;
         out.push({ anchor: at.cell, structure: s.id, key: 'loading', data: { type: 'loading-doors' as const, cell: at.cell, dir: at.dir, storeys } });
+        continue;
+      }
+      if (role === 'smithy') {
+        const door = feats.find((f) => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1);
+        const free = (facades(ctx.facts).byStructure.get(s.id) ?? [])
+          .filter((f) => f.storey === 1 && f.drop === 0 && !f.touching && !(f.faces === 'structure' && f.dist === 1) && !(door && door.cell === f.cell && door.dir === f.dir))
+          .sort((a, b) => doorScore(b) - doorScore(a) || a.cell - b.cell || a.dir - b.dir);
+        const at = free[0];
+        if (at) out.push({ anchor: at.cell, structure: s.id, key: 'forge', data: { type: 'forge-front' as const, cell: at.cell, dir: at.dir } });
         continue;
       }
       if (role === 'watermill') {

@@ -7,7 +7,7 @@
 // which expects the piece centred half-way up a storey (y = CELL_H / 2).
 
 import { CELL_H } from '@/core/grid';
-import { translation } from '@/core/mat4';
+import { compose, rotationX, translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
@@ -92,5 +92,32 @@ export const loadingDoors = definePart({
       b.box([-0.03, top - 0.42, 0.33], [0.03, top - 0.38, 0.37]);
     });
     return { mesh: b.build(), anchors: { 'loading-door': translation(0, 0, 0.3), hoist: translation(0, top - 0.42, 0.35) } };
+  },
+});
+
+export const forgeFront = definePart({
+  feature: 'forge-front',
+  build(_item, ctx) {
+    const b = ctx.mesh();
+    const hw = 0.27, h = 0.54;
+    // The open front: a dark opening in a stone surround, the hearth glowing at the back of it (it glows at
+    // dusk and night), and a plank shutter propped up over it as a canopy.
+    b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'surround' }, () => {
+      b.box([-hw - 0.06, 0, 0], [-hw, h, 0.03], { skip: ['n', 'bottom'] });
+      b.box([hw, 0, 0], [hw + 0.06, h, 0.03], { skip: ['n', 'bottom'] });
+      b.box([-hw - 0.06, h, 0], [hw + 0.06, h + 0.07, 0.035], { skip: ['n'] });
+    });
+    b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'dark' }, () => b.quad([-hw, 0.005, 0.004], [hw, 0.005, 0.004], [hw, h, 0.004], [-hw, h, 0.004]));
+    b.with({ color: PALETTE.yellow, pattern: PATTERN.glow, ink: 'hearth' }, () => b.quad([-0.2, 0.06, 0.008], [0.2, 0.06, 0.008], [0.16, 0.26, 0.008], [-0.16, 0.26, 0.008]));
+    b.with({ color: PALETTE.red, pattern: PATTERN.glow, ink: 'fire' }, () => b.tri([-0.1, 0.08, 0.011], [0.1, 0.08, 0.011], [0.0, 0.24, 0.011]));
+    b.with({ color: PALETTE.brick, pattern: PATTERN.brick, ink: 'hood' }, () => b.quad([-0.16, 0.22, 0.01], [0.16, 0.22, 0.01], [0.09, 0.42, 0.01], [-0.09, 0.42, 0.01]));
+    // The shutter, hinged at the head and propped out on two sticks.
+    b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'shutter' }, () => {
+      b.at(compose(translation(0, h + 0.07, 0.035), rotationX(-0.35)), () => b.box([-hw - 0.04, 0, 0], [hw + 0.04, 0.025, 0.36]));
+    });
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'props' }, () => {
+      for (const x of [-hw, hw]) b.box([x - 0.012, 0.3, 0.31], [x + 0.012, 0.72, 0.334]);
+    });
+    return { mesh: b.build() };
   },
 });

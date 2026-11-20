@@ -7,6 +7,8 @@ import '@/core/vocab';
 declare module '@/core/vocab' {
   interface RoleVocab {
     // houses (R-H16 …)
+    'smithy': 'house'; //        R-H19: a one-storey house against a short tower: a forge
+    'forge-chimney': 'tower'; // R-H19: the smithy's tower, a broad smoking chimney
     'warehouse': 'house'; //     R-H17: a big store on the waterfront: loading doors and a hoist
     'watermill': 'house'; //     R-H16: a house on a river bank, with a turning wheel and a weir
     'barn': 'house'; //          R-H18: a long low building by the fields
@@ -22,6 +24,7 @@ declare module '@/core/vocab' {
     'hayloft': true; //          R-H18: a hayloft door and hoist beam, centred in a gable end
     'loading-doors': true; //    R-H17: a column of loading doors up the water side, a hoist beam over them
     'loading-doors.storeys': number; // how many storeys the column climbs (default 2)
+    'forge-front': true; //      R-H19: an open forge front with a glowing hearth, on a ground-storey wall
     'mill-race': true; //        R-H16: the wheel's timber frame and bearing on the water side; owns 'wheel-hub'
   }
   interface SocketVocab {
@@ -51,6 +54,8 @@ declare module '@/core/vocab' {
     'structure-prop/yew': true; //       churchyard: a dark clipped yew
     'structure-prop/lychgate': true; //  churchyard: a roofed gate over the opening in its wall; +Z out of the yard
     'structure-prop.edge': number; //    lychgate: 1 when the opening is on the cell's edge (+Z side), 0 in the cell
+    'structure-prop/anvil': true; //     smithy: an anvil on its block and a quench barrel, outside the forge
+    'structure-prop/hitching': true; //  smithy: a hitching rail with a water trough
     'structure-prop/crates': true; //    warehouse: crates and a barrel by the loading door
     'structure-prop/weir': true; //      watermill: a timber weir across the stream, from the bank (+Z) out
     'structure-prop.span': number; //    weir: how many water cells it crosses (default 2)

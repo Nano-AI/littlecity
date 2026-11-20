@@ -11,6 +11,8 @@
 //   grass closed      stone cross in the middle, a dark yew in the corner
 //   round beside a    farthest from the chapel, and a lychgate over each
 //   chapel)           opening a path makes in its wall or fence (J20 gate)
+//   smithy (R-H19)    an anvil on its block with a quench barrel outside the
+//                     forge front; a hitching rail and trough by the door
 //   warehouse (R-H17) crates, a barrel and a sack beside its loading door
 //   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
 //                     timber weir across the stream beside it; flour sacks
@@ -28,7 +30,7 @@ import { theatreOf } from './R-M09.theatre.rule';
 import { chapels, grassYard, isChurchyard } from './churchyard.lib';
 import { riverAt } from './river.lib';
 
-type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates' | 'headstone' | 'cross' | 'yew' | 'lychgate';
+type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates' | 'anvil' | 'hitching' | 'headstone' | 'cross' | 'yew' | 'lychgate';
 interface Data {
   variant: Variant | 'cart' | 'sacks' | 'wheel';
   at: Anchor;
@@ -42,7 +44,7 @@ export default defineRule<Data>({
   part: 'decoration',
   tier: 2,
   priority: 896,
-  about: 'Reads: the roles of discovery round 1 (theatre, barn, warehouse, watermill, churchyard; chapels for bare-grass yards), J20 gates, main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
+  about: 'Reads: the roles of discovery round 1 (theatre, barn, smithy, warehouse, watermill, churchyard; chapels for bare-grass yards), J20 gates, main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
   find(ctx) {
     const { plan } = ctx;
     const out: Candidate<Data>[] = [];
@@ -122,7 +124,15 @@ export default defineRule<Data>({
       }
     }
     for (const [id, { role }] of plan.roles) {
-      if (role === 'warehouse') {
+      if (role === 'smithy') {
+        const forge = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'forge-front');
+        if (forge && forge.cell !== undefined && forge.dir !== undefined) {
+          const out1 = neighbor(forge.cell, forge.dir as Dir4);
+          if (free(out1)) add(out1, id, 'anvil', 'anvil', { cell: out1, pos: 'c', face: opposite(forge.dir as Dir4) as Dir4 }, slot.floor(out1, 'c'));
+        }
+        const y = yard(id);
+        if (y) add(y.cell, id, 'hitching', 'hitching', { cell: y.cell, pos: CORNERS[y.dir][3], face: y.dir }, slot.floor(y.cell, CORNERS[y.dir][3]));
+      } else if (role === 'warehouse') {
         const doors = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'loading-doors');
         const at = doors ? (plan.socketsByOwner.get(doors.id) ?? []).find((k) => k.type === 'loading-door') : undefined;
         if (at) add(at.cell, id, 'crates', 'crates', { socket: at.id }, slot.socket(at.id));

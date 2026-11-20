@@ -225,6 +225,19 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
+    id: 'smithy',
+    group: 'houses',
+    name: 'Smithy',
+    how: 'Put a one-storey house of one to three squares against a tower one or two blocks tall: the tower is its smoking forge chimney, and the hearth glows at dusk.',
+    proof: { role: 'smithy' },
+    seed: 7118,
+    build(b) {
+      b.house(19, 19, { w: 2, color: 2 }).tower(18, 19, { floors: 2 });
+      b.path(17, 21, 22, 21);
+    },
+    view: FRONT,
+  },
+  {
     id: 'townhouse',
     group: 'houses',
     name: 'Townhouse',
@@ -985,6 +998,7 @@ export const NOT_SPECIAL: Readonly<Partial<Record<Role, string>>> = {
   'low-wall': 'the default wall',
   'garden-wall': 'a wall variant (around a garden)',
   'curtain-wall': 'a wall variant (touching marble or a tower): shown in the castle turret and gatehouse pictures',
+  'forge-chimney': 'the smithy’s tower: shown in the smithy picture',
 };
 
 /** The recipe as a scenario (`also` picks one of the other ways): what the proof test and the picture tool use. */

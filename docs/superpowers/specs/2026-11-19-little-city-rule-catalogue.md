@@ -112,6 +112,16 @@ type and which later rules apply.
   farmstead: hay bales and a hand cart outside the big doors (R-H98; hay
   alone otherwise). Not: a house on a street or by a square, a two-storey
   house. Priority 9915 (before the manor).
+- **R-H19 · 2 · Smithy** (discovery 1, RC-06) — a house of exactly 1 storey
+  and footprint 1–3, every cell on the ground, side by side with a tower 1
+  or 2 tall (3+ is R-H01's steeple) → the house is a smithy and the tower
+  its forge chimney (role forge-chimney: square, a flat top with a
+  chimney-top socket so it smokes, L02; no door of its own); no chimney on
+  the house; an open forge front on the best free ground-storey wall that
+  is not the door's (J30: a stone surround, a hearth that glows at dusk and
+  night, a propped plank shutter); an anvil on its block and a quench
+  barrel outside it, a hitching rail with a trough by the door (R-H98).
+  Not: a house of 2+ storeys; a house over water or a dock. Priority 9925.
 - **R-H09 · 2 · Manor** — footprint ≥ 10 cells with 2+ storeys, or total ≥ 16
   cells → hip roof, dormers, two chimneys, portico with two small columns
   at the door. (A big one-storey house is a barn by the fields, else a

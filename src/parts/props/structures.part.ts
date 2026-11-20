@@ -181,6 +181,31 @@ export default definePart({
         b.with({ color: PALETTE.white, pattern: PATTERN.cloth, ink: 'sack' }, () => lump(b, 0.33, 0.06, 0.12, 0.09, 0.06, 0.07, 0.6));
         break;
       }
+      case 'anvil': {
+        // R-H19: an anvil on a timber block, the smith's hammer on it, and a quench barrel beside (+Z: toward the forge).
+        b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'block' }, () => b.lathe([[0.075, 0], [0.07, 0.16]], { segments: 8, capTop: true }));
+        b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'anvil' }, () => {
+          b.box([-0.05, 0.16, -0.035], [0.05, 0.2, 0.035]);
+          b.box([-0.09, 0.2, -0.045], [0.07, 0.25, 0.045]);
+          // the horn
+          b.at(translation(0.07, 0.225, 0), () => b.at(compose(rotationZ(-Math.PI / 2)), () => b.lathe([[0.024, 0], [0, 0.08]], { segments: 6 })));
+        });
+        b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'barrel' }, () =>
+          b.at(translation(-0.26, 0, 0.12), () => b.lathe([[0.08, 0], [0.09, 0.09], [0.08, 0.18]], { segments: 10 })));
+        b.with({ color: PALETTE.glass, pattern: PATTERN.water, ink: 'quench' }, () =>
+          b.at(translation(-0.26, 0.16, 0.12), () => b.lathe([[0.076, 0], [0.076, 0.005]], { segments: 10, capTop: true })));
+        break;
+      }
+      case 'hitching': {
+        // R-H19: a hitching rail on two posts and a stone water trough under it, along the wall (+Z away from it).
+        b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'rail' }, () => {
+          for (const x of [-0.17, 0.17]) b.box([x - 0.02, 0, -0.02], [x + 0.02, 0.32, 0.02], { skip: ['bottom'] });
+          b.box([-0.22, 0.29, -0.018], [0.22, 0.32, 0.018]);
+        });
+        b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'trough' }, () => b.box([-0.15, 0, 0.06], [0.15, 0.1, 0.16], { skip: ['bottom'] }));
+        b.with({ color: PALETTE.glass, pattern: PATTERN.water, ink: 'water' }, () => b.quad([-0.13, 0.095, 0.15], [0.13, 0.095, 0.15], [0.13, 0.095, 0.07], [-0.13, 0.095, 0.07]));
+        break;
+      }
       case 'weir': {
         // R-H16: a timber weir across the stream: a row of stakes with a plank wall between them, its top
         // a little over the water, and a white line of foam where the water spills over on the far side.

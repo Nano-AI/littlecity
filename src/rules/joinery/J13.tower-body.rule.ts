@@ -23,6 +23,8 @@ const BY_ROLE: Partial<Record<Role, { body: Tag; cap: FeatureVariant<'cap'> }>> 
   dovecote: { body: 'body:round', cap: 'dovecote' },
   campanile: { body: 'body:square', cap: 'pyramid' },
   watchtower: { body: 'body:round', cap: 'cone' },
+  // R-H19: a smithy's broad chimney, flat-topped, smoking (a chimney-top socket on its cap).
+  'forge-chimney': { body: 'body:square', cap: 'flat' },
 };
 
 export default defineRule({
@@ -64,6 +66,7 @@ export default defineRule({
         out.socket({ type: 'flag-mount', owner: cap, cell: top, structure: s.id });
         if (look.cap === 'dome') out.socket({ type: 'telescope', owner: cap, cell: top, structure: s.id });
         if (look.cap === 'battlements' || look.cap === 'dovecote') out.socket({ type: 'perch', owner: cap, cell: top, structure: s.id });
+        if (plan.roles.get(s.id)?.role === 'forge-chimney') out.socket({ type: 'chimney-top', owner: cap, cell: top, structure: s.id });
       }
     }
 
@@ -89,7 +92,9 @@ export default defineRule({
     const under = below(bottom);
     const underKind = under === NO_CELL ? undefined : plan.kinds.get(under);
     const onFlat = firm(under) && underKind !== 'house' && underKind !== 'tower' && underKind !== 'lighthouse';
-    if (!have.some((f) => f.type === 'door') && onFlat) {
+    // A smithy's forge chimney (R-H19) is entered from the forge, not from outside.
+    const chimney = plan.roles.get(s.id)?.role === 'forge-chimney';
+    if (!have.some((f) => f.type === 'door') && onFlat && !chimney) {
       let best = -Infinity;
       for (let k = 0; k < 4; k++) {
         const d = ((start + k) & 3) as Dir4;
