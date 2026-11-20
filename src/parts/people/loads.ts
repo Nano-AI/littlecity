@@ -324,32 +324,14 @@ export function restingMesh(kind: Load): MeshData {
         const a = 1.2, h = 0.3 * 1.25;
         b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind, 1.25));
       } else if (kind === 'sheaf') {
-        // A stook: three sheaves leaning together, darker than the standing wheat so it shows on it.
-        for (let i = 0; i < 3; i++) {
-          const a = (i / 3) * Math.PI * 2;
-          b.at(multiply(translation(Math.cos(a) * 0.035, 0, Math.sin(a) * 0.035), multiply(rotZ(Math.cos(a) * 0.25), rotX(-Math.sin(a) * 0.25))), () => drawLoad(b, kind, 1.7));
-        }
+        // A sheaf stood up on its butt, leaning in (-X) to the others of its stook (L59), darker than the
+        // standing wheat so it shows against it.
+        b.at(rotZ(0.3), () => drawLoad(b, kind, 1.7));
       } else if (kind === 'sack') {
         // Set down, a sack lies on its side (they heap up by a door), its middle over the origin.
         b.at(multiply(translation(0, 0.068 * BIG_REST, -0.085 * BIG_REST), rotationX(Math.PI / 2)), () => drawLoad(b, kind, BIG_REST));
       } else drawLoad(b, kind, BIG_REST);
     });
-    cache.set(k, (m = b.build()));
-  }
-  return m;
-}
-
-/**
- * L59: a cut cell of a wheat field, laid over the standing wheat (whose top is about 0.25–0.32 over the
- * ground): pale stubble in rows, a cell wide, origin at its middle on the ground.
- */
-export function stubbleMesh(): MeshData {
-  const k = 'stubble';
-  let m = cache.get(k);
-  if (!m) {
-    const b = new MeshBuilder({ ink: 'stubble' });
-    b.setInk('stubble').setColor('#d8c38a').setPattern(PATTERN.crops);
-    b.box([-0.47, 0.32, -0.47], [0.47, 0.335, 0.47]);
     cache.set(k, (m = b.build()));
   }
   return m;

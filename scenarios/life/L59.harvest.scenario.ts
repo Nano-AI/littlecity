@@ -4,6 +4,9 @@
 //
 //   node src/life/testing/sequence.mjs L59.harvest --season autumn --warm 30000 --zoom 7 --target 22,1,18 --frames 12 --every 4000
 
+import { plantGarden } from '@/gen/floor/garden.gen';
+import { WHEAT_ROWS } from '@/gen/floor/gardens';
+import { MeshBuilder } from '@/gen/mesh';
 import { scenario } from '@/scenario';
 
 export default scenario({
@@ -26,5 +29,14 @@ export default scenario({
     check.ok(field.length >= 4, `the field's cells (${field.length})`);
     check.ok(field.every((s) => s.structure !== undefined && plan.roles.get(s.structure)?.role === 'wheat-field'), 'all on the wheat field');
     check.ok(posts.some((s) => s.name!.startsWith('harvest|mill|')), 'the mill');
+    // Mown, the field is stubble: none of its wheat stands (the harvest draws the field with its cells' states).
+    const wheatField = [...plan.structures.values()].find((s) => plan.roles.get(s.id)?.role === 'wheat-field');
+    check.ok(wheatField !== undefined, 'the wheat field');
+    if (wheatField) {
+      const b = new MeshBuilder({ ink: wheatField.id });
+      plantGarden(b, wheatField, plan, () => ({ growth: 1, cut: WHEAT_ROWS, from: 0 }));
+      const m = b.build(), wheat = b.inkOf('wheat'), stubble = b.inkOf('stubble');
+      check.ok(!m.inkId.includes(wheat) && m.inkId.includes(stubble), 'mown, the field is all stubble and no standing wheat');
+    }
   },
 });
