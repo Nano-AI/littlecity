@@ -24,7 +24,7 @@ import { mischiefOf, type Director } from './director';
 import type { Brigade } from './response';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
-const DROPS = 14;
+const DROPS = 20;
 
 let cartMesh: MeshData | null = null;
 /** The pump cart: a red box on two wheels with a brass pump, a rocking handle, a hose reel. Origin at the ground, shafts toward +Z. */
@@ -243,7 +243,7 @@ export default defineSystem<State>({
       for (const p of b.nozzles) {
         const aim = b.aim.get(p);
         if (aim === undefined || !atSpot(p) || !pumping) continue;
-        jets.push({ from: hands(p, 0.2, 0.26), to: landing(aim), seed: hash(sid, p.seed), n: DROPS, size: 0.09, speed: 1.6 });
+        jets.push({ from: hands(p, 0.2, 0.26), to: landing(aim), seed: hash(sid, p.seed), n: DROPS, size: 0.15, speed: 1.3 });
       }
       const last = b.buckets[b.buckets.length - 1];
       const chainAim = last ? b.aim.get(last) : undefined;
@@ -251,7 +251,7 @@ export default defineSystem<State>({
       if (last && chainAim !== undefined && chainReady) {
         // A bucketful flies once every 1.4 s (the chain's own beat, ./response.ts).
         const beat = (st.time % 1.4) / 1.4;
-        if (beat < 0.45) jets.push({ from: hands(last, 0.15, 0.3), to: landing(chainAim), seed: hash(sid, 'bucket'), n: 5, size: 0.13 * (1 - beat), speed: 0 });
+        if (beat < 0.45) jets.push({ from: hands(last, 0.15, 0.3), to: landing(chainAim), seed: hash(sid, 'bucket'), n: 7, size: 0.2 * (1 - beat * 0.6), speed: 0 });
       }
       let used = 0;
       for (const j of jets) {

@@ -139,6 +139,7 @@ const WEATHER_LABEL: Record<WeatherHold, string> = {
   wind: 'Holding a windy day. Press to let the weather change by itself',
 };
 const SOUND_KEY = 'little-city.sound';
+const REBUILD_KEY = 'little-city.rebuild';
 
 function readSound(): boolean {
   try {
@@ -223,7 +224,21 @@ export function createInterface(host: InterfaceHost): Interface {
       window.dispatchEvent(new CustomEvent('lc:sound', { detail: on }));
     },
     toggleTuning: () => toggleTuning(),
+    rebuild: () => mischiefOf(view.stage).rebuild,
+    setRebuild(on) {
+      mischiefOf(view.stage).rebuild = on;
+      try {
+        localStorage.setItem(REBUILD_KEY, on ? 'on' : 'off');
+      } catch {
+        // No storage: the choice lasts until the page closes.
+      }
+    },
   });
+  try {
+    mischiefOf(view.stage).rebuild = localStorage.getItem(REBUILD_KEY) !== 'off';
+  } catch {
+    // Default: on.
+  }
   const toggleTuning = (): void => {
     if (tuning) {
       tuning.remove();
