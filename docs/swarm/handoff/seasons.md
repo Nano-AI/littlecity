@@ -22,12 +22,18 @@ Branch `swarm/seasons`. Spec: design section 13a. Requests and frozen-file notes
   under cover and behind the page; cap `WEATHER.capDesktop/capPhone`. One draw call per kind falling.
 - **Festival**: rule D35 (eaves, wreaths, street and square strings, the main square's tree), parts in
   `src/parts/props/festival.part.ts`, `src/life/seasons/festival.system.ts` (up/down house by house, lit from dusk).
-- **Mist** in the composite (`uFog`), smoke from every chimney when cold, season/weather buttons + icons.
+- **Mist** in the composite (`uFog`), smoke from every chimney when cold.
+- **Sliders** (`src/ui/slider.ts`, one component for time, season, weather): scrub live, settle on release.
+  Eased signals: `glideTime`/`scrubTime` (forward through the hours), `glideSeason`/`scrubYear` (short way
+  round, weather `hurry` makes snow settle/melt in seconds). `hold`/`setPhase`/`holdSeason` stay instant (tools).
+- **Festival bug fixed**: feedback's pop-in (F05) showed new props; festival system now holds them down
+  every frame (`src/life/seasons/festival.test.ts`). Snowman shown while cover > 0.65. Coats, woolly hats,
+  umbrellas: `wrapLook` and `UMBRELLAS` in people.system / extras (additive).
 
 ## Not done
-People in scarves/umbrellas, laundry taken in, fewer boats (request filed), seasonal props (stooks, pumpkins, woodpiles,
-snowman, icicles, leaf drifts), falling leaves on gusts beyond L05, candles in windows, lanterns on bridges/gate, rainbow,
-roof snow slides, trodden tracks (only patchy), sound for weather, lambs.
+Scarves, fewer boats (request filed), icicles, leaf drifts, pumpkins, woodpiles (stooks: the harvest errand's),
+footprint tracks, candles in windows, bridge/gate lanterns, rainbow, roof snow slides, warm light pools on snow
+(only a stronger halo), weather sounds, lambs.
 
 ## Gotchas
 - GLSL: `vec3(vec2, float)` puts the float in z (cost an hour in precip). Rain quads wind both ways: DoubleSide.
