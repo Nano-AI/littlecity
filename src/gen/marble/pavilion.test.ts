@@ -84,7 +84,6 @@ describe('the bandstand pavilion (R-M11)', () => {
     const t = bandstand(SQUARE);
     const roof = triangleCount(t.drawAt(10, 3, 10));
     const columns = SQUARE.reduce((n, [x, z]) => n + triangleCount(t.drawAt(x, 1, z)), 0);
-    console.log(`pavilion: roof ${roof}, columns ${columns}, tall ${triangleCount(bandstand(SQUARE, 4).drawAt(10, 5, 10))}`);
     expect(roof + columns).toBeLessThan(3000);
   });
 

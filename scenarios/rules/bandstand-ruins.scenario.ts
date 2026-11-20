@@ -5,13 +5,13 @@
 // columns) break by their own damage. A second row has only the roof hit,
 // and a third only the pillars.
 //
-//   npm run shots -- R-M11.bandstand-ruins
+//   npm run shots -- bandstand-ruins
 
 import { scenario } from '@/scenario';
 import { ruinBox, STATES } from '../mischief/states';
 
 export default scenario({
-  name: 'R-M11.bandstand-ruins',
+  name: 'bandstand-ruins',
   seed: 1911,
   about: 'A bandstand in every damage state; then with only its roof damaged; then only its pillars.',
   terrain(t) {

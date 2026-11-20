@@ -16,6 +16,23 @@ Branch `swarm/monuments`. Brief: `docs/swarm/art-review-1.md`, section "Monument
   (`timberLegs` in `src/gen/support/supports.gen.ts`).
 - M7 clock dials use `PATTERN.glow`; keep windows use `glass`.
 
+## Bandstand as a pavilion (2026-11-20, branch `swarm/pavilion`)
+- R-M11 is drawn as a park pavilion by two generators sharing one layout
+  (`src/gen/marble/pavilion.ts`): the marble draws plinth, rail, entablature,
+  roof, drum and lantern; each pillar draws the columns standing in its own cell.
+  The rule claims each pillar's role slot and pins a `pavilion-bay` feature on it
+  carrying the footprint (mask, x0, z0) and the ground under it, because a pillar
+  may only read its own hash. Change the layout in `pavilionLayout` only: both
+  sides call it, and they must agree.
+- 2 × 2: regular octagon. One-wide plans (1 × 4, L, T, S): half-octagon ends,
+  equal-pitch hipped roof built as a per-cell fan (`roofFan`). Stack 3+: raised
+  plinth, columns +0.3 per storey (capped), a glazed clerestory drum and an
+  upper tier. The open bay faces `bandstand:<side>` (path, else plaza).
+- Fragile: a pillar under a bandstand with no column in its cell would draw
+  nothing (no footprint does that today; `pavilion.test.ts` checks every one).
+  Damage is per structure: pillars topple their own columns, the marble loses its
+  roof; with only the pillars wrecked the roof still stands over them (as a temple's).
+
 ## Not done
 - Would-be-nice list: temple triglyphs and tympanum ornament, more seeded variety
   on towers, pillar entasis on generated pillars. Skipped on instruction.
