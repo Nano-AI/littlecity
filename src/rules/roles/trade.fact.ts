@@ -82,7 +82,7 @@ export const arrivals = defineFact<readonly Arrival[]>('arrivals', (f) => {
 /** Steps from each column to the nearest plaza cell (any level). */
 export const distToPlaza = defineFact<ColumnDistance>('distToPlaza', (f) => {
   const has = new Uint8Array(SIZE_X * SIZE_Z);
-  for (const [c, kind] of f.world.floors) if (kind === 'plaza') has[columnIndex(keyX(c), keyZ(c))] = 1;
+  for (const p of plazas(f).list) for (const c of p.cells) has[columnIndex(keyX(c), keyZ(c))] = 1;
   return columnDistance((x, z) => has[columnIndex(x, z)] === 1);
 });
 

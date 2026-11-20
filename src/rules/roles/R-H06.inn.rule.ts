@@ -18,14 +18,14 @@
 //
 // An inn sign on a bracket by the door (J06 gives the door a sign-bracket
 // socket; D07 hangs the sign), a lantern by the door (R-H99).
-import { columnIndex, inColumnBounds, keyX, keyZ, neighbor } from '@/core/grid';
+import { columnIndex, inColumnBounds, keyX, keyZ } from '@/core/grid';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { plazas } from '@/resolve/facts/plazas.fact';
 import { structureInfo } from '@/resolve/facts/structure.fact';
 import type { StructureId } from '@/resolve/plan';
 import { houseStructures } from '../joinery/houses.lib';
-import { ARRIVAL_REACH, arrivals, within } from './trade.fact';
+import { ARRIVAL_REACH, arrivals } from './trade.fact';
 
 export default defineRule({
   id: 'R-H06.inn',
@@ -39,25 +39,25 @@ export default defineRule({
     const squares = plazas(ctx.facts);
     const places = arrivals(ctx.facts);
     if (places.length === 0) return [];
-    // The columns within 2 of each square (Chebyshev), worked out once from the squares' own cells.
-    const nearSquare = new Map<number, StructureId[]>();
-    for (const p of squares.list) {
-      if (!p.square) continue;
-      const seen = new Set<number>();
-      for (const c of p.cells) {
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dz = -2; dz <= 2; dz++) {
-            const x = keyX(c) + dx, z = keyZ(c) + dz;
-            if (!inColumnBounds(x, z)) continue;
-            const col = columnIndex(x, z);
-            if (seen.has(col)) continue;
-            seen.add(col);
-            const list = nearSquare.get(col);
-            if (list) list.push(p.id);
-            else nearSquare.set(col, [p.id]);
-          }
+    // The places each column is near, worked out once from the places: a square's cells and the columns
+    // within 2 of them (a house facing a square stands within 1), a bridge end or gate and the columns
+    // within ARRIVAL_REACH of it.
+    const nearPlace = new Map<number, Set<string>>();
+    const mark = (x0: number, z0: number, r: number, k: string): void => {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dz = -r; dz <= r; dz++) {
+          const x = x0 + dx, z = z0 + dz;
+          if (!inColumnBounds(x, z)) continue;
+          const col = columnIndex(x, z);
+          let set = nearPlace.get(col);
+          if (!set) nearPlace.set(col, (set = new Set()));
+          set.add(k);
         }
       }
+    };
+    for (const place of places) {
+      if (place.kind === 'square') for (const c of squares.byId.get(place.plaza!)?.cells ?? []) mark(keyX(c), keyZ(c), 2, place.key);
+      else mark(place.x!, place.z!, ARRIVAL_REACH, place.key);
     }
     // Candidates, with the places each one stands at.
     const at = new Map<string, StructureId[]>();
@@ -66,21 +66,14 @@ export default defineRule({
     for (const s of houseStructures(ctx)) {
       const i = info.get(s.id);
       if (!i || s.cells.length < 6 || i.storeys < 2 || ctx.plan.roles.has(s.id)) continue;
-      const ground = (all.byStructure.get(s.id) ?? []).filter((f) => f.storey === 1 && f.drop === 0 && !f.touching && (f.street === 1 || f.plaza === 1));
-      if (ground.length === 0) continue;
-      const onSquares = new Set<StructureId>();
-      for (const f of ground) {
-        const p = f.plaza === 1 ? squares.byCell.get(neighbor(f.cell, f.dir)) : undefined;
-        if (p?.square) onSquares.add(p.id);
-      }
-      // On a street just off a square: a cell of the house within 2 of it.
-      for (const c of s.cells) for (const id of nearSquare.get(columnIndex(keyX(c), keyZ(c))) ?? []) onSquares.add(id);
-      for (const place of places) {
-        const here = place.kind === 'square' ? onSquares.has(place.plaza!) : within(s.cells, place.x!, place.z!, ARRIVAL_REACH);
-        if (!here) continue;
-        const list = at.get(place.key) ?? [];
+      const here = new Set<string>();
+      for (const c of s.cells) for (const k of nearPlace.get(columnIndex(keyX(c), keyZ(c))) ?? []) here.add(k);
+      if (here.size === 0) continue;
+      if (!(all.byStructure.get(s.id) ?? []).some((f) => f.storey === 1 && f.drop === 0 && !f.touching && (f.street === 1 || f.plaza === 1))) continue;
+      for (const k of here) {
+        const list = at.get(k) ?? [];
         list.push(s.id);
-        at.set(place.key, list);
+        at.set(k, list);
       }
       size.set(s.id, s.cells.length);
       anchor.set(s.id, s.cells[0]!);

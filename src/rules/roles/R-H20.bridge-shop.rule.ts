@@ -70,7 +70,7 @@ export default defineRule<{ nearDock: boolean; lowest: CellKey[] }>({
     const docks = distToDock(ctx.facts);
     const out = [];
     for (const s of houseStructures(ctx)) {
-      if (ctx.plan.roles.has(s.id) || !info.has(s.id)) continue;
+      if (ctx.plan.roles.has(s.id) || !info.has(s.id) || ctx.facts.kinds.get(below(s.cells[0]!)) !== 'arch') continue;
       const lowest = onBridge(ctx.facts, s.cells);
       if (!lowest) continue;
       out.push({ anchor: s.cells[0]!, structure: s.id, data: { nearDock: s.cells.some((c) => docks.at(keyX(c), keyZ(c)) <= 6), lowest } });
