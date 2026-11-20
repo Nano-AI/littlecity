@@ -378,7 +378,8 @@ export function fireChain(given?: Director): FireChain {
         const hot = burning(cart.structure);
         if (hot.length === 0 || lost(board, cart.nozzle)) return reel(board);
         const ring = ringAround(board, hot, RESPONSE.near, RESPONSE.far).filter((c) => c !== cart.dest && reaches(board, cart.nozzle!, c));
-        const to = [...ring].sort((a, b) => board.dist(a, cart.dest!) - board.dist(b, cart.dest!) || a - b)[0];
+        // As near the fire as is safe, and a walk from the cart (so the hose is seen paying out).
+        const to = [...ring].filter((c) => board.dist(c, cart.dest!) >= 2).sort((a, b) => nearestTo(a, hot).d - nearestTo(b, hot).d || board.dist(a, cart.dest!) - board.dist(b, cart.dest!) || a - b)[0] ?? ring[0];
         if (to === undefined) return reel(board);
         const at = middle(board, to);
         const fireAt = middle(board, hot[0]!);
