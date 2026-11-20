@@ -8,7 +8,8 @@ function setup(seed = 3) {
   const terrain = generateTerrain(seed);
   const world = initialWorld(seed, terrain);
   let shows = 0;
-  const game = createGame({ world, terrain }, { show: () => void shows++ });
+  // No rules: playback is what is tested here, and a full resolve after each of ~700 edits was 11 s of it.
+  const game = createGame({ world, terrain, resolve: { rules: [] } }, { show: () => void shows++ });
   return { game, terrain, world, edits: growTown(terrain, seed), shows: () => shows };
 }
 
@@ -30,7 +31,7 @@ describe('growth playback', () => {
     game.undo();
     expect(game.world).toBe(world);
     expect(game.canUndo).toBe(false);
-  }, 240_000);
+  });
 
   test('skip puts the rest down at once and shows it once', () => {
     const { game, edits, shows } = setup();

@@ -23,6 +23,7 @@ import { recordingStage } from '../testing/stage';
 import ferry from './ferry.system';
 import harbourSystem from './harbour.system';
 import { bigShipsOf, floatsOf, type BigShipNews } from './news';
+import { sized } from '../../../tests/helpers/tier';
 
 /** A hull as discs along it. */
 function discs(f: BigShipNews): { x: number; z: number; r: number }[] {
@@ -76,14 +77,20 @@ function run(scn: Scenario, seconds: number): { worst: number; where: string; se
 }
 
 describe('nothing afloat ever overlaps anything else afloat', () => {
-  test.each([
+  // The gate runs the busiest town, the big harbour and one grown town with rivers; the full run
+  // (LC_FULL=1) adds three more grown towns on generated islands.
+  test.each(sized([
+    ['everything', everything],
+    ['ships-harbour', harbourScn],
+    ['grown-town-4', grown4],
+  ] as const, [
     ['everything', everything],
     ['ships-harbour', harbourScn],
     ['grown-town-4', grown4],
     ['grown-town-5', grown5],
     ['grown-town-6', grown6],
     ['grown-town-7', grown7],
-  ] as const)('%s: every pair, every step, for five minutes', (_name, scn) => {
+  ] as const))('%s: every pair, every step, for five minutes', (_name, scn) => {
     const { worst, where, seen } = run(scn, 300);
     expect(seen).toBeGreaterThan(3);
     expect(worst, where).toBeGreaterThan(0);
