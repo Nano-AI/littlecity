@@ -187,14 +187,22 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       break;
     }
     case 'sweep': {
-      const k = beat(4, 2.5);
-      const sw = [0.25, 0, -0.25, 0][k]!;
+      // A few short strokes side to side (the body turns into each; the broom goes with it: hands.ts puts it in
+      // the hands), then a step on, then more strokes.
+      const k = beat(8, 3);
+      const sw = [0.3, 0, -0.3, 0, 0.3, 0, -0.3, 0][k]!;
+      p.lean = 0.3;
+      p.twist = sw;
+      if (k === 7) {
+        p.legL = 0.32;
+        p.legR = -0.1;
+        p.lift = 0.008;
+      }
+      // (The arms are posed onto the broom by hands.ts; these are for a figure drawn without it.)
       p.armL = 0.95 + sw;
       p.armR = 1.15 + sw;
       p.outL = -0.3;
       p.outR = -0.3;
-      p.lean = 0.2;
-      p.twist = sw;
       break;
     }
     case 'cheer': {

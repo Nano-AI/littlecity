@@ -87,8 +87,8 @@ export function lineMesh(): MeshData {
  */
 export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe' | 'umbrella-a' | 'umbrella-b' | 'umbrella-c' | 'racket' | 'mallet';
 export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe', 'umbrella-a', 'umbrella-b', 'umbrella-c', 'racket', 'mallet'];
-/** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0, 'umbrella-a': 0, 'umbrella-b': 0, 'umbrella-c': 0, racket: 4, mallet: 4 };
+/** Which piece of the figure (PIECES order) a tool is held by; 5: a long tool laid in the hands along its own line (hands.ts). */
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 5, rod: 5, can: 4, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 5, 'umbrella-a': 0, 'umbrella-b': 0, 'umbrella-c': 0, racket: 4, mallet: 4 };
 /** Seasons: the umbrellas residents put up in the rain, in three colours. */
 export const UMBRELLAS: readonly Tool[] = ['umbrella-a', 'umbrella-b', 'umbrella-c'];
 
@@ -108,20 +108,31 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       break;
     }
     case 'broom':
+      // Along +Y from the bristles at the origin (hands.ts lays it from the floor up into the hands).
       b.setColor(PALETTE.wood);
-      tube(b, [[0.01, 0.2, 0.09], [-0.01, 0.015, 0.25]], 0.006, { seg: 4 });
+      tube(b, [[0, 0.03, 0], [0, 0.36, 0]], 0.006, { seg: 4 });
       b.setInk('brush').setColor('#d9b25f').setPattern(PATTERN.planks);
-      b.box([-0.045, 0, 0.235], [0.025, 0.035, 0.27]);
+      b.box([-0.045, 0, -0.016], [0.045, 0.04, 0.016]);
+      b.setInk('binding').setColor(PALETTE.redDark).setPattern(PATTERN.none);
+      b.box([-0.03, 0.03, -0.012], [0.03, 0.042, 0.012]);
       break;
-    case 'rod':
+    case 'rod': {
+      // In the figure's frame, along hands.ts's line for it: the butt at the chest, out over the water, the line
+      // hanging from the tip.
+      const a = [0, 0.24, 0.02], d = [0, 0.25, 0.44];
+      const at = (t: number): [number, number, number] => [a[0]! + d[0]! * t, a[1]! + d[1]! * t, a[2]! + d[2]! * t];
       b.setColor(PALETTE.trunk);
-      tube(b, [[0, 0.16, 0.1], [0, 0.3, 0.32], [0, 0.36, 0.5]], [0.007, 0.005, 0.003], { seg: 4 });
+      tube(b, [at(-0.05), at(0.6), at(1.15)], [0.007, 0.005, 0.003], { seg: 4 });
+      const tip = at(1.15);
       b.setInk('line').setColor(PALETTE.ink);
-      b.box([-0.0015, 0.12, 0.498], [0.0015, 0.36, 0.502]);
+      b.box([tip[0] - 0.0015, 0.05, tip[2] - 0.002], [tip[0] + 0.0015, tip[1], tip[2] + 0.002]);
       break;
+    }
     case 'can':
+      // Hanging from the right hand by its handle (arm frame: the hand is 0.093 down the arm).
       b.setColor('#6f9fae').setPattern(PATTERN.metal);
-      b.at(translation(0.0, 0.07, 0.15), () => {
+      tube(b, [[0, -0.09, 0], [0, -0.12, 0]], 0.004, { seg: 3 });
+      b.at(translation(0.0, -0.15, 0.01), () => {
         b.lathe([[0, -0.03], [0.032, -0.03], [0.032, 0.03], [0, 0.03]], { segments: 8 });
         tube(b, [[0, 0, 0.02], [0, -0.02, 0.08]], 0.006, { seg: 4 }); // the spout, tipped to pour
       });
@@ -137,10 +148,11 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       for (const x of [-0.04, 0, 0.04]) b.at(translation(x, 0.158, 0.11), () => b.lathe([[0, 0], [0.018, 0.002], [0.014, 0.016], [0, 0.02]], { segments: 6 }));
       break;
     case 'pole':
+      // Up through the fist (arm frame: the hand is 0.093 down the arm).
       b.setColor(PALETTE.trunk);
-      tube(b, [[0, -0.1, 0.022], [0, 0.42, 0.022]], 0.005, { seg: 4 });
+      tube(b, [[0, -0.12, 0], [0, 0.42, 0]], 0.005, { seg: 4 });
       b.setInk('wick').setColor(PALETTE.metal);
-      b.box([-0.008, 0.42, 0.014], [0.008, 0.45, 0.03]);
+      b.box([-0.008, 0.42, -0.008], [0.008, 0.45, 0.008]);
       break;
     case 'pike':
       // L36: held upright at the right hand, butt on the ground, the head well over the helmet.
@@ -167,19 +179,23 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
     case 'balls-a':
     case 'balls-b': {
       // L56: three juggling balls over the hands, in two drawings shown in turn.
-      const up = tool === 'balls-a' ? [[-0.05, 0.42], [0.0, 0.52], [0.05, 0.36]] : [[-0.05, 0.36], [0.0, 0.45], [0.05, 0.5]];
+      // Just over the hands (hands.ts JUGGLE puts them): one ball leaving the throwing hand, one high over the
+      // middle, one coming down into the catching hand.
+      const up = tool === 'balls-a' ? [[-0.045, 0.34], [0.0, 0.47], [0.045, 0.37]] : [[-0.045, 0.37], [0.0, 0.47], [0.045, 0.34]];
       ['#e0543e', '#f2c230', '#4f8fd6'].forEach((colour, i) => {
         b.setInk(`ball${i}`).setColor(colour).setPattern(PATTERN.none);
-        b.at(translation(up[i]![0]!, up[i]![1]!, 0.13), () => b.lathe([[0, -0.022], [0.016, -0.016], [0.022, 0], [0.016, 0.016], [0, 0.022]], { segments: 6 }));
+        b.at(translation(up[i]![0]!, up[i]![1]!, 0.09), () => b.lathe([[0, -0.022], [0.016, -0.016], [0.022, 0], [0.016, 0.016], [0, 0.022]], { segments: 6 }));
       });
       break;
     }
     case 'scythe':
-      // L59: the snath from the hands down across the front, the blade along the ground.
+      // L59: along +Y from the blade's heel at the origin up the snath into the hands (hands.ts lays it); the
+      // blade swept out along +X close to the ground.
       b.setColor(PALETTE.trunk);
-      tube(b, [[0.06, 0.2, 0.08], [-0.02, 0.1, 0.2], [-0.08, 0.02, 0.3]], 0.006, { seg: 4 });
+      tube(b, [[0, 0, 0], [0, 0.36, 0]], 0.006, { seg: 4 });
       b.setInk('blade').setColor('#c9ccd6').setPattern(PATTERN.metal);
-      b.box([-0.08, 0.005, 0.28], [0.12, 0.02, 0.32]);
+      b.polygon([[0, 0.0, -0.01], [0.17, -0.02, 0.02], [0.17, -0.005, 0.02], [0, 0.03, -0.01]]);
+      b.polygon([[0, 0.03, -0.01], [0.17, -0.005, 0.02], [0.17, -0.02, 0.02], [0, 0.0, -0.01]]);
       break;
     case 'hammer':
       // L54: a builder's hammer in the right fist (arm frame: the hand is at the end of the arm, down −Y).

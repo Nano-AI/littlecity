@@ -253,19 +253,20 @@ const HOLD: Record<Load, Mat4Like> = {
   basket: translation(0, 0.41, 0),
   washing: translation(0, 0.41, 0),
   petals: translation(0, 0.41, 0),
-  tray: translation(0.06, 0.49, 0.05),
+  // On the flat of the right hand, up at the shoulder.
+  tray: translation(0.085, 0.335, 0.05),
   bucket: translation(0, 0, 0),
   fishes: translation(0.115, -0.03, 0.03),
   // A long loaf held up across the chest, one end up past the shoulder.
-  loaf: multiply(translation(0.02, 0.2, 0.11), rotZ(0.9)),
-  bouquet: translation(0, 0.19, 0.12),
-  lantern: translation(0.11, 0.34, 0.12),
+  loaf: multiply(translation(0.0, 0.2, 0.08), rotZ(0.9)),
+  bouquet: translation(0, 0.19, 0.08),
+  lantern: translation(0.09, 0.36, 0.06),
   barrel: multiply(translation(0.075, 0.27, -0.1), rotX(Math.PI / 2)),
   // On the ground ahead of them, its handles in their hands. (A cart is not drawn bigger: it is big enough.)
-  cart: translation(0, 0, 0.36),
-  'cart-1': translation(0, 0, 0.36),
-  'cart-2': translation(0, 0, 0.36),
-  'cart-3': translation(0, 0, 0.36),
+  cart: translation(0, 0, 0.33),
+  'cart-1': translation(0, 0, 0.33),
+  'cart-2': translation(0, 0, 0.33),
+  'cart-3': translation(0, 0, 0.33),
   scythe: multiply(translation(0.08, 0.2, -0.04), rotX(-0.5)),
 };
 
@@ -301,7 +302,7 @@ export function carriedMesh(kind: Load): MeshData {
       else if (kind === 'lantern') {
         // On a short pole held up before them.
         b.setInk('pole').setColor(PALETTE.trunk);
-        tube(b, [[0, -0.2, 0], [0, 0.1, 0]], 0.005, { seg: 4 });
+        tube(b, [[0, -0.19, 0], [0, 0.02, 0]], 0.005, { seg: 4 });
         b.at(translation(0, 0.02, 0), () => drawLoad(b, kind));
       } else drawLoad(b, kind);
     });
@@ -323,32 +324,14 @@ export function restingMesh(kind: Load): MeshData {
         const a = 1.2, h = 0.3 * 1.25;
         b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind, 1.25));
       } else if (kind === 'sheaf') {
-        // A stook: three sheaves leaning together, darker than the standing wheat so it shows on it.
-        for (let i = 0; i < 3; i++) {
-          const a = (i / 3) * Math.PI * 2;
-          b.at(multiply(translation(Math.cos(a) * 0.035, 0, Math.sin(a) * 0.035), multiply(rotZ(Math.cos(a) * 0.25), rotX(-Math.sin(a) * 0.25))), () => drawLoad(b, kind, 1.7));
-        }
+        // A sheaf stood up on its butt, leaning in (-X) to the others of its stook (L59), darker than the
+        // standing wheat so it shows against it.
+        b.at(rotZ(0.3), () => drawLoad(b, kind, 1.7));
       } else if (kind === 'sack') {
         // Set down, a sack lies on its side (they heap up by a door), its middle over the origin.
         b.at(multiply(translation(0, 0.068 * BIG_REST, -0.085 * BIG_REST), rotationX(Math.PI / 2)), () => drawLoad(b, kind, BIG_REST));
       } else drawLoad(b, kind, BIG_REST);
     });
-    cache.set(k, (m = b.build()));
-  }
-  return m;
-}
-
-/**
- * L59: a cut cell of a wheat field, laid over the standing wheat (whose top is about 0.25–0.32 over the
- * ground): pale stubble in rows, a cell wide, origin at its middle on the ground.
- */
-export function stubbleMesh(): MeshData {
-  const k = 'stubble';
-  let m = cache.get(k);
-  if (!m) {
-    const b = new MeshBuilder({ ink: 'stubble' });
-    b.setInk('stubble').setColor('#d8c38a').setPattern(PATTERN.crops);
-    b.box([-0.47, 0.32, -0.47], [0.47, 0.335, 0.47]);
     cache.set(k, (m = b.build()));
   }
   return m;
