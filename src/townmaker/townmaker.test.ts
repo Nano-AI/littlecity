@@ -121,7 +121,50 @@ interface Surveyed {
   roles: Set<string>;
   props: Set<string>;
   rivers: number;
+  /** How much of each signature thing the town has (see EMPHASIS). */
+  counts: Record<string, number>;
 }
+
+/** Counts of the things a character's emphasis is made of. */
+function emphasisCounts(w: World, roleCount: Map<string, number>): Record<string, number> {
+  const c: Record<string, number> = { trees: 0, walls: 0, marble: 0, stalls: 0, stairs: 0, gardens: 0 };
+  for (const b of w.blocks.values()) {
+    if (b.kind === 'tree') c.trees!++;
+    if (b.kind === 'wall') c.walls!++;
+    if (b.kind === 'marble') c.marble!++;
+    if (b.kind === 'stall') c.stalls!++;
+    if (b.kind === 'stairs') c.stairs!++;
+  }
+  for (const f of w.floors.values()) if (f === 'garden') c.gardens!++;
+  for (const e of w.edges.values()) if (e === 'wall') c.walls!++;
+  const n = (r: string): number => roleCount.get(r) ?? 0;
+  c.dockGroups = n('quay') + n('pier') + n('jetty') + n('boardwalk');
+  c.farms = n('barn') + n('wheat-field');
+  c.temples = n('temple') + n('stoa') + n('bandstand') + n('theatre') + n('obelisk');
+  c.crossings = n('stone-bridge') + n('bridge-shop');
+  c.willows = n('willow');
+  c.cliffs = n('cliff-house');
+  c.parks = n('park-lawn') + n('herb-garden') + n('greenhouse') + n('walled-garden');
+  c.turrets = n('castle-turret');
+  return c;
+}
+
+/**
+ * What makes each character unmistakable, as thresholds on emphasisCounts
+ * (any one town may miss where its island has no room; the test allows a few).
+ */
+const EMPHASIS: Record<Character, Record<string, number>> = {
+  harbour: { dockGroups: 4 },
+  marble: { marble: 60, temples: 4 },
+  castle: { walls: 25, turrets: 4 },
+  market: { stalls: 6 },
+  river: { crossings: 2, willows: 3 },
+  farming: { farms: 2, gardens: 40 },
+  hill: { cliffs: 1, stairs: 4 },
+  gardens: { gardens: 50, trees: 70 },
+};
+/** Every town: woods and tree lines. */
+const TREES_EVERYWHERE = 35;
 let SURVEY: Surveyed[] | null = null;
 function survey(): Surveyed[] {
   if (SURVEY) return SURVEY;
@@ -137,6 +180,8 @@ function survey(): Surveyed[] {
       for (const e of plan.edits) w = applyEdit(w, t, e);
       const town = resolveTown(w, t);
       const rivers = gen === 2 ? generateIsland2(seed, (s) => generateTerrain(s, 1)).rivers : 0;
+      const roleCount = new Map<string, number>();
+      for (const r of town.shape.roles.values()) roleCount.set(r.role, (roleCount.get(r.role) ?? 0) + 1);
       out.push({
         seed,
         gen,
@@ -144,6 +189,7 @@ function survey(): Surveyed[] {
         roles: new Set([...town.shape.roles.values()].map((r) => r.role)),
         props: new Set([...town.dressing.props.map((p) => `${p.rule.split('.')[0]}/${p.type}`), ...town.dressing.actors.map((a) => `${a.rule.split('.')[0]}/${a.type}`), ...town.dressing.sockets.map((k) => k.rule.split('.')[0]!)]),
         rivers,
+        counts: emphasisCounts(w, roleCount),
       });
     }
   }
@@ -164,6 +210,22 @@ describe('grow a town: the survey (seeds 1 to 30, both generators)', () => {
     const rolled = new Set(survey().map((s) => s.character));
     expect(CHARACTERS.filter((c) => !rolled.has(c))).toEqual([]);
     console.log(`characters: ${CHARACTERS.map((c) => `${c} ${survey().filter((s) => s.character === c).length}`).join(', ')}`);
+  });
+
+  test('each character is unmistakable: its signature repeated (counts printed), and trees everywhere', () => {
+    const misses: string[] = [];
+    const lines: string[] = [];
+    for (const s of survey()) {
+      const want = EMPHASIS[s.character];
+      const got = Object.keys(want).map((k) => `${k} ${s.counts[k]}`).join(', ');
+      lines.push(`g${s.gen} s${s.seed} ${s.character.padEnd(8)} trees ${s.counts.trees} | ${got}`);
+      // A river town needs its river.
+      if (s.character === 'river' && s.gen === 2 && s.rivers === 0) continue;
+      for (const [k, min] of Object.entries(want)) if ((s.counts[k] ?? 0) < min) misses.push(`g${s.gen} s${s.seed} ${s.character}: ${k} ${s.counts[k]} < ${min}`);
+      if (s.counts.trees! < TREES_EVERYWHERE) misses.push(`g${s.gen} s${s.seed} ${s.character}: trees ${s.counts.trees} < ${TREES_EVERYWHERE}`);
+    }
+    console.log(`emphasis per town:\n${lines.join('\n')}\nmisses (${misses.length}):\n${misses.join('\n')}`);
+    expect(misses.length).toBeLessThanOrEqual(Math.ceil(survey().length * 0.15));
   });
 
   test('each town shows what its character promises', () => {

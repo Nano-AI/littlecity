@@ -28,7 +28,9 @@ import { buildForum } from './districts/forum';
 import { buildBarn, buildFields, buildFollyTower, buildOrchard, buildPark, buildSchool, buildSmithy, buildVillageGreen } from './districts/village';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWalledLawn, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
-import { buildHarbour } from './districts/harbour';
+import { buildHarbour, buildWaterfront } from './districts/harbour';
+import { buildColonnade, buildFishMarket, buildMarketPlace, buildMonument, buildQuayStretch, buildShrine, buildTownWall, buildTreeLines, buildWallTower, buildWheatFarm, buildWheatField, buildWoods } from './districts/emphasis';
+import { buildWatermill } from './districts/riverside';
 import { buildRiverside } from './districts/riverside';
 import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
@@ -112,6 +114,20 @@ const STEPS: Record<string, Step> = {
   farmstead: reserveFarmstead,
   follyTower: buildFollyTower,
   walledLawn: buildWalledLawn,
+  quay: (t) => buildQuayStretch(t, t.districts.length),
+  waterfront: (t) => buildWaterfront(t, t.districts.length),
+  fishMarket: buildFishMarket,
+  townWall: (t) => buildTownWall(t, 9) || buildTownWall(t, 8) || buildTownWall(t, 11),
+  wallTower: (t) => buildWallTower(t, t.districts.length),
+  colonnade: (t) => buildColonnade(t, t.districts.length),
+  shrine: (t) => buildShrine(t, t.districts.length),
+  monument: (t) => buildMonument(t, t.districts.length),
+  marketPlace: (t) => buildMarketPlace(t, t.districts.length),
+  wheatFarm: (t) => buildWheatFarm(t, t.districts.length),
+  wheatField: (t) => buildWheatField(t, t.districts.length),
+  smallSquare: (t) => buildSmallSquare(t) || buildSquare(t),
+  watermill: buildWatermill,
+  flowers: (t) => buildFlowerBed(t, t.districts.length),
 };
 
 /**
@@ -120,15 +136,42 @@ const STEPS: Record<string, Step> = {
  * block about d steps from the square. See README.md for what each town is.
  */
 const PLANS: Record<Character, readonly string[]> = {
-  harbour: ['square', 'greatHarbour', 'lighthouse', 'willow', 'housing:0:8', 'courtyard', 'chapel', 'smithy', 'boardwalk', 'bridge', 'jetty', 'riverside', 'housing:1:11', 'walledGarden', 'stairs', 'viaduct'],
-  marble: ['forum', 'willow', 'acropolis', 'folly', 'follyTower', 'housing:0:9', 'courtyard', 'viaduct', 'chapel', 'walledGarden', 'walledLawn', 'harbour', 'lighthouse', 'manor', 'courtyard:1', 'housing:1:12', 'bridge', 'boardwalk', 'stairs'],
-  castle: ['square', 'castle', 'smithy', 'chapel', 'hilltop', 'housing:0:8', 'housing:1:11', 'walledGarden', 'walledLawn', 'watchtower', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard', 'fields'],
-  market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'fields', 'housing:2:13', 'greenhouse', 'willow', 'bridge', 'stairs'],
-  river: ['square', 'riverside', 'inhabitedBridge', 'mill', 'willow', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'park', 'fields', 'greenhouse', 'boardwalk', 'bridge', 'courtyard', 'housing:1:12', 'walledGarden'],
-  farming: ['square', 'green', 'manor', 'chapel', 'farmstead', 'barn', 'orchard', 'mill', 'paddock', 'barn:1', 'orchard:1', 'smithy', 'greenhouse', 'manor', 'fields', 'willow', 'harbour', 'lighthouse', 'paddock:1', 'walledLawn'],
-  hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'chapel', 'acropolis', 'folly', 'follyTower', 'viaduct', 'stairs', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower', 'bridge'],
-  gardens: ['square', 'manor', 'park', 'fields', 'school', 'greenhouse', 'walledGarden', 'walledLawn', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
+  harbour: ['square', 'greatHarbour', 'quay:1', 'quay:2', 'waterfront:1', 'quay:3', 'lighthouse', 'waterfront:2', 'fishMarket', 'willow', 'housing:0:8', 'chapel', 'courtyard', 'smithy', 'jetty', 'jetty:1', 'boardwalk', 'bridge', 'quay:4', 'riverside', 'housing:1:11', 'orchard', 'walledGarden'],
+  marble: ['forum', 'willow', 'acropolis', 'shrine:1', 'shrine:2', 'folly', 'follyTower', 'housing:0:9', 'courtyard', 'viaduct', 'shrine:3', 'chapel', 'walledGarden', 'walledLawn', 'harbour', 'lighthouse', 'manor', 'courtyard:1', 'housing:1:12', 'viaduct:1', 'bridge', 'boardwalk', 'stairs'],
+  castle: ['square', 'castle', 'smithy', 'chapel', 'wallTower', 'wallTower:1', 'hilltop', 'watchtower', 'housing:0:8', 'housing:1:11', 'walledGarden', 'walledLawn', 'wallTower:2', 'watchtower:1', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard', 'walledLawn:1', 'fields', 'orchard'],
+  market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'housing:2:13', 'orchard', 'fields', 'greenhouse', 'willow', 'bridge', 'stairs'],
+  river: ['square', 'riverside', 'inhabitedBridge', 'inhabitedBridge:1', 'watermill', 'watermill:1', 'mill', 'willow', 'bridge', 'bridge:1', 'bridge:2', 'housing:0:9', 'chapel', 'orchard', 'park', 'orchard:1', 'harbour', 'lighthouse', 'fields', 'greenhouse', 'boardwalk', 'courtyard', 'housing:1:12', 'walledGarden'],
+  farming: ['smallSquare', 'green', 'chapel', 'wheatFarm', 'wheatFarm:1', 'wheatField', 'barn', 'orchard', 'orchard:1', 'wheatField:1', 'paddock', 'greenhouse', 'greenhouse:1', 'wheatFarm:2', 'barn:1', 'paddock:1', 'orchard:2', 'wheatField:2', 'manor', 'smithy', 'willow', 'harbour', 'lighthouse', 'paddock:2', 'barn:2', 'walledLawn'],
+  hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'cliff:2', 'wallTower', 'chapel', 'acropolis', 'stairs', 'stairs:1', 'folly', 'follyTower', 'viaduct', 'viaduct:1', 'cliff:3', 'watchtower', 'stairs:2', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower:1', 'bridge'],
+  gardens: ['square', 'manor', 'park', 'park:1', 'walledGarden', 'walledLawn', 'greenhouse', 'orchard', 'fields', 'school', 'walledGarden:1', 'greenhouse:1', 'park:2', 'orchard:1', 'walledLawn:1', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
 };
+
+/** Districts that need the streets laid first (they stand beside one, or are crossed by them). */
+const AFTER_STREETS: Record<Character, readonly string[]> = {
+  harbour: [],
+  marble: ['colonnade', 'colonnade:1', 'colonnade:2', 'monument', 'monument:1', 'monument:2'],
+  castle: ['townWall'],
+  market: ['marketPlace', 'marketPlace:1', 'marketPlace:2', 'marketPlace:3', 'flowers'],
+  river: [],
+  farming: [],
+  hill: [],
+  gardens: ['flowers', 'flowers:1', 'flowers:2', 'flowers:3'],
+};
+
+/** How wooded the town's leftover land is, and how many of its outer streets are lined with trees. */
+const WOODS: Record<Character, { woods: number; lines: number; linesFrom: number }> = {
+  harbour: { woods: 0.6, lines: 0.35, linesFrom: 9 },
+  marble: { woods: 0.6, lines: 0.6, linesFrom: 6 },
+  castle: { woods: 0.75, lines: 0.35, linesFrom: 9 },
+  market: { woods: 0.6, lines: 0.4, linesFrom: 9 },
+  river: { woods: 0.85, lines: 0.5, linesFrom: 8 },
+  farming: { woods: 0.75, lines: 0.75, linesFrom: 7 },
+  hill: { woods: 1, lines: 0.4, linesFrom: 8 },
+  gardens: { woods: 1, lines: 0.9, linesFrom: 4 },
+};
+
+/** Extra housing blocks after the plan (the second number is the last block's index): fewer where the theme needs the room. */
+const MORE_HOUSING: Record<Character, number> = { harbour: 3, marble: 3, castle: 3, market: 5, river: 4, farming: 1, hill: 3, gardens: 3 };
 
 /** What a secondary character adds: its showpieces, after the primary's first few districts. */
 const FLAVOUR: Record<Character, readonly string[]> = {
@@ -143,7 +186,7 @@ const FLAVOUR: Record<Character, readonly string[]> = {
 };
 
 /** How thickly cottages fill the streets, by character. */
-const INFILL: Record<Character, number> = { harbour: 1, marble: 1, castle: 1, market: 1.1, river: 1, farming: 0.45, hill: 0.9, gardens: 0.7 };
+const INFILL: Record<Character, number> = { harbour: 1, marble: 1, castle: 1, market: 1.1, river: 1, farming: 0.35, hill: 0.9, gardens: 0.7 };
 
 /** The plan for a primary and a secondary character. */
 export function planFor(primary: Character, secondary: Character): string[] {
@@ -172,12 +215,15 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
     if (name === 'housing') buildHousing(town, Number(a), Number(b));
     else STEPS[name!]?.(town);
   }
-  for (let n = 2; n < 6; n++) if (primary !== 'farming') buildHousing(town, n, 8 + n * 2);
+  for (let n = 2; n <= MORE_HOUSING[primary]; n++) buildHousing(town, n, 8 + n * 2);
   const unjoined = joinStreets(town);
+  for (const step of AFTER_STREETS[primary]) STEPS[step.split(':')[0]!]?.(town);
   buildFlowerBed(town, 0);
   buildFlowerBed(town, 1);
   for (let ring = 0; ring < 4; ring++) buildInfill(town, ring, INFILL[primary]);
   buildTrees(town);
+  buildTreeLines(town, WOODS[primary].lines, WOODS[primary].linesFrom);
+  buildWoods(town, WOODS[primary].woods);
   buildFarmstead(town);
 
   const { edits, fellBack } = watchingOrder(town);

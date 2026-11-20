@@ -7,14 +7,15 @@
 
 import { columnIndex } from '@/core/grid';
 import { CLAIM } from '../grower';
-import { search } from '../frame';
-import { fits, fromSquare, rectFlat, startDistrict, type Town, Local } from '../town';
+import { search, type Frame } from '../frame';
+import { chebFromSquare, fits, fromSquare, rectFlat, rectFree, startDistrict, type Town, Local } from '../town';
 import { pave } from '../route';
 
 /** Searches the island for a flat, free local rectangle (with a margin), scored by distance from the square. */
-function place(town: Town, name: string, u1: number, v1: number, near: number, minD = 5, turns: readonly (0 | 1 | 2 | 3)[] = [0, 1, 2, 3]) {
+function place(town: Town, name: string, u1: number, v1: number, near: number, minD = 5, turns: readonly (0 | 1 | 2 | 3)[] = [0, 1, 2, 3], ok: (f: Frame) => boolean = () => true) {
   const { g, site } = town;
   return search(g, name, (f) => {
+    if (!ok(f)) return null;
     if (!fits(g, f, 0, 0, u1, v1)) return null;
     const h = rectFlat(g, f, 0, 0, u1, v1);
     if (h < 0) return null;
@@ -71,7 +72,7 @@ export function buildVillageGreen(town: Town, near = 9): boolean {
  */
 export function buildBarn(town: Town, n: number, near = 14): boolean {
   const { g } = town;
-  const found = place(town, `barn${n}`, 8, 5, Math.max(near, 16), 16);
+  const found = place(town, `barn${n}`, 8, 5, Math.max(near, 14), 10, [0, 1, 2, 3], (f) => chebFromSquare(town, f, 0, 0, 3, 1) >= 10 && rectFree(g, f, -1, -1, 4, 2, CLAIM.street));
   if (!found) return false;
   const f = found.frame, h = found.data;
   const B = new Local(g, f);
