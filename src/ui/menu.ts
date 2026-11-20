@@ -1,7 +1,8 @@
 // The ☰ menu (design section 7): grow a town (design 15a; it opens a second
 // screen that asks where: on this island or on a new one), new island (with
-// a confirm), share link, postcard, town file out and in, sound, and the dev
-// tuning panel.
+// a confirm), share link, postcard, town file out and in, and sound. (The dev
+// tuning panel is not in the game: removed at Derek's request, 2026-11-20.
+// It lives on in the gallery.)
 // Owner: Interface.
 
 import { el, iconButton, setIcon } from './dom';
@@ -21,7 +22,6 @@ export interface MenuActions {
   /** Sound on or off; the menu shows the current state. */
   sound(): boolean;
   setSound(on: boolean): void;
-  toggleTuning(): void;
   /** Mischief (design section 13b): the town mends its own damage. Left out of the menu when absent. */
   rebuild?(): boolean;
   setRebuild?(on: boolean): void;
@@ -108,7 +108,6 @@ export function createMenu(actions: MenuActions): Menu {
       el('div', { class: 'lc-menu-rule' }),
       sound,
       ...(rebuild ? [rebuild] : []),
-      item('tuning', 'tune', 'Tuning', actions.toggleTuning),
     );
   };
 

@@ -446,10 +446,10 @@ describe('desktop: mouse and keys', () => {
     expect(errors).toEqual([]);
   });
 
-  test('the menu: new island asks first; sound and tuning toggle; a refusal is shown, not thrown', async () => {
+  test('the menu: new island asks first; sound toggles; a refusal is shown, not thrown', async () => {
     const { page, errors } = await open(TOWN);
     await page.click('[data-ui="menu-button"]');
-    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'rebuild', 'tuning']);
+    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'rebuild']);
 
     // Sound is off until the player turns it on.
     expect(await debug(page, 'sound')).toBe(false);
@@ -457,19 +457,9 @@ describe('desktop: mouse and keys', () => {
     expect(await debug(page, 'sound')).toBe(true);
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);
-
-    // Tuning: sliders bound to the style files; a change is live.
-    await page.click('[data-menu="tuning"]');
-    await page.waitForSelector('[data-ui="tuning"] [data-style="input.clickSlop"] input');
-    await page.evaluate(`{
-      const slider = document.querySelector('[data-style="input.clickSlop"] input');
-      slider.value = '9';
-      slider.dispatchEvent(new Event('input', { bubbles: true }));
-    }`);
-    expect(await page.textContent('[data-style="input.clickSlop"] output')).toBe('9');
-    expect(await page.getAttribute('[data-style="input.clickSlop"]', 'class')).toContain('lc-changed');
     await page.click('[data-ui="menu-button"]');
-    await page.click('[data-menu="tuning"]');
+    expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
+    // The dev tuning panel is not in the game.
     expect(await page.locator('[data-ui="tuning"]').count()).toBe(0);
 
     // A click on the town while the menu is open only closes the menu.

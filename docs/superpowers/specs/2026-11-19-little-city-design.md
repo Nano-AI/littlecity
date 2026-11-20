@@ -335,7 +335,7 @@ seed and wall colour.
 ```
 
 On a phone the tray is one row that scrolls sideways. ☰ holds new island,
-share link, postcard, sound, and the dev tuning panel. ☀ cycles time of day:
+share link, postcard and sound (the dev tuning panel is only in the gallery, not in the game: Derek, 2026-11-20). ☀ cycles time of day:
 running → hold day → hold dusk → hold night.
 
 **Targeting.** The pointer picks a face of terrain, a block, or the water

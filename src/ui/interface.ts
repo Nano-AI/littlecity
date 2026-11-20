@@ -41,7 +41,6 @@ import { mischiefOf } from '@/life/mischief/director';
 import { attachPointer } from './pointer';
 import { createStepper } from './stepper';
 import { createTray, type Tray } from './tray';
-import { createTuningPanel } from './tuning';
 import { INPUT } from '@/style/input';
 
 export interface InterfaceHost {
@@ -198,7 +197,6 @@ export function createInterface(host: InterfaceHost): Interface {
   const feedback = createFeedback(root);
   const count = el('div', { class: 'lc-count', attrs: { 'data-ui': 'run-count', 'aria-hidden': 'true', hidden: '' } });
   let sound = readSound();
-  let tuning: HTMLElement | null = null;
   // Mischief (design section 13b): its tools, and undo calling off what is going on.
   let lastUse = { x: 0, y: 0, shift: false };
   const mischief = createMischiefTools({
@@ -268,7 +266,6 @@ export function createInterface(host: InterfaceHost): Interface {
       // Sound itself arrives in a later stage; it listens for this.
       window.dispatchEvent(new CustomEvent('lc:sound', { detail: on }));
     },
-    toggleTuning: () => toggleTuning(),
     rebuild: () => mischiefOf(view.stage).rebuild,
     setRebuild(on) {
       mischiefOf(view.stage).rebuild = on;
@@ -284,15 +281,6 @@ export function createInterface(host: InterfaceHost): Interface {
   } catch {
     // Default: on.
   }
-  const toggleTuning = (): void => {
-    if (tuning) {
-      tuning.remove();
-      tuning = null;
-      return;
-    }
-    tuning = createTuningPanel(() => game.refresh(), { open: ['input'], onClose: toggleTuning });
-    root.append(tuning);
-  };
 
   const guide = createGuide({ shape: () => game.shape });
 
