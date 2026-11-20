@@ -16,6 +16,7 @@ declare module '@/core/vocab' {
     'churchyard': 'garden'; //   R-G02: a walled or fenced garden beside a chapel
     // marble (R-M08 …)
     'podium': 'marble'; //       R-M08: carries a temple, a stair or a forum: no battlements
+    'obelisk': 'marble'; //      R-M10: a free 1 × 1 marble column 3+ tall on a square
     'theatre': 'marble'; //      R-M09: tiers of seats facing a stage
   }
   interface FeatureVocab {
@@ -39,6 +40,7 @@ declare module '@/core/vocab' {
   interface TagVocab {
     'barn': true; //             R-H18: weatherboarded timber walls, no chimney, barn doors (J30)
     'farmstead': true; //        R-H18: a farmhouse within 4: a yard with hay and a cart
+    'obelisk:column': true; //   R-M10: drawn as a victory column with a gilt statue, not an obelisk
     'watch:pyramid': true; //    R-T07 (FX-10): a crowded watchtower: square, under a tiled pyramid
     'watch:crenel': true; //     R-T07 (FX-10): a crowded watchtower: a square tower house, crenellated
   }

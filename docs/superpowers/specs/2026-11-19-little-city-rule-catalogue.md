@@ -172,6 +172,13 @@ type and which later rules apply.
 - **R-M02 · 2 · Gatehouse** — marble touching one end of a gateway arch
   (R-A04) whose other end also touches marble or a wall → portcullis in the
   arch, lanterns either side.
+- **R-M10 · 2 · Obelisk or victory column** (discovery 1, RC-08, FX-09) — a
+  marble structure on a single column, 3+ cells tall, nothing on top, no
+  block beside any of its cells, its foot on plaza or with plaza on 2+
+  sides → a stepped base and pedestal, then a tapering obelisk with a gilt
+  pyramidion; or, 4+ tall with p=0.5 (tag obelisk:column), a fluted column
+  with a capital and a gilt figure holding up a wreath. Not: a stack
+  against a wall or house (a pier); 1–2 tall (R-M06, R-M07). Priority 5965.
 - **R-M09 · 2 · Theatre** (discovery 1, RC-07) — marble whose columns are
   tiers of seats facing one way: R-M04's shape cuts 2+ rows of it (3+ tiers
   with the uncut top row), 4+ wide; 3 of every 4 columns stand one level

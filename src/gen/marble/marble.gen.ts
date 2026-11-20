@@ -20,6 +20,7 @@ import { PALETTE, RAMPS, rampColor } from '@/style/palette';
 import { ownSockets } from '@/parts/monuments/kit';
 import { bollard, pedestal, pediment, quayStair } from '@/parts/monuments/marble-parts';
 import { arrowSlit, slitWindow, towerDoor } from '@/parts/monuments/openings';
+import { obelisk, victoryColumn } from '@/parts/structures/obelisk';
 
 const FACE: readonly BoxFace[] = ['n', 'e', 's', 'w'];
 /**
@@ -101,6 +102,14 @@ export default defineGenerator({
         const at = featureFrame(f);
         if (at) placeFeature(b, anchors, f, at, { plan, structure: s, parts });
       }
+      return { mesh: b.build(), anchors };
+    }
+
+    if (role === 'obelisk') {
+      // R-M10: an obelisk, or a victory column, in place of the stacked blocks.
+      const c = s.cells[0]!;
+      const column = plan.tags.get(s.id)?.has('obelisk:column') ?? false;
+      b.at(translation(keyX(c) + 0.5, keyY(c) * CELL_H, keyZ(c) + 0.5), () => (column ? victoryColumn : obelisk)(b, stone, s.cells.length * CELL_H));
       return { mesh: b.build(), anchors };
     }
 

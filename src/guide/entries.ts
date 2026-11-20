@@ -578,6 +578,19 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
+    id: 'obelisk',
+    group: 'stone',
+    name: 'Obelisk or column',
+    how: 'Stack marble three or more blocks high on a single square of a plaza, with nothing touching it: an obelisk with a gilt tip, or, four or more high, sometimes a column with a statue.',
+    proof: { role: 'obelisk' },
+    seed: 7309,
+    build(b) {
+      b.plaza(18, 18, 22, 22);
+      b.stack('marble', 20, 20, { floors: 4 });
+    },
+    view: FRONT,
+  },
+  {
     id: 'podium',
     group: 'stone',
     name: 'Podium',

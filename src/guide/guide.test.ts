@@ -53,7 +53,7 @@ describe('the list', () => {
       'wheat-field', 'herb-garden', 'reed-bed', 'park-lawn', 'kitchen-garden', 'flower-garden',
       'picket-fence', 'rope-fence', 'iron-railing', 'stone-balustrade', 'low-wall', 'garden-wall', 'curtain-wall',
       // discovery round 1, structures
-      'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney',
+      'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk',
     ] as const satisfies readonly Role[];
     type Unlisted = Exclude<Role, (typeof ALL)[number]>;
     const allListed: Unlisted extends never ? true : Unlisted = true;

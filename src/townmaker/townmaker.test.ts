@@ -26,7 +26,7 @@ const ROLES = [
   'wheat-field', 'herb-garden', 'reed-bed', 'park-lawn', 'kitchen-garden', 'flower-garden',
   'picket-fence', 'rope-fence', 'iron-railing', 'stone-balustrade', 'low-wall', 'garden-wall', 'curtain-wall',
   // discovery round 1, structures (src/vocab/structures.vocab.ts)
-  'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney',
+  'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk',
 ] as const satisfies readonly Role[];
 type Unlisted = Exclude<Role, (typeof ROLES)[number]>;
 const allListed: Unlisted extends never ? true : Unlisted = true;
@@ -132,7 +132,7 @@ describe('grow a town', () => {
     // each name from this list as the generator learns to build it (see docs/swarm/STATUS.md).
     const PENDING: readonly string[] = [
       // discovery round 1, structures: the generator does not build these yet
-      'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney',
+      'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk',
     ];
     const missing = ROLES.filter((r) => !PENDING.includes(r) && !seen.has(r) && terrains.some((t) => impossible(r, t) === null));
     expect(missing, `never reached on seeds 1–5:\n${table}`).toEqual([]);
