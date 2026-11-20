@@ -301,6 +301,12 @@ const api = {
     view!.setTown(shape!, dressing);
     return view!.stats().rebuildMs;
   },
+  /** Gives the view the same town again; returns what it rebuilt (nothing changed, so nothing): work, not time. */
+  rebuildWork(): { structures: number; vertices: number } {
+    view!.setTown(shape!, dressing);
+    const r = view!.stats().rebuild;
+    return { structures: r?.structures ?? -1, vertices: r?.vertices ?? -1 };
+  },
   close(): void {
     view?.dispose();
     canvas?.remove();
