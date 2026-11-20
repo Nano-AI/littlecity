@@ -144,6 +144,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
       case 'hayloft':
         return gableFrame(h, f) ?? null;
       case 'barn-doors':
+      case 'mill-race':
       case 'balcony':
       case 'portico':
       case 'vista':

@@ -267,7 +267,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'boathouse',
     group: 'houses',
     name: 'Boathouse',
-    how: 'Build a small house (four squares of ground or fewer, at most two storeys) on the shore, with a wall looking straight out onto the water.',
+    how: 'Build a small house on the shore (one storey on four squares of ground or fewer, or two storeys on two or fewer), with a wall looking straight out onto the sea.',
     proof: { role: 'boathouse' },
     seed: 7109,
     ground: seaSouth,
@@ -275,6 +275,23 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.house(19, 20, { w: 2, color: 3 });
     },
     view: FRONT,
+  },
+  {
+    id: 'watermill',
+    group: 'houses',
+    name: 'Watermill',
+    how: 'Build a house of two or more blocks on a river bank, a wall looking straight out onto the river: its wheel turns in the stream. One mill to a stretch of river.',
+    proof: { role: 'watermill' },
+    seed: 7116,
+    ground: (t) => {
+      t.flat(1);
+      t.water(4, 21, 43, 22);
+    },
+    build(b) {
+      b.house(19, 19, { w: 2, d: 2, floors: 2, color: 4 });
+    },
+    view: { yaw: 20, pitch: 28 },
+    frame: [17, 18, 22, 23, 3],
   },
   {
     id: 'cliff-house',

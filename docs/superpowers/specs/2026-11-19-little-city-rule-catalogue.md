@@ -53,8 +53,19 @@ type and which later rules apply.
 - **R-H04 · 1 · Stilt house** — every lowest cell stands over water (on a
   dock or generated stilts) → plank walls, ladder down to the water, fishing
   rod socket on the water side.
-- **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and at most 2
-  storeys; ground storey at `y ≤ 1` and a facade faces water within 1, or
+- **R-H16 · 2 · Watermill** (discovery 1, RC-03) — a house of 2+ cells with
+  its ground storey at level 1 and a ground-storey facade with river water
+  right outside it (generator 2's river, MAT_RIVER, or a channel: land
+  within 3 on both sides across the water, along x or z); of candidates
+  within 8 of each other only the lowest id → an undershot water wheel
+  turning on the river side (the 'water-wheel' actor on the 'wheel-hub'
+  socket of J30's mill-race: a timber frame, bearing and plank hood; no
+  window behind it), a timber weir with a foam line from the bank beside
+  the wheel across the stream to the far bank (up to 5 cells), flour sacks
+  at the land door (R-H98). Not: the sea or a lagoon with no bank within 3
+  across it; a stilt house. Priority 9955 (before the boathouse).
+- **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and 1 storey,
+  or a footprint of 2 or fewer and 2 storeys (FX-12); ground storey at `y ≤ 1` and a facade faces water within 1, or
   touches a dock → wide double doors on the water side, slipway, net on the
   wall. (A bigger house on the shore can be a town hall, inn or manor.)
 - **R-H06 · 2 · Inn** (place and scarcity: discovery 1, FX-02) — 6+ cells,
@@ -324,7 +335,11 @@ How pieces meet. Joinery decides geometry and produces sockets.
   are known, what a working building's walls show of its trade: a barn
   (R-H18) gets barn-doors (two boarded leaves swung open flat either side
   of its main door, a beam over them) and a hayloft (a loft door and hoist
-  beam in the middle of the gable end farthest from that door).
+  beam in the middle of the gable end farthest from that door); a watermill
+  (R-H16) gets its mill-race on the middle river-side wall cell of its
+  ground storey (posts in the stream, a bearing beam, a plank hood; it owns
+  the 'wheel-hub' socket the wheel turns on, and J09 leaves the cell
+  without a window).
 - **J29 · 2 · Vault door** (discovery 1, FX-09) — a terrace (R-M07) or podium
   (R-M08) 2+ storeys tall on 9+ columns with a 2 × 2 among them and no door → one
   stone-framed door into its vaults, in the middle of its longest

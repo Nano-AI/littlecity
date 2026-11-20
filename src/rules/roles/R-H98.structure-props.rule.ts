@@ -6,23 +6,27 @@
 //                     stage, facing the seats; a brazier at each end of it
 //   barn (R-H18)      outside its big doors: hay bales, and on a farmstead
 //                     a hand cart too
+//   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
+//                     timber weir across the stream beside it; flour sacks
+//                     at the land door
 //
 // A decoration-stage rule (props exist only there), kept with the role rules
 // it serves. Priority 896: just before R-H99, and before the general
 // doorstep dressing (D11), so these get their floor slots first.
 
-import { keyX, keyZ, neighbor, NO_CELL, opposite, type CellKey, type Dir4 } from '@/core/grid';
+import { key, keyX, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
 import { cellInfo } from '@/resolve/facts/cell.fact';
 import type { Anchor, CellPos } from '@/resolve/plan';
 import { theatreOf } from './R-M09.theatre.rule';
+import { riverAt } from './river.lib';
 
-type Variant = 'backdrop' | 'brazier' | 'hay';
+type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir';
 interface Data {
-  type?: 'role-prop';
-  variant: Variant | 'cart';
+  variant: Variant | 'cart' | 'sacks' | 'wheel';
   at: Anchor;
   claim: string;
+  span?: number;
 }
 
 export default defineRule<Data>({
@@ -30,12 +34,12 @@ export default defineRule<Data>({
   part: 'decoration',
   tier: 2,
   priority: 896,
-  about: 'Reads: the roles of discovery round 1 (theatre, barn), main doors. Emits: structure-prop props (and a role-prop cart). Claims: the floor slots they stand on.',
+  about: 'Reads: the roles of discovery round 1 (theatre, barn, watermill), main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
   find(ctx) {
     const { plan } = ctx;
     const out: Candidate<Data>[] = [];
     const add = (anchor: CellKey, structure: number, key: string, variant: Data['variant'], at: Anchor, claim: string): void => {
-      out.push({ anchor, structure, key, data: { variant, at, claim, ...(variant === 'cart' ? { type: 'role-prop' as const } : {}) } });
+      out.push({ anchor, structure, key, data: { variant, at, claim } });
     };
     const info = cellInfo(ctx.facts);
     const free = (cell: CellKey): boolean => cell !== NO_CELL && !ctx.facts.kinds.has(cell) && info.at(cell).standable && ctx.facts.world.floors.get(cell) !== 'garden';
@@ -54,7 +58,28 @@ export default defineRule<Data>({
       3: ['ne', 'se', 'nw', 'sw'],
     };
     for (const [id, { role }] of plan.roles) {
-      if (role === 'barn') {
+      if (role === 'watermill') {
+        const race = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'mill-race');
+        const hub = race ? (plan.socketsByOwner.get(race.id) ?? []).find((k) => k.type === 'wheel-hub') : undefined;
+        if (race && hub && race.cell !== undefined && race.dir !== undefined) {
+          add(race.cell, id, 'wheel', 'wheel', { socket: hub.id }, slot.socket(hub.id));
+          // The weir: from the bank beside the wheel straight out across the stream, to the far bank.
+          const dir = race.dir as Dir4;
+          const water = neighbor(race.cell, dir);
+          for (const side of [turn(dir, 3), turn(dir, 1)] as Dir4[]) {
+            const start = neighbor(water, side);
+            if (start === NO_CELL) continue;
+            const base = key(keyX(start), 0, keyZ(start));
+            if (!riverAt(ctx.facts.terrain, keyX(start), keyZ(start)) || ctx.facts.kinds.has(key(keyX(start), 0, keyZ(start)))) continue;
+            let span = 0;
+            for (let c = start; c !== NO_CELL && span < 5 && riverAt(ctx.facts.terrain, keyX(c), keyZ(c)); c = neighbor(c, dir)) span++;
+            out.push({ anchor: base, structure: id, key: 'weir', data: { variant: 'weir', at: { cell: base, pos: 'c', face: dir }, claim: slot.custom('weir', id), span } });
+            break;
+          }
+        }
+        const y = yard(id);
+        if (y) add(y.cell, id, 'sacks', 'sacks', { cell: y.cell, pos: CORNERS[y.dir][0], face: y.dir }, slot.floor(y.cell, CORNERS[y.dir][0]));
+      } else if (role === 'barn') {
         const y = yard(id);
         if (!y) continue;
         const [a, , , d] = CORNERS[y.dir];
@@ -79,7 +104,9 @@ export default defineRule<Data>({
   },
   claims: (c) => [c.data.claim],
   apply(c, out) {
-    if (c.data.variant === 'cart') out.prop({ type: 'role-prop', variant: 'cart', at: c.data.at });
-    else out.prop({ type: 'structure-prop', variant: c.data.variant, at: c.data.at });
+    const v = c.data.variant;
+    if (v === 'cart' || v === 'sacks') out.prop({ type: 'role-prop', variant: v, at: c.data.at });
+    else if (v === 'wheel') out.actor({ type: 'water-wheel', at: c.data.at, home: c.structure });
+    else out.prop({ type: 'structure-prop', variant: v, at: c.data.at, ...(c.data.span !== undefined ? { params: { span: c.data.span } } : {}) });
   },
 });

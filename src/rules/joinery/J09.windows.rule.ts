@@ -60,7 +60,7 @@ export default defineRule<{ s: Structure }>({
     const balconies = new Set<number>();
     for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) {
       if (f.cell === undefined || f.dir === undefined) continue;
-      if (f.type === 'vista' && f.variant !== 'doorway') taken.add(f.cell * 4 + f.dir);
+      if ((f.type === 'vista' && f.variant !== 'doorway') || f.type === 'mill-race') taken.add(f.cell * 4 + f.dir);
       if (f.type === 'balcony') balconies.add(f.cell * 4 + f.dir);
     }
     // Columns (and sides) of this house that stand over an alley.

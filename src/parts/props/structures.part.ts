@@ -5,6 +5,7 @@
 //
 // Frames: every one stands at a floor slot, +Z as the rule faced it.
 
+import { SEA_Y } from '@/core/grid';
 import { compose, rotationX, rotationY, rotationZ, scaling, translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
@@ -100,6 +101,21 @@ export default definePart({
         bale(0.13, 0, -0.04, -0.2 + ctx.rand('turn') * 0.3, 'bale-b');
         bale(0.02, 0.12, -0.01, 0.5, 'bale-c');
         b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'wisps' }, () => lump(b, -0.12, 0.01, 0.16, 0.08, 0.015, 0.05, 0.4));
+        break;
+      }
+      case 'weir': {
+        // R-H16: a timber weir across the stream: a row of stakes with a plank wall between them, its top
+        // a little over the water, and a white line of foam where the water spills over on the far side.
+        // From the bank (z = -0.5) straight out across `span` cells. The water lies at SEA_Y.
+        const span = item.params?.span ?? 2;
+        const z0 = -0.5, z1 = span - 0.5, top = SEA_Y + 0.07;
+        b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'planks' }, () => b.box([-0.05, SEA_Y - 0.3, z0], [0.0, top, z1], { skip: ['bottom', 'n', 's'] }));
+        b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'stakes' }, () => {
+          for (let z = z0 + 0.15; z < z1; z += 0.33) b.box([-0.085, SEA_Y - 0.3, z - 0.03], [-0.03, top + 0.06, z + 0.03], { skip: ['bottom'] });
+        });
+        b.with({ color: PALETTE.foam, pattern: PATTERN.foam, ink: 'foam' }, () => {
+          b.quad([0.0, SEA_Y + 0.012, z0], [0.0, SEA_Y + 0.012, z1], [0.16, SEA_Y + 0.008, z1], [0.16, SEA_Y + 0.008, z0]);
+        });
         break;
       }
       default:

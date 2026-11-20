@@ -5,6 +5,9 @@
 //                  door ('barn-doors' on the door's cell and side), and a
 //                  hayloft door with a hoist beam in the gable end farthest
 //                  from that door ('hayloft').
+//   watermill      the wheel's timber frame and bearing on the river side
+//   (R-H16)        ('mill-race', owning the 'wheel-hub' socket the water
+//                  wheel turns on); J09 leaves that wall cell without a window.
 //
 // Priority 930: after J06 (940) and J04 (960).
 
@@ -12,10 +15,11 @@ import { keyX, keyZ, neighbor, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
 import type { Feature } from '@/resolve/plan';
+import { millSide } from '../roles/R-H16.watermill.rule';
 import { houseStructures, roleOf, roofOf } from './houses.lib';
 
 interface Front {
-  type: 'barn-doors' | 'hayloft';
+  type: 'barn-doors' | 'hayloft' | 'mill-race';
   cell: number;
   dir: Dir4;
 }
@@ -25,11 +29,16 @@ export default defineRule<Front>({
   part: 'joinery',
   tier: 2,
   priority: 930,
-  about: 'Reads: house roles (barn), main doors, roofs. Emits: barn-doors round a barn\'s main door, a hayloft in its far gable.',
+  about: 'Reads: house roles (barn, watermill), main doors, roofs, facades over river water. Emits: barn-doors and a hayloft on a barn; a mill-race (socket wheel-hub) on a watermill.',
   find(ctx) {
     const out = [];
     for (const s of houseStructures(ctx)) {
       const role = roleOf(ctx.plan, s.id);
+      if (role === 'watermill') {
+        const side = millSide(s, ctx.facts);
+        if (side) out.push({ anchor: side.cell, structure: s.id, key: 'race', data: { type: 'mill-race' as const, cell: side.cell, dir: side.dir } });
+        continue;
+      }
       if (role !== 'barn') continue;
       const feats = ctx.plan.featuresByStructure.get(s.id) ?? [];
       const door = feats.find((f): f is Feature & { cell: number; dir: number } => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1 && f.cell !== undefined && f.dir !== undefined);
@@ -55,6 +64,7 @@ export default defineRule<Front>({
     return out;
   },
   apply(c, out) {
-    out.feature({ type: c.data.type, structure: c.structure!, cell: c.data.cell, dir: c.data.dir });
+    const f = out.feature({ type: c.data.type, structure: c.structure!, cell: c.data.cell, dir: c.data.dir });
+    if (c.data.type === 'mill-race') out.socket({ type: 'wheel-hub', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
   },
 });
