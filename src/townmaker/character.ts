@@ -66,7 +66,7 @@ export function islandTraits(site: Site): IslandTraits {
 export function characterWeights(tr: IslandTraits): Record<Character, number> {
   return {
     harbour: 1.2 + (tr.coast > 140 ? 0.8 : 0),
-    marble: tr.flat >= 15 ? 2.2 : tr.flat >= 13 ? 1.4 : tr.flat >= 11 ? 0.6 : 0.1,
+    marble: tr.flat >= 15 ? 3.4 : tr.flat >= 13 ? 2.6 : tr.flat >= 11 ? 1.6 : 0.4,
     castle: 1 + (tr.maxH >= 4 ? 0.8 : 0) + (tr.maxH >= 7 ? 0.6 : 0),
     market: 1.2 + (tr.flat >= 10 ? 0.5 : 0),
     river: tr.river >= 25 ? 3 : tr.river >= 10 ? 1 : 0,
