@@ -9,6 +9,9 @@
 //   front garden (U03)   the one grass cell between a main door and a street
 //   orchard (U18)        the grass between trees planted on a grid (the
 //                        orchards fact), before any field it stands in
+//   bailey (U21)         a leftover shut in by a castle: two or more of its
+//                        keep, gatehouse, curtain walls and turrets, one of
+//                        them a keep or gatehouse
 //   burgage plots (U14)  more than DRESSING.yardMax cells of grass shut in by
 //                        placed fences or walls and the backs (no main door)
 //                        of two or more houses in a row: one long garden per
@@ -113,6 +116,7 @@ export type LandUse =
   | { use: 'green'; green: Green }
   | { use: 'drying-green'; patch: Patch }
   | { use: 'orchard'; orchard: OrchardUse }
+  | { use: 'bailey'; patch: Patch }
   | { use: 'field'; field: Field }
   | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
@@ -130,6 +134,7 @@ export interface LandUses {
   greens: readonly Green[];
   dryingGreens: readonly Patch[];
   orchards: readonly OrchardUse[];
+  baileys: readonly Patch[];
 }
 
 /** U15: how far a house looks across a green, and the green's size and ring of houses. */
@@ -137,6 +142,9 @@ const GREEN_REACH = 8;
 const GREEN_MIN = 9;
 const GREEN_MAX = 100;
 const GREEN_HOUSES = 4;
+
+/** U21: the roles that make the ground they shut in a castle's bailey. */
+const CASTLE_ROLES = new Set(['keep', 'gatehouse', 'curtain-wall', 'castle-turret']);
 
 /** U17: a drying green is shut in by this many houses or more, and is at most DRYING_MAX cells. */
 const DRYING_HOUSES = 3;
@@ -213,6 +221,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
   const courtyards: Patch[] = [];
   const backYards: Patch[] = [];
   const dryingGreens: Patch[] = [];
+  const baileys: Patch[] = [];
   const pocketParks: Patch[] = [];
   for (const l of leftovers(f).list) {
     const cells = l.cells.filter((c) => !byCell.has(c));
@@ -223,6 +232,15 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     const houses = l.structures.filter((id) => f.structures.get(id)?.kind === 'house');
     const fenced = l.bounds.has('fence') || l.bounds.has('wall');
     const open = l.bounds.has('floor') || l.bounds.has('cliff') || l.bounds.has('water');
+    // U21: the ground inside a castle's walls is its bailey.
+    const castleParts = l.structures.filter((id) => CASTLE_ROLES.has(shape.roles.get(id)?.role ?? '')).length;
+    const castleBound = l.structures.some((id) => shape.roles.get(id)?.role === 'keep' || shape.roles.get(id)?.role === 'gatehouse');
+    if (castleParts >= 2 && castleBound && !l.bounds.has('water') && cells.length >= 4 && cells.length === l.cells.length) {
+      const patch: Patch = { cells, houses };
+      baileys.push(patch);
+      for (const c of cells) byCell.set(c, { use: 'bailey', patch });
+      continue;
+    }
     const burgage = fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
     if (burgage) {
       burgages.push(burgage);
@@ -337,7 +355,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     for (const c of cells) byCell.set(c, { use: 'green', green });
   }
 
-  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens, dryingGreens, orchards: orchardUses };
+  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens, dryingGreens, orchards: orchardUses, baileys };
 
   /** The row of houses whose backs (no main door) face the land on one side, if two or more. */
   function burgageOf(cells: readonly CellKey[]): Burgage | null {

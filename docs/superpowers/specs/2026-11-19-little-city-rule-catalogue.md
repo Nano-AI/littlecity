@@ -678,6 +678,14 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   quay (R-D01) or quay wall (R-M05) → cobbled flush with the street; on its
   water side a net rack or a stack of barrels or crates now and then. Not a
   beach with no quay, not a pier's or jetty's foot.
+- **U21 · 2 · Castle bailey** (UF-05) — a leftover of 4+ cells shut in by 2+
+  of a castle's parts (keep, gatehouse, curtain wall, castle turret), one of
+  them a keep or gatehouse, no water on its bounds (before fields, so a
+  curtain-walled yard is never a walled garden) → packed earth, a well near
+  the middle ('activity'/'fetch-water'), a lean-to stable with a horse
+  looking out against the curtain wall, hay, a practice dummy and an
+  archery butt. (Garrison drill and stabling the rider's horse here are the
+  life builder's.)
 
 ---
 

@@ -89,6 +89,7 @@ declare module '@/core/vocab' {
     'paving': true;
     'paving/slabs': true;
     'paving/cobbles': true;
+    'paving/earth': true;
     'paving.mask': number;
 
     // D35 guardians at the head of a grand stair: a stone lion or an urn on a plinth, at a floor slot,
@@ -98,5 +99,15 @@ declare module '@/core/vocab' {
     'guardian/urn': true;
     'guardian.mirror': 0 | 1;
     'guardian.look': number;
+
+    // U21 castle bailey. A lean-to stable (edge slot against the curtain wall, +Z out); a practice
+    // dummy and an archery butt (floor slots, +Z the face); hay bales (edge slot against a wall).
+    'stable': true;
+    'stable.look': number;
+    'practice-dummy': true;
+    'practice-dummy.look': number;
+    'archery-butt': true;
+    'hay': true;
+    'hay.look': number;
   }
 }

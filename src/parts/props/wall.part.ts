@@ -18,7 +18,7 @@ import { dab, lantern, lump, mixColor, rngOf, vary, TONE } from './kit';
 
 const LINE = -(0.5 - SLOT_INSET);
 /** Raw ink ids: an apron's slabs read as one paved surface. */
-const INK_PAVING = 61040;
+const INK_PAVING = 61040, INK_EARTH = 61041;
 
 /**
  * An arched surround standing `depth` proud of the wall: two piers and a
@@ -192,8 +192,8 @@ export const nicheBench = definePart({
 
 /**
  * Paving: one cell of a derived apron, forecourt or quay laid on bare ground,
- * flush with the street: stone slabs ('slabs', the default) or cobbles
- * ('cobbles'). `mask` bit d set where the paving runs on past side d (no
+ * flush with the street: stone slabs ('slabs', the default), cobbles
+ * ('cobbles') or packed earth ('earth', a castle bailey). `mask` bit d set where the paving runs on past side d (no
  * kerb there). Frame: the cell's NORTH-WEST CORNER slot, facing south (square
  * to the world); the part steps back to the cell's centre. It stands in a
  * corner slot because the walking graph ignores corner slots: paving
@@ -208,8 +208,9 @@ export const paving = definePart({
     const x0 = -inset(3), x1 = inset(1), z0 = -inset(0), z1 = inset(2);
     const y = 0.02;
     b.translate(SLOT_INSET, 0, SLOT_INSET);
-    const cobbled = item.variant === 'cobbles';
-    b.setColor(cobbled ? mixColor(PALETTE.stoneShade, PALETTE.dirt, 0.35) : mixColor(PALETTE.stone, PALETTE.stoneShade, 0.5)).setPattern(cobbled ? PATTERN.cobbles : PATTERN.paving).setInkId(INK_PAVING);
+    const cobbled = item.variant === 'cobbles', earth = item.variant === 'earth';
+    const color = earth ? PALETTE.dirt : cobbled ? mixColor(PALETTE.stoneShade, PALETTE.dirt, 0.35) : mixColor(PALETTE.stone, PALETTE.stoneShade, 0.5);
+    b.setColor(color).setPattern(earth ? PATTERN.dirt : cobbled ? PATTERN.cobbles : PATTERN.paving).setInkId(earth ? INK_EARTH : INK_PAVING);
     b.box([x0, 0, z0], [x1, y, z1], { skip: ['bottom', ...(['n', 'e', 's', 'w'] as const).filter((_f, d) => mask & (1 << d))] });
     void ctx;
     return { mesh: b.build() };
