@@ -111,6 +111,7 @@ uniform vec3 uStar;
 uniform float uGlow;
 uniform float uStars;
 uniform float uHalo;
+uniform float uFestive;    // Seasons: festival lights up; halos take each light's own colour
 
 ${NOISE}
 ${COLOR}
@@ -257,13 +258,18 @@ void main(){
   if (uGlow > 0.01 && uHalo > 0.0) {
     // A warm halo round anything lit: two rings of taps on the glow channel.
     float h = 0.0;
+    vec3 hc = vec3(0.0);
     for (int i = 0; i < 8; i++) {
       float a = float(i) * 0.7854;
       vec2 d = vec2(cos(a), sin(a)) * uPR / uOut;
-      h += texture(tColor, vUv + d * 4.5).a + 0.6 * texture(tColor, vUv + d * 10.0).a;
+      vec4 t1 = texture(tColor, vUv + d * 4.5), t2 = texture(tColor, vUv + d * 10.0);
+      h += t1.a + 0.6 * t2.a;
+      hc += t1.rgb * t1.a + 0.6 * t2.rgb * t2.a;
     }
+    // Seasons: while the festival's lights are up, a halo takes the colour of what glows.
+    vec3 warm = uFestive > 0.0 ? mix(uLampWarm, hc / max(h, 1e-3), uFestive * 0.7) : uLampWarm;
     h = clamp(h / 8.0, 0.0, 1.0);
-    g += uLampWarm * h * uHalo * uGlow * (1.0 - glow) * 0.55;
+    g += warm * h * uHalo * uGlow * (1.0 - glow) * 0.55;
   }
 
   if (uStars > 0.0) {
@@ -302,6 +308,8 @@ void main(){
   }
 
   float dens = mix(1.0, 0.8 + 0.2 * pen.w, steady);
+  // Seasons: a small light glowing is not swallowed by its own outline.
+  if (uFestive > 0.0) dens *= 1.0 - glow * uFestive * 0.6;
   g = mix(g, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);
 
   // Paper grain, after everything: per-pixel tooth, short fibres, soft mottling, the odd fleck.

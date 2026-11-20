@@ -419,6 +419,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uGlow: { value: 0 },
     uStars: { value: 0 },
     uHalo: { value: 0 },
+    uFestive: { value: 0 },
   };
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
@@ -1153,7 +1154,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       cu.uGlow.value = grade.glow;
       cu.uStars.value = grade.stars;
       // Snow on the ground catches the windows' and lamps' light: warmer, wider pools.
-      cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0]);
+      const festive = seasonOf(signals).festival;
+      cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0] + 0.6 * festive);
+      cu.uFestive.value = festive;
       if (inkRT) {
         inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
         inkUniforms.uPR.value = pixelRatio / 2;
