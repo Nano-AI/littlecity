@@ -686,3 +686,17 @@ e2e files no longer re-click a selected piece (that now deselects). New
 tests by other agents must do the same. `traffic.test.ts` timeout 300 s
 (machine at load 32). Full run under load: only load timeouts; affected
 files pass serially. Mischief preview server (5175) hit its two-hour limit.
+
+**Land shaping fixes merged** (`619e367`): with a land tool held a plain
+drag on land shapes it (drag on the sea turns the camera); Level brings
+every column to the start height in one stroke; soft-edged brush; foam
+rushes into dug columns; real-mouse tests on slopes and six play-throughs.
+Conflict in `src/ui/interface.ts` resolved (both hints kept; idle respected).
+**Seasons follow-up merged** (`ca6d5bb`): festival props no longer shown by
+the pop-in out of season (cause: F05 pop-in called setVisible(true));
+`src/ui/slider.ts` sliders for time, season, weather; eased transitions;
+swept streets in snow; bulbs ≥ 2 px; spring blossom; coats, hats,
+umbrellas; a snowman. Unit tests 1,890 green; all e2e green serially (two
+load failures passed alone). Published.
+Running: mischief (preview), living-town (broom, harvest, tool audit),
+field, big-islands (preview).
