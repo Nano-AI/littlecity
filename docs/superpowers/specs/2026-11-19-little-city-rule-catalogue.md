@@ -535,6 +535,33 @@ L41 river barge, L42 passing sails.
   crowds. The horse stands tethered by the gate between rides, flicking its
   tail.
 
+### The living town (Derek's request, 2026-11-19)
+
+Things being done to and with the town, as at the quay when a ship is in:
+something made somewhere is carried by someone along real streets and used
+somewhere else, and the town answers what the player does. Run-time
+reactions have no rule file (like L26); everything else is a `*.rule.ts`
+under `src/rules/life/` with its fixture.
+
+- **L50 · 2 · Scuffle** (run time, `src/life/people/scuffle.ts`) — two
+  grown-up walkers who meet head on within 0.16 of each other's line
+  (p=0.3) or one of whom has been held up 4.5 s squeezing past the other
+  (p=0.5) → a cartoon scuffle: the two vanish into a rolling dust cloud
+  (fists, a shoe, a hat and stars popping out on twos, a balloon of
+  grawlix over it turned to the camera) for 4.2–5.8 s; up to 7 passers-by
+  within 3.2 cells stop and watch, 45% of grown-ups cheering, a grown-up
+  beside a watching child covering its eyes; pigeons within 3 scatter;
+  then the two sit dazed with stars round their heads (2.4 s), get up and
+  dust off (1.1 s) and either stomp off their own ways or (p=0.35) shake
+  hands and walk to the nearest inn together. One at a time in the town,
+  then a rest of 75–130 s. With sound on: a rumble of thumps and boings.
+  **Must not:** involve children, anybody on a job, a round or called home,
+  anybody carrying something, leaving, in a doorway or single-file
+  stretch, or in an event's party; happen on stairs, gates, docks, roofs,
+  bridges or any cell standing on a structure, or in a cluttered cell.
+  Building over the spot ends it at once; anybody in it taken off the
+  street ends it.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

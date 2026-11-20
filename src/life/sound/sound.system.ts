@@ -22,7 +22,7 @@ import type { ShapePlan } from '@/resolve/plan';
 import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
 import { shipSoundsOf } from '../ships/news';
-import { gullCall, noiseBuffer, noteFor, pop, strike, timbreFor } from './synth';
+import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
 
 const SOUND_KEY = 'little-city.sound';
 /** Master level: everything is a background to building. */
@@ -154,6 +154,12 @@ export default defineSystem<State>({
         if (a.ac.currentTime - state.lastNote < 0.06) return;
         state.lastNote = a.ac.currentTime;
         strike(a.ac, a.master, noteFor(keyY(cell)), timbreFor(state.shape?.kinds.get(cell)), 0.11);
+      }),
+      // L50: a scuffle's rumble and boings (the cloud lasts about five seconds).
+      ctx.signals.on('scuffle', ({ what, x, z }) => {
+        const a = state.audio;
+        if (!a || !state.wanted || what !== 'start') return;
+        scuffleSound(a.ac, a.master, a.noise, 0.05, 4.5, Math.abs(Math.round(x * 31 + z * 17)));
       }),
       ctx.signals.on('blockRemoved', () => {
         const a = state.audio;
