@@ -82,6 +82,63 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
   });
 }
 
+/**
+ * R-M11, R-M12: the roof over a bandstand (an eight-sided tent with a finial) or a stoa (one slope
+ * falling away from the square from its front cornice, with stone cheeks at the ends), on the top of
+ * the slab.
+ */
+function pavilionRoof(b: MeshBuilder, s: Structure, role: 'bandstand' | 'stoa', roof: string, stone: string, tags: ReadonlySet<string> | undefined): void {
+  const mine = new Set(s.cells);
+  const tops = s.cells.filter((c) => !mine.has(above(c)));
+  const xs = tops.map(keyX), zs = tops.map(keyZ);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, z0 = Math.min(...zs), z1 = Math.max(...zs) + 1;
+  const y = (keyY(tops[0]!) + 1) * CELL_H + 0.002;
+  const eave = 0.1;
+  if (role === 'bandstand') {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, r = (Math.max(x1 - x0, z1 - z0) / 2) * Math.SQRT2 * 0.92 + eave;
+    b.at(compose(translation(cx, y, cz), rotationY(Math.PI / 8)), () => {
+      b.with({ color: roof, pattern: PATTERN.shingles, ink: 'tent' }, () => b.lathe([[r, 0], [r * 0.55, 0.32], [r * 0.12, 0.55], [0, 0.6]], { segments: 8, smooth: false, capBottom: true }));
+      b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => b.lathe([[0.03, 0.6], [0.05, 0.66], [0, 0.74]], { segments: 6 }));
+    });
+    return;
+  }
+  // The stoa: high along the front (the square side), low at the back.
+  const front = tags?.has('stoa:n') ? 0 : tags?.has('stoa:e') ? 1 : tags?.has('stoa:w') ? 3 : 2;
+  const rise = 0.42;
+  // Corners of the roof plane, eaves out by `eave`; h(x, z) is its height.
+  const ax0 = x0 - eave, ax1 = x1 + eave, az0 = z0 - eave, az1 = z1 + eave;
+  const h = (x: number, z: number): number => {
+    const t = front === 0 ? (az1 - z) / (az1 - az0) : front === 2 ? (z - az0) / (az1 - az0) : front === 3 ? (ax1 - x) / (ax1 - ax0) : (x - ax0) / (ax1 - ax0);
+    return y + rise * t;
+  };
+  const p = (x: number, z: number, lift = 0): [number, number, number] => [x, h(x, z) + lift, z];
+  b.with({ color: roof, pattern: PATTERN.shingles, ink: 'roof' }, () => {
+    const t = 0.05;
+    b.quad(p(ax0, az1, t), p(ax1, az1, t), p(ax1, az0, t), p(ax0, az0, t)); // the tiles, facing up
+    b.quad(p(ax0, az0), p(ax1, az0), p(ax1, az1), p(ax0, az1)); // the underside
+    // The four thin edges of the roof slab.
+    const edge = (a: [number, number], c: [number, number]): void => void b.quad(p(a[0], a[1]), p(c[0], c[1]), p(c[0], c[1], t), p(a[0], a[1], t));
+    edge([ax0, az1], [ax1, az1]);
+    edge([ax1, az0], [ax0, az0]);
+    edge([ax1, az1], [ax1, az0]);
+    edge([ax0, az0], [ax0, az1]);
+  });
+  // Stone cheeks closing the ends between the slab's top and the roof.
+  b.with({ color: stone, pattern: PATTERN.marble, ink: 'cheeks' }, () => {
+    if (front === 0 || front === 2) {
+      for (const [x, sgn] of [[x0, -1], [x1, 1]] as const) {
+        const pts: [number, number, number][] = [[x, y, z0], [x, y, z1], [x, h(x, z1) - 0.01, z1], [x, h(x, z0) - 0.01, z0]];
+        b.polygon(sgn > 0 ? pts : [...pts].reverse());
+      }
+    } else {
+      for (const [z, sgn] of [[z0, -1], [z1, 1]] as const) {
+        const pts: [number, number, number][] = [[x1, y, z], [x0, y, z], [x0, h(x0, z) - 0.01, z], [x1, h(x1, z) - 0.01, z]];
+        b.polygon(sgn > 0 ? pts : [...pts].reverse());
+      }
+    }
+  });
+}
+
 export default defineGenerator({
   kind: 'marble',
   build(s, plan, parts) {
@@ -358,6 +415,7 @@ export default defineGenerator({
 
     // ── features ──
     const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
+    if (role === 'bandstand' || role === 'stoa') pavilionRoof(b, s, role, roof, stone, plan.tags.get(s.id));
     for (const f of features) {
       if (f.type === 'battlement' || f.type === 'stylobate') continue;
       if (f.type === 'broad-steps') {

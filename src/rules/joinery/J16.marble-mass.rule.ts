@@ -24,8 +24,9 @@ export default defineRule({
   apply(c, out, { plan }) {
     const s = plan.structures.get(c.structure!)!;
     const mine = new Set(s.cells);
-    // A temple's top is under its roof.
-    const roofed = (plan.featuresByStructure.get(s.id) ?? []).some((f) => f.type === 'pediment');
+    // A temple's top is under its roof (and a bandstand's and a stoa's, R-M11, R-M12).
+    const role = plan.roles.get(s.id)?.role;
+    const roofed = role === 'bandstand' || role === 'stoa' || (plan.featuresByStructure.get(s.id) ?? []).some((f) => f.type === 'pediment');
     if (!roofed && s.cells.some((cell) => !plan.kinds.has(above(cell)))) out.tag(s.id, 'top:paved');
     const flush = s.cells.some((cell) => {
       if (mine.has(above(cell))) return false;

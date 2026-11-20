@@ -7,10 +7,10 @@
 // stepped or L-shaped top still gets the role, the frieze and the steps.
 
 import { above, below, columnIndex, key, keyX, keyY, keyZ, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
-import { defineRule } from '@/resolve/engine/api';
+import { defineRule, type RuleOut } from '@/resolve/engine/api';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 
-function pillarsUnder(s: Structure, plan: ShapePlan): number {
+export function pillarsUnder(s: Structure, plan: ShapePlan): number {
   const shafts = new Set<number>();
   for (const cell of s.cells) {
     const under = below(cell);
@@ -19,6 +19,22 @@ function pillarsUnder(s: Structure, plan: ShapePlan): number {
     if (p && p.cells.length >= 2) shafts.add(p.id);
   }
   return shafts.size;
+}
+
+/** Steps under every bottom cell, at the foot of the pillars (or of the support that would stand there). */
+export function stylobates(s: Structure, plan: ShapePlan, out: RuleOut): void {
+  const lowest = Math.min(...s.cells.map((cell) => keyY(cell)));
+  for (const cell of s.cells) {
+    if (keyY(cell) !== lowest) continue;
+    let depth = 0;
+    for (let u = below(cell); u !== NO_CELL; u = below(u)) {
+      const kind = plan.kinds.get(u);
+      const ground = plan.terrain.height[columnIndex(keyX(u), keyZ(u))]!;
+      if (keyY(u) < ground || (kind !== undefined && kind !== 'pillar')) break;
+      depth++;
+    }
+    if (depth > 0) out.feature({ type: 'stylobate', structure: s.id, cell, params: { depth } });
+  }
 }
 
 export default defineRule({
@@ -39,20 +55,7 @@ export default defineRule({
     const s = plan.structures.get(c.structure!)!;
     out.role(s.id, 'temple');
     const mine = new Set(s.cells);
-
-    // Steps: under every bottom cell, at the foot of the pillars (or of the support that would stand there).
-    const lowest = Math.min(...s.cells.map((cell) => keyY(cell)));
-    for (const cell of s.cells) {
-      if (keyY(cell) !== lowest) continue;
-      let depth = 0;
-      for (let u = below(cell); u !== NO_CELL; u = below(u)) {
-        const kind = plan.kinds.get(u);
-        const ground = plan.terrain.height[columnIndex(keyX(u), keyZ(u))]!;
-        if (keyY(u) < ground || (kind !== undefined && kind !== 'pillar')) break;
-        depth++;
-      }
-      if (depth > 0) out.feature({ type: 'stylobate', structure: s.id, cell, params: { depth } });
-    }
+    stylobates(s, plan, out);
 
     // Pediments: the top must be one full rectangle at one level, open to the sky.
     const tops = s.cells.filter((cell) => !mine.has(above(cell)));

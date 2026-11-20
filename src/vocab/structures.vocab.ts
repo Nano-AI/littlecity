@@ -18,6 +18,8 @@ declare module '@/core/vocab' {
     // marble (R-M08 …)
     'podium': 'marble'; //       R-M08: carries a temple, a stair or a forum: no battlements
     'folly-tower': 'lighthouse'; // R-L02: a Light far inland: a stone belvedere, no beam
+    'bandstand': 'marble'; //    R-M11: a small temple on a green or square: a tented roof
+    'stoa': 'marble'; //         R-M12: a long temple on the side of a square: one sloping roof
     'obelisk': 'marble'; //      R-M10: a free 1 × 1 marble column 3+ tall on a square
     'theatre': 'marble'; //      R-M09: tiers of seats facing a stage
   }
@@ -44,6 +46,10 @@ declare module '@/core/vocab' {
   interface TagVocab {
     'barn': true; //             R-H18: weatherboarded timber walls, no chimney, barn doors (J30)
     'farmstead': true; //        R-H18: a farmhouse within 4: a yard with hay and a cart
+    'stoa:n': true; //           R-M12: the side of the stoa that faces the square
+    'stoa:e': true;
+    'stoa:s': true;
+    'stoa:w': true;
     'obelisk:column': true; //   R-M10: drawn as a victory column with a gilt statue, not an obelisk
     'watch:pyramid': true; //    R-T07 (FX-10): a crowded watchtower: square, under a tiled pyramid
     'watch:crenel': true; //     R-T07 (FX-10): a crowded watchtower: a square tower house, crenellated

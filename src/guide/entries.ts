@@ -590,6 +590,32 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
+    id: 'bandstand',
+    group: 'stone',
+    name: 'Bandstand',
+    how: 'Rest marble of four blocks or fewer on four pillars two or more tall, on a plaza or garden of nine or more squares, or on open grass away from houses.',
+    proof: { role: 'bandstand' },
+    seed: 7310,
+    build(b) {
+      b.plaza(17, 17, 21, 21);
+      for (const x of [19, 20]) for (const z of [19, 20]) b.stack('pillar', x, z, { floors: 2 }).block('marble', x, 3, z, { color: 2 });
+    },
+    view: FRONT,
+  },
+  {
+    id: 'stoa',
+    group: 'stone',
+    name: 'Stoa',
+    how: 'Rest a long marble roof, three or more times as long as it is wide and more than six blocks, on pillars beside a plaza: a market hall with one sloping roof.',
+    proof: { role: 'stoa' },
+    seed: 7311,
+    build(b) {
+      b.plaza(15, 18, 18, 23);
+      for (let z = 18; z <= 23; z++) b.stack('pillar', 20, z, { floors: 2 }).block('marble', 20, 3, z, { color: 1 }).block('marble', 21, 3, z, { color: 1 });
+    },
+    view: FRONT,
+  },
+  {
     id: 'obelisk',
     group: 'stone',
     name: 'Obelisk or column',

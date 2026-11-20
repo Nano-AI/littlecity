@@ -188,6 +188,19 @@ type and which later rules apply.
 - **R-M02 · 2 · Gatehouse** — marble touching one end of a gateway arch
   (R-A04) whose other end also touches marble or a wall → portcullis in the
   arch, lanterns either side.
+- **R-M11 · 3 · Bandstand** (discovery 1, RC-14) — R-M01's shape (marble on
+  4+ placed pillar shafts of 2+) with 4 cells or fewer, its pillars standing
+  on the ground (not up on a podium), on a plaza or garden region of 9+
+  cells or on grass with no house within 4 → an eight-sided tented roof
+  with a gilt finial over the slab, stylobates as a temple's, no
+  pediments. Not: a temple on a podium; a slab of 5+ cells. Priority 5995.
+- **R-M12 · 3 · Stoa** (discovery 1, RC-13) — R-M01's shape with 7+ cells, a
+  rectangular top at one level 3+ times as long as wide, and plaza at the
+  foot of one long side's pillars or 1–2 cells out from it (tag
+  stoa:<side>) → one sloping tiled roof, high over the square side and
+  falling away from it, with stone cheeks at the ends, no pediments;
+  stylobates; goods (crates) on every other free ground cell along its back
+  (R-H98). Not: 6 cells or fewer; a portico facing no plaza. Priority 5993.
 - **R-M10 · 2 · Obelisk or victory column** (discovery 1, RC-08, FX-09) — a
   marble structure on a single column, 3+ cells tall, nothing on top, no
   block beside any of its cells, its foot on plaza or with plaza on 2+

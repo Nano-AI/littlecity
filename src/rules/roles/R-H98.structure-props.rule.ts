@@ -13,6 +13,8 @@
 //   chapel)           opening a path makes in its wall or fence (J20 gate)
 //   smithy (R-H19)    an anvil on its block with a quench barrel outside the
 //                     forge front; a hitching rail and trough by the door
+//   stoa (R-M12)      goods for the booths on every other free ground cell
+//                     under it, along its back
 //   warehouse (R-H17) crates, a barrel and a sack beside its loading door
 //   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
 //                     timber weir across the stream beside it; flour sacks
@@ -22,7 +24,7 @@
 // it serves. Priority 896: just before R-H99, and before the general
 // doorstep dressing (D11), so these get their floor slots first.
 
-import { edgeCells, key, keyX, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, edgeCells, key, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
 import { cellInfo } from '@/resolve/facts/cell.fact';
 import type { Anchor, CellPos } from '@/resolve/plan';
@@ -44,7 +46,7 @@ export default defineRule<Data>({
   part: 'decoration',
   tier: 2,
   priority: 896,
-  about: 'Reads: the roles of discovery round 1 (theatre, barn, smithy, warehouse, watermill, churchyard; chapels for bare-grass yards), J20 gates, main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
+  about: 'Reads: the roles of discovery round 1 (theatre, stoa, barn, smithy, warehouse, watermill, churchyard; chapels for bare-grass yards), J20 gates, main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
   find(ctx) {
     const { plan } = ctx;
     const out: Candidate<Data>[] = [];
@@ -124,7 +126,21 @@ export default defineRule<Data>({
       }
     }
     for (const [id, { role }] of plan.roles) {
-      if (role === 'smithy') {
+      if (role === 'stoa') {
+        const s = plan.structures.get(id)!;
+        const tags = plan.tags.get(id);
+        const front: Dir4 = tags?.has('stoa:n') ? 0 : tags?.has('stoa:e') ? 1 : tags?.has('stoa:w') ? 3 : 2;
+        const back = opposite(front) as Dir4;
+        const lowest = Math.min(...s.cells.map(keyY));
+        const row = s.cells.filter((c) => keyY(c) === lowest).filter((c) => !s.cells.includes(neighbor(c, back)));
+        row.sort((a, b) => a - b).forEach((c, i) => {
+          if (i % 2 === 1) return;
+          // The ground cell under it, on the terrain.
+          const cell = key(keyX(c), ctx.facts.terrain.height[columnIndex(keyX(c), keyZ(c))]!, keyZ(c));
+          if (keyY(cell) >= keyY(c) || !free(cell)) return;
+          add(cell, id, `booth${cell}`, 'crates', { cell, pos: 'c', face: front }, slot.floor(cell, 'c'));
+        });
+      } else if (role === 'smithy') {
         const forge = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'forge-front');
         if (forge && forge.cell !== undefined && forge.dir !== undefined) {
           const out1 = neighbor(forge.cell, forge.dir as Dir4);
