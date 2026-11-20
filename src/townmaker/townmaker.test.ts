@@ -140,6 +140,9 @@ function emphasisCounts(w: World, roleCount: Map<string, number>): Record<string
   const n = (r: string): number => roleCount.get(r) ?? 0;
   c.dockGroups = n('quay') + n('pier') + n('jetty') + n('boardwalk');
   c.farms = n('barn') + n('wheat-field');
+  c.wheat = n('wheat-field');
+  c.landings = n('jetty') + n('pier') + n('quay') + n('boathouse') + n('watermill');
+  c.rowsUp = n('townhouse') + n('row-house');
   c.temples = n('temple') + n('stoa') + n('bandstand') + n('theatre') + n('obelisk');
   c.crossings = n('stone-bridge') + n('bridge-shop');
   c.willows = n('willow');
@@ -159,7 +162,7 @@ const EMPHASIS: Record<Character, Record<string, number>> = {
   castle: { walls: 25, turrets: 4 },
   market: { stalls: 6 },
   river: { crossings: 2, willows: 3 },
-  farming: { farms: 2, gardens: 40 },
+  farming: { wheat: 3, gardens: 80 },
   hill: { cliffs: 1, stairs: 4 },
   gardens: { gardens: 50, trees: 70 },
 };

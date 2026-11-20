@@ -69,7 +69,8 @@ export function characterWeights(tr: IslandTraits): Record<Character, number> {
     marble: tr.flat >= 15 ? 3.4 : tr.flat >= 13 ? 2.6 : tr.flat >= 11 ? 1.6 : 0.4,
     castle: 1 + (tr.maxH >= 4 ? 0.8 : 0) + (tr.maxH >= 7 ? 0.6 : 0),
     market: 1.2 + (tr.flat >= 10 ? 0.5 : 0),
-    river: tr.river >= 25 ? 3 : tr.river >= 10 ? 1 : 0,
+    // A river town needs a river long enough to be its spine.
+    river: tr.river >= 45 ? 3 : tr.river >= 30 ? 1 : 0,
     farming: tr.flat >= 12 ? 1.4 : 0.5,
     hill: tr.maxH >= 7 ? 3 : tr.maxH >= 5 ? 0.8 : 0.1,
     gardens: tr.flat >= 11 ? 1 : 0.4,

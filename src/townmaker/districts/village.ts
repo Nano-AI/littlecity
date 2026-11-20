@@ -72,7 +72,7 @@ export function buildVillageGreen(town: Town, near = 9): boolean {
  */
 export function buildBarn(town: Town, n: number, near = 14): boolean {
   const { g } = town;
-  const found = place(town, `barn${n}`, 8, 5, Math.max(near, 14), 10, [0, 1, 2, 3], (f) => chebFromSquare(town, f, 0, 0, 3, 1) >= 10 && rectFree(g, f, -1, -1, 4, 2, CLAIM.street));
+  const found = place(town, `barn${n}`, 8, 5, Math.max(near, 14), 10, [0, 1, 2, 3], (f) => chebFromSquare(town, f, 0, 0, 3, 1) >= 9 && rectFree(g, f, -1, -1, 4, 2, CLAIM.street));
   if (!found) return false;
   const f = found.frame, h = found.data;
   const B = new Local(g, f);
