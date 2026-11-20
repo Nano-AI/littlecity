@@ -9,6 +9,8 @@ import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { MONUMENTS } from '@/style/monuments';
 import { PALETTE, rampColor } from '@/style/palette';
+import { drawPavilionColumns, pavilionLayout } from '@/gen/marble/pavilion';
+import type { FeatureOf } from '@/resolve/plan';
 import { drawColumn } from './column';
 
 /** What J14 decides about a pillar stack, from what the generator may read. */
@@ -29,6 +31,17 @@ export default defineGenerator({
     const b = new MeshBuilder({ ink: s.id });
     const anchors: Record<string, Mat4Like> = {};
     const bottom = s.cells[0]!;
+    // Under a bandstand (R-M11): the pavilion's slender columns that stand in this cell, not a fat shaft.
+    const bay = (plan.featuresByStructure.get(s.id) ?? []).find((f): f is FeatureOf<'pavilion-bay'> => f.type === 'pavilion-bay');
+    if (bay) {
+      const p = bay.params ?? {};
+      const cells: [number, number][] = [];
+      for (let i = 0; i < 16; i++) if (((p.mask ?? 0) >> i) & 1) cells.push([(p.x0 ?? 0) + (i % 4), (p.z0 ?? 0) + Math.floor(i / 4)]);
+      const top = s.cells[s.cells.length - 1]!;
+      const pv = pavilionLayout({ cells, ground: p.ground ?? keyY(bottom), low: p.low ?? keyY(bottom), level: keyY(top) + 1 });
+      drawPavilionColumns(b, pv, keyX(bottom), keyZ(bottom), rampColor('pillar', s.color), PALETTE.stoneShade);
+      return { mesh: b.build(), anchors };
+    }
     const { flared, inWater, storeys } = pillarFacts(s, plan);
     const at = translation(keyX(bottom) + 0.5, keyY(bottom) * CELL_H, keyZ(bottom) + 0.5);
     b.at(at, () =>

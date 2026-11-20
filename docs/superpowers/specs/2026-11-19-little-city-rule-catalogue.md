@@ -200,10 +200,21 @@ type and which later rules apply.
 - **R-M11 · 3 · Bandstand** (discovery 1, RC-14) — R-M01's shape (marble on
   4+ placed pillar shafts of 2+) with 4 cells or fewer, its pillars standing
   on the ground (not up on a podium), on a plaza or garden region of 9+
-  cells → an eight-sided tented roof
-  with a gilt finial over the slab, stylobates as a temple's, no
-  pediments. Not: a temple on a podium; a slab of 5+ cells; a small temple
-  on bare grass (it stays the temple it was built as). Priority 5995.
+  cells (so exactly four cells at one level, one shaft under each: a 2 × 2,
+  a 1 × 4, an L, a T or an S) → a park pavilion: the marble becomes a
+  stepped many-sided plinth, a light entablature and a tented roof in facets
+  with a roll on each hip; the pillars become a ring of slender columns with
+  bases and capitals (the rule claims each pillar's role and pins a
+  `pavilion-bay` feature on it: each draws the columns in its own cell); a
+  low balustrade between them, open in the bay on the side tagged
+  bandstand:<side> (toward a path within 4 cells, else the most paving or
+  lawn). A 2 × 2 is a regular octagon of eight columns under a lantern with
+  lit windows; a one-wide plan has half-octagon ends and a hipped roof with
+  a finial at each ridge end. Pillars 3+ tall: a higher plinth, longer
+  columns and a second roof tier over a glazed clerestory drum. No
+  pediments, no stylobates. Not: a temple on a podium; a slab of 5+ cells; a
+  small temple on bare grass (it stays the temple it was built as). Priority
+  5995.
 - **R-M12 · 3 · Stoa** (discovery 1, RC-13) — R-M01's shape with 7+ cells, a
   rectangular top at one level 3+ times as long as wide, and plaza at the
   foot of one long side's pillars or 1–2 cells out from it (tag
