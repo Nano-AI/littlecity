@@ -1,7 +1,5 @@
 # Seasons and weather: handoff
-
-Branch `swarm/seasons`. Spec: design section 13a. Requests and frozen-file notes: `docs/swarm/requests/seasons.md`.
-
+Branch `swarm/seasons`. Spec: design 13a and section 7 (sliders). Requests: `docs/swarm/requests/seasons.md`.
 ## State
 - **Signals** (`src/life/season.ts`, wired in `signals.ts`): `signals.season` (year 0..1 from spring, weights blended over
   `SEASON.blend` loops, cold, tree turn/bare/blossom, festival 0..1) and `signals.weather` (spell kind; rain, snow, cloud,
@@ -36,7 +34,6 @@ footprint tracks, candles in windows, bridge/gate lanterns, rainbow, roof snow s
 (only a stronger halo), weather sounds, lambs.
 
 ## Gotchas
-- GLSL: `vec3(vec2, float)` puts the float in z (cost an hour in precip). Rain quads wind both ways: DoubleSide.
-- `patch` is a reserved word in GLSL.
+- GLSL: `vec3(vec2, float)` puts the float in z; `patch` is reserved. Rain quads wind both ways: DoubleSide.
 - Summer clear is not bit-identical: ≤26 isolated ink-edge pixels per 1280x800 still differ by ≤6/255 (recompiled shader).
-- D35 must stay last in decoration (priority 650) and claim only its own slots, or summer dressing changes.
+- D35 stays last in decoration (650), own slots, socket anchors only, or summer dressing/life changes.
