@@ -92,9 +92,9 @@ export function buildRiverside(town: Town): boolean {
   // Willows along the grass banks, a few apart.
   const willows: [number, number][] = [];
   for (const b of order) {
-    if (willows.length >= 3) break;
+    if (willows.length >= 10) break;
     if (!g.free(b.x, b.z) || site.isSand(b.x, b.z) || g.groundTaken(b.x, b.z)) continue;
-    if (willows.some(([x, z]) => Math.abs(x - b.x) + Math.abs(z - b.z) < 5)) continue;
+    if (willows.some(([x, z]) => Math.abs(x - b.x) + Math.abs(z - b.z) < 3)) continue;
     if (g.put('tree', b.x, g.h(b.x, b.z), b.z, 0)) {
       g.mark(b.x, b.z, CLAIM.built);
       willows.push([b.x, b.z]);

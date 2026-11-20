@@ -158,3 +158,13 @@ export class Local {
 }
 
 export { CLAIM };
+
+/** The fewest steps (Chebyshev) from the square's middle to any corner of a local rectangle: a barn wants no square within six of it. */
+export function chebFromSquare(town: Town, f: Frame, u0: number, v0: number, u1: number, v1: number): number {
+  if (!town.square) return 99;
+  let best = 99;
+  for (const [u, v] of [[u0, v0], [u1, v0], [u0, v1], [u1, v1]] as const) {
+    best = Math.min(best, Math.max(Math.abs(f.x(u, v) - town.square.x), Math.abs(f.z(u, v) - town.square.z)));
+  }
+  return best;
+}

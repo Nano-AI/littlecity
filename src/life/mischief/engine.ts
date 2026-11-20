@@ -114,7 +114,8 @@ export interface MischiefEngine {
    */
   blast(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean }): BlastEvent;
   /** The same blast, decided but not done: every block's hit, nearest first (a shockwave does them as it passes). */
-  blastPlan(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean }): { water: boolean; hits: Hit[] };
+  /** `wet`: a landing in water still hits what stands round it (the nuke); without it a water landing plans nothing (a bomb's spout). */
+  blastPlan(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean; wet?: boolean }): { water: boolean; hits: Hit[] };
   /** Does one planned hit. True if the block was damaged. */
   hit(h: Hit): boolean;
   applyDamage(cell: CellKey, cause: DamageCause, amount?: number): boolean;
@@ -401,7 +402,7 @@ export function createMischiefEngine(seed: number): MischiefEngine {
       const groundH = inColumnBounds(px, pz) ? shape.terrain.height[columnIndex(px, pz)]! : 0;
       const atCell = key(px, Math.max(0, Math.floor(point[1] / CELL_H)), pz);
       out.water = groundH === 0 && !world.blocks.has(atCell) && !world.blocks.has(key(px, 0, pz));
-      if (out.water) return out;
+      if (out.water && !opts.wet) return out;
       const shake = BLAST.shake * power;
       const r = Math.ceil(shake) + 1;
       for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {

@@ -844,3 +844,60 @@ Running: nothing. Unmerged experiments: walk, big-islands.
   now "Grow a town here" and grows a different kind of town each time on
   the same island; the dice are "New island with a new town" (`4045a25`).
 Running: mischief (two bugs), grow-town pass 5.
+
+**Carry-over fix merged** (`6054819`, Opus; Derek: urgent). Root cause:
+when the town is replaced the life layer is rebuilt and each mischief
+part must remove what it drew; the burning-window glows and the nuke's
+finished scorch were never removed. Now every mischief part keeps a list
+of all it draws (`src/life/mischief/owned.ts`) and drops the lot on a
+town change or undo. New tests: `carryover.test.ts`,
+`tests/e2e/mischief.e2e.test.ts`. Orchestrator checked in a browser:
+nuke, 75 s, New island → nothing drawn, clean island. Gate: 2,110
+passed, 1 timeout under load 24 (`tests/terrain2-town.test.ts`, the
+minute of life; 12.7 s and passing alone). Not covered by tests: open a
+town file, share link, grow on the same island (code only).
+Running: mischief (mending over water), grow-town pass 5.
+
+**Grow a town pass 5 merged** (`a7cd292`, Opus). Every character repeats
+its signature (`src/townmaker/districts/emphasis.ts`): farming up to
+three wheat farms, barns, orchards, paddocks, greenhouses; harbour up to
+four more quays, piers, a fish market; castle a town wall with gateways
+and corner towers, walled towers, watchtowers; marble shrines,
+colonnades, obelisks besides the forum; market more market places;
+river willows, watermills, bridges; hill cliff houses, stairs, viaducts;
+garden parks with bandstands, walled gardens, avenues. Woods on bare
+land, tree lines on outer streets, orchards in five characters (40–140
+trees a town). Survey prints a signature count per character. Gate:
+2,109 passed; 3 browser tests timed out on page load at load ~20
+(interface, land-slopes, welcome), all pass serially. Orchestrator's
+eye on the overviews: marble, harbour, castle, garden convincing;
+farming better but the scenario seed shows one wheat field and a big
+village core; river, hill, market weakest (agent agrees). Town wall has
+gaps where houses stand on its ring.
+Running: mischief (mending over water).
+
+**Orchestrator's checkout moved (2026-11-20, about 00:35).** Another
+session switched the workspace folder
+(`/Users/yaoderek/conductor/workspaces/littlecity/prague`) to a new branch
+`capture/promo` (brand and promo-capture work, its own agent worktree
+`agent-a072417d202503b83`) and is working there with uncommitted files.
+Two orchestrator commits landed on that branch by accident (the pass 5 run
+log and the nuke-on-water fix); both were cherry-picked onto the working
+branch. From here on the orchestrator works in
+`/Users/yaoderek/conductor/repos/littlecity/.claude/worktrees/orchestrator`
+(branch `yaoderek/bloom-s-monkey-city-builder`): merge, gate and deploy
+from there, and leave the workspace folder to the other session. Lint in
+the workspace folder fails on that session's `tools/capture/lib.mjs` and
+`shots/drone.mjs`; not ours.
+
+**Nuke on water (orchestrator, `a72c359`).** Derek: "the first nuke
+seems to always do nothing". Cause: `blastPlan` returned no hits when the
+point was water (river, pond, sea), so the cloud rose and nothing was
+touched; 3 of 10 random grown towns have water under the middle of the
+screen. Fix: the nuke plans with `wet: true` and always craters the land
+round the point. Unit test in `engine.test.ts`; checked in a browser on
+the three islands that were duds (337/346, 375/414, 380/405 blocks
+ruined). Full gate not completed: load 40 (two agents, the other
+session), only timeouts; typecheck, lint, mischief unit and browser
+tests pass serially.
+Running: mischief (mending over water, scorch fade), grow-town pass 5b.
