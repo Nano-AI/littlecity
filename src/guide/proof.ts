@@ -36,6 +36,7 @@ export function propsOf(dressing: DressingPlan): ReadonlySet<string> {
     props.add(`actor:${a.rule}`);
     props.add(`actor:${a.rule}|${a.type}`);
   }
+  for (const s of dressing.sockets) props.add(`socket:${s.rule}`);
   return props;
 }
 
@@ -44,6 +45,7 @@ export function holds(proof: Proof, town: TownContents): boolean | null {
   if ('role' in proof) return town.roles.has(proof.role);
   if ('autoKinds' in proof) return proof.autoKinds.every((k) => town.autoKinds.has(k));
   if (!town.props) return null;
+  if ('socket' in proof) return town.props.has(`socket:${proof.socket.rule}`);
   if ('actor' in proof) return town.props.has(`actor:${proof.actor.rule}${proof.actor.type ? `|${proof.actor.type}` : ''}`);
   return town.props.has(proof.prop.type ? `${proof.prop.rule}|${proof.prop.type}` : proof.prop.rule);
 }

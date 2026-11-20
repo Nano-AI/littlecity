@@ -23,8 +23,135 @@ import { obstaclesOf, setCrowd, setDoorTable } from '../doors/table';
 import { deferLamp, lightLamp } from '../dusk/lamps.system';
 import { easeIn } from '../motion/ease';
 import { setOccupied } from '../dusk/occupancy';
-import { createCrowd, type Crowd, type Person } from './crowd';
+import { type Crowd, type Person } from './crowd';
+import { createLivingTown, type LivingTown } from '../town';
+import { restingMesh } from '@/parts/people/loads';
 import { markCensusReady, recordHome } from './home';
+import { AT_SIDE, carriedMesh, ON_SHOULDER } from '@/parts/people/loads';
+import type { Load } from './errand';
+import { scaresOf } from '../birds/scare';
+import { cloudMesh, dazeStarMesh, popMesh, POPS, swearMesh, type PopKind } from '@/parts/people/scuffle-art';
+import { rand } from '@/core/rand';
+import { SCUFFLE } from '@/style/town-life';
+import type { Scuffle } from './scuffle';
+
+declare module '@/life/api' {
+  interface SignalEvents {
+    /** L50: a scuffle started or ended at (x, z). */
+    scuffle: { x: number; z: number; what: 'start' | 'end' };
+  }
+}
+
+/** L50: what is drawn for the scuffle going on (one at a time). */
+interface ScuffleArt {
+  n: number;
+  clouds: InstanceHandle[];
+  pops: { kind: PopKind; h: InstanceHandle }[];
+  swears: InstanceHandle[];
+  stars: InstanceHandle[];
+  tick: number;
+}
+const artMeshes: { clouds?: MeshData[]; pops?: Map<PopKind, MeshData>; swears?: MeshData[]; star?: MeshData } = {};
+const HIDE: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
+
+function releaseArt(a: ScuffleArt): void {
+  for (const h of a.clouds) h.release();
+  for (const p of a.pops) p.h.release();
+  for (const h of a.swears) h.release();
+  for (const h of a.stars) h.release();
+}
+
+function spawnArt(stage: LifeStage, n: number): ScuffleArt {
+  artMeshes.clouds ??= [0, 1, 2].map((v) => cloudMesh(v, SCUFFLE.cloudR, SCUFFLE.cloudH));
+  artMeshes.swears ??= [0, 1, 2, 3].map((v) => swearMesh(v));
+  artMeshes.star ??= dazeStarMesh();
+  if (!artMeshes.pops) {
+    artMeshes.pops = new Map();
+    for (const k of new Set(POPS)) artMeshes.pops.set(k, popMesh(k));
+  }
+  const hidden = (m: MeshData): InstanceHandle => {
+    const h = stage.spawnMesh(m, HIDE);
+    h.setVisible(false);
+    return h;
+  };
+  return {
+    n,
+    clouds: artMeshes.clouds.map(hidden),
+    pops: POPS.map((kind) => ({ kind, h: hidden(artMeshes.pops!.get(kind)!) })),
+    swears: artMeshes.swears.map(hidden),
+    stars: [0, 1, 2, 3, 4, 5].map(() => hidden(artMeshes.star!)),
+    tick: -1,
+  };
+}
+
+/**
+ * Which way the camera looks, to turn the swearing bubble to it: read from the app's debug handle
+ * (window.__lc.view), the one place it is known; the default view where there is none (tests, shots).
+ */
+function cameraAngles(): { yaw: number; pitch: number } {
+  const view = (globalThis as { __lc?: { view?: { getCamera?(): { yaw: number; pitch: number } } } }).__lc?.view;
+  const c = view?.getCamera?.();
+  const deg = Math.PI / 180;
+  return c ? { yaw: c.yaw * deg, pitch: c.pitch * deg } : { yaw: 45 * deg, pitch: 35 * deg };
+}
+
+/** Poses the scuffle's drawings, on twos (SCUFFLE.drawRate). */
+function drawArt(a: ScuffleArt, s: Scuffle, seconds: number): void {
+  const tick = Math.floor(seconds * SCUFFLE.drawRate);
+  if (tick === a.tick) return;
+  a.tick = tick;
+  const m = (x: number, y: number, z: number, yaw: number, sc: number, tilt = 0): Mat4Like => {
+    const c = Math.cos(yaw), sn = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
+    // Ry(yaw) · Rx(−tilt) · S: tilt > 0 turns +Z up toward the sky
+    return [c * sc, 0, -sn * sc, 0, -sn * st * sc, ct * sc, -c * st * sc, 0, sn * ct * sc, st * sc, c * ct * sc, 0, x, y, z, 1];
+  };
+  const fight = s.phase === 'fight';
+  // The cloud: one of three heaps at a time, turning; it pops up at the start and bursts at the end.
+  const puff = s.phase === 'dazed' && s.t < 0.3;
+  const show = fight || puff;
+  const k = tick % 3;
+  a.clouds.forEach((h, i) => {
+    const on = show && i === k;
+    h.setVisible(on);
+    if (!on) return;
+    const grow = Math.min(1, s.age / 0.18);
+    let sc = grow < 1 ? 0.4 + grow * 0.75 : 1 + 0.06 * Math.sin(tick * 2.1);
+    if (puff) sc = 1.15 + s.t * 1.2;
+    const wob = Math.sin(tick * 1.7) * 0.04;
+    h.setMatrix(m(s.cx, s.y + (puff ? 0.04 : Math.abs(wob)), s.cz, tick * 0.9 + (s.seed % 10), puff ? sc * 0.7 : sc));
+  });
+  // Pop-outs: a few at a time round the cloud, a new place every drawing.
+  a.pops.forEach((p, i) => {
+    const r = (what: string): number => rand(s.seed, 'pop', what, i, tick);
+    const on = fight && s.age > 0.25 && s.t < s.fight - 0.2 && r('on') < 0.6;
+    p.h.setVisible(on);
+    if (!on) return;
+    const ang = r('a') * Math.PI * 2;
+    const out = SCUFFLE.cloudR * (0.85 + r('o') * 0.35);
+    const y = s.y + 0.08 + r('y') * SCUFFLE.cloudH * 0.8;
+    const yaw = Math.atan2(Math.cos(ang), Math.sin(ang));
+    const tilt = p.kind === 'hat' ? 0.5 + r('t') : p.kind === 'star' ? 0 : (r('t') - 0.5) * 0.8;
+    p.h.setMatrix(m(s.cx + Math.cos(ang) * out, y, s.cz + Math.sin(ang) * out, p.kind === 'star' ? tick * 0.7 : yaw, p.kind === 'star' ? 1.8 : 1.7, tilt));
+  });
+  // The swearing: a new row every SCUFFLE.swear seconds, turned to face the camera.
+  const cam = cameraAngles();
+  const which = Math.floor(s.age / SCUFFLE.swear) % a.swears.length;
+  a.swears.forEach((h, i) => {
+    const on = fight && s.age > 0.2 && i === which;
+    h.setVisible(on);
+    if (on) h.setMatrix(m(s.cx, s.y + SCUFFLE.cloudH + 0.1 + (tick % 2) * 0.015, s.cz, cam.yaw, 1.35, cam.pitch));
+  });
+  // Stars round the dazed heads.
+  const dazed = s.phase === 'dazed' || (s.phase === 'up' && s.t < 0.4);
+  a.stars.forEach((h, i) => {
+    const who = i < 3 ? s.a : s.b;
+    h.setVisible(dazed);
+    if (!dazed) return;
+    const head = who.y + (s.phase === 'dazed' ? 0.34 : 0.5);
+    const ang = tick * 0.55 + (i % 3) * ((Math.PI * 2) / 3) + (i < 3 ? 0 : 1);
+    h.setMatrix(m(who.x + Math.cos(ang) * 0.1, head + Math.sin(ang * 2) * 0.012, who.z + Math.sin(ang) * 0.1, -ang, 1));
+  });
+}
 
 interface Drawn {
   look: Look;
@@ -39,10 +166,26 @@ interface Drawn {
   kite: { kite: InstanceHandle; line: InstanceHandle } | null;
   /** What they hold for their work: a broom, a rod, a sack… */
   tool: { kind: Tool; handle: InstanceHandle } | null;
+  /** What they carry on an errand (L51 and up). */
+  load: { kind: Load; handle: InstanceHandle } | null;
+  /** Their everyday look, and the costume the drawing is in now (L57). */
+  base: Look;
+  costume: Person['costume'];
+}
+
+/** L57: a bride in white with her hair up, a groom in a dark coat and top hat. */
+export function costumeLook(base: Look, costume: Person['costume']): Look {
+  if (costume === 'bride') return { ...base, top: '#fbf8f2', bottom: '#fbf8f2', dress: true, hat: 'none', hairStyle: 'bun', girth: base.girth * 1.08 };
+  if (costume === 'groom') return { ...base, top: '#2c2b38', bottom: '#2c2b38', dress: false, hat: 'cap', hatColor: '#24232e' };
+  return base;
 }
 
 /** The tool in a person's hands now, from their pose and their job, or null. */
 export function toolOf(p: Person, pose: string): Tool | null {
+  if (pose === 'hammer') return 'hammer';
+  if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
+  // An errand's load fills their hands (loads.ts draws it).
+  if (p.load) return null;
   const job = p.work?.job;
   const atWork = p.mode === 'linger' && p.goal?.haunt?.type === 'workplace';
   if (pose === 'sweep') return 'broom';
@@ -58,6 +201,8 @@ const toolMeshes = new Map<Tool, MeshData>();
 
 interface State {
   crowd: Crowd;
+  /** The crowd with the town's chains on it (L51 and up). */
+  town: LivingTown;
   drawn: Map<Person, Drawn>;
   bubbleMesh: MeshData | null;
   lineMesh: MeshData | null;
@@ -67,6 +212,8 @@ interface State {
   tick: number;
   fresh: boolean;
   unsubscribe: () => void;
+  /** L50: the scuffle's drawings, while one is on. */
+  art: ScuffleArt | null;
 }
 
 const local = new Float32Array(80);
@@ -81,20 +228,30 @@ export function residentCap(): number {
   return PEOPLE.cap;
 }
 
-function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellRung'>(signals: Signals, event: E, payload: Parameters<SignalsDriver['emit']>[1]): void {
+function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellRung' | 'scuffle'>(signals: Signals, event: E, payload: Parameters<SignalsDriver['emit']>[1]): void {
   (signals as Partial<SignalsDriver>).emit?.(event, payload as never);
 }
 
 function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   // At the water or the map's edge people climb up into view or step down out of it; elsewhere they fade.
   const edge = p.edgeX !== 0 || p.edgeZ !== 0;
-  const visible = p.visible && p.fade > (edge ? 0.001 : 0.02);
+  const visible = p.visible && !p.inCloud && p.fade > (edge ? 0.001 : 0.02);
   if (!visible) {
     if (d.shown && d.handles) for (const h of d.handles) h.setVisible(false);
     d.shown = false;
     d.tool?.handle.release();
     d.tool = null;
+    d.load?.handle.release();
+    d.load = null;
     return;
+  }
+  if (d.costume !== p.costume) {
+    // L57: dressed for the wedding (or back in everyday clothes): drawn afresh.
+    d.costume = p.costume;
+    d.look = costumeLook(d.base, p.costume);
+    d.rig = rigOf(d.look);
+    if (d.handles) for (const h of d.handles) h.release();
+    d.handles = null;
   }
   if (!d.handles) {
     // Built the first time they are seen, so a town of sixty does not mesh sixty people in one frame.
@@ -110,7 +267,21 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     pose.armR = 2.95;
     pose.outR = -0.2;
   }
-  if (walking && p.carrying) {
+  const holding = p.load !== null && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave');
+  if (holding && AT_SIDE.has(p.load!)) {
+    // Hanging from the right hand at the side: that arm hangs still.
+    pose.armR = 0.05;
+    pose.outR = 0.12;
+  } else if (holding && ON_SHOULDER.has(p.load!)) {
+    // On a shoulder, steadied by a hand.
+    if (p.load === 'hod') {
+      pose.armL = 2.75;
+      pose.outL = -0.15;
+    } else {
+      pose.armR = 2.75;
+      pose.outR = -0.15;
+    }
+  } else if (holding || (walking && p.carrying)) {
     // Arms full: a sack, a tray.
     pose.armL = pose.armR = 1.25;
     pose.outL = pose.outR = -0.2;
@@ -151,6 +322,16 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.tool = { kind: tool, handle: stage.spawnMesh(mesh, world.subarray(TOOL_PIECE[tool] * 16, TOOL_PIECE[tool] * 16 + 16)) };
     d.shown = false; // place it now
   }
+  // An errand's load: in the hands, at the body's frame.
+  const load = p.load;
+  if (d.load && d.load.kind !== load) {
+    d.load.handle.release();
+    d.load = null;
+  }
+  if (load && !d.load) {
+    d.load = { kind: load, handle: stage.spawnMesh(carriedMesh(load), world.subarray(0, 16)) };
+    d.shown = false;
+  }
   // A still figure is left alone: nothing moved, so the page need not redraw its shade.
   let same = d.shown;
   for (let i = 0; same && i < 80; i++) same = d.last[i] === world[i];
@@ -162,6 +343,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
+  if (d.load) d.load.handle.setMatrix(world.subarray(0, 16));
 }
 
 export default defineSystem<State>({
@@ -179,7 +361,10 @@ export default defineSystem<State>({
       const x = m[12]!, z = m[14]!;
       return Math.abs(x - fx) < 0.8 && Math.abs(z - fz) < 0.8 ? { x, z } : null;
     };
-    const crowd = createCrowd({
+    const town = createLivingTown({
+      seed: ctx.seed,
+      stage: ctx.stage,
+      restingMesh,
       cap: residentCap(),
       doorAt,
       wind: (x, z) => ctx.signals.wind(x, z),
@@ -208,9 +393,14 @@ export default defineSystem<State>({
         bell(structure) {
           emit(ctx.signals, 'bellRung', structure);
         },
+        scuffle(s, what) {
+          emit(ctx.signals, 'scuffle', { x: s.x, z: s.z, what });
+          // The pigeons round it scatter.
+          if (what === 'start') scaresOf(ctx.stage).add(s.cell, 3, false, ctx.signals.time.seconds);
+        },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null, base: look, costume: null });
         },
         removed(p) {
           const d = drawn.get(p);
@@ -219,20 +409,35 @@ export default defineSystem<State>({
           d?.kite?.kite.release();
           d?.kite?.line.release();
           d?.tool?.handle.release();
+          d?.load?.handle.release();
           drawn.delete(p);
         },
       },
     });
-    const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
+    const crowd = town.crowd;
+    const offs = [
+      ctx.signals.on('blockLanded', (cell) => {
+        crowd.blockLanded(cell);
+        town.landed(cell); // L54: builders come
+      }),
+      // Something taken away: those near turn and look too.
+      ctx.signals.on('blockRemoved', (cell) => crowd.blockLanded(cell)),
+    ];
+    const unsubscribe = (): void => offs.forEach((off) => off());
     // L29: the door leaves swing as the crowd's door table says.
     setDoorTable(ctx.stage, crowd.doors);
     setCrowd(ctx.stage, crowd);
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
-    return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe };
+    (globalThis as { __lcTown?: LivingTown }).__lcTown = town;
+    return { crowd, town, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe, art: null };
   },
   sync(state, next, _prev, ctx) {
-    if (!next.dressing) return;
+    if (!next.dressing) {
+      // Just after an edit: the town's chains take the new shape now (L54 reads what landed).
+      state.town.sync(next.shape, null, ctx.signals.time);
+      return;
+    }
     state.standIns = [];
     for (const a of next.dressing.actors) {
       if (a.type !== 'resident') continue;
@@ -240,7 +445,7 @@ export default defineSystem<State>({
       if (h) state.standIns.push(h);
     }
     for (const h of state.standIns) h.setVisible(false);
-    state.crowd.sync(next.shape, next.dressing, ctx.signals.time);
+    state.town.sync(next.shape, next.dressing, ctx.signals.time);
     state.fresh = true;
     // The lamps on the lamplighter's round wait for them: each a little longer than the walk to it
     // should take, so a lamp they never reach still lights, in round order.
@@ -251,7 +456,17 @@ export default defineSystem<State>({
   update(state, dt, signals, ctx) {
     // Whatever else touches the plan's instances (pop-in, a re-sync), the stand-ins stay hidden.
     for (const h of state.standIns) h.setVisible(false);
-    state.crowd.step(dt, signals.time);
+    state.town.step(dt, signals.time);
+    // L50: the scuffle's cloud, its pop-outs, its swearing and the dazed stars.
+    const sc = state.crowd.scuffles.now;
+    if (state.art && (!sc || sc.n !== state.art.n)) {
+      releaseArt(state.art);
+      state.art = null;
+    }
+    if (sc) {
+      state.art ??= spawnArt(ctx.stage, sc.n);
+      drawArt(state.art, sc, signals.time.seconds);
+    }
     // Drawn "on twos": the crowd steps every frame, but the picture of it changes PERSON.drawRate times
     // a second. That is the hand of the thing, and it also spares the page: every frame in which
     // something moved costs the renderer a second pass for the shade on the ground.
@@ -311,6 +526,9 @@ export default defineSystem<State>({
   },
   dispose(state, ctx) {
     state.unsubscribe();
+    state.town.dispose();
+    if (state.art) releaseArt(state.art);
+    state.art = null;
     setDoorTable(ctx.stage, null);
     setCrowd(ctx.stage, null);
     for (const d of state.drawn.values()) {
@@ -319,6 +537,7 @@ export default defineSystem<State>({
       d.kite?.kite.release();
       d.kite?.line.release();
       d.tool?.handle.release();
+      d.load?.handle.release();
     }
     state.drawn.clear();
   },
