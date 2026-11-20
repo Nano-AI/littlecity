@@ -729,3 +729,19 @@ desktop; hold 96 until town logic resolves by region. Served at
 http://127.0.0.1:5176/?seed=5&size=96 (or size=72).
 CONFLICT TO SETTLE BEFORE ANY MERGE: big-islands takes save-section bit 1
 for size; the mischief preview also took bit 1 for ruins.
+
+**Playing field merged** (`ebedee4`): Field floor kind; shape table in
+`src/rules/roles/field.lib.ts`; basketball, tennis, football, bowls,
+boules, croquet, races, kickabout. **Living town merged** (`1eb67dd`):
+broom held in both hands (`src/parts/people/hands.ts`), wheat really cut
+row by row with stooks, all tools and loads in hand. Conflicts in
+`extras.ts` and `people.system.ts` resolved by hand. Unit tests 1,966
+green; core browser tests green serially. Published (`42a072d`).
+**SOURCE PUSHED to GitHub** at Derek's word: branch
+`yaoderek/bloom-s-monkey-city-builder` → origin at `42a072d` (fast-forward
+from the old spike commit). `main` untouched. No PR opened.
+**Derek's decisions:** mischief: one more local iteration (cart and hose
+arrive physically, continuous water jet, mending on every damaged building
+by itself, a nuke with mushroom cloud and crater), then merge and push;
+bigger islands and walk mode stay experimental (unmerged previews).
+Running: mischief (final iteration), test-diet.
