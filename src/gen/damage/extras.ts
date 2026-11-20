@@ -162,7 +162,7 @@ export function heap(b: MeshBuilder, col: Column, seed: number, color: readonly 
   }
 }
 
-/** A flat, ragged ring of scorched ground round a column (a hair above whatever lies on the ground). */
+/** A flat, ragged patch of scorched ground round a column (a hair above whatever lies on the ground). */
 export function scorchRing(b: MeshBuilder, col: Column, ground: number, seed: number, color: readonly number[]): void {
   const cx = col.x + 0.5, cz = col.z + 0.5;
   const segs = 14;
@@ -176,12 +176,8 @@ export function scorchRing(b: MeshBuilder, col: Column, ground: number, seed: nu
     const rr = Math.min(r * k, 0.5 * k + 0.22 * rand(seed, 'sq', j % segs));
     return [cx + Math.cos(a) * rr, y, cz + Math.sin(a) * rr];
   };
-  const inner = (j: number): Vec3 => {
-    const a = (j / segs) * Math.PI * 2;
-    const k = 1 / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
-    return [cx + Math.cos(a) * 0.5 * k, y, cz + Math.sin(a) * 0.5 * k];
-  };
-  for (let j = 0; j < segs; j++) b.quad(inner(j), inner(j + 1), outer(j + 1), outer(j));
+  const mid: Vec3 = [cx, y, cz];
+  for (let j = 0; j < segs; j++) b.tri(mid, outer(j + 1), outer(j));
 }
 
 /** Charred timbers fallen into a burnt-out shell: a few beams leaning from the wall tops to the floor. */

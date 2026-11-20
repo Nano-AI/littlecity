@@ -260,6 +260,9 @@ const mix3 = (a: readonly number[], b: readonly number[], t: number): [number, n
   a[2]! + (b[2]! - a[2]!) * t,
 ];
 
+/** Hollow buildings: a broken one shows a dark inside, floors, partitions and fallen beams. */
+const HOLLOW_KINDS = new Set<string>(['house', 'tower', 'lighthouse', 'windmill']);
+
 const WOOD_PATTERNS = new Set<number>([PATTERN.planks, PATTERN.planksAcross, PATTERN.timber, PATTERN.thatch, PATTERN.bark]);
 const ROOF_PATTERNS = new Set<number>([PATTERN.shingles, PATTERN.thatch]);
 
@@ -329,10 +332,12 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     const c = centroid(p);
     return prof.columnNear(c[0], c[2]);
   };
+  const hollow = HOLLOW_KINDS.has(s.kind);
   const open = new Set<Column>();
   for (const col of prof.columns.values()) if (col.damaged && isOpen(col, field)) open.add(col);
+  const solidInside = mix3(wallColor, C.broken, 0.5);
   const insideOf = (col: Column): [number, number, number] =>
-    col.mending ? mix3(C.inside, C.fresh, 0.35) : col.cause === 'fire' ? C.charDeep : C.inside;
+    !hollow ? solidInside : col.mending ? mix3(C.inside, C.fresh, 0.35) : col.cause === 'fire' ? C.charDeep : C.inside;
 
   // Fresh work on a column being mended: what stands above where the wreck was cut is new.
   const wreck = cutField(prof, 'wreck');
@@ -419,7 +424,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
   const sample = roofSampler(polys);
   const partitionInk = extras.inkOf('partition');
   const T = RUIN.tile;
-  for (const a of open) {
+  for (const a of hollow ? open : []) {
     for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
       const [dx, dz] = DIR4[d]!;
       const b = prof.columns.get(prof.colKey(a.x + dx, a.z + dz));
@@ -457,7 +462,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
   }
 
   // ── floors inside open columns ──────────────────────────────────────────
-  for (const col of open) {
+  for (const col of hollow ? open : []) {
     const inset = (dx: number, dz: number): number => (prof.columns.has(prof.colKey(col.x + dx, col.z + dz)) ? 0 : 0.07);
     const x0 = col.x + inset(-1, 0), x1 = col.x + 1 - inset(1, 0);
     const z0 = col.z + inset(0, -1), z1 = col.z + 1 - inset(0, 1);
@@ -517,7 +522,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
       }
       continue;
     }
-    if (col.stage === 3 && col.cause === 'fire' && !stone && s.kind !== 'dock') {
+    if (col.stage === 3 && col.cause === 'fire' && !stone && hollow) {
       extras.setColor(C.char).setPattern(PATTERN.none).setInk('beams');
       fallenBeams(extras, col, seed, col.wreckBase + (col.top - col.wreckBase) * 0.6);
     }
@@ -619,7 +624,8 @@ function treeDamage(intact: MeshData, prof: Profile): MeshData {
   };
   const soup = new Soup();
   const extras = new MeshBuilder({ ink: s.id });
-  const leaf = (p: Poly): boolean => p.pattern === PATTERN.leaves;
+  // The crown is everything but the trunk (and a planter's stone and earth).
+  const leaf = (p: Poly): boolean => p.pattern !== PATTERN.bark && p.pattern !== PATTERN.stone && p.pattern !== PATTERN.dirt;
   const bark = polys.filter((p) => !leaf(p));
   const rk = (p: Poly, n: string): number => {
     const c = centroid(p);
