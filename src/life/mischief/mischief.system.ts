@@ -24,7 +24,7 @@ import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type S
 import { scaresOf } from '../birds/scare';
 import { fxOf } from '../fx/fx';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
-import { bombMesh, emberMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
+import { bombMesh, dustMesh, emberMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
 
 /** Instances of one mesh, reused: a finished flame is hidden and handed to the next. */
 class Pool {
@@ -88,6 +88,8 @@ interface Flame {
 }
 interface Puff {
   ink: InstanceHandle;
+  /** 0 dark, 1 grey, 2 pale: it pales as it rises. */
+  shade: number;
   mist: InstanceHandle;
   look: number;
   x: number;
@@ -162,6 +164,7 @@ interface State {
   spouts: Spout[];
   pools: Map<string, Pool>;
   smokeAcc: Map<StructureId, number>;
+  dust: Dust[];
   samplers: Map<StructureId, { hash: number; sample: (x: number, z: number, minY: number) => number | null }>;
   /** Seconds to the next fright for the birds round each fire. */
   scareIn: number;
@@ -172,7 +175,6 @@ interface State {
   off: () => void;
 }
 
-const DUST: readonly SpawnSpec[] = [0, 1, 2, 3].map((look) => ({ actor: 'puff', variant: 'dust', params: { look } }) as SpawnSpec);
 
 function pool(st: State, stage: LifeStage, k: string, mesh: () => MeshData): Pool {
   let p = st.pools.get(k);
@@ -304,16 +306,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
       return;
     }
     st.flashes.push({ h: stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
-    for (let i = 0; i < 22; i++) {
-      const a = (i / 22) * Math.PI * 2 + rand(e.bomb, 'dust', i) * 0.4;
-      const far = 0.9 + rand(e.bomb, 'far', i) * 1.6;
-      const look = DUST[i % 4]!;
-      fx.play(look, 2.6 + rand(e.bomb, 'life', i) * 1.6, (t, m) => {
-        const ease = 1 - (1 - t) * (1 - t);
-        const s = (0.6 + ease * 1.1) * (1 - Math.max(0, t - 0.75) * 2.5);
-        setPlace(m, x + Math.cos(a) * far * ease, y + 0.15 + ease * (0.5 + (i % 3) * 0.3), z + Math.sin(a) * far * ease, Math.max(0.01, s));
-      }, { delay: rand(e.bomb, 'delay', i) * 0.15 });
-    }
+    addDust(st, stage, x, y, z, LIGHT ? 12 : 20, 1.6, e.bomb);
     const hitStructures = new Map<StructureId, number>();
     for (const h of e.blast.hit) {
       const sid = st.shape?.structureAt.get(h.cell);
@@ -327,13 +320,48 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     st.toFly.add(e.structure);
     st.toShake.push({ id: e.structure, amp: 0.06 });
     const x = keyX(e.cell) + 0.5, y = keyY(e.cell) * CELL_H, z = keyZ(e.cell) + 0.5;
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      fx.play(DUST[i % 4]!, 1.4, (t, m) => {
-        const ease = 1 - (1 - t) * (1 - t);
-        setPlace(m, x + Math.cos(a) * 0.6 * ease, y + 0.1 + ease * 0.4, z + Math.sin(a) * 0.6 * ease, Math.max(0.01, (0.3 + ease * 0.4) * (1 - Math.max(0, t - 0.75) * 4)));
-      });
-    }
+    addDust(st, stage, x, y, z, 7, 0.6, hash(e.cell, st.time * 1000));
+  }
+}
+
+interface Dust {
+  ink: InstanceHandle;
+  mist: InstanceHandle;
+  look: number;
+  x0: number;
+  y0: number;
+  z0: number;
+  dx: number;
+  dz: number;
+  far: number;
+  rise: number;
+  size: number;
+  age: number;
+  life: number;
+  misted: boolean;
+}
+
+/** A blast's dust: puffs that burst out together into one cloud, hang, drift off with the wind and thin away. */
+function addDust(st: State, stage: LifeStage, x: number, y: number, z: number, n: number, far: number, seed: number): void {
+  for (let i = 0; i < n; i++) {
+    const look = i % 3;
+    const a = (i / n) * Math.PI * 2 + rand(seed, 'dust', i) * 0.5;
+    st.dust.push({
+      ink: pool(st, stage, `dust${look}`, () => dustMesh(look)).take(),
+      mist: pool(st, stage, `mist${look}`, () => smokeMesh(true, look)).take(),
+      look,
+      x0: x,
+      y0: y,
+      z0: z,
+      dx: Math.cos(a),
+      dz: Math.sin(a),
+      far: far * (0.45 + rand(seed, 'far', i) * 0.75),
+      rise: 0.25 + rand(seed, 'rise', i) * (0.4 + far * 0.3),
+      size: (0.5 + rand(seed, 'size', i) * 0.4) * (0.6 + far * 0.35),
+      age: -rand(seed, 'delay', i) * 0.12,
+      life: 3.2 + rand(seed, 'life', i) * 1.8,
+      misted: false,
+    });
   }
 }
 
@@ -368,7 +396,7 @@ function samplerOf(st: State, shape: ShapePlan, sid: StructureId | undefined): (
   const had = st.samplers.get(sid);
   if (had && had.hash === s.hash) return had.sample;
   const mesh = allGenerators().build(s, shape, allParts()).mesh;
-  const sample = roofSampler(polysOf(mesh));
+  const sample = roofSampler(polysOf(mesh), 0.22);
   st.samplers.set(sid, { hash: s.hash, sample });
   return sample;
 }
@@ -394,6 +422,7 @@ export default defineSystem<State>({
       spouts: [],
       pools: new Map(),
       smokeAcc: new Map(),
+      dust: [],
       samplers: new Map(),
       scareIn: 0,
       lights: new Map(),
@@ -547,7 +576,7 @@ export default defineSystem<State>({
     }
 
     // ── smoke: a column per burning building, leaning with the wind ─────
-    const smokeInk = [0, 1, 2].map((l) => pool(st, stage, `smoke${l}`, () => smokeMesh(false, l)));
+    const smokeInk = [0, 1, 2].map((l) => [0, 1, 2].map((sh) => pool(st, stage, `smoke${l}-${sh}`, () => smokeMesh(false, l, sh))));
     const smokeMist = [0, 1, 2].map((l) => pool(st, stage, `mist${l}`, () => smokeMesh(true, l)));
     for (const [sid, src] of fierce) {
       const acc = (st.smokeAcc.get(sid) ?? rand(sid, 'smoke')) + dt * (1.2 + 2.2 * Math.min(2.5, src.i)) * (LIGHT ? 0.5 : 1);
@@ -556,15 +585,16 @@ export default defineSystem<State>({
       while (n-- > 0 && st.puffs.length < PUFF_CAP) {
         const look = Math.floor(rand(sid, 'look', st.time * 100) * 3);
         const p: Puff = {
-          ink: smokeInk[look]!.take(),
+          ink: smokeInk[look]![0]!.take(),
+          shade: 0,
           mist: smokeMist[look]!.take(),
           look,
           x: src.x + (rand(sid, 'px', st.time * 97) - 0.5) * 0.3,
           y: src.y + 0.5,
           z: src.z + (rand(sid, 'pz', st.time * 89) - 0.5) * 0.3,
           age: 0,
-          life: 5.5 + rand(sid, 'pl', st.time * 83) * 2.5,
-          size: 0.32 + 0.25 * Math.min(1, src.i),
+          life: 6 + rand(sid, 'pl', st.time * 83) * 2.5,
+          size: 0.4 + 0.25 * Math.min(1, src.i),
           misted: false,
         };
         st.puffs.push(p);
@@ -579,7 +609,7 @@ export default defineSystem<State>({
       if (!h) st.lights.set(sid, (h = lightPool.take()));
       const r = 1.6 + 0.7 * Math.min(2, src.i);
       h.setMatrix([r, 0, 0, 0, 0, r * 0.8, 0, 0, 0, 0, r, 0, src.x, src.y - 0.2, src.z, 1]);
-      h.setParams((0.1 + 0.4 * dark) * Math.min(1, src.i) * (0.9 + 0.1 * Math.sin(st.time * 9 + sid)));
+      h.setParams((0.015 + 0.2 * dark * dark) * Math.min(1, src.i) * (0.9 + 0.1 * Math.sin(st.time * 9 + sid)));
       h.setVisible(true);
     }
     for (const [sid, h] of st.lights) {
@@ -592,7 +622,7 @@ export default defineSystem<State>({
       p.age += dt;
       const t = p.age / p.life;
       if (t >= 1) {
-        smokeInk[p.look]!.give(p.ink);
+        smokeInk[p.look]![p.shade]!.give(p.ink);
         smokeMist[p.look]!.give(p.mist);
         continue;
       }
@@ -603,7 +633,16 @@ export default defineSystem<State>({
       p.z += dt * w.dirZ * (0.25 + 0.9 * w.strength) * Math.min(1, t * 3);
       const s = p.size * (1 + 2.6 * t);
       // Drawn puffs low down; past a third of the way up, a soft wash that thins to nothing.
-      const misted = t > 0.32;
+      const misted = t > 0.4;
+      // Paler as it rises: a new drawing of the puff in the next shade.
+      const shade = t < 0.13 ? 0 : t < 0.26 ? 1 : 2;
+      let swapped = false;
+      if (!misted && shade !== p.shade) {
+        smokeInk[p.look]![p.shade]!.give(p.ink);
+        p.ink = smokeInk[p.look]![shade]!.take();
+        p.shade = shade;
+        swapped = true;
+      }
       if (misted && !p.misted) {
         p.misted = true;
         p.ink.setVisible(false);
@@ -611,12 +650,44 @@ export default defineSystem<State>({
       } else if (!misted) p.ink.setVisible(true);
       const h = misted ? p.mist : p.ink;
       // Drawn on twos.
-      if (Math.floor(st.time * FPS) !== Math.floor((st.time - dt) * FPS) || p.age === dt) {
+      if (swapped || Math.floor(st.time * FPS) !== Math.floor((st.time - dt) * FPS) || p.age === dt) {
         h.setMatrix([s, 0, 0, 0, 0, s * 0.9, 0, 0, 0, 0, s, 0, p.x, p.y, p.z, 1]);
-        if (misted) h.setParams(0.75 * (1 - (t - 0.32) / 0.68) ** 1.3);
+        if (misted) h.setParams(0.75 * (1 - (t - 0.4) / 0.6) ** 1.3);
       }
     }
     st.puffs.length = kept;
+
+    // ── dust clouds ─────────────────────────────────────────────────────
+    let keptDust = 0;
+    for (const d of st.dust) {
+      d.age += dt;
+      const t = d.age / d.life;
+      if (t >= 1) {
+        pool(st, stage, `dust${d.look}`, () => dustMesh(d.look)).give(d.ink);
+        pool(st, stage, `mist${d.look}`, () => smokeMesh(true, d.look)).give(d.mist);
+        continue;
+      }
+      st.dust[keptDust++] = d;
+      if (d.age < 0) continue;
+      // Out fast, then hanging and drifting off downwind.
+      const burst = 1 - (1 - Math.min(1, t * 3)) ** 3;
+      const w = signals.wind(d.x0, d.z0);
+      const drift = Math.max(0, t - 0.3) * (0.4 + w.strength) * 1.2;
+      const x = d.x0 + d.dx * d.far * burst + w.dirX * drift;
+      const z = d.z0 + d.dz * d.far * burst + w.dirZ * drift;
+      const y = d.y0 + 0.15 + d.rise * burst + t * 0.35;
+      const sc = d.size * (0.55 + 0.7 * burst + 0.5 * t);
+      const misted = t > 0.55;
+      if (misted && !d.misted) {
+        d.misted = true;
+        d.ink.setVisible(false);
+        d.mist.setVisible(true);
+      } else if (!misted) d.ink.setVisible(true);
+      const h = misted ? d.mist : d.ink;
+      h.setMatrix([sc, 0, 0, 0, 0, sc * 0.85, 0, 0, 0, 0, sc, 0, x, y, z, 1]);
+      if (misted) h.setParams(0.7 * (1 - (t - 0.55) / 0.45) ** 1.2);
+    }
+    st.dust.length = keptDust;
 
     // ── sparks ──────────────────────────────────────────────────────────
     const sparkPool = pool(st, stage, 'spark', sparkMesh);
@@ -786,6 +857,10 @@ export default defineSystem<State>({
       p.mist.release();
     }
     for (const sp of st.sparks) sp.h.release();
+    for (const d of st.dust) {
+      d.ink.release();
+      d.mist.release();
+    }
     for (const e of st.embers.values()) e.h.release();
     for (const h of st.lights.values()) h.release();
     for (const f of st.flights.values()) for (const h of f.handles) h.release();

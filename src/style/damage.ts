@@ -44,7 +44,9 @@ export const DAMAGE_COLORS = defineStyle('damage-colors', {
   flameTip: '#ffe58a',
   ember: '#ff8a4a',
   /** Smoke: a warm grey puff near the fire, paler as it rises. */
-  smokeDark: '#8b8079',
+  smokeDark: '#7b706a',
+  smokeMid: '#9e958e',
+  smokeLight: '#c3bcb5',
   smokePale: '#d9d2ca',
 });
 

@@ -69,9 +69,13 @@ function cluster(look: number, w: number, h: number): [number, number][] {
     y = ny;
   }
   // The outline was built base right→left, then left→right over the top: make it one anticlockwise loop.
-  const baseArc = out.slice(0, 7);
-  const top = out.slice(7);
-  return [...baseArc.reverse(), ...top.reverse()].reverse();
+  // Anticlockwise seen from +Z (the side that faces the reader).
+  let area = 0;
+  for (let i = 0; i < out.length; i++) {
+    const p = out[i]!, q = out[(i + 1) % out.length]!;
+    area += p[0] * q[1] - q[0] * p[1];
+  }
+  return area < 0 ? out.reverse() : out;
 }
 
 /** Every flame shares one ink id: layers and neighbouring flames are one drawn shape, outlined only outside. */
@@ -141,20 +145,62 @@ export function emberMesh(): MeshData {
   return (ember = b.build());
 }
 
+/**
+ * Clouds (smoke and dust) are drawn as ONE shape however many puffs make them: every puff shares an ink
+ * id, and its normals lean gently up instead of round, so where two puffs meet there is neither a seam nor
+ * a crease, only the outline round the outside of the whole billowing mass.
+ */
+export const SMOKE_INK = 0x5a0e;
+export const DUST_INK = 0x5a0f;
+
+/** Normals that lean up, tilted only a little toward the puff's own side: puffs meeting do not crease. */
+function cloudNormals(m: MeshData, tilt = 0.18): MeshData {
+  const n = m.normal;
+  for (let i = 0; i < n.length; i += 3) {
+    const px = m.position[i]!, py = m.position[i + 1]!, pz = m.position[i + 2]!;
+    const l = Math.hypot(px, py, pz) || 1;
+    const x = (px / l) * tilt, y = 1 + (py / l) * tilt * 0.5, z = (pz / l) * tilt;
+    const k = Math.hypot(x, y, z);
+    n[i] = x / k;
+    n[i + 1] = y / k;
+    n[i + 2] = z / k;
+  }
+  return m;
+}
+
+function cloudPuff(b: MeshBuilder, look: number): void {
+  const a = (look % 3) * 2.1 + 0.3;
+  ball(b, 0, 0, 0, 0.42, 0.38, 0.42, 12, 6);
+  ball(b, Math.cos(a) * 0.24, 0.07, Math.sin(a) * 0.24, 0.3, 0.28, 0.3, 10, 5);
+  ball(b, -Math.cos(a) * 0.2, 0.11, -Math.sin(a) * 0.22, 0.26, 0.24, 0.26, 10, 5);
+}
+
 const smokes = new Map<string, MeshData>();
-/** A puff of smoke: a drawn, inked dark puff low down; a soft mist wash higher up (it thins against the sky). */
-export function smokeMesh(mist: boolean, look: number): MeshData {
-  const k = `${mist}${look % 3}`;
+/**
+ * A puff of smoke. `shade` 0 is the dark puff low over the fire, 1 a grey one higher up, 2 a pale one;
+ * `mist` is the soft wash it becomes at last, thinning against the sky.
+ */
+export function smokeMesh(mist: boolean, look: number, shade = 0): MeshData {
+  const k = `${mist}${look % 3}${shade}`;
   let m = smokes.get(k);
   if (m) return m;
-  const b = new MeshBuilder({ ink: `smoke${k}` });
-  const a = (look % 3) * 2.1 + 0.3;
+  const b = new MeshBuilder();
   if (mist) b.setColor(DAMAGE_COLORS.smokePale).setPattern(MIST).setInk('mist');
-  else b.setColor(DAMAGE_COLORS.smokeDark).setPattern(airborne(PATTERN.none)).setInk('smoke');
-  ball(b, 0, 0, 0, 0.4, 0.36, 0.4, 9, 5);
-  ball(b, Math.cos(a) * 0.25, 0.08, Math.sin(a) * 0.25, 0.27, 0.25, 0.27, 7, 4);
-  ball(b, -Math.cos(a) * 0.2, 0.12, -Math.sin(a) * 0.22, 0.22, 0.2, 0.22, 7, 4);
-  smokes.set(k, (m = b.build()));
+  else b.setColor([DAMAGE_COLORS.smokeDark, DAMAGE_COLORS.smokeMid, DAMAGE_COLORS.smokeLight][shade] ?? DAMAGE_COLORS.smokeDark).setPattern(airborne(PATTERN.none)).setInkId(SMOKE_INK);
+  cloudPuff(b, look);
+  smokes.set(k, (m = cloudNormals(b.build())));
+  return m;
+}
+
+const dusts = new Map<number, MeshData>();
+/** A puff of the dust a blast throws up: the same fused drawing as smoke, in the colour of plaster dust. */
+export function dustMesh(look: number): MeshData {
+  let m = dusts.get(look % 3);
+  if (m) return m;
+  const b = new MeshBuilder();
+  b.setColor(DAMAGE_COLORS.dust).setPattern(airborne(PATTERN.none)).setInkId(DUST_INK);
+  cloudPuff(b, look);
+  dusts.set(look % 3, (m = cloudNormals(b.build(), 0.22)));
   return m;
 }
 
@@ -244,6 +290,7 @@ export function firelightMesh(): MeshData {
   if (warm) return warm;
   const b = new MeshBuilder({ ink: 'firelight' });
   b.setColor(DAMAGE_COLORS.flameMid).setPattern(MIST).setInk('firelight');
-  ball(b, 0, 0, 0, 1, 0.75, 1, 12, 6);
+  // Nested shells: the wash builds up toward the middle and fades to nothing at the rim (no hard edge).
+  for (const r of [1, 0.8, 0.62, 0.45, 0.3]) ball(b, 0, 0, 0, r, r * 0.75, r, 14, 7);
   return (warm = b.build());
 }

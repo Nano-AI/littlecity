@@ -204,8 +204,12 @@ function faceDecal(f: Face, pts: [number, number][], color: readonly number[], l
 }
 
 /** Upward-facing faces (roofs, tops), for sampling the height of what covers a point. */
-export function roofSampler(polys: readonly Poly[]): (x: number, z: number, minY: number) => number | null {
-  const ups = polys.filter((p) => normalOf(p)[1] > 0.25).map((p) => ({ p, b: bounds(p) }));
+export function roofSampler(polys: readonly Poly[], minSize = 0): (x: number, z: number, minY: number) => number | null {
+  // minSize: leave out small tops (a chimney's cap, a sill), by the size of their footprint.
+  const ups = polys
+    .filter((p) => normalOf(p)[1] > 0.25)
+    .map((p) => ({ p, b: bounds(p) }))
+    .filter(({ b }) => minSize <= 0 || Math.max(b[3] - b[0], b[5] - b[2]) >= minSize);
   return (x, z, minY) => {
     let best: number | null = null;
     for (const { p, b } of ups) {
