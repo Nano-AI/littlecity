@@ -1086,3 +1086,28 @@ berth in my sequence). Not done (agent's list): crew on a sinking ship
 still vanish (breaks the nothing-vanishes rule); barges, small boats and
 passing ships take no damage; no lightning on sails; dockers do not
 react; night frames and ships under way not checked.
+
+**Fly mode merged** (`89056b6`, Opus, `swarm/fly`). Built to Derek's
+eight decisions: wings button (first in the top-right group) or F; a
+0.7 s dolly zoom from the orthographic overview to a 62° eye with the
+looked-at point held still; pointer-lock mouse look; W/S along the look
+direction (full 3D, not level flight), A/D strafe, Space/Shift up/down,
+wheel ×1.25 a notch from a quarter to four times (default 6 cells/s);
+solid world (`src/fly/**`, roofs as boxes), 8 cells past the map edge,
+10 units over the tallest thing; tray, top bar and markers hidden, an
+"Esc to land" card bottom-left; Escape or lost pointer lock glides back
+(0.9 s, never through anything) to the exact view before take-off;
+Escape outside fly mode closes what is open, else glides to the opening
+view, piece stays in hand; no button on touch. The renderer port
+(`src/render/eyecam.ts`, perspective materials) was taken from the other
+session's `capture/promo` branch, which had already merged walk; walking,
+gravity, drag-in and `?walk` are left behind. Agent touched
+`src/render/api.ts` (additive) and `eslint.config.js` (a `fly` layer):
+accepted. Gate: 2,156 passed, 9 skipped, clean. Flying costs about 1.5×
+the overview per frame, still 60 fps in a grown town. NOT verified: real
+cursor capture and the browser's own Escape in a headed browser (tests
+use a hook); Chrome's one-second cooldown before re-capturing. Looks
+wrong up close (not fixed): huge pencil marks on tree crowns and hedges,
+chimney smoke as pale discs, flat walls at a hand's breadth, the moon
+jumping at take-off at night. `swarm/walk` is now superseded.
+Running: mischief (destruction round 2), life-under-fire.
