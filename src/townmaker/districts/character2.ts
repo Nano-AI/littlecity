@@ -188,25 +188,29 @@ export function buildTerraceRow(town: Town, n: number): boolean {
  */
 export function buildGreatMarket(town: Town): boolean {
   const { g } = town;
-  const found = search(g, 'great-market', (f) => {
-    if (!fits(g, f, 0, -3, 8, 5)) return null;
-    const h = rectFlat(g, f, 0, -3, 8, 5);
-    if (h < 0) return null;
-    const d = fromSquare(town, f.x(4, 2), f.z(4, 2));
-    if (d < 8) return null;
-    return { score: Math.abs(d - 10), data: h };
-  });
-  if (!found) return false;
-  const f = found.frame, h = found.data;
-  const M = new Local(g, f);
-  const d = startDistrict(town, 'great-market', f.x(4, 2), f.z(4, 2));
-  M.claim(0, -3, 8, 5, CLAIM.built);
-  for (let v = 0; v <= 5; v++) for (let u = 0; u <= 8; u++) M.floor('plaza', u, v, h);
-  for (const v of [1, 4]) for (const u of [1, 3, 5, 7]) M.put('stall', u, h, v);
-  M.put('marble', 4, h, 2, 3);
-  const hall = M.color('marble', [[1, h + 2, -2]], 'market-hall');
-  for (let u = 1; u <= 7; u++) M.stack('pillar', u, -2, 2, 0);
-  for (let u = 1; u <= 7; u++) for (const v of [-2, -3]) M.put('marble', u, h + 2, v, hall);
-  for (const [u, v] of [[-1, 0], [9, 0], [-1, 5], [9, 5]] as const) if (pave(g, f.x(u, v), f.z(u, v))) M.way(d, u, v);
-  return true;
+  // 9 × 6 where it fits, else 7 × 5.
+  for (const [W, D] of [[9, 6], [7, 5]] as const) {
+    const found = search(g, `great-market${W}`, (f) => {
+      if (!fits(g, f, 0, -3, W - 1, D - 1)) return null;
+      const h = rectFlat(g, f, 0, -3, W - 1, D - 1);
+      if (h < 0) return null;
+      const d = fromSquare(town, f.x(W >> 1, 2), f.z(W >> 1, 2));
+      if (d < 7) return null;
+      return { score: Math.abs(d - 10), data: h };
+    });
+    if (!found) continue;
+    const f = found.frame, h = found.data;
+    const M = new Local(g, f);
+    const d = startDistrict(town, 'great-market', f.x(W >> 1, 2), f.z(W >> 1, 2));
+    M.claim(0, -3, W - 1, D - 1, CLAIM.built);
+    for (let v = 0; v < D; v++) for (let u = 0; u < W; u++) M.floor('plaza', u, v, h);
+    for (const v of [1, D - 2]) for (let u = 1; u < W - 1; u += 2) M.put('stall', u, h, v);
+    M.put('marble', W >> 1, h, 2, 3);
+    const hall = M.color('marble', [[1, h + 2, -2]], 'market-hall');
+    for (let u = 1; u <= W - 2; u++) M.stack('pillar', u, -2, 2, 0);
+    for (let u = 1; u <= W - 2; u++) for (const v of [-2, -3]) M.put('marble', u, h + 2, v, hall);
+    for (const [u, v] of [[-1, 0], [W, 0], [-1, D - 1], [W, D - 1]] as const) if (pave(g, f.x(u, v), f.z(u, v))) M.way(d, u, v);
+    return true;
+  }
+  return false;
 }

@@ -160,10 +160,10 @@ const EMPHASIS: Record<Character, Record<string, number>> = {
   harbour: { dockGroups: 4 },
   marble: { marble: 60, temples: 4 },
   castle: { walls: 25, turrets: 4 },
-  market: { stalls: 6 },
+  market: { stalls: 8 },
   river: { crossings: 2, willows: 3 },
   farming: { wheat: 3, gardens: 80 },
-  hill: { cliffs: 1, stairs: 4 },
+  hill: { cliffs: 1, stairs: 4, rowsUp: 4 },
   gardens: { gardens: 50, trees: 70 },
 };
 /** Every town: woods and tree lines. */
