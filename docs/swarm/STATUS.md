@@ -506,3 +506,21 @@ builds towns and writes proposals to `docs/swarm/discovery/round-1.md`;
 the orchestrator curates; one builder implements.
 Running: seasons and weather, discovery round 1 explorer. Walk preview
 awaiting Derek (served at port 5174 until its two-hour limit).
+
+**Discovery round 1 curated.** Explorer report merged
+(`docs/swarm/discovery/round-1.md`: 12 towns, 66 proposals). Accepted and
+split between two Opus builders:
+- `swarm/disc1-structures` (ids R-*, J-*): faults FX-01 (podium not keep),
+  FX-02 (inn and shop glut), FX-05, FX-06, FX-08, FX-09, FX-10, FX-11,
+  FX-12; roles RC-01 churchyard (+FX-07), RC-02 warehouse, RC-03 watermill,
+  RC-05 inhabited bridge, RC-06 smithy, RC-07 theatre, RC-08 obelisk, RC-09
+  barn, RC-13 stoa, RC-14 bandstand, RC-16 cathedral, RC-19 schoolhouse,
+  RC-21 folly tower.
+- `swarm/disc1-fill` (ids U-*, D-*, L-*): faults FX-03 (fingerposts), FX-04
+  (lamps in the country); RC-04 orchard, RC-12 market cross, UF-01 to UF-05,
+  UF-08 to UF-12, DC-01, DC-03, DC-06, DC-07, LF-01 wedding, LF-02 market
+  day, LF-03 ferry, LF-04 shepherd, LF-05 night watchman; NP-01 hedge edge
+  piece last, if time.
+Deferred: NP-02 placeable water, RC-10, RC-11, RC-15, RC-17, RC-18, RC-20,
+UF-06, UF-07, UF-13, UF-14, DC-02, DC-04, DC-05, DC-08, LF-06 to LF-09.
+Running: ships (several at once), seasons, disc1-structures, disc1-fill.
