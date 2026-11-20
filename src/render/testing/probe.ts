@@ -7,7 +7,7 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
-import { compose, scaling, translation } from '@/core/mat4';
+import { translation } from '@/core/mat4';
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import { MeshBuilder } from '@/gen/mesh';
 import type { DayPart, InstanceHandle } from '@/life/api';
@@ -185,18 +185,6 @@ const api = {
     b.boxAt([0, 0, 0], [0.16, 0.42, 0.16]);
     const mesh = b.build();
     for (let i = 0; i < n; i++) spawned.push(view!.stage.spawnMesh(mesh, translation(8 + ((i * 7) % 32), 0.8, 8 + ((i * 13) % 32))));
-    return spawned.length;
-  },
-  /**
-   * Lays clouds' shadows (the real part, src/parts/actors/sky/sky.part.ts) at [x, z, radius] each, at
-   * the height and strength the cloud behaviour gives them by day (src/life/sky/cloud.behaviour.ts).
-   */
-  cloudShadows(spots: [number, number, number][]): number {
-    for (const [x, z, r] of spots) {
-      const h = view!.stage.spawn({ actor: 'cloud', variant: 'shadow' }, compose(translation(x, 0.9, z), scaling(r, 1, r)));
-      h.setParams(0.2, 0, 0, r);
-      spawned.push(h);
-    }
     return spawned.length;
   },
   /** Luminance (0–255) of a box of the last frame, row by row from its top-left corner (CSS pixels at ratio 1). */

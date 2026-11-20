@@ -591,8 +591,9 @@ Actors and motion. All read the signals in the design, section 13.
 - **L10 · 2 · Night dressing** — bunting and lanterns glow on squares;
   stars and a moon on the paper; rarely, a shooting star. (Fireflies were
   removed at Derek's request, 2026-11-19: do not add them back.)
-- **L31 · 3 · Clouds** — ink-drawn clouds drift over the paper with the wind
-  and drag soft shadows across the island.
+- **L31 · 3 · Clouds** — ink-drawn clouds drift over the paper with the
+  wind. They cast no shadow on the island or the sea (removed at Derek's
+  request, 2026-11-20: do not add it back).
 
 ### Birds
 

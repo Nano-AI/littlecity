@@ -457,8 +457,8 @@
   margin-left: -6px;
   width: calc(100% + 12px);
 }
-.lc-confirm small.lc-choice-note {
-  margin: -2px 0 8px 37px;
+.lc-choice .lc-confirm-buttons {
+  margin-top: 8px;
 }
 .lc-confirm-buttons {
   display: flex;

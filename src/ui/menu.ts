@@ -112,21 +112,13 @@ export function createMenu(actions: MenuActions): Menu {
     );
   };
 
-  /**
-   * Grow a town, second screen: where. On this island (over whatever is here) or on a new one. The
-   * choice is the confirmation: each says what happens to the town there is now.
-   */
+  /** Grow a town, second screen: where. On this island (over whatever is here) or on a new one. */
   const showGrow = (): void => {
-    const town = actions.hasTown();
-    const choice = (id: string, iconId: string, label: string, note: string, run: () => void): HTMLElement[] => [
-      item(id, iconId, label, run),
-      el('small', { class: 'lc-choice-note', text: note }),
-    ];
     panel.replaceChildren(
       el('div', { class: 'lc-confirm lc-choice', attrs: { 'data-ui': 'grow-choice' } }, [
         el('p', { text: 'Grow a town' }),
-        ...choice('grow-here', 'grow', 'On this island', town ? 'Builds over the town here. One undo brings it back.' : 'Fills this island with a town.', actions.growTown),
-        ...choice('grow-new', 'island', 'On a new island', town ? 'Leaves this island: the town you have now will be gone.' : 'A fresh island with a town on it.', actions.growNewIsland),
+        item('grow-here', 'grow', 'On this island', actions.growTown),
+        item('grow-new', 'island', 'On a new island', actions.growNewIsland),
         el('div', { class: 'lc-confirm-buttons' }, [el('button', { class: 'lc-text-btn', text: 'Back', attrs: { type: 'button', 'data-menu': 'grow-back' }, on: { click: showItems } })]),
       ]),
     );

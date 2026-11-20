@@ -1105,10 +1105,9 @@ town is meant to show off every building combination the rules know.
   The whole growth is one undo step. The menu entry "Grow a town" opens a
   second screen that asks where: "On this island" keeps the island and
   grows a different kind of town on it each time it is asked again; "On a
-  new island" makes a new island and grows a town there. Each choice says
-  what happens to the town there is now (built over, one undo brings it
-  back; or gone), so there is no further confirmation; Back returns to the
-  menu. Neither repeats a character until every character that suits the
+  new island" makes a new island and grows a town there. The two choices
+  are bare labels (Derek, 2026-11-20: no subtitles) and there is no
+  further confirmation; Back returns to the menu. Neither repeats a character until every character that suits the
   island has had a turn, so a handful of goes shows the whole range.
 - **Speed.** Generating the edit list takes under 200 ms for a full island.
 

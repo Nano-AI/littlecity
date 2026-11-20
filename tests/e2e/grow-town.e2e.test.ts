@@ -69,8 +69,8 @@ describe('grow a town', () => {
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
     await page.waitForSelector('[data-ui="grow-choice"]');
-    // Over a town each choice says what happens to it.
-    expect(await page.textContent('[data-ui="grow-choice"]')).toContain('One undo brings it back');
+    expect(await page.textContent('[data-ui="grow-choice"]')).toContain('On this island');
+    expect(await page.textContent('[data-ui="grow-choice"]')).toContain('On a new island');
     await page.click('[data-menu="grow-back"]');
     await page.waitForSelector('[data-menu="share"]');
     expect(await page.evaluate(growing)).toBe(false);

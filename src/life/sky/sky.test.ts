@@ -22,7 +22,7 @@ function live() {
 }
 
 describe('clouds (L31)', () => {
-  test('clouds drift downwind high over the paper, come round again, and their shadows lie low and soft', () => {
+  test('clouds drift downwind high over the paper, come round again, and cast no shadow', () => {
     const { town, rec, signals, life } = live();
     const clouds = town.dressing.actors.filter((a) => a.type === 'cloud');
     const before = clouds.map((a) => positionOf(rec.of(a.id).matrix));
@@ -42,25 +42,8 @@ describe('clouds (L31)', () => {
         expect(Math.hypot(x - SIZE_X / 2, z - SIZE_Z / 2)).toBeLessThan(CLOUD_REACH + 30);
       }
     }
-    const shadows = rec.spawned.filter((r) => r.spec && 'actor' in r.spec && r.spec.variant === 'shadow');
-    expect(shadows).toHaveLength(clouds.length);
-    // Shadows that cross share their shade: the more one is overlapped, the fainter it is, so two
-    // lying on each other are together about as dark as one alone (not a black blot on the sea).
-    for (const a of shadows) {
-      const [ax, , az] = positionOf(a.matrix);
-      let crowd = 0;
-      for (const b of shadows) {
-        if (b === a) continue;
-        const [bx, , bz] = positionOf(b.matrix);
-        crowd += Math.max(0, 1 - Math.hypot(bx - ax, bz - az) / (a.params[3]! + b.params[3]!));
-      }
-      expect(a.params[0]! * (1 + crowd)).toBeLessThanOrEqual(0.2 + 1e-6);
-    }
-    for (const s of shadows) {
-      expect(positionOf(s.matrix)[1]).toBeLessThan(1.5);
-      expect(s.params[0]).toBeLessThanOrEqual(0.25);
-      expect(s.params[3]).toBeGreaterThan(1);
-    }
+    // No shadows on the island or the sea (removed at the owner's request).
+    expect(rec.spawned.filter((r) => r.spec && 'actor' in r.spec && r.spec.variant === 'shadow')).toHaveLength(0);
   });
 });
 
