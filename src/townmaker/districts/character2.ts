@@ -141,12 +141,15 @@ export function buildTerraceRow(town: Town, n: number): boolean {
       const h = rectFlat(g, f, 0, 0, L - 1, 1);
       if (h < 1) return null;
       if (!rectFree(g, f, 0, 0, L - 1, 1)) return null;
-      // The terrace behind: one level up all along.
-      for (let u = 0; u < L; u++) if (g.h(f.x(u, -1), f.z(u, -1)) !== h + 1) return null;
+      // The terrace behind: rising all along (a step, or a face it stands against); or, high on the
+      // hill, open shelf ground.
+      let rise = 0;
+      for (let u = 0; u < L; u++) if (g.h(f.x(u, -1), f.z(u, -1)) > h) rise++;
+      if (rise < L && h < town.site.maxH - 3) return null;
       if (!rectFree(g, f, -1, 0, L, 2, CLAIM.built | CLAIM.keep)) return null;
       const d = fromSquare(town, f.x(L >> 1, 0), f.z(L >> 1, 0));
       // Higher terraces first: the town climbs.
-      return { score: -h * 3 + d * 0.3, data: h };
+      return { score: -h * 3 + d * 0.3 - (rise === L ? 4 : 0), data: h };
     });
     if (found) {
       len = L;

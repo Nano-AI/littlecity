@@ -148,7 +148,7 @@ const PLANS: Record<Character, readonly string[]> = {
   market: ['square', 'greatMarket', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'housing:2:13', 'orchard', 'fields', 'greenhouse', 'willow', 'bridge', 'stairs'],
   river: ['square', 'riverFront', 'riverside', 'bridge', 'bridge:1', 'bridge:2', 'inhabitedBridge', 'inhabitedBridge:1', 'watermill', 'watermill:1', 'mill', 'willow', 'bridge:3', 'housing:0:9', 'chapel', 'orchard', 'park', 'orchard:1', 'harbour', 'lighthouse', 'greenhouse', 'boardwalk', 'courtyard', 'housing:1:12', 'walledGarden'],
   farming: ['village', 'green', 'chapel', 'wheatFarm', 'wheatField', 'wheatFarm:1', 'wheatField:1', 'vegPlot', 'barn', 'wheatField:2', 'orchard', 'paddock', 'vegPlot:1', 'orchard:1', 'wheatField:3', 'barn:1', 'paddock:1', 'greenhouse', 'greenhouse:1', 'vegPlot:2', 'orchard:2', 'wheatField:4', 'paddock:2', 'vegPlot:3', 'smithy', 'willow', 'lighthouse', 'harbour'],
-  hill: ['square', 'hilltop', 'terraceRow', 'terraceRow:1', 'terraceRow:2', 'castle', 'terraceRow:3', 'stairs', 'stairs:1', 'stairs:2', 'cliff', 'cliff:1', 'wallTower', 'chapel', 'viaduct', 'viaduct:1', 'terraceRow:4', 'acropolis', 'folly', 'follyTower', 'cliff:2', 'watchtower', 'stairs:3', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'bridge'],
+  hill: ['square', 'hilltop', 'terraceRow', 'terraceRow:1', 'terraceRow:2', 'terraceRow:3', 'castle', 'terraceRow:4', 'stairs', 'stairs:1', 'stairs:2', 'cliff', 'cliff:1', 'terraceRow:5', 'wallTower', 'chapel', 'viaduct', 'viaduct:1', 'terraceRow:6', 'acropolis', 'folly', 'follyTower', 'cliff:2', 'watchtower', 'stairs:3', 'terraceRow:7', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'bridge'],
   gardens: ['square', 'manor', 'park', 'park:1', 'walledGarden', 'walledLawn', 'greenhouse', 'orchard', 'fields', 'school', 'walledGarden:1', 'greenhouse:1', 'park:2', 'orchard:1', 'walledLawn:1', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
 };
 
@@ -172,7 +172,7 @@ const WOODS: Record<Character, { woods: number; lines: number; linesFrom: number
   market: { woods: 0.6, lines: 0.4, linesFrom: 9 },
   river: { woods: 0.85, lines: 0.5, linesFrom: 8 },
   farming: { woods: 0.75, lines: 0.75, linesFrom: 7 },
-  hill: { woods: 1, lines: 0.4, linesFrom: 8 },
+  hill: { woods: 0.7, lines: 0.4, linesFrom: 8 },
   gardens: { woods: 1, lines: 0.9, linesFrom: 4 },
 };
 
