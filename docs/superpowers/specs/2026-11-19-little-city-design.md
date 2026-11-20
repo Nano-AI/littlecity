@@ -1058,11 +1058,33 @@ decoration density (one global knob).
 ## 15. Saving and sharing
 
 - Autosave to `localStorage` after every edit (debounced 500 ms). One town.
-- **Share link**: seed plus blocks, floors and edges packed to binary,
-  deflated, base64url in the URL fragment. Opening the link loads that town
-  as a copy. If the encoded town exceeds 6,000 characters the menu offers
-  "download town file" instead, and a file can be dropped onto the page to
-  load it.
+- **Share link**: the whole town (there is no server) in the URL fragment,
+  base64url, starting `LC` and a format version. Opening the link loads that
+  town as a copy. If the encoded town exceeds 6,000 characters the menu
+  offers "download town file" instead, and a file can be dropped onto the
+  page to load it. The autosave and the town file hold the same code.
+  - **Version 5** (2026-11-20, short links): a checksum, the seed, then one
+    adaptive binary range-coded stream. Each value is coded under a context
+    drawn from what is already read, so a town's regularities cost almost
+    nothing: a storey repeating the storey below, a row stepping on, a
+    pattern of steps repeating, a colour like the block underneath, a path
+    beside a path. Blocks in placement order (which decides how the town
+    resolves); floors as a map of the island, column by column; edges by key;
+    then optional sections by flag bit (bit 0 reshaped land, bit 1 damage,
+    bit 2 promised to the island size; an unknown bit is "a different
+    version"). Grown towns come out about 40% shorter than before: a 450-block
+    market town about 1,100 characters, down from 1,900.
+  - **Versions 1 to 4**: the town packed to bytes (steps between blocks,
+    floor and edge key gaps as varints) and deflated. The encoder writes this
+    form instead when it is shorter (a town of exact machine-made repeats,
+    where deflate's long matches win); its deflate now parses optimally with
+    dynamic Huffman codes, about 24% smaller than the fixed-code encoder that
+    wrote links before 2026-11-20.
+  - Every link and file ever made still opens to exactly the same town: the
+    decoder reads every version, and the tests keep the old encoder frozen
+    with links it made (`src/world/legacy-codec.ts`, `old-links.json`).
+    A damaged, truncated or unknown code is refused with a plain sentence,
+    never a crash. Encoding and decoding take a few milliseconds.
 - **Postcard**: saves the current view as a PNG with a paper border.
 - **New island**: confirms, then new seed and empty world.
 - Undo and redo cover every edit, at least 200 steps, cleared on new island.

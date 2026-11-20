@@ -7,6 +7,7 @@ import { expect, test } from 'vitest';
 import { edgeKey, key, type CellKey, type EdgeKey } from '@/core/grid';
 import { ALL_KINDS, FLOOR_KINDS, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 import type { Block, World } from '@/core/world';
+import { legacyEncodeTown } from './legacy-codec';
 import { decodeTown, encodeTown } from './save';
 import { emptyWorld } from './world';
 
@@ -29,12 +30,13 @@ function everyKind(kinds: readonly PlacedKind[] = ALL_KINDS.slice(0, PINNED_KIND
   return { ...emptyWorld(4242), blocks, floors, edges, nextSeq: seq };
 }
 
-test('a town with one of every kind encodes to the pinned code, and the pinned code decodes to it', () => {
+test('a town with one of every kind: the old encoder wrote the pinned code, it decodes to that town, and so does today\'s code', () => {
   const w = everyKind();
   expect(w.blocks.size).toBe(PINNED_KINDS + 1);
   expect(FLOOR_KINDS.slice(0, PINNED_FLOORS)).toEqual(['path', 'plaza', 'garden']);
-  expect(encodeTown(w)).toBe(PINNED);
+  expect(legacyEncodeTown(w)).toBe(PINNED);
   expect(decodeTown(PINNED)).toEqual({ ok: true, world: w });
+  expect(decodeTown(encodeTown(w))).toEqual({ ok: true, world: w });
 });
 
 test('kinds added since the pin round-trip too', () => {

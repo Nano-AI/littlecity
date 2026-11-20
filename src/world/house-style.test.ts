@@ -9,7 +9,8 @@ import { resolveShape } from '@/resolve/index';
 import { structureStyle } from '@/resolve/structures';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { createHistory, pushHistory, redo, undo } from './history';
-import { codecVersion, decodeTown, encodeTown, readTownFile, townFileText } from './save';
+import { legacyEncodeTown } from './legacy-codec';
+import { deflatedVersion, encodeDeflated, encodeRanged, decodeTown, encodeTown, readTownFile, townFileText } from './save';
 import { applyEdit, canApply, emptyWorld } from './world';
 
 const terrain = flatTerrain(77);
@@ -137,9 +138,13 @@ describe('house style in the share codec', () => {
     expect(r.world).toEqual(legacyTown());
   });
 
-  test('a town with no styled block is still written as version 1, byte for byte', () => {
-    expect(codecVersion(legacyTown())).toBe(1);
-    expect(encodeTown(legacyTown())).toBe(LEGACY_CODE);
+  test('a town with no styled block is still version 1, and the old encoder wrote exactly the pinned code', () => {
+    expect(deflatedVersion(legacyTown())).toBe(1);
+    // The pinned code is the old encoder's (legacy-codec.ts); today's writes a shorter code that opens to the same town.
+    expect(legacyEncodeTown(legacyTown())).toBe(LEGACY_CODE);
+    const code = encodeTown(legacyTown());
+    expect(code.length).toBeLessThanOrEqual(LEGACY_CODE.length);
+    expect(decodeTown(code)).toEqual({ ok: true, world: legacyTown() });
   });
 
   test('styles round-trip through version 2', () => {
@@ -147,14 +152,17 @@ describe('house style in the share codec', () => {
     for (const [i, style] of [1, 2, 3, 4, 5, 6].entries()) w = applyEdit(w, terrain, place(6 + i * 2, 1, 30, style, i));
     w = applyEdit(w, terrain, { type: 'placeBlock', cell: key(30, 1, 30), kind: 'stairs', color: 'auto', from: null, rot: 1 });
     w = applyEdit(w, terrain, place(32, 1, 30, 3, 7));
-    expect(codecVersion(w)).toBe(2);
+    expect(deflatedVersion(w)).toBe(2);
+    // Either format may be written (the shorter); both must hold the town.
+    expect(encodeDeflated(w).startsWith('TEMC')).toBe(true);
+    expect(decodeTown(encodeDeflated(w))).toEqual(decodeTown(encodeTown(w)));
+    expect(decodeTown(encodeRanged(w))).toEqual(decodeTown(encodeDeflated(w)));
     const code = encodeTown(w);
-    expect(code.startsWith('TEMC')).toBe(true);
     const r = decodeTown(code);
     expect(r).toEqual({ ok: true, world: w });
     // Through a town file as well.
     expect(readTownFile(townFileText(w))).toEqual({ ok: true, world: w });
-    expect(JSON.parse(townFileText(w)).littleCity).toBe(2);
+    expect([2, 5]).toContain(JSON.parse(townFileText(w)).littleCity);
   });
 
   test('a damaged style byte is refused, not trusted', () => {
