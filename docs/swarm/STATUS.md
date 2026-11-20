@@ -933,3 +933,17 @@ island mid-cloud. Gate: 2,119 passed, 8 skipped, clean. Not verified by
 the agent: a lighthouse on an offshore rock; the building-scorch fade
 and the water nuke's bank scorch in pictures.
 Running: grow-town (orchards and trees tuning).
+
+**Orchards and trees tuning merged** (`b6a00c5`, Opus). Cause of the
+missing orchards: an orchard only reads as one if no other tree stands
+next to its trees, and pass 5's woods and tree lines were planted up
+against them (survey: orchards in about one town in fifteen, none in
+farming or market). Now each orchard keeps a clear ring, is 12 trees
+where there is room (9 or 6 otherwise) and is planned earlier; copses on
+high ground near the centre; more trees in market towns. Survey floors:
+orchards farming 2, market 1, river 1, garden 1; trees 35; zero misses.
+Trees per town (avg/min): farming 118/94, market 90/47, river 108/64,
+gardens 112/98, castle 70/41, harbour 59/40, marble 59/54, hill 62/46.
+Gate: 2,119 passed, 8 skipped, clean.
+Running: nothing. Unmerged experiments: walk, big-islands. Separate
+session: `capture/promo` in the workspace folder.
