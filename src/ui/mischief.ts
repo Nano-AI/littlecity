@@ -8,8 +8,9 @@
 //
 // Nothing destructive happens by surprise: only these clicks start anything,
 // the drawer looks different from the others (a red, dashed tab), and the
-// first use of each tool says, once, that undo puts it all back. A drawn
-// "BOOM!" pops over a blast, in the page (it always faces the reader).
+// first use of each tool says, once, that undo puts it all back. A blast
+// has no drawn word over it (the "BOOM!" was removed at Derek's request,
+// 2026-11-20: the smoke, dust and fire say it).
 
 import { CELL_H, keyY, type CellKey } from '@/core/grid';
 import type { Game } from '@/app/game';
@@ -25,7 +26,7 @@ import type { MischiefToolId } from './pieces';
 /** The field guide's Mischief group: what each tool does, in a sentence (no recipe town: nothing here is built). */
 export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how: string }[] = [
   { tool: 'torch', name: 'Lightning', how: 'Click a building: a little storm cloud gathers over it and a bolt of lightning sets it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
-  { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes BOOM. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
+  { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes off. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
   { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a white flash, a shockwave racing out, a fireball rising into a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
   { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
   { tool: 'mend', name: 'Mend', how: 'Click something damaged: scaffolding goes up, and each click mends a stage until it is exactly as you built it. Shift-click mends it at once.' },
@@ -67,15 +68,6 @@ const CSS = `
   border-color: ${PALETTE.redDark};
   border-style: dashed;
 }
-.lc-boom {
-  position: fixed;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  z-index: 40;
-  transform-origin: 50% 60%;
-  animation: lc-boom 1.1s ease-out forwards;
-}
 .lc-guide-mischief-icon {
   display: flex;
   align-items: center;
@@ -98,40 +90,7 @@ const CSS = `
   35% { opacity: 0.5; }
   100% { opacity: 0; }
 }
-@keyframes lc-boom {
-  0% { opacity: 0; scale: 0.2; }
-  12% { opacity: 1; scale: 1.15; }
-  22% { scale: 0.95; }
-  30% { scale: 1.02; }
-  75% { opacity: 1; translate: 0 -10px; }
-  100% { opacity: 0; translate: 0 -26px; scale: 1.05; }
-}
 `;
-
-function boomSvg(word: string, seed: number): string {
-  // A jagged burst, a little different each time, with the word lettered over it.
-  const pts: string[] = [];
-  const n = 13;
-  for (let i = 0; i < n * 2; i++) {
-    const a = (i / (n * 2)) * Math.PI * 2 + seed * 0.37;
-    const r = i % 2 === 0 ? 74 + ((i * 37 + seed * 11) % 17) : 50 + ((i * 13 + seed * 7) % 9);
-    pts.push(`${(100 + Math.cos(a) * r * 1.15).toFixed(1)},${(80 + Math.sin(a) * r * 0.8).toFixed(1)}`);
-  }
-  const inner = pts.map((p) => {
-    const [x, y] = p.split(',').map(Number);
-    return `${(100 + (x! - 100) * 0.72).toFixed(1)},${(80 + (y! - 80) * 0.72).toFixed(1)}`;
-  });
-  return (
-    `<svg width="200" height="160" viewBox="0 0 200 160" aria-hidden="true">` +
-    `<g filter="url(#lc-wobble)" stroke="${PALETTE.ink}" stroke-width="3" stroke-linejoin="round">` +
-    `<polygon points="${pts.join(' ')}" fill="${PALETTE.red}"/>` +
-    `<polygon points="${inner.join(' ')}" fill="${PALETTE.yellow}" stroke-width="2"/>` +
-    `<text x="100" y="94" text-anchor="middle" font-family="'Comic Sans MS','Chalkboard SE','Marker Felt',system-ui,sans-serif" ` +
-    `font-weight="900" font-size="44" fill="${PALETTE.white}" stroke="${PALETTE.ink}" stroke-width="3" paint-order="stroke" ` +
-    `transform="rotate(${-6 + (seed % 5) * 2} 100 80)">${word}</text>` +
-    `</g></svg>`
-  );
-}
 
 export interface MischiefTools {
   /** A click with a mischief tool. True if it did something. */
@@ -152,7 +111,7 @@ export function createMischiefTools(host: {
   /** Why not, at the pointer. */
   refuse(reason: string): void;
 }): MischiefTools {
-  const { view, director, feedback } = host;
+  const { director, feedback } = host;
   if (!document.getElementById('lc-mischief-style')) {
     const style = document.createElement('style');
     style.id = 'lc-mischief-style';
@@ -176,18 +135,6 @@ export function createMischiefTools(host: {
     feedback.toast(tool === 'mend' ? 'Mending a stage at a time; Shift-click mends it at once.' : 'Undo puts it all back.');
   };
 
-  let booms = 0;
-  const boom = (point: readonly [number, number, number], word: string): void => {
-    const [sx, sy] = view.worldToScreen([point[0], point[1] + 0.6, point[2]]);
-    const r = view.canvas.getBoundingClientRect();
-    const node = document.createElement('div');
-    node.className = 'lc-boom';
-    node.innerHTML = boomSvg(word, ++booms);
-    node.style.left = `${Math.round(r.left + sx - 100)}px`;
-    node.style.top = `${Math.round(r.top + sy - 110)}px`;
-    node.addEventListener('animationend', () => node.remove());
-    host.root.append(node);
-  };
   /** A nuke whites the page out for an instant. */
   const whiteout = (): void => {
     const node = document.createElement('div');
@@ -197,9 +144,8 @@ export function createMischiefTools(host: {
   };
   const off = director.on((e: MischiefEvent) => {
     if (e.type !== 'blast') return;
-    // The nuke says it with light, not a word.
+    // The nuke says it with light. A bomb has no word over it: its smoke, dust and fire say it.
     if (e.nuke) whiteout();
-    else boom(e.blast.point, e.blast.water ? 'SPLOOSH!' : 'BOOM!');
   });
 
   const blockOf = (pick: Pick | null): CellKey | null => (pick && pick.hit === 'block' ? pick.cell : null);

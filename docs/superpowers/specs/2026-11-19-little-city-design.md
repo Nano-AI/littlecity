@@ -1017,7 +1017,8 @@ come back. Nothing destructive ever happens unless the player starts it.
   cannot reach burns out and leaves a charred shell.
 - **Bomb (a round black bomb with a fuse).** Click a spot; it drops, the
   fuse fizzes for a moment, people nearby scatter, and it goes off with a
-  drawn "BOOM", a dust cloud and flying debris. Whatever is in the blast
+  dust and smoke cloud, fire and flying debris (no drawn "BOOM" word:
+  removed at Derek's request, 2026-11-20). Whatever is in the blast
   (a couple of cells across) is knocked into rubble, neighbours are
   scorched and shaken, windows nearby lose their glass, birds take off
   across the whole town. Dropped in water it throws up a spout and soaks

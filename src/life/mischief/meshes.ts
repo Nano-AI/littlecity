@@ -234,40 +234,6 @@ export function bombMesh(): MeshData {
 /** The tip of the fuse in the bomb's frame (sparks fizz from here). */
 export const FUSE_TIP: Vec3 = [Math.sin(2.6) * 0.07, 0.58, Math.cos(2.6) * 0.03 - 0.03];
 
-let flash: MeshData | null = null;
-/** The flash of a blast: a jagged star, drawn flat on three crossed sheets, self-lit. Radius 1. */
-export function flashMesh(): MeshData {
-  if (flash) return flash;
-  const b = new MeshBuilder({ ink: 'flash' });
-  const star = (r0: number, r1: number, n: number, off: number): [number, number][] => {
-    const out: [number, number][] = [];
-    for (let i = 0; i < n * 2; i++) {
-      const a = (i / (n * 2)) * Math.PI * 2 + off;
-      const r = i % 2 === 0 ? r1 * (0.8 + 0.2 * ((i * 7) % 3) / 2) : r0;
-      out.push([Math.cos(a) * r, Math.sin(a) * r]);
-    }
-    return out;
-  };
-  for (const [rot, tilt] of [[0, 0], [Math.PI / 2, 0], [0, 1]] as const) {
-    const place = (pts: [number, number][], z: number): Vec3[] =>
-      pts.map(([x, y]) => {
-        if (tilt) return [x, z, y] as Vec3;
-        return [x * Math.cos(rot) + z * Math.sin(rot), y, -x * Math.sin(rot) + z * Math.cos(rot)] as Vec3;
-      });
-    b.setColor(DAMAGE_COLORS.flameRoot).setPattern(GLOW).setInk('burst');
-    const outer = place(star(0.55, 1, 9, 0.2), 0);
-    b.polygon(outer);
-    b.polygon([...outer].reverse());
-    b.setColor(DAMAGE_COLORS.flameTip).setInk('burst-in');
-    for (const z of [0.015, -0.015]) {
-      const inner = place(star(0.3, 0.6, 7, 0.5), z);
-      b.polygon(inner);
-      b.polygon([...inner].reverse());
-    }
-  }
-  return (flash = b.build());
-}
-
 let spout: MeshData | null = null;
 /** A spout of water from a bomb in the sea: a column with a crown of splashes. 1 tall, origin at the water. */
 export function spoutMesh(): MeshData {

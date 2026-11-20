@@ -4,7 +4,7 @@
 // from windows and roofs on twos, leaning with the wind; sparks; a column of
 // smoke that rises, leans and thins into a soft wash against the sky; embers
 // that glow in a burnt-out shell and slowly die; the bomb falling, its fuse
-// fizzing; the flash of the blast, dust, every bird in town taking off,
+// fizzing; the dust of the blast (no drawn burst), every bird in town taking off,
 // neighbours shaken; and the building's own chunks flying out on arcs,
 // tumbling, and landing where its rubble heap is baked (so they become it).
 // A spout in the water. Nothing here is saved; the damage is, by the engine.
@@ -25,7 +25,7 @@ import { scaresOf } from '../birds/scare';
 import { fxOf } from '../fx/fx';
 import { ownStage, type Owned } from './owned';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
-import { bombMesh, dustMesh, emberMesh, fallenSailsMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
+import { bombMesh, dustMesh, emberMesh, fallenSailsMesh, firelightMesh, flameMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
 
 /** Instances of one mesh, reused: a finished flame is hidden and handed to the next. */
 class Pool {
@@ -121,14 +121,6 @@ interface BombDraw {
   h: InstanceHandle;
   sparkIn: number;
 }
-interface Flash {
-  h: InstanceHandle;
-  age: number;
-  x: number;
-  y: number;
-  z: number;
-  power: number;
-}
 interface Flight {
   chunks: Chunk[];
   handles: InstanceHandle[];
@@ -160,7 +152,6 @@ interface State {
   sparks: Spark[];
   embers: Map<CellKey, Ember>;
   bombs: Map<number, BombDraw>;
-  flashes: Flash[];
   flights: Map<StructureId, Flight>;
   /** Structures whose chunks should fly once the town shows them broken. */
   toFly: Set<StructureId>;
@@ -305,13 +296,12 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     // at once. (Flames, firelight, embers and fallen sails follow the town and the fires, and go with them.)
     for (const p of st.puffs) for (const h of [p.ink, p.mist]) h.release();
     for (const d of st.dust) for (const h of [d.ink, d.mist]) h.release();
-    for (const x of [...st.sparks, ...st.flashes, ...st.spouts, ...st.bombs.values()]) x.h.release();
+    for (const x of [...st.sparks, ...st.spouts, ...st.bombs.values()]) x.h.release();
     for (const s of st.shakes) s.h?.release();
     for (const id of [...st.flights.keys()]) endFlight(st, id);
     st.puffs = [];
     st.dust = [];
     st.sparks = [];
-    st.flashes = [];
     st.spouts = [];
     st.shakes = [];
     st.bombs.clear();
@@ -347,7 +337,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     }
     // The nuke's flash, shockwave, cloud and shudders are drawn by nuke.system.ts.
     if (!e.nuke) {
-      st.flashes.push({ h: st.own.stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
+      // No drawn burst at the blast (removed at Derek's request, 2026-11-20): the dust, smoke and fire say it.
       // By the water (a pier, a house on stilts) the dust is thin, so what goes over into the water is seen.
       const wet = st.shape ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => {
         const cx = Math.floor(x) + dx!, cz = Math.floor(z) + dz!;
@@ -466,7 +456,6 @@ export default defineSystem<State>({
       sparks: [],
       embers: new Map(),
       bombs: new Map(),
-      flashes: [],
       flights: new Map(),
       toFly: new Set(),
       shakes: [],
@@ -864,25 +853,6 @@ export default defineSystem<State>({
       draw.h.setVisible(true);
     }
 
-    // ── the flash ───────────────────────────────────────────────────────
-    kept = 0;
-    for (const f of st.flashes) {
-      f.age += dt;
-      if (f.age > 0.55) {
-        f.h.release();
-        continue;
-      }
-      st.flashes[kept++] = f;
-      const t = f.age / 0.55;
-      // On twos, like a drawn burst: big at once, a second bigger drawing, then it breaks up.
-      const tt = Math.floor(t * 0.55 * FPS) / (0.55 * FPS);
-      const s = (1.4 + 1.4 * Math.min(1, tt * 2.5)) * f.power * (tt > 0.6 ? Math.max(0.05, 1 - (tt - 0.6) / 0.4) : 1);
-      f.h.setMatrix(compose(translation(f.x, f.y, f.z), rotationY(t * 0.8), scaling(Math.max(0.01, s))));
-      f.h.setParams(1);
-      f.h.setVisible(true);
-    }
-    st.flashes.length = kept;
-
     // ── spouts ──────────────────────────────────────────────────────────
     kept = 0;
     for (const s of st.spouts) {
@@ -988,7 +958,6 @@ export default defineSystem<State>({
     for (const h of st.lights.values()) h.release();
     for (const f of st.flights.values()) for (const h of f.handles) h.release();
     for (const b of st.bombs.values()) b.h.release();
-    for (const f of st.flashes) f.h.release();
     for (const s of st.spouts) s.h.release();
     for (const s of st.shakes) s.h?.release();
     for (const p of st.pools.values()) p.dispose();
