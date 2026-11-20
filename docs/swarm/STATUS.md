@@ -1169,3 +1169,10 @@ cut from the hull, dangling stays, a scorch mark or torn sail on small
 boats, boats steering round wreckage.
 Running: nothing. Unmerged: big-islands (experiment), walk (superseded
 by fly). Separate session: `capture/promo`.
+
+**Bomb without the boom (orchestrator, Derek 2026-11-20).** Removed both
+drawn bursts at a bomb's blast: the "BOOM!"/"SPLOOSH!" word graphic over
+the page (`src/ui/mischief.ts`) and the orange starburst in the scene
+(`flashes` in `mischief.system.ts`, `flashMesh` in `meshes.ts`). Dust,
+smoke, flying chunks, fire and the water spout stay. Gate: 2,165 passed,
+9 skipped, clean. Do not add either back.
