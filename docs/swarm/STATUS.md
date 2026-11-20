@@ -524,3 +524,14 @@ split between two Opus builders:
 Deferred: NP-02 placeable water, RC-10, RC-11, RC-15, RC-17, RC-18, RC-20,
 UF-06, UF-07, UF-13, UF-14, DC-02, DC-04, DC-05, DC-08, LF-06 to LF-09.
 Running: ships (several at once), seasons, disc1-structures, disc1-fill.
+
+**Derek's priority (stated 2026-11-19):** interactions and a town that
+feels alive matter more to him than unique buildings ("I love how the boats
+have people who unload stuff"). Third discovery builder launched on Opus:
+`swarm/living-town` (work chains with carried goods: bread, fish, harvest,
+water and washing, trade from the quay; builders arriving when a house is
+placed; daily rhythm; wedding, market day, maypole dance, shepherd, night
+watchman; L-* ids from L50). The fill builder dropped its life events and
+emits sockets for it.
+Running: ships (several at once), seasons, disc1-structures, disc1-fill,
+living-town. Walk preview awaiting Derek.
