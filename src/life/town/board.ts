@@ -82,6 +82,8 @@ export interface Chain {
   offer(p: Person, time: TimeSignal, board: Board): Plan | null;
   /** Every frame. */
   step?(dt: number, time: TimeSignal, board: Board): void;
+  /** Its own hands may be offered more work while holding this (a farmhand's scythe); anything else goes home first. */
+  keeps?(load: Load): boolean;
   dispose?(board: Board): void;
 }
 
@@ -190,7 +192,7 @@ export function createBoard(opts: BoardOptions): Board {
       }
       if (p.child || p.shutIn || p.leaving || p.scuffle) return null;
       // Something still in the hands from an errand that ended: home with it first (a chain's own hands go on with it).
-      if (p.load && !claimed.has(p)) return null;
+      if (p.load && !claimed.get(p)?.keeps?.(p.load)) return null;
       for (const chain of opts.chains) {
         const c = claimed.get(p);
         if (c && c !== chain) continue;

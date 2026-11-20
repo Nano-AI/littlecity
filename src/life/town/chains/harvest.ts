@@ -47,6 +47,7 @@ export function harvestChain(): Chain {
 
   const chain: Chain = {
     id: 'harvest',
+    keeps: (load) => load === 'scythe',
     sync(board) {
       const posts = board.posts('harvest');
       const before = new Map(fields.map((f) => [f.id, f]));
