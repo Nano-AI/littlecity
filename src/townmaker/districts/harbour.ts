@@ -253,3 +253,15 @@ function shoreTrees(town: Town, anchor: readonly [number, number]): void {
     if (palms >= 4 && reeds >= 1) break;
   }
 }
+
+/** More of the waterfront near the harbour: a pier, a stilt house, a boathouse. */
+export function buildWaterfront(town: Town, n: number): boolean {
+  const harbour = town.districts.find((d) => d.name === 'harbour');
+  if (!harbour) return false;
+  const d = startDistrict(town, `waterfront${n}`, harbour.x, harbour.z);
+  const anchor: [number, number] = [harbour.x, harbour.z];
+  const a = buildPier(town, d, anchor);
+  const b = buildStiltHouse(town, d, anchor, 10 + n);
+  const c = buildBoathouse(town, d, anchor);
+  return a || b || c;
+}
