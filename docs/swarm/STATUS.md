@@ -844,3 +844,16 @@ Running: nothing. Unmerged experiments: walk, big-islands.
   now "Grow a town here" and grows a different kind of town each time on
   the same island; the dice are "New island with a new town" (`4045a25`).
 Running: mischief (two bugs), grow-town pass 5.
+
+**Carry-over fix merged** (`6054819`, Opus; Derek: urgent). Root cause:
+when the town is replaced the life layer is rebuilt and each mischief
+part must remove what it drew; the burning-window glows and the nuke's
+finished scorch were never removed. Now every mischief part keeps a list
+of all it draws (`src/life/mischief/owned.ts`) and drops the lot on a
+town change or undo. New tests: `carryover.test.ts`,
+`tests/e2e/mischief.e2e.test.ts`. Orchestrator checked in a browser:
+nuke, 75 s, New island → nothing drawn, clean island. Gate: 2,110
+passed, 1 timeout under load 24 (`tests/terrain2-town.test.ts`, the
+minute of life; 12.7 s and passing alone). Not covered by tests: open a
+town file, share link, grow on the same island (code only).
+Running: mischief (mending over water), grow-town pass 5.
