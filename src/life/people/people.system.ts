@@ -173,6 +173,7 @@ interface Drawn {
 /** The tool in a person's hands now, from their pose and their job, or null. */
 export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'hammer') return 'hammer';
+  if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
   // An errand's load fills their hands (loads.ts draws it).
   if (p.load) return null;
   const job = p.work?.job;

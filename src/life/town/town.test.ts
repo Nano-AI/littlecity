@@ -10,6 +10,9 @@ import type { DressingPlan } from '@/resolve/plan';
 import breadTown from '../../../scenarios/life/L51.bread.scenario';
 import fishTown from '../../../scenarios/life/L53.fish.scenario';
 import watchTown from '../../../scenarios/life/L55.watchman.scenario';
+import marketTown from '../../../scenarios/life/L56.market-day.scenario';
+import { MARKET } from '@/style/town-life';
+import type { MarketChain } from './chains/market-day';
 import type { Person } from '../people/crowd';
 import type { Load } from '../people/errand';
 import { clock, scenarioTown, watch, type TestTown } from '../people/testing';
@@ -143,6 +146,38 @@ describe('L51 bread and L52 water', () => {
     expect(ledger.lost).toEqual([]);
     expect(lantern).toBeGreaterThan(30);
     expect(beats.size).toBeGreaterThanOrEqual(3);
+  });
+
+  test('L56: market day: traders set up stalls with a crate, the town buys, the busker juggles; at closing they pack up and go home', () => {
+    const close = MARKET.close;
+    let most = 0;
+    let juggling = 0;
+    let closedAt = -1;
+    try {
+      const { w, ledger, t } = run(260, 'day', town.dressing, (t, second) => {
+        const m = t.board.chains.find((c) => c.id === 'market') as MarketChain;
+        most = Math.max(most, m.pitches.filter((p) => p.up).length);
+        juggling += t.crowd.people.filter((p) => p.mode === 'linger' && p.goal?.pose === 'juggle').length;
+        if (second === 170) {
+          MARKET.close = 0; // closing time
+          closedAt = second;
+        }
+      }, scenarioTown(marketTown));
+      const m = t.board.chains.find((c) => c.id === 'market') as MarketChain;
+      expect(w.problems).toEqual([]);
+      expect(ledger.lost).toEqual([]);
+      expect(most).toBeGreaterThanOrEqual(2);
+      expect(ledger.setDown.get('crate@market:set-up') ?? 0).toBeGreaterThanOrEqual(2);
+      expect(ledger.pickedUp.get('basket@market:buy') ?? 0).toBeGreaterThanOrEqual(2);
+      expect(juggling).toBeGreaterThan(0);
+      expect(closedAt).toBe(170);
+      // Closed: every stall folded, and the crates went home.
+      expect(m.open).toBe(false);
+      expect(m.pitches.filter((p) => p.up).length).toBe(0);
+      expect(ledger.pickedUp.get('crate@market:pack') ?? 0).toBeGreaterThanOrEqual(1);
+    } finally {
+      MARKET.close = close;
+    }
   });
 
   test('the same town stepped the same way tells the same story', () => {

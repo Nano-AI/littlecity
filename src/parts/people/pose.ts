@@ -32,9 +32,10 @@ export type PoseName =
   | 'cover' //   L50: an arm out across in front, low (over a child's eyes)
   | 'dust' //    L50: bent a little, patting the dust off, one hand then the other
   | 'shake' //   L50: the right hand out, pumping up and down
-  | 'hammer'; // L53: the right arm up and down, striking
+  | 'hammer' // L54: the right arm up and down, striking
+  | 'juggle'; // L56: both hands up in front, tossing in turn
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -214,6 +215,15 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       p.armR = k === 0 ? 1.15 : 0.85;
       p.outR = -0.15;
       p.lean = 0.06;
+      break;
+    }
+    case 'juggle': {
+      const k = beat(2, 6);
+      p.armL = k === 0 ? 1.9 : 1.3;
+      p.armR = k === 0 ? 1.3 : 1.9;
+      p.outL = -0.25;
+      p.outR = -0.25;
+      p.lean = -0.08;
       break;
     }
     case 'hammer': {

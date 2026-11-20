@@ -127,3 +127,22 @@ export const BUILD = defineStyle(
   },
   { gap: [0, 60, 1], most: [0, 6, 1], flood: [2, 60, 1], floodGap: [0, 300, 5], lapse: [5, 120, 1], reach: [2, 40, 1], hammer: [1, 15, 0.5], watchers: [0, 10, 1], look: [1, 20, 0.5] },
 );
+
+/** L56: market day. */
+export const MARKET = defineStyle(
+  'market',
+  {
+    /** Share of days that are market days (the first day the town is seen always is). */
+    chance: 0.6,
+    /** The phase of the loop at which it packs up (day runs 0–0.56; 0.4 is mid-afternoon). */
+    close: 0.4,
+    /** Chance a resident choosing what to do goes to buy at the market while it is on, and stops to watch the busker. */
+    buy: 0.35,
+    watch: 0.12,
+    /** The farthest (grid steps) a resident walks to the market. */
+    reach: 26,
+    /** Seconds a stall stands after closing with nobody to pack it before it folds by itself. */
+    abandon: 20,
+  },
+  { chance: [0, 1, 0.01], close: [0, 0.56, 0.01], buy: [0, 1, 0.01], watch: [0, 1, 0.01], reach: [4, 48, 1], abandon: [0, 120, 1] },
+);

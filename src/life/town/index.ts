@@ -12,11 +12,12 @@ import { breadChain } from './chains/bread';
 import { buildChain, type BuildChain } from './chains/build';
 import { fishChain } from './chains/fish';
 import { watchChain } from './chains/watch';
+import { marketChain } from './chains/market-day';
 import { waterChain } from './chains/water';
 
 /** Every chain, in the order they are offered a person (the first that wants them has them). */
 export function allChains(): Chain[] {
-  return [buildChain(), watchChain(), breadChain(), fishChain(), waterChain()];
+  return [buildChain(), watchChain(), marketChain(), breadChain(), fishChain(), waterChain()];
 }
 
 export interface LivingTown {

@@ -84,7 +84,7 @@ export interface Chain {
 }
 
 /** What the board draws through: the stage, or nothing in tests. */
-export type GoodsStage = Pick<LifeStage, 'spawnMesh'> | null;
+export type GoodsStage = LifeStage | null;
 
 export interface Board {
   readonly host: ErrandHost;
@@ -94,6 +94,8 @@ export interface Board {
   readonly dressing: DressingPlan | null;
   readonly nav: NavGraph | null;
   readonly chains: readonly Chain[];
+  /** Where to draw (null in tests). */
+  readonly stage: GoodsStage;
   readonly plans: ReadonlyMap<Person, Plan>;
   /** Life time, seconds. */
   readonly now: number;
@@ -217,6 +219,7 @@ export function createBoard(opts: BoardOptions): Board {
       return dressing?.nav ?? null;
     },
     chains: opts.chains,
+    stage: opts.stage,
     plans,
     get now() {
       return now;

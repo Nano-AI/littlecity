@@ -625,6 +625,23 @@ its carrier. Nothing is ever left floating or vanishes in view.
   the beat's start) walks it with a glowing lantern on a pole, stopping 2.5 s
   at each post to look about, round and round until dawn, then home.
   **Must not:** be kept where a garrison is; walk by day.
+- **L56 · 2 · Market day** (LF-02) — the biggest square (a plaza with a
+  full 3 × 3) with 2+ stalls on or beside it → up to 4 pitches (one per 6
+  cells: open plaza cells, not cluttered, not a doorstep, not beside a
+  stall, fountain or tree, 3+ steps apart, facing the square's middle,
+  each with seeded goods; `market|pitch|<goods>`) and a busker's spot near
+  the middle (`market|busk`). On market days (the first day the town is
+  seen, then 60% of days, seeded) from dawn to mid-afternoon (phase 0.4): a
+  trader per pitch brings a crate, and as they set it down a market stall
+  pops up and three baskets go out on its counter; they stand behind it
+  calling out, putting more out when it runs low; a busker juggles three
+  balls in the middle; residents choosing what to do go to buy (p=0.35,
+  within 26 steps) and walk home with a basket, or stop to watch the busker
+  (p=0.12), some cheering. At closing the traders pack the goods into the
+  crate, the stall folds away with a puff, and they carry the crate home; a
+  stall nobody packs folds by itself 20 s after closing. A pitch built over
+  folds its stall at once. **Must not:** put a pitch where people must pass
+  single file, on a doorstep, or beside a stall.
 
 ### Animals and small motion
 
