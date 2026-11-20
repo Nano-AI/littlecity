@@ -66,6 +66,9 @@ try {
       opened = key;
     }
     await page.evaluate((t) => window.__look.time(t), c.time);
+    // --season winter --weather snow: judge a season and weather (Seasons); life's clock is held still,
+    // so falling things hang where they are and only the camera moves.
+    if (flags.season || flags.weather) await page.evaluate(([s, w]) => window.__look.season(s ?? 'summer', w ?? 'clear'), [flags.season, flags.weather]);
     for (const kv of styles) await page.evaluate(([m, k, v]) => window.__look.style(m, k, v), kv);
     const t0 = Date.now();
     const name = nameOf(c);

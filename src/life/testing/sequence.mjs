@@ -9,6 +9,9 @@
 //
 //   --time day|dusk|night|dawn|<phase 0..1>   hold that time of day (default day)
 //   --run                    let the dusk cycle run from that time instead of holding it
+//   --season winter|festival|<year 0..1> --weather snow|rain|...   hold a season and weather (default: as the app
+//                            opens, summer and a clear sky, running); --settle brings the weather in at once
+//   --year 0.74 --year-run   start the year there and let it run (so a change of season can be watched)
 //   --warm 2000              milliseconds of life to play before the sequence starts
 //   --edit 'place:house@10,1,10; erase@12,1,10; floor:path@9,1,9; kind:tower@10,1,10; edge:fence@10,1,10,E'
 //                            edits applied at the first frame (x,y,z are grid cells; y is the level)
@@ -73,7 +76,10 @@ try {
   });
   await page.clock.install({ time: 0 });
   // A scenario name, or seed:N for a fresh island of that seed.
-  const query = scenario.startsWith('seed:') ? `seed=${Number(scenario.slice(5))}` : `scenario=${encodeURIComponent(scenario)}`;
+  let query = scenario.startsWith('seed:') ? `seed=${Number(scenario.slice(5))}` : `scenario=${encodeURIComponent(scenario)}`;
+  if (flags.season !== undefined) query += `&season=${encodeURIComponent(String(flags.season))}`;
+  if (flags.weather !== undefined) query += `&weather=${encodeURIComponent(String(flags.weather))}`;
+  if (flags.settle) query += '&settle=1';
   await page.goto(`${server.url}/?${query}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__lc !== undefined, null, { timeout: 60_000 });
   // The interface is not what is being looked at.
@@ -108,6 +114,10 @@ try {
       if (cam.pitch !== undefined) pose.pitch = cam.pitch;
       if (cam.target) pose.target = cam.target;
       if (Object.keys(pose).length) lc.view.setCamera(pose);
+      if (cam.year !== undefined) {
+        s.setYear(cam.year);
+        if (cam.yearRun) s.holdSeason('run');
+      }
     },
     [
       flags.time === undefined ? 'day' : Number.isNaN(Number(flags.time)) ? flags.time : Number(flags.time),
@@ -117,6 +127,8 @@ try {
         yaw: flags.yaw === undefined ? undefined : Number(flags.yaw),
         pitch: flags.pitch === undefined ? undefined : Number(flags.pitch),
         target: flags.target === undefined ? undefined : String(flags.target).split(',').map(Number),
+        year: flags.year === undefined ? undefined : Number(flags.year),
+        yearRun: Boolean(flags['year-run']),
       },
     ],
   );

@@ -253,6 +253,69 @@ const DRAWINGS: Record<string, string> = {
     sparkle(37, 13, 4.4, `fill="${C.white}" stroke-width="1.5"`) +
     sparkle(10.4, 11.4, 2.8, `fill="${C.white}" stroke-width="1.3"`),
 
+  // ── seasons and weather (design section 13a) ─────────────────────────
+  // The year turning: four quarters, blossom pink, summer green, autumn orange, snow white.
+  'season-run':
+    `<path d="M24 24 L24 7.4 A16.6 16.6 0 0 1 40.6 24 Z" fill="${C.leaf}"/>` +
+    `<path d="M24 24 L40.6 24 A16.6 16.6 0 0 1 24 40.6 Z" fill="${C.orange}"/>` +
+    `<path d="M24 24 L24 40.6 A16.6 16.6 0 0 1 7.4 24 Z" fill="${C.white}"/>` +
+    `<path d="M24 24 L7.4 24 A16.6 16.6 0 0 1 24 7.4 Z" fill="${C.pink}"/>` +
+    `<path stroke-width="1.6" d="M37.6 8.6 L41.6 10.6 L39.4 14.6"/>`,
+  // Spring: a blossom with a leaf.
+  'season-spring':
+    `<path d="M24 40.4 Q24.6 33 24.2 27.6"/>` +
+    `<path d="M24.4 35.4 Q31.6 30.4 37 34.4 Q31.4 39.4 24.4 35.4 Z" fill="${C.leaf}"/>` +
+    [0, 72, 144, 216, 288]
+      .map((a) => `<ellipse cx="24" cy="12.8" rx="4.9" ry="6.4" transform="rotate(${a} 24 19.6)" fill="${C.pink}"/>`)
+      .join('') +
+    `<circle cx="24" cy="19.6" r="3.2" fill="${C.yellow}"/>`,
+  // Summer: a tree in full leaf.
+  'season-summer':
+    `<path d="M24 41 L24.2 29.4" stroke="${C.trunk}" stroke-width="3"/>` +
+    `<path d="M12.6 22.4 Q11.4 10.6 22.6 8.8 Q35.4 8 36.2 19.4 Q37.4 30 24.6 30.6 Q13.4 31 12.6 22.4 Z" fill="${C.leaf}"/>` +
+    `<path ${thin} d="M18 22.6 Q20.2 25 23 24.4 M28.4 17.4 Q30.6 19.6 31.6 22.4"/>` +
+    `<path stroke-width="1.4" d="M8.4 41.2 L39.8 41"/>`,
+  // Autumn: a falling leaf, orange, with its veins.
+  'season-autumn':
+    `<path d="M24 6.6 Q31 12 35.8 10.8 Q34.4 17 39.8 21 Q34.6 23.6 35.4 29.4 Q29.2 28.2 25.6 33.8 Q20.4 28.4 14 29.6 Q15.2 23.6 9.6 20.6 Q15.6 17.4 13.2 11 Q19 12.4 24 6.6 Z" fill="${C.orange}"/>` +
+    `<path ${thin} d="M24.4 31.4 L24 11.6 M24.2 22 L31.6 16.4 M24.2 22 L16.4 16.8 M24.3 27.4 L31 24.4 M24.3 27.4 L17.6 24.6"/>` +
+    `<path d="M24.6 33.4 Q25.6 38 23.2 41.6"/>`,
+  // Winter: a snowflake.
+  'season-winter':
+    `<circle cx="24" cy="24" r="16.4" fill="${C.shallow}" stroke="none"/>` +
+    [0, 60, 120]
+      .map((a) => `<path transform="rotate(${a} 24 24)" d="M24 8.4 L24 39.6 M19.8 11.6 L24 15.4 L28.2 11.6 M19.8 36.4 L24 32.6 L28.2 36.4"/>`)
+      .join(''),
+  // Weather by itself: sun behind a cloud.
+  'weather-auto':
+    sun(18.4, 17.4, 6, C.yellow, 7) +
+    `<path d="M14.4 37.8 Q8.6 37.6 9.2 32.4 Q10 27.6 15.2 28.4 Q16.4 21.6 23.6 22 Q30.4 22.4 31.2 28 Q38.8 27 39.4 32.4 Q39.8 37.8 33.4 37.8 Z" fill="${C.white}"/>`,
+  'weather-clear': sun(24, 24, 8.6),
+  'weather-cloudy':
+    `<path d="M12.6 35.6 Q5.6 35.4 6.4 29.4 Q7.4 23.6 13.6 24.8 Q14.6 15.6 24 15.8 Q32.8 16 34 23.6 Q42.4 22.4 42.4 29.4 Q42.4 35.6 35 35.6 Z" fill="${C.white}"/>` +
+    `<path ${thin} d="M16 30.8 Q20 32.6 24.6 30.6"/>`,
+  'weather-rain':
+    `<path d="M12.6 27.6 Q5.6 27.4 6.4 21.4 Q7.4 15.6 13.6 16.8 Q14.6 7.6 24 7.8 Q32.8 8 34 15.6 Q42.4 14.4 42.4 21.4 Q42.4 27.6 35 27.6 Z" fill="${C.white}"/>` +
+    `<path stroke="${C.seaInk}" d="M14.6 32 L12.4 38.8 M22.4 32.2 L20.2 39 M30.2 32 L28 38.8 M37.4 31.8 L35.6 37.2 M18.6 41.6 L17.8 44"/>`,
+  'weather-storm':
+    `<path d="M12.6 27.6 Q5.6 27.4 6.4 21.4 Q7.4 15.6 13.6 16.8 Q14.6 7.6 24 7.8 Q32.8 8 34 15.6 Q42.4 14.4 42.4 21.4 Q42.4 27.6 35 27.6 Z" fill="${C.metal}"/>` +
+    `<path stroke-width="1.6" d="M25.6 24.4 L19.4 34.6 L24.6 34.4 L20.6 44 L31 31.2 L25.6 31.4 L29.8 24.4 Z" fill="${C.yellow}"/>`,
+  'weather-fog':
+    `<path d="M7 15.6 Q12 12.8 17 15.6 T27 15.6 T37 15.6 T42 14.8"/>` +
+    `<path d="M5.6 24 Q10.6 21.2 15.6 24 T25.6 24 T35.6 24 T42.6 23.4"/>` +
+    `<path d="M8.4 32.4 Q13.4 29.6 18.4 32.4 T28.4 32.4 T38.4 32.4"/>` +
+    `<path ${thin} d="M12 39.6 Q17 37 22 39.6 T32 39.6"/>`,
+  'weather-wind':
+    `<path d="M5.6 18.4 L28.6 18.4 Q34.6 18.2 34.4 13 Q34 8.6 29.6 9 Q26.2 9.6 26.6 13"/>` +
+    `<path d="M5.6 26.4 L36.4 26.4 Q42.6 26.6 42.4 32 Q42 36.4 37.4 36 Q34 35.4 34.6 31.8"/>` +
+    `<path ${thin} d="M9.6 34.4 L24.4 34.4"/>` +
+    `<path stroke="${C.orange}" stroke-width="2.4" d="M14.4 40.4 Q16.6 38.6 18.4 41.4"/>`,
+  'weather-snow':
+    `<path d="M12.6 27.6 Q5.6 27.4 6.4 21.4 Q7.4 15.6 13.6 16.8 Q14.6 7.6 24 7.8 Q32.8 8 34 15.6 Q42.4 14.4 42.4 21.4 Q42.4 27.6 35 27.6 Z" fill="${C.white}"/>` +
+    sparkle(14.6, 35.4, 3.4, `fill="${C.white}" stroke-width="1.3"`) +
+    sparkle(25.2, 39.6, 3.8, `fill="${C.white}" stroke-width="1.3"`) +
+    sparkle(35.4, 34.6, 3.2, `fill="${C.white}" stroke-width="1.3"`),
+
   // ── menu ─────────────────────────────────────────────────────────────
   island:
     `<path stroke="${C.seaInk}" d="M3.6 37.6 q3.2 -3 6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0"/>` +

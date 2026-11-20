@@ -32,10 +32,23 @@ precision highp sampler2D;
 in vec3 position;
 in vec4 color;
 in float slot;
+in vec2 ink;
 uniform sampler2D uSlots;
 uniform vec4 uMap;        // x0, z0, 1 / size, top
 uniform float uMapRange;
+uniform float uBare;      // Seasons: how far the broadleaves have lost their leaves (src/render/shaders/season.ts)
+float h1(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 void main(){
+  // Seasons: a broadleaf that has dropped most of its leaves no longer shelters the ground under it
+  // (the same per-tree timing as the surface shader's treeBare).
+  if (uBare > 0.0) {
+    float e = ink.y / 256.0;
+    if ((e > 200.5 && e < 201.5) || (e > 202.5 && e < 203.5)) {
+      vec2 id = vec2(floor(ink.x / 256.0), mod(ink.x, 256.0));
+      float o = h1(id + 0.71) * 0.38;
+      if (smoothstep(o, o + 0.6, uBare) > 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    }
+  }
   vec3 p = position;
   float glow = 1.0;
   int s = int(slot + 0.5);

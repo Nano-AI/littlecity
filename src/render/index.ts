@@ -33,9 +33,11 @@ import { createLayout, type Layout } from '@/gen/layout';
 import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
 import type { InstanceHandle, LifeStage, Signals, SpawnSpec } from '@/life/api';
 import type { Actor, DressingPlan, Prop, ShapePlan, StructureId } from '@/resolve/plan';
+import { seasonOf, weatherOf } from '@/life/season';
 import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
 import { TERRAIN } from '@/style/terrain';
+import { SEASON_LOOK } from '@/style/season';
 import type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
 import {
   CAMERA_FAR,
@@ -52,7 +54,9 @@ import {
   type CameraFrame,
 } from './camera';
 import { gradeAt } from './grade';
+import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
+import { createPrecip } from './precip';
 import { registriesFor, type Registries } from './registries';
 import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
 import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
@@ -84,7 +88,7 @@ export const LIGHT: Vec3 = (() => {
  * of these needs no geometry; a change to any other style value (a palette colour, a proportion a
  * generator reads) makes every cached mesh stale.
  */
-const PAGE_STYLES = new Set(['look', 'grade', 'wind', 'time']);
+const PAGE_STYLES = new Set(['look', 'grade', 'wind', 'time', 'season', 'weather', 'season-look']);
 function geometryStyleKey(): string {
   return JSON.stringify(allStyles().filter((m) => !PAGE_STYLES.has(m.name)).map((m) => [m.name, m.values]));
 }
@@ -262,6 +266,31 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uGround: { value: 0 },
     uSlope: { value: 1.25 },
     uCast: { value: 0.5 },
+    // Seasons and weather (shaders/season.ts, ./season.ts)
+    uSeasonOn: { value: 0 },
+    uSeason: { value: new THREE.Vector4(0, 1, 0, 0) },
+    uTrees: { value: new THREE.Vector4() },
+    uSnow: { value: new THREE.Vector4() },
+    uWet: { value: new THREE.Vector4() },
+    uLeafRef: v3(),
+    uGrassRef: v3(),
+    uSpringGreen: v3(),
+    uSpringMix: { value: 0 },
+    uAutumnGrass: v3(),
+    uAutumnGrassMix: { value: 0 },
+    uLeafA: v3(),
+    uLeafB: v3(),
+    uLeafC: v3(),
+    uLeafD: v3(),
+    uFrost: v3(),
+    uSnowCol: v3(),
+    uSnowShade: v3(),
+    uSnowEdge: { value: 0 },
+    uWetTint: v3(),
+    uIce: v3(),
+    uTwig: v3(),
+    uBlossomA: v3(),
+    uBlossomB: v3(),
     // overlay only
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
     uCanvas: { value: new THREE.Vector2(1, 1) },
@@ -273,6 +302,16 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   const surfaceMaterial = new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+  });
+  // Seasons: while broadleaves are losing or have lost their leaves, the page is drawn with this one
+  // instead, whose crowns dissolve (shaders/season.ts). The only variant of the shader with a discard,
+  // so the rest of the year pays nothing for it.
+  const bareMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { BARE: 1 },
     vertexShader: surfaceVertex,
     fragmentShader: surfaceFragment,
     uniforms: surfaceUniforms,
@@ -295,6 +334,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uniforms: surfaceUniforms,
     side: THREE.BackSide,
   });
+  let bareOn = false;
+  let groundBare = 0;
   const overlayMaterial = new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
     defines: { OVERLAY: 1 },
@@ -315,7 +356,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     glslVersion: THREE.GLSL3,
     vertexShader: heightVertex,
     fragmentShader: heightFragment,
-    uniforms: { uSlots: surfaceUniforms.uSlots, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange },
+    uniforms: { uSlots: surfaceUniforms.uSlots, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uBare: { value: 0 } },
     side: THREE.DoubleSide,
     colorWrite: false,
   });
@@ -398,6 +439,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uGlow: { value: 0 },
     uStars: { value: 0 },
     uHalo: { value: 0 },
+    uFestive: { value: 0 },
+    uFog: { value: 0 },
+    uFogCol: v3(),
+    uFogY: { value: SEA_Y },
   };
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
@@ -423,6 +468,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         depthWrite: false,
       })
     : null;
+
+  // Seasons: falling rain and snow, drawn over the finished page (./precip.ts).
+  const precip = createPrecip(
+    { tHeight: surfaceUniforms.tHeight, tDepth: surfaceUniforms.tDepth, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uZOrigin: surfaceUniforms.uZOrigin, uZAxis: surfaceUniforms.uZAxis, uCanvas: surfaceUniforms.uCanvas },
+    halfInk,
+    pixelRatio,
+  );
 
   let ghostRT: THREE.WebGLRenderTarget | null = null;
   const ghostUniforms = { ...compositeUniforms, tColor: { value: null as THREE.Texture | null }, tId: { value: null as THREE.Texture | null }, tDepth: { value: null as THREE.Texture | null } };
@@ -874,6 +926,25 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     setSrgb(u.uMagic.value, PALETTE.magic);
     setSrgb(u.uRed.value, PALETTE.red);
     setSrgb(paperUniforms.uPaper.value, PALETTE.paper);
+    setLinear(u.uLeafRef.value, PALETTE.leaf);
+    setLinear(u.uGrassRef.value, PALETTE.grass);
+    setLinear(u.uSpringGreen.value, SEASON_LOOK.springGreen);
+    setLinear(u.uAutumnGrass.value, SEASON_LOOK.autumnGrass);
+    setLinear(u.uLeafA.value, SEASON_LOOK.leafYellow);
+    setLinear(u.uLeafB.value, SEASON_LOOK.leafOrange);
+    setLinear(u.uLeafC.value, SEASON_LOOK.leafRusset);
+    setLinear(u.uLeafD.value, SEASON_LOOK.leafBrown);
+    setLinear(u.uFrost.value, SEASON_LOOK.frost);
+    setLinear(u.uSnowCol.value, SEASON_LOOK.snow);
+    setLinear(u.uSnowShade.value, SEASON_LOOK.snowShade);
+    setLinear(u.uWetTint.value, SEASON_LOOK.wet);
+    setLinear(u.uIce.value, SEASON_LOOK.ice);
+    setLinear(u.uTwig.value, SEASON_LOOK.twig);
+    setLinear(u.uBlossomA.value, PALETTE.white);
+    setLinear(u.uBlossomB.value, PALETTE.pink);
+    u.uSpringMix.value = SEASON_LOOK.springMix;
+    u.uAutumnGrassMix.value = SEASON_LOOK.autumnGrassMix;
+    u.uSnowEdge.value = SEASON_LOOK.snowEdge;
     setSrgb(compositeUniforms.uLampWarm.value, GRADE.lampWarm);
     setSrgb(compositeUniforms.uStar.value, GRADE.star);
   };
@@ -1024,7 +1095,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         colorsAt = styleVersion();
         refreshColors();
       }
-      const grade = gradeAt(signals.time);
+      // Seasons and weather: a few numbers for the shaders, and the grade and paper they shift.
+      const sf = seasonFrame(seasonOf(signals), weatherOf(signals));
+      const grade = seasonGrade(gradeAt(signals.time), sf);
       const css = pixelsPerUnit(shown, height);
       const targetPR = pixelRatio * superSample;
       const su = surfaceUniforms;
@@ -1044,7 +1117,28 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uTint.value.set(...grade.tint);
       su.uLift.value.set(...grade.lift);
 
+      su.uSeasonOn.value = sf.on ? 1 : 0;
+      su.uSeason.value.set(...sf.season);
+      su.uTrees.value.set(...sf.trees);
+      su.uSnow.value.set(...sf.snow);
+      su.uWet.value.set(...sf.wet);
+      const wantBare = sf.on && sf.trees[1] > 0;
+      if (wantBare !== bareOn) {
+        bareOn = wantBare;
+        // The movers keep their own material (it cuts ships off at the map's edge); no tree is a mover.
+        for (const p of allPools) if (p !== movers) p.mesh.material = bareOn ? bareMaterial : surfaceMaterial;
+      }
+      // A tree that has dropped its leaves stops sheltering the ground: redraw the grounding picture
+      // as the leaves fall (a step at a time: it is the costliest pass).
+      const bare = wantBare ? sf.trees[1] : 0;
+      if (Math.abs(bare - groundBare) > 0.02 || (bare === 0) !== (groundBare === 0)) {
+        groundBare = bare;
+        heightMaterial.uniforms.uBare!.value = bare;
+        groundStale = true;
+      }
+
       const pu = paperUniforms;
+      pu.uPaper.value.set(...paperOf(sf));
       pu.uInk.value.set(...grade.ink);
       pu.uEye.value.set(...frame.eye);
       pu.uRight.value.set(frame.right[0] * frame.halfW, frame.right[1] * frame.halfW, frame.right[2] * frame.halfW);
@@ -1093,7 +1187,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       cu.uLightView.value.set(dotL(frame.right), dotL(frame.up), -dotL(frame.forward));
       cu.uGlow.value = grade.glow;
       cu.uStars.value = grade.stars;
-      cu.uHalo.value = LOOK.halo;
+      // Snow on the ground catches the windows' and lamps' light: warmer, wider pools.
+      const festive = seasonOf(signals).festival;
+      cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0] + 0.6 * festive);
+      cu.uFestive.value = festive;
+      cu.uFog.value = sf.fog;
+      if (sf.fog > 0) {
+        const paper = paperOf(sf);
+        cu.uFogCol.value.set(paper[0] * grade.tint[0] + grade.lift[0], paper[1] * grade.tint[1] + grade.lift[1], paper[2] * grade.tint[2] + grade.lift[2]);
+      }
       if (inkRT) {
         inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
         inkUniforms.uPR.value = pixelRatio / 2;
@@ -1168,6 +1270,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       }
       renderer.setRenderTarget(null);
       renderer.render(postScene, postCamera);
+      const weather = weatherOf(signals);
+      if (weather.rain > 0.01 || weather.snow > 0.01) {
+        const w = signals.wind(frame.target[0], frame.target[2]);
+        if (precip.update({ frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt) })) renderer.render(precip.scene, camera);
+      }
       if (overlay) {
         renderer.clear(false, true, false);
         renderer.render(overlayScene, camera);
@@ -1194,6 +1301,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       structures.clear();
       layers.clear();
       items.clear();
+      precip.dispose();
       ghostRT?.depthTexture?.dispose();
       ghostRT?.dispose();
       heightRT.depthTexture?.dispose();
@@ -1206,7 +1314,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       windTex.dispose();
       noiseTex.dispose();
       screenGeometry.dispose();
-      for (const m of [surfaceMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
+      for (const m of [surfaceMaterial, bareMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       renderer.dispose();
     },
   };

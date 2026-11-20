@@ -24,6 +24,10 @@ import { rand } from '@/core/rand';
 import { TIME } from '@/style/time';
 import { WIND } from '@/style/wind';
 import type { DayPart, SignalEvent, SignalEvents, SignalsDriver, TimeHold, TimeSignal, Wind } from './api';
+import { createCalendar, type SeasonControls, type SeasonSignal, type WeatherSignal } from './season';
+
+/** The signals driver with the season and weather (src/life/season.ts) and their controls. */
+export type TownSignals = SignalsDriver & SeasonControls & { readonly season: SeasonSignal; readonly weather: WeatherSignal };
 
 const PARTS: readonly DayPart[] = ['day', 'dusk', 'night', 'dawn'];
 /** Half the map's diagonal plus a margin: a front starts and ends this far from the centre. */
@@ -123,21 +127,33 @@ export function sampleWind(field: WindField, x: number, z: number): Wind {
   return { dirX: field.dirX, dirZ: field.dirZ, strength: Math.min(1.2, strength) };
 }
 
-export function createSignals(seed: number): SignalsDriver {
+export function createSignals(seed: number): TownSignals {
   let phase = 0;
   let seconds = 0;
   let holding: TimeHold = 'run';
   let time = timeAt(phase, seconds);
   let field: WindField | null = null;
   const listeners = new Map<SignalEvent, Set<(payload: never) => void>>();
+  const calendar = createCalendar(seed);
+  const controls = calendar.controls(() => seconds, () => time);
 
   return {
     get time() {
       return time;
     },
+    get season() {
+      return calendar.season;
+    },
+    get weather() {
+      return calendar.weather;
+    },
     wind(x, z) {
       field ??= windFieldAt(seed, seconds);
-      return sampleWind(field, x, z);
+      const w = sampleWind(field, x, z);
+      // A windy spell or a storm: the same field, blowing harder (src/life/season.ts).
+      const gust = calendar.weather.gust;
+      if (gust > 0) w.strength = Math.min(1.2, w.strength * (1 + 1.1 * gust) + 0.12 * gust);
+      return w;
     },
     on(event, fn) {
       let set = listeners.get(event);
@@ -154,6 +170,7 @@ export function createSignals(seed: number): SignalsDriver {
       if (holding === 'run') phase = (phase + step / loopSeconds()) % 1;
       time = timeAt(phase, seconds);
       field = null;
+      calendar.advance(step, seconds, time, holding === 'run');
       return step;
     },
     hold(mode) {
@@ -168,6 +185,16 @@ export function createSignals(seed: number): SignalsDriver {
       phase = ((p % 1) + 1) % 1;
       time = timeAt(phase, seconds);
     },
+    holdSeason: (mode) => controls.holdSeason(mode),
+    get seasonHolding() {
+      return controls.seasonHolding;
+    },
+    setYear: (year) => controls.setYear(year),
+    holdWeather: (mode) => controls.holdWeather(mode),
+    get weatherHolding() {
+      return controls.weatherHolding;
+    },
+    settleWeather: () => controls.settleWeather(),
     emit<E extends SignalEvent>(event: E, payload: SignalEvents[E]) {
       // Copy first: a listener may unsubscribe (or subscribe) while it runs.
       for (const fn of [...(listeners.get(event) ?? [])]) (fn as (p: SignalEvents[E]) => void)(payload);

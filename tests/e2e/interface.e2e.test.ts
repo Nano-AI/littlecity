@@ -386,6 +386,25 @@ describe('desktop: mouse and keys', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the season and weather buttons (Seasons): the year held season by season, the weather kind by kind', async () => {
+    // The helper opens the app held in summer under a clear sky; a URL that names neither runs.
+    const { page, errors } = await open(`${TOWN}&season=run&weather=auto`);
+    const seasons: string[] = [await js(page, 'window.__lc.signals.seasonHolding')];
+    for (let i = 0; i < 5; i++) {
+      await page.click('[data-ui="season"]');
+      seasons.push(await js(page, 'window.__lc.signals.seasonHolding'));
+      expect(await page.getAttribute('[data-ui="season"]', 'data-season')).toBe(seasons.at(-1));
+    }
+    expect(seasons).toEqual(['run', 'spring', 'summer', 'autumn', 'winter', 'run']);
+    const kinds: string[] = [await js(page, 'window.__lc.signals.weatherHolding')];
+    for (let i = 0; i < 8; i++) {
+      await page.click('[data-ui="weather"]');
+      kinds.push(await js(page, 'window.__lc.signals.weatherHolding'));
+    }
+    expect(kinds).toEqual(['auto', 'clear', 'cloudy', 'rain', 'storm', 'snow', 'fog', 'wind', 'auto']);
+    expect(errors).toEqual([]);
+  });
+
   test('the menu: new island asks first; sound and tuning toggle; a refusal is shown, not thrown', async () => {
     const { page, errors } = await open(TOWN);
     await page.click('[data-ui="menu-button"]');

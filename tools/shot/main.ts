@@ -4,12 +4,13 @@
 // whatever the app, the UI and the renderer become.
 
 import { createLife } from '@/life/runtime';
-import { createSignals, partPhases } from '@/life/signals';
+import { createSignals, partPhases, type TownSignals } from '@/life/signals';
+import { applyCalendar } from '@/life/season';
 import type { LifeRuntime, SignalsDriver } from '@/life/api';
 import { createTownView } from '@/render/index';
 import type { TownView } from '@/render/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import { buildScenario, cameraName, scenarioResolveOptions, type BuiltScenario, type TimeOfDay } from '@/scenario';
+import { buildScenario, cameraName, scenarioResolveOptions, type BuiltScenario, type SeasonOfYear, type TimeOfDay, type WeatherOfDay } from '@/scenario';
 import { findScenario, matchScenarios } from '@/scenario/discover';
 import { benchEdit } from '@/scenario/edits';
 import { applyEdit } from '@/world/world';
@@ -17,7 +18,7 @@ import { applyEdit } from '@/world/world';
 const canvas = document.getElementById('town') as HTMLCanvasElement;
 let view: TownView | null = null;
 let life: LifeRuntime | null = null;
-let signals: SignalsDriver | null = null;
+let signals: TownSignals | null = null;
 let current: BuiltScenario | null = null;
 
 const nextFrame = (): Promise<number> => new Promise((r) => requestAnimationFrame(r));
@@ -61,13 +62,15 @@ const api = {
   },
 
   /** Shows a scenario from one camera, settles life for `settle` simulated seconds, and draws it. */
-  async show(name: string, camera = 0, opts: { time?: TimeOfDay; settle?: number } = {}) {
+  async show(name: string, camera = 0, opts: { time?: TimeOfDay; settle?: number; season?: SeasonOfYear; weather?: WeatherOfDay } = {}) {
     const built = current?.scenario.name === name ? current : load(name);
     const cam = built.cameras[camera];
     if (!cam) throw new Error(`scenario '${name}' has no camera ${camera}`);
     view!.resize(window.innerWidth, window.innerHeight);
     view!.setCamera(cam);
     setTime(signals!, opts.time ?? cam.time ?? built.scenario.time ?? 'day');
+    // Seasons: summer and a clear sky unless the scenario, the camera or the command line says otherwise.
+    applyCalendar(signals!, opts.season ?? cam.season ?? built.scenario.season ?? 'summer', opts.weather ?? cam.weather ?? built.scenario.weather ?? 'clear', true);
     const steps = Math.round((opts.settle ?? 2) * 30);
     for (let i = 0; i < steps; i++) life!.update(signals!.advance(1 / 30));
     view!.render(signals!);
@@ -78,10 +81,11 @@ const api = {
   },
 
   /** Frame statistics and one-edit timings for a scenario (npm run bench). */
-  async bench(name: string, frames = 120) {
+  async bench(name: string, frames = 120, calendar: { season?: SeasonOfYear; weather?: WeatherOfDay } = {}) {
     const built = load(name);
     view!.setCamera(built.cameras[0]!);
     setTime(signals!, 'day');
+    applyCalendar(signals!, calendar.season ?? 'summer', calendar.weather ?? 'clear', true);
     for (let i = 0; i < 10; i++) {
       view!.render(signals!);
       await nextFrame();
