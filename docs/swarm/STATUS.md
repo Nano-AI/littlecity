@@ -490,3 +490,19 @@ failure (shots CLI) is a timeout at load 20 and passes alone. Published.
 **Seasons and weather requested** (design section 13a) → new Opus agent on
 `swarm/seasons`.
 Running: ships rework, seasons and weather. Walk preview awaiting Derek.
+
+**Boat rework merged** (`963d4fa`): fit is the only test; rowboats at every
+dock (cap 14 desktop, 8 phone); big ships take turns at the three longest
+quays; sailboats and a passing tall ship on every island; barge on any
+river dock; boats arrive and leave through the map edge, cut per pixel with
+a filled, inked cut face; nothing shrinks or fades (tests). Full check
+green: 1,640 tests. Published. Open: new small boats on a live town still
+appear in place; gangplank, sailors and goods still vanish at the hatch;
+town birds, balloon and clouds not checked at the edge.
+
+**Stage 4 closed. Stage 5 (discovery) started**, at Derek's prompting, in
+parallel with seasons: round 1 explorer on Opus 5.5 (`swarm/discovery-1`)
+builds towns and writes proposals to `docs/swarm/discovery/round-1.md`;
+the orchestrator curates; one builder implements.
+Running: seasons and weather, discovery round 1 explorer. Walk preview
+awaiting Derek (served at port 5174 until its two-hour limit).
