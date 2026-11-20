@@ -43,7 +43,7 @@ describe('setRuin and repair', () => {
     const w = town();
     const c = key(10, 2, 10);
     expect(canApply(w, terrain, { type: 'setRuin', cell: key(30, 1, 30), ruin: 1 }).ok).toBe(false);
-    expect(canApply(w, terrain, { type: 'setRuin', cell: c, ruin: 99 }).ok).toBe(false);
+    expect(canApply(w, terrain, { type: 'setRuin', cell: c, ruin: 227 }).ok).toBe(false);
     expect(canApply(w, terrain, { type: 'repair', cell: c }).ok).toBe(false);
     const hurt = applyEdit(w, terrain, { type: 'setRuin', cell: c, ruin: packRuin({ stage: 2, cause: 'blast' }) });
     expect(hurt.blocks.get(c)).toEqual({ ...w.blocks.get(c), ruin: packRuin({ stage: 2, cause: 'blast' }) });

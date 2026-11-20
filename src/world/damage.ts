@@ -36,6 +36,11 @@ export interface Damage {
   settling: boolean;
   /** Steps of mending done, 0 to MEND_STEPS − 1 (0 when not mending). */
   progress: number;
+  /**
+   * Which way it fell, for a thing blown over (a tree): 0 not said, 1–4 = N, E, S, W + 1. Kept in the
+   * same bits as `progress` (a block being mended no longer needs it).
+   */
+  fall?: number;
 }
 
 /** Mending goes in this many steps; the step after the last makes the block sound. */
@@ -53,7 +58,7 @@ const PROGRESS = 31 << PROGRESS_SHIFT;
 export const SAVED_RUIN_BITS = STAGE | BLAST | MENDING | PROGRESS;
 
 export function packRuin(d: Partial<Damage> & { stage: DamageStage }): number {
-  const progress = d.mending ? Math.max(0, Math.min(MEND_STEPS - 1, Math.floor(d.progress ?? 0))) : 0;
+  const progress = d.mending ? Math.max(0, Math.min(MEND_STEPS - 1, Math.floor(d.progress ?? 0))) : Math.max(0, Math.min(4, Math.floor(d.fall ?? 0)));
   const v = (d.stage & STAGE) | (d.cause === 'blast' ? BLAST : 0) | (d.mending ? MENDING : 0) | (d.settling ? SETTLING : 0) | (progress << PROGRESS_SHIFT);
   return isRuin(v) ? v : 0;
 }
@@ -61,8 +66,8 @@ export function packRuin(d: Partial<Damage> & { stage: DamageStage }): number {
 /** A legal non-zero packed value: stage 1–3, or stage 0 while mending. */
 export function isRuin(v: unknown): v is number {
   if (typeof v !== 'number' || !Number.isInteger(v) || v <= 0 || v > 1023) return false;
-  // Progress only while mending.
-  if ((v & PROGRESS) !== 0 && (v & MENDING) === 0) return false;
+  // Progress while mending; otherwise those bits hold only a fall direction (0–4).
+  if ((v & MENDING) === 0 && (v & PROGRESS) >> PROGRESS_SHIFT > 4) return false;
   return (v & STAGE) !== 0 || (v & MENDING) !== 0;
 }
 
@@ -73,12 +78,15 @@ export function unpackRuin(v: number | undefined): Damage {
     cause: v & BLAST ? 'blast' : 'fire',
     mending: (v & MENDING) !== 0,
     settling: (v & SETTLING) !== 0,
-    progress: (v & PROGRESS) >> PROGRESS_SHIFT,
+    progress: v & MENDING ? (v & PROGRESS) >> PROGRESS_SHIFT : 0,
+    fall: v & MENDING ? 0 : (v & PROGRESS) >> PROGRESS_SHIFT,
   };
 }
 
 /** How far mending has got, 0 to 1 (0 when not mending). */
-export const ruinProgress = (v: number | undefined): number => ((((v ?? 0) & PROGRESS) >> PROGRESS_SHIFT) / MEND_STEPS);
+export const ruinProgress = (v: number | undefined): number => (ruinMending(v) ? (((v ?? 0) & PROGRESS) >> PROGRESS_SHIFT) / MEND_STEPS : 0);
+/** The way a blown-over thing fell (0 N, 1 E, 2 S, 3 W), or -1 if not said. */
+export const ruinFall = (v: number | undefined): number => (ruinMending(v) ? -1 : (((v ?? 0) & PROGRESS) >> PROGRESS_SHIFT) - 1);
 
 export const ruinStage = (v: number | undefined): DamageStage => ((v ?? 0) & STAGE) as DamageStage;
 export const ruinCause = (v: number | undefined): DamageCause => ((v ?? 0) & BLAST ? 'blast' : 'fire');

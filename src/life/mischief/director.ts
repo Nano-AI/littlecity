@@ -32,7 +32,8 @@ export const NUKE = { fall: 2.4, fuse: 1.1, power: 7, fly: 2.2, crater: 2.6 };
 const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
 import type { Brigade, PumpCart } from './response';
-import { createMischiefEngine, type BlastEvent, type Env, type MischiefEngine } from './engine';
+import { createMischiefEngine, type BlastEvent, type Env, type Hit, type MischiefEngine } from './engine';
+import { waveRadius } from './nuke-timing';
 
 export interface MischiefHost {
   /** Opens a batch: what follows is one undo step. */
@@ -99,7 +100,7 @@ export class Director {
 
   /** Burning, a fuse fizzing, or chunks in the air. */
   get busy(): boolean {
-    return this.engine.busy || this.bombs.length > 0;
+    return this.engine.busy || this.bombs.length > 0 || this.waves.length > 0;
   }
 
   on(fn: (e: MischiefEvent) => void): () => void {
@@ -162,6 +163,8 @@ export class Director {
     return bomb;
   }
 
+  /** Shockwaves on their way out, and the hits still ahead of each. */
+  private waves: { t: number; hits: Hit[]; next: number }[] = [];
   /** Edits the director makes itself (the crater), handed to the game with the engine's on the next flush. */
   private extra: Edit[] = [];
 
@@ -235,11 +238,34 @@ export class Director {
       b.age += dt;
       if (b.age >= b.fall + (b.nuke ? NUKE.fuse : BLAST.fuse)) {
         this.bombs.splice(i, 1);
-        const blast = b.nuke ? this.engine.blast(b.point, NUKE.power, { fly: NUKE.fly, rim: true }) : this.engine.blast(b.point, 1);
-        if (b.nuke && !blast.water) this.crater(b.point);
-        this.emit({ type: 'blast', bomb: b.id, blast, ...(b.nuke ? { nuke: true } : {}) });
+        if (b.nuke) {
+          // The big one: decided now, done block by block as the shockwave reaches each (./nuke-timing.ts).
+          const plan = this.engine.blastPlan(b.point, NUKE.power, { fly: NUKE.fly, rim: true });
+          if (plan.water) for (const h of plan.hits) this.engine.douse(h.cell, 1);
+          else {
+            this.crater(b.point);
+            this.waves.push({ t: 0, hits: plan.hits, next: 0 });
+          }
+          const blast: BlastEvent = { point: [...b.point], power: NUKE.power, water: plan.water, hit: plan.hits.map((h) => ({ cell: h.cell, stage: h.stage })), lit: [] };
+          this.emit({ type: 'blast', bomb: b.id, blast, nuke: true });
+          continue;
+        }
+        const blast = this.engine.blast(b.point, 1);
+        this.emit({ type: 'blast', bomb: b.id, blast });
         for (const cell of blast.lit) this.emit({ type: 'lit', cell });
       }
+    }
+    // Shockwaves on their way: each block is hit as the ring reaches it.
+    for (let i = this.waves.length - 1; i >= 0; i--) {
+      const w = this.waves[i]!;
+      w.t += dt;
+      const r = waveRadius(w.t);
+      while (w.next < w.hits.length && w.hits[w.next]!.d <= r) {
+        const h = w.hits[w.next++]!;
+        this.engine.hit(h);
+        if (h.light) this.emit({ type: 'lit', cell: h.cell });
+      }
+      if (w.next >= w.hits.length) this.waves.splice(i, 1);
     }
     this.engine.step(dt, env);
     this.mendClock += dt;
@@ -335,6 +361,7 @@ export class Director {
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
     this.extra = [];
+    this.waves = [];
     this.engine.cancel();
     this.mendOwed.clear();
     this.bombs.length = 0;

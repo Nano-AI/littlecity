@@ -84,6 +84,20 @@ export interface BlastEvent {
   lit: CellKey[];
 }
 
+/** One block's part in a blast, decided at the bang and done when the shockwave reaches it. */
+export interface Hit {
+  cell: CellKey;
+  /** Distance from the blast, cells. */
+  d: number;
+  stage: DamageStage;
+  /** Its chunks fly (near the middle). */
+  fly: boolean;
+  /** For a tree: falls away from the blast (1–4 = N, E, S, W + 1), else 0. */
+  fall: number;
+  /** It catches fire. */
+  light: boolean;
+}
+
 export interface Env {
   wind(x: number, z: number): { dirX: number; dirZ: number; strength: number };
   /** 0–1: rain (when weather exists). */
@@ -99,6 +113,10 @@ export interface MischiefEngine {
    * big blast flies only what is near its middle). `rim`: fires start round the edge rather than near.
    */
   blast(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean }): BlastEvent;
+  /** The same blast, decided but not done: every block's hit, nearest first (a shockwave does them as it passes). */
+  blastPlan(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean }): { water: boolean; hits: Hit[] };
+  /** Does one planned hit. True if the block was damaged. */
+  hit(h: Hit): boolean;
   applyDamage(cell: CellKey, cause: DamageCause, amount?: number): boolean;
   repair(cell: CellKey, amount?: number | 'all'): boolean;
   douse(cell: CellKey, amount: number): void;
@@ -153,14 +171,14 @@ export function createMischiefEngine(seed: number): MischiefEngine {
   /** Raises a block's damage to at least `stage` (never lowers it); new damage takes down any scaffolding. */
   /** The step each block was last hurt at. */
   const hitAt = new Map<CellKey, number>();
-  const worsen = (cell: CellKey, cause: DamageCause, stage: DamageStage, settle = false): boolean => {
+  const worsen = (cell: CellKey, cause: DamageCause, stage: DamageStage, settle = false, fall = 0): boolean => {
     hitAt.set(cell, tick);
     const now = ruinOf(cell);
     const cur = ruinStage(now);
     if (stage <= cur && !(ruinMending(now) && stage > 0)) return false;
     const s = Math.max(stage, cur) as DamageStage;
     const keepCause = stage <= cur ? ruinCause(now) : cause;
-    setRuin(cell, packRuin({ stage: s, cause: keepCause, settling: settle || ruinSettling(now) }));
+    setRuin(cell, packRuin({ stage: s, cause: keepCause, settling: settle || ruinSettling(now), fall }));
     if (settle) settling.set(cell, tick + Math.round(BLAST.settle / STEP));
     return true;
   };
@@ -375,6 +393,49 @@ export function createMischiefEngine(seed: number): MischiefEngine {
         if (rand(seed, 'blast-fire', cell, tick) < BLAST.igniteChance && light(cell)) ev.lit.push(cell);
       }
       return ev;
+    },
+    blastPlan(point, power = 1, opts = {}) {
+      const out: { water: boolean; hits: Hit[] } = { water: false, hits: [] };
+      if (!world || !shape) return out;
+      const px = Math.floor(point[0]), pz = Math.floor(point[2]);
+      const groundH = inColumnBounds(px, pz) ? shape.terrain.height[columnIndex(px, pz)]! : 0;
+      const atCell = key(px, Math.max(0, Math.floor(point[1] / CELL_H)), pz);
+      out.water = groundH === 0 && !world.blocks.has(atCell) && !world.blocks.has(key(px, 0, pz));
+      if (out.water) return out;
+      const shake = BLAST.shake * power;
+      const r = Math.ceil(shake) + 1;
+      for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+        const x = px + dx, z = pz + dz;
+        if (!inColumnBounds(x, z)) continue;
+        for (let y = 0; y < 32; y++) {
+          const cell = key(x, y, z);
+          if (!world.blocks.has(cell)) continue;
+          const ox = x + 0.5 - point[0], oz = z + 0.5 - point[2];
+          const d = Math.hypot(ox, (y + 0.5) * CELL_H - point[1], oz);
+          if (d > shake) continue;
+          const k = stoneAt(cell) ? BLAST.stone : 1;
+          const stage: DamageStage = d <= BLAST.rubble * power * k ? 3 : d <= BLAST.wreck * power * k ? 2 : 1;
+          const fall = kindOf(cell) === 'tree' ? (Math.abs(ox) > Math.abs(oz) ? (ox > 0 ? 2 : 4) : oz > 0 ? 3 : 1) : 0;
+          const inRim = opts.rim ? d >= BLAST.rubble * power && d <= BLAST.wreck * power * 1.15 : d <= BLAST.ignite * power;
+          const light = inRim && catchOf(cell) >= 0.5 && stage < 3 && rand(seed, 'blast-fire', cell, tick) < BLAST.igniteChance;
+          out.hits.push({ cell, d, stage, fly: stage >= 2 && d <= (opts.fly ?? Infinity), fall, light });
+        }
+      }
+      out.hits.sort((a, b) => a.d - b.d || a.cell - b.cell);
+      return out;
+    },
+    hit(h) {
+      if (!world?.blocks.has(h.cell)) return false;
+      const done = worsen(h.cell, 'blast', h.stage, h.fly, h.fall);
+      if (done && h.stage === 3) collapse(h.cell, 'blast', h.fly);
+      const f = fires.get(h.cell);
+      if (f && h.stage === 3) {
+        f.burning = false;
+        f.done = true;
+        f.intensity = 0;
+      }
+      if (h.light) light(h.cell);
+      return done;
     },
     applyDamage(cell, cause, amount = 1) {
       if (!world?.blocks.has(cell)) return false;
