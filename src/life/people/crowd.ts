@@ -701,6 +701,21 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         best = h;
       }
     }
+    if (best && edgeOf(best.node)) return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
+    // No water or map's edge to step out of view at: they go in at the nearest door instead (gone inside, not
+    // shrunk away where they stand; nothing in the town shrinks out of existence).
+    let door: NavDoor | null = null;
+    let doorD = Infinity;
+    for (const d of nav.doors) {
+      if (d.node < 0 || nav.part[d.node] !== part) continue;
+      const c = nav.nodes[d.node]!.cell;
+      const dd = Math.abs(keyX(c) - keyX(here)) + Math.abs(keyZ(c) - keyZ(here));
+      if (dd < doorD) {
+        doorD = dd;
+        door = d;
+      }
+    }
+    if (door) return { kind: 'leave', node: door.node, haunt: null, door, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
     if (!best) return null;
     return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
   };
@@ -832,6 +847,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.visible = false;
       p.timer = PEOPLE.homeMin + r(p, 'home-stay') * (PEOPLE.homeMax - PEOPLE.homeMin);
       setHome(p.home, 1);
+    } else if (goal.kind === 'leave' && goal.door) {
+      // In at a door, and gone.
+      remove(p);
     } else if (goal.kind === 'leave') {
       p.mode = 'linger';
       p.pose = 'wave';
@@ -1713,6 +1731,22 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             continue;
           }
           p.inside = null;
+        } else if (node !== undefined && p.leaving && p.goal?.kind === 'leave' && old && (p.mode === 'linger' || (p.mode === 'walk' && p.walk))) {
+          // On their way off the island (their home is gone or being mended): the town changing round them
+          // (a mend step elsewhere, every few seconds while a street is rebuilt) does not stop them. Before,
+          // it stood them still and planned again, so one who had begun to fade away at a way-out with no
+          // water to step into grew back to full size, set off again and faded again: "shrink and grow,
+          // over and over". They carry on: still walking there, or still going.
+          const target = old.nodes[p.goal.node]?.cell;
+          const to = target === undefined ? undefined : nav.nodeAt.get(target);
+          const g = p.goal;
+          const door = g.door ? nav.doors.find((d) => d.feature === g.door!.feature && d.structure === g.door!.structure && d.node === to) : null;
+          if (to !== undefined && door !== undefined && (p.mode === 'linger' || carryWalk(p, old))) {
+            g.node = to;
+            g.door = door;
+            place(p, node);
+            continue;
+          }
         } else if (node !== undefined && p.mode === 'walk' && p.walk && old && !p.leaving && p.goal && p.goal.kind !== 'leave' && refreshGoal(p, p.goal) && carryWalk(p, old)) {
           place(p, node);
           continue;
