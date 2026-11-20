@@ -33,7 +33,10 @@ const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
 import type { Brigade, PumpCart } from './response';
 import { createMischiefEngine, type BlastEvent, type Env, type Hit, type MischiefEngine } from './engine';
-import { waveRadius } from './nuke-timing';
+import { NUKE_TIME, waveRadius } from './nuke-timing';
+
+/** Seconds between the batches of hits a shockwave does on its way out. */
+const WAVE_BATCH = 0.2;
 
 export interface MischiefHost {
   /** Opens a batch: what follows is one undo step. */
@@ -255,11 +258,14 @@ export class Director {
         for (const cell of blast.lit) this.emit({ type: 'lit', cell });
       }
     }
-    // Shockwaves on their way: each block is hit as the ring reaches it.
+    // Shockwaves on their way: each block is hit as the ring reaches it (in a few batches, not every
+    // frame, so the town is redrawn a handful of times as the ring crosses it, not sixty).
     for (let i = this.waves.length - 1; i >= 0; i--) {
       const w = this.waves[i]!;
+      const was = w.t;
       w.t += dt;
-      const r = waveRadius(w.t);
+      if (Math.floor(w.t / WAVE_BATCH) === Math.floor(was / WAVE_BATCH) && w.t < NUKE_TIME.waveTime) continue;
+      const r = w.t >= NUKE_TIME.waveTime ? Infinity : waveRadius(w.t);
       while (w.next < w.hits.length && w.hits[w.next]!.d <= r) {
         const h = w.hits[w.next++]!;
         this.engine.hit(h);

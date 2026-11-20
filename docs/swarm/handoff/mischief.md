@@ -4,19 +4,19 @@ Design section 13b. Torch, Bomb, Nuke, Mallet, Mend; ruins; the town fighting fi
 
 ## Try it
 - `npm run dev`, `/?seed=4242&mischief`: a grown town, the Mischief drawer open. Undo calls off anything going on. Menu: Rebuild on/off.
-- Galleries: `npm run shots -- mischief-ruins-houses` / `mischief-ruins-kinds`; sequences on `mischief-street`, e.g. `node src/life/testing/sequence.mjs mischief-street --edit 'fire@18,1,21' --warm 3000 --frames 8 --every 3500 --zoom 10 --target 19.5,1,22.5 --yaw 20 --pitch 40` (the pump cart), `--edit 'nuke@20,1,20' --frames 8 --every 2500 --zoom 3.4 --target 20,2,20` (the nuke). Verbs: fire, bomb, nuke, knock, mend, mendall, undo.
+- Galleries: `npm run shots -- mischief-ruins-houses` / `mischief-ruins-kinds`; sequences on `mischief-street`, e.g. `node src/life/testing/sequence.mjs mischief-street --edit 'fire@18,1,21' --warm 3000 --frames 8 --every 3500 --zoom 10 --target 19.5,1,22.5 --yaw 20 --pitch 40` (the pump cart), `--edit 'nuke@20,1,20' --delay 3300 --frames 20 --every 500 --zoom 1.3 --target 20,4,20` (the nuke; it goes off ~3.45 s after the drop). Verbs: fire, bomb, nuke, knock, mend, mendall, undo.
 
 ## How it is built
-- Saved: `Block.ruin` (`src/world/damage.ts`): stage, cause, mending + 32 steps of progress, settling (never saved); edits `setRuin`, `repair`; codec v4 section bit 1. A nuke's crater is ordinary `land` edits in the same act.
+- Saved: `Block.ruin` (`src/world/damage.ts`): stage, cause, mending + 32 steps of progress (or, not mending, which way a tree fell: `ruinFall`), settling (never saved); edits `setRuin`, `repair`; codec v4 section bit 1. A nuke's crater is ordinary `land` edits in the same act.
 - Drawn: `src/gen/damage/` cuts each generator's own mesh (ruins, solid debris parts, mending phases, scaffolding).
-- Engine `src/life/mischief/engine.ts` (fire, blast with `fly`/`rim` options, knock, repair, douse, `sinceHit`).
-- `director.ts`: acts = undo steps; mending is a property of the damage (`mendTick`: every damaged, unburning building starts mending `MEND.quiet` + a seeded stagger after it was last hurt, a step every `MEND.step` s, faster with a crew; amends, no undo step of its own); the nuke (`NUKE`, crater); camera yaw for flames.
-- Live drawing: `mischief.system.ts` (flames, fused smoke and dust, sparks, firelight, embers, bomb, flash, chunk flights, fallen sails, the mushroom cloud), `brigade.system.ts` (pump cart, laid hoses, helmets, continuous jet, bucket slosh, steam), `sound.system.ts` (crackle, hiss, bell, siren, whistle, bangs).
+- Engine `src/life/mischief/engine.ts` (fire, blast with `fly`/`rim` options, `blastPlan`/`hit` for the nuke, knock, repair, douse, `sinceHit`).
+- `director.ts`: acts = undo steps; mending is a property of the damage (`mendTick`: every damaged, unburning building starts mending `MEND.quiet` + a seeded stagger after it was last hurt, a step every `MEND.step` s, faster with a crew; amends, no undo step of its own); the nuke (`NUKE`, crater; its hits are done in 0.2 s batches as the shockwave ring reaches them, clock in `nuke-timing.ts`); camera yaw for flames.
+- Live drawing: `mischief.system.ts` (flames, fused smoke and dust, sparks, firelight, embers, bomb, flash, chunk flights, fallen sails), `nuke.system.ts` (casing, flash core, shockwave ring/band/dust-wall arcs, shudders, fireball → stem + rolling cap → smoke → wash, firelight, ash, scorched crater, embers), `brigade.system.ts` (pump cart, laid hoses, helmets, continuous jet, bucket slosh, steam), `sound.system.ts` (crackle, hiss, bell, siren, whistle, bangs).
 - People `response.ts` (chains in the living town, listed first in `src/life/town/index.ts`): fire (the pump cart kept by the main well or fountain: muster, wheel, set down, suction hose in, hose laid behind the nozzle man, pump, water; wound in and wheeled home; bucket chains for fires the cart is not at; clear out, onlookers, glum residents; bombs and the nuke: run, creep back) and rebuild (crews of two visit up to four mending buildings by day).
 
 ## Found and fixed (owner: "nothing mended on its own")
 A bomb lights timber nearby; the old rebuild waited for every fire in town to go out (60 s and more) and then took one building at a time. Test: `src/app/mischief.test.ts` "a wrecked building starts mending on its own even while a fire burns elsewhere".
 
 ## Not done / watch
-- Raid; the garrison at fires; lodging burnt-out residents; trees knocked flat by a nuke fall a seeded way, not away from the centre; no scorched earth decal in the crater (the dip and the water show it).
+- Raid; the garrison at fires; lodging burnt-out residents; the nuke's bang second runs ~45 fps in the grown town (redrawing the flattened town, as before the redo); its firelight wash has a visible elliptical edge and spills past the island edge.
 - With a crowd at the well, the cart crew can take ~10 s to muster.

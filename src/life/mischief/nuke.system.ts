@@ -99,6 +99,8 @@ interface Nuke {
   /** Ash flecks over the crater. */
   ash: { h: InstanceHandle; x: number; y: number; z: number; vy: number; spin: number }[];
   scorch: InstanceHandle | null;
+  /** The ground it was drawn on (redrawn only when that changes). */
+  scorchOf: unknown;
   embers: InstanceHandle[];
   frame: number;
 }
@@ -170,7 +172,7 @@ function cloudAt(n: Nuke, t: number, shape: ShapePlan | null, wind: { dirX: numb
   const lean = (f: number): [number, number] => [wind.dirX * drift * f, wind.dirZ * drift * f];
   const matFor = (fireish: boolean, i: number, toneBias = 0): Mat => {
     if (wash) return { k: 'mist' };
-    if (fireish) return { k: 'fire', tone: Math.max(0, Math.min(3, (t < 0.35 ? 3 : t < 0.9 ? 2 : t < 2.2 ? 1 : 0) + ((i + toneBias) % 3 === 0 ? 1 : 0) - (i % 4 === 3 ? 1 : 0))) };
+    if (fireish) return { k: 'fire', tone: Math.max(0, Math.min(3, (t < 0.9 ? 2 : t < 2.2 ? 1 : 0) + ((i + toneBias) % 3 === 0 ? 1 : 0) - (i % 4 === 3 ? 1 : 0))) };
     return { k: 'smoke', shade };
   };
 
@@ -200,7 +202,10 @@ function cloudAt(n: Nuke, t: number, shape: ShapePlan | null, wind: { dirX: numb
     // Fire glows longest through the underside and the cracks of the roll.
     const fireish = !wash && (t < 1.2 || u < fire * (Math.sin(ph) < 0 ? 1.45 : 0.85));
     const size = (R * 0.5 * (1 - b) + tube * 1.1 * b) * (0.85 + 0.3 * u) * (1 + thin * 0.6);
-    out.push({ x: n.x + cx + p[0], y: H + p[1], z: n.z + cz + p[2], r: size, sy: flat, mat: matFor(fireish, i), look: i % 3, alpha });
+    // Once smoke has come over it, the fire left is smaller and sunk into the roll: it glows through the cracks.
+    const sunk = fireish && t > 1.2 ? Math.min(1, (t - 1.2) / 1.2) : 0;
+    const inward = 1 - 0.18 * sunk;
+    out.push({ x: n.x + cx + p[0] * inward, y: H + p[1] - 0.3 * sunk * tube, z: n.z + cz + p[2] * inward, r: size * (1 - 0.28 * sunk), sy: flat, mat: matFor(fireish, i), look: i % 3, alpha });
   }
   // The dome over the cap.
   if (b > 0.2) {
@@ -260,16 +265,20 @@ function scorchMesh(n: Nuke, shape: ShapePlan): MeshData {
       if (!inColumnBounds(x, z)) continue;
       const h = shape.terrain.height[columnIndex(x, z)]!;
       if (h === 0) continue;
-      const d = Math.hypot(x + 0.5 - n.x, z + 0.5 - n.z) * (0.85 + 0.3 * rand(n.id, x, z));
-      if (d > R) continue;
       // Built on: the scorch shows only on open ground and floors (a block stands in the way).
       if (shape.kinds.has(key(x, h, z))) continue;
       const y = h * CELL_H + 0.05;
-      const rim = d > NUKE.crater - 0.5 && d < NUKE.crater + 0.5;
-      const t = Math.min(1, d / R);
-      if (rim) b.setColor('#3e3d44').setPattern(PATTERN.metal).setInk('rim');
-      else b.setColor([char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t]).setPattern(PATTERN.dirt).setInk('scorch');
-      b.quad([x, y, z], [x, y, z + 1], [x + 1, y, z + 1], [x + 1, y, z]);
+      // In quarters, so its edge is ragged rather than square.
+      for (let q = 0; q < 4; q++) {
+        const qx = x + (q & 1) * 0.5, qz = z + (q >> 1) * 0.5;
+        const d = Math.hypot(qx + 0.25 - n.x, qz + 0.25 - n.z) * (0.85 + 0.3 * rand(n.id, x, z, q));
+        if (d > R) continue;
+        const rim = d > NUKE.crater - 0.45 && d < NUKE.crater + 0.35;
+        const t = Math.min(1, d / R);
+        if (rim) b.setColor('#3e3d44').setPattern(PATTERN.metal).setInk('rim');
+        else b.setColor([char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t]).setPattern(PATTERN.dirt).setInk('scorch');
+        b.quad([qx, y, qz], [qx, y, qz + 0.5], [qx + 0.5, y, qz + 0.5], [qx + 0.5, y, qz]);
+      }
     }
   }
   return b.build();
@@ -297,7 +306,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
       near.push({ id: sid, d: Math.hypot((c & 63) + 0.5 - x, ((c >> 6) & 63) + 0.5 - z) });
     }
     near.sort((a, b) => a.d - b.d);
-    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, embers: [], frame: -1 });
+    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, scorchOf: null, embers: [], frame: -1 });
   }
 }
 
@@ -317,7 +326,8 @@ export default defineSystem<State>({
     st.toShake = [];
     // The scorched crater, once the ground has gone down (and again if the land changes under it).
     for (const n of st.nukes) {
-      if (n.water || n.t < 0.3) continue;
+      if (n.water || n.t < 0.3 || n.scorchOf === next.shape.terrain) continue;
+      n.scorchOf = next.shape.terrain;
       n.scorch?.release();
       n.scorch = ctx.stage.spawnMesh(scorchMesh(n, next.shape), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     }
@@ -338,7 +348,7 @@ export default defineSystem<State>({
       const u = Math.min(1, f.age / f.fall);
       // Nose down, wobbling a little in the air; then stuck in the ground at a slant.
       const wob = u < 1 ? Math.sin(f.age * 7) * 0.12 : 0.18;
-      const m = compose(translation(x, y + 11 * (1 - u * u) - (u >= 1 ? 0.12 : 0), z), rotationY(rand(f.seed, 'yaw') * 6), rotationZ(wob), rotationX(u < 1 ? Math.cos(f.age * 5) * 0.08 : 0.1), [1.2, 0, 0, 0, 0, 1.2, 0, 0, 0, 0, 1.2, 0, 0, 0, 0, 1]);
+      const m = compose(translation(x, y + 11 * (1 - u * u) - (u >= 1 ? 0.12 : 0), z), rotationY(rand(f.seed, 'yaw') * 6), rotationZ(wob), rotationX(u < 1 ? Math.cos(f.age * 5) * 0.08 : 0.1), [1.8, 0, 0, 0, 0, 1.8, 0, 0, 0, 0, 1.8, 0, 0, 0, 0, 1]);
       f.h.setMatrix(m);
       f.h.setVisible(true);
     }
@@ -408,7 +418,7 @@ export default defineSystem<State>({
         const ringOn = t < T.waveTime + 0.15 && inColumnBounds(Math.floor(n.x + Math.cos(am) * r), Math.floor(n.z + Math.sin(am) * r));
         if (ringOn) {
           arc.ring ??= stage.spawnMesh(shockRingMesh(), HIDDEN);
-          place(arc.ring, Math.max(0.2, r), g0 + 0.06, 1);
+          place(arc.ring, Math.max(0.2, r), groundAt(st.shape, n.x + Math.cos(am) * r, n.z + Math.sin(am) * r).y + 0.06, 1);
           arc.ring.setParams(1);
         } else if (arc.ring) {
           arc.ring.release();
