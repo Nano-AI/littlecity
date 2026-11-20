@@ -15,7 +15,7 @@ import { createLife } from '../runtime';
 import { createSignals } from '../signals';
 import { mischiefOf } from './director';
 import mischiefSystem from './mischief.system';
-import nukeSystem from './nuke.system';
+import nukeSystem, { SCORCH } from './nuke.system';
 
 /** A stage that knows which of the handles it gave out are still there, and which of those are shown. */
 function countingStage() {
@@ -95,10 +95,15 @@ describe('nothing of the mischief outlives the town', () => {
     const { counting, d, game, run } = setup();
     d.rebuild = false;
     d.dropNuke([24.5, 0.6, 20.5]);
-    for (let i = 0; i < 400 && (d.active || d.busy); i++) run(1);
+    let t = 0;
+    for (; t < 400 && (d.active || d.busy); t++) run(1);
     expect(d.active).toBe(false);
-    run(50); // the cloud gone: only the scorch (and embers) left
+    // The cloud gone: only the scorch (and embers) left, the scorch not yet faded.
+    if (t < 50) run(50 - t);
+    expect(t).toBeLessThan(SCORCH.gone - 30);
     expect(counting.shown()).toBeGreaterThan(0);
+    // What the undo button does.
+    d.undoing();
     expect(game.undo()).toBe(true);
     run(1);
     expect(counting.shown()).toBe(0);
@@ -113,6 +118,16 @@ describe('nothing of the mischief outlives the town', () => {
     expect(d.active).toBe(false);
     d.undoing();
     run(0.5);
+    expect(counting.shown()).toBe(0);
+  });
+
+  test('left alone, the scorch fades back to the ground and nothing of the nuke is left', () => {
+    const { counting, d, run } = setup();
+    d.dropNuke([24.5, 0.6, 20.5]);
+    run(SCORCH.from + 5);
+    expect(counting.shown()).toBeGreaterThan(0);
+    run(SCORCH.gone + 60 - SCORCH.from - 5);
+    expect(d.busy).toBe(false);
     expect(counting.shown()).toBe(0);
   });
 });

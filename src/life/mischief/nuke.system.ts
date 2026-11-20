@@ -27,6 +27,7 @@ import { compose, rotationX, rotationY, rotationZ, scaling, translation, type Ma
 import { hash, rand } from '@/core/rand';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
+import { bandRecovery, groundColour, recovering } from '@/gen/damage/extras';
 import { DAMAGE_COLORS, rgb } from '@/style/damage';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals } from '../api';
 import { scaresOf } from '../birds/scare';
@@ -106,6 +107,8 @@ interface Nuke {
   dug: Map<number, number> | null;
   /** The show is over; only the scorch is left. */
   done: boolean;
+  /** How far the scorch has faded, in SCORCH.steps (it is redrawn at each). */
+  scorchStep: number;
   embers: InstanceHandle[];
   frame: number;
 }
@@ -262,7 +265,15 @@ function cloudAt(n: Nuke, t: number, shape: ShapePlan | null, wind: { dirX: numb
 }
 
 /** The scorched crater: blackened ground over the bowl, a dark glassy rim, drawn on the terrain as it now is. */
-function scorchMesh(n: Nuke, shape: ShapePlan): MeshData {
+/**
+ * The scorch fades on its own (the owner: "make scorch marks fade over time"): from `from` seconds after the
+ * bang it goes from black to brown earth to the ground's own colour, the ragged edge first and the middle
+ * last, and is gone by `gone`, about when the town round it has finished mending. Embers and haze go first.
+ */
+export const SCORCH = { from: 30, gone: 210, steps: 70 } as const;
+const scorchFade = (t: number): number => Math.min(1, Math.max(0, (t - SCORCH.from) / (SCORCH.gone - SCORCH.from)));
+
+function scorchMesh(n: Nuke, shape: ShapePlan, fade: number): MeshData {
   const b = new MeshBuilder({ ink: `nuke-scorch${n.id}` });
   const R = NUKE.crater + 1.4;
   const char = rgb(DAMAGE_COLORS.charDeep);
@@ -282,14 +293,18 @@ function scorchMesh(n: Nuke, shape: ShapePlan): MeshData {
         if (d > R) continue;
         const rim = d > NUKE.crater - 0.45 && d < NUKE.crater + 0.35;
         const t = Math.min(1, d / R);
-        if (rim) b.setColor('#3e3d44').setPattern(PATTERN.metal).setInk('rim');
-        else b.setColor([char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t]).setPattern(PATTERN.dirt).setInk('scorch');
+        const base: [number, number, number] = rim ? GLASS : [char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t];
+        const c = recovering(base, groundColour(shape.terrain.material[columnIndex(x, z)]!), bandRecovery(fade, 1 - t));
+        if (!c) continue;
+        if (rim && fade < 0.5) b.setColor(c).setPattern(PATTERN.metal).setInk('rim');
+        else b.setColor(c).setPattern(PATTERN.dirt).setInk('scorch');
         b.quad([qx, y, qz], [qx, y, qz + 0.5], [qx + 0.5, y, qz + 0.5], [qx + 0.5, y, qz]);
       }
     }
   }
   return b.build();
 }
+const GLASS = rgb('#3e3d44');
 
 /** A nuke's show over at once (undone): every handle of it back. */
 function endNuke(st: State, n: Nuke): void {
@@ -336,7 +351,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
       near.push({ id: sid, d: Math.hypot((c & 63) + 0.5 - x, ((c >> 6) & 63) + 0.5 - z) });
     }
     near.sort((a, b) => a.d - b.d);
-    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, scorchOf: null, dug: null, done: false, embers: [], frame: -1 });
+    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, scorchOf: null, dug: null, done: false, scorchStep: 0, embers: [], frame: -1 });
   }
 }
 
@@ -370,7 +385,8 @@ export default defineSystem<State>({
       }
       n.scorchOf = next.shape.terrain;
       n.scorch?.release();
-      n.scorch = st.own.stage.spawnMesh(scorchMesh(n, next.shape), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+      n.scorchStep = Math.floor(scorchFade(n.t) * SCORCH.steps);
+      n.scorch = st.own.stage.spawnMesh(scorchMesh(n, next.shape, scorchFade(n.t)), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     }
   },
   update(st, dt, signals, ctx) {
@@ -397,8 +413,21 @@ export default defineSystem<State>({
     // ── each nuke's show ────────────────────────────────────────────────
     for (let ni = st.nukes.length - 1; ni >= 0; ni--) {
       const n = st.nukes[ni]!;
-      if (n.done) continue;
       n.t += dt;
+      // The scorch fading back to the ground, a step at a time; gone, it takes the rest of the nuke with it.
+      if (n.scorch && st.shape) {
+        const step = Math.floor(scorchFade(n.t) * SCORCH.steps);
+        if (step !== n.scorchStep) {
+          n.scorchStep = step;
+          n.scorch.release();
+          n.scorch = step >= SCORCH.steps ? null : st.own.stage.spawnMesh(scorchMesh(n, st.shape, scorchFade(n.t)), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+          if (!n.scorch && n.done) {
+            st.nukes.splice(ni, 1);
+            continue;
+          }
+        }
+      }
+      if (n.done) continue;
       const t = n.t;
       if (t > T.gone + 2 && n.ash.length === 0 && n.embers.length === 0) {
         for (const s of n.slots) if (s.h) st.pools.get(s.key)?.give(s.h);

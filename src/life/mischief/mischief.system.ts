@@ -288,8 +288,8 @@ function endFlight(st: State, id: StructureId): void {
 }
 
 function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent): void {
-  if (e.type === 'reset') {
-    // Called off (undo while it is going on, a new town grown here, a different town): what is in the air goes
+  if (e.type === 'reset' || e.type === 'undo') {
+    // Called off or undone (undo, a new town grown here, a different town): what is in the air goes
     // at once. (Flames, firelight, embers and fallen sails follow the town and the fires, and go with them.)
     for (const p of st.puffs) for (const h of [p.ink, p.mist]) h.release();
     for (const d of st.dust) for (const h of [d.ink, d.mist]) h.release();

@@ -6,7 +6,9 @@ import { frame, type Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { CELL_H } from '@/core/grid';
+import { MAT } from '@/core/world';
 import { RUIN } from '@/style/damage';
+import { PALETTE } from '@/style/palette';
 import { heapHeight } from './debris';
 import type { Column } from './field';
 import { normalOf, type Poly, vert } from './poly';
@@ -172,12 +174,40 @@ export function heap(b: MeshBuilder, col: Column, seed: number, color: readonly 
   }
 }
 
-/** A flat, ragged patch of scorched ground round a column (a hair above whatever lies on the ground). */
-export function scorchRing(b: MeshBuilder, col: Column, ground: number, seed: number, color: readonly number[]): void {
+/** #rrggbb as 0–255, as MeshBuilder colours are. */
+const hex = (c: string): [number, number, number] => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+/** Burnt earth on its way back: between black and the ground's own colour. */
+const EARTH = hex('#9b7a57');
+
+/** The colour of open ground of a terrain material (what a scorch mark recovers to). */
+export function groundColour(material: number): [number, number, number] {
+  return hex(material === MAT.sand ? PALETTE.sand : material === MAT.rock ? PALETTE.rock : PALETTE.grass);
+}
+
+/**
+ * Scorched ground on its way back (the owner: scorch marks fade over time): k = 0 the scorch itself, then
+ * brown earth by 0.5, then the ground's own colour at 1. Null when it is all the way back (draw nothing).
+ */
+export function recovering(scorch: readonly number[], ground: readonly number[], k: number): [number, number, number] | null {
+  if (k >= 1) return null;
+  const mix = (a: readonly number[], c: readonly number[], t: number): [number, number, number] => [a[0]! + (c[0]! - a[0]!) * t, a[1]! + (c[1]! - a[1]!) * t, a[2]! + (c[2]! - a[2]!) * t];
+  const u = Math.max(0, k);
+  return u < 0.5 ? mix(scorch, EARTH, u * 2) : mix(EARTH, ground, (u - 0.5) * 2);
+}
+
+/** How far a band of a mark this far in from its edge (0 edge, 1 middle) has recovered, when the whole is `p` (0–1) of the way. */
+export const bandRecovery = (p: number, inward: number): number => Math.min(1, Math.max(0, (p - inward * 0.45) / 0.55));
+
+/**
+ * A flat, ragged patch of scorched ground round a column (a hair above whatever lies on the ground). With
+ * `recover` above 0 (the building being mended) it is going back to the ground's colour, the ragged edge
+ * first and the middle last, gone by the time the mending is done.
+ */
+export function scorchRing(b: MeshBuilder, col: Column, ground: number, seed: number, color: readonly number[], recover = 0, groundRgb: readonly number[] = hex(PALETTE.grass)): void {
   const cx = col.x + 0.5, cz = col.z + 0.5;
   const segs = 14;
   const y = ground + 0.046;
-  b.setColor(color as [number, number, number]).setPattern(PATTERN.dirt).setInk('scorch');
+  b.setPattern(PATTERN.dirt).setInk('scorch');
   const outer = (j: number): Vec3 => {
     const a = (j / segs) * Math.PI * 2;
     const r = 0.62 + 0.2 * rand(seed, 'sr', j % segs);
@@ -187,7 +217,21 @@ export function scorchRing(b: MeshBuilder, col: Column, ground: number, seed: nu
     return [cx + Math.cos(a) * rr, y, cz + Math.sin(a) * rr];
   };
   const mid: Vec3 = [cx, y, cz];
-  for (let j = 0; j < segs; j++) b.tri(mid, outer(j + 1), outer(j));
+  const at = (j: number, f: number): Vec3 => {
+    const o = outer(j);
+    return [cx + (o[0] - cx) * f, y, cz + (o[2] - cz) * f];
+  };
+  // Bands from the edge in: each recovers a little after the one outside it.
+  const bands: [number, number, number][] = [[0.72, 1, 0], [0.42, 0.72, 0.5], [0, 0.42, 1]];
+  for (const [f0, f1, inward] of bands) {
+    const c = recovering(color, groundRgb, bandRecovery(recover, inward));
+    if (!c) continue;
+    b.setColor(c);
+    for (let j = 0; j < segs; j++) {
+      if (f0 === 0) b.tri(mid, at(j + 1, f1), at(j, f1));
+      else b.quad(at(j + 1, f0), at(j + 1, f1), at(j, f1), at(j, f0));
+    }
+  }
 }
 
 /** Charred timbers fallen into a burnt-out shell: a few beams leaning from the wall tops to the floor. */
