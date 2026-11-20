@@ -122,6 +122,20 @@ export interface TownView {
   setEyeCamera(pose: EyePose | null): void;
   /** The perspective eye drawn from now, or null while the orbit camera draws. */
   getEyeCamera(): EyePose | null;
+  /**
+   * Added by Fly. Gets the perspective eye ready ahead of time (its shaders compiled, its target
+   * made), so the first take-off does not stall a frame. Call when the page is idle; harmless twice.
+   */
+  prepareEye?(): void;
+
+  /**
+   * Added for the quality governor (src/render/quality.ts). How sharp the page is drawn: the levels
+   * this view has, sharpest first, and the one in use. A view made with a fixed pixel ratio or ink
+   * has one level.
+   */
+  quality?(): { level: number; levels: { pixelRatio: number; superSample: 1 | 2; halfInk: boolean }[] };
+  /** Changes to a level (an index into quality().levels). */
+  setQuality?(level: number): void;
 
   /** Match the canvas's CSS size. Call on window resize. */
   resize(width: number, height: number): void;

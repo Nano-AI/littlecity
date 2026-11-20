@@ -21,7 +21,7 @@
 // the mask, magnified), and a heat map of the whole sweep, as data URLs the runner writes to disk.
 
 import { pixelsPerUnit } from '../camera';
-import type { CameraPose } from '../api';
+import type { CameraPose, EyePose } from '../api';
 
 export type Motion = 'yaw' | 'pitch' | 'zoom' | 'pan';
 
@@ -187,6 +187,38 @@ function cropPng(frames: Frame[], w: number, h: number, cx: number, cy: number, 
  */
 export function sweepPoses(poses: CameraPose[], threshold?: number): SweepResult {
   const look = window.__look!;
+  look.eye(null);
+  return sweepWith(poses.length, (i) => look.camera(poses[i]!), threshold);
+}
+
+/** The poses of a sweep of fly mode's eye: turning, tilting or flying forward, a little a frame. */
+export function eyePosesFor(base: EyePose, motion: 'turn' | 'tilt' | 'forward', n: number, width: number, height: number, stepPx = STEP_PX): EyePose[] {
+  const tanY = Math.tan((base.fov * Math.PI) / 360);
+  const focal = height / 2 / tanY;
+  const tanX = tanY * (width / height);
+  // Turning by d radians moves a point at the frame's edge by focal·(1 + tan²)·d pixels.
+  const dTurn = (stepPx / (focal * (1 + (motion === 'turn' ? tanX * tanX : tanY * tanY)))) * (180 / Math.PI);
+  // Forward: a point r pixels out at distance z moves r·dz/z; for one a unit off at the frame's edge.
+  const dz = stepPx / Math.max(width, height) * 2;
+  const y = (base.yaw * Math.PI) / 180, p = (base.pitch * Math.PI) / 180;
+  const fwd = [-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)];
+  const out: EyePose[] = [];
+  for (let i = 0; i < n; i++) {
+    if (motion === 'turn') out.push({ ...base, yaw: base.yaw + dTurn * i });
+    else if (motion === 'tilt') out.push({ ...base, pitch: base.pitch + dTurn * i });
+    else out.push({ ...base, eye: [base.eye[0] + fwd[0]! * dz * i, base.eye[1] + fwd[1]! * dz * i, base.eye[2] + fwd[2]! * dz * i] });
+  }
+  return out;
+}
+
+/** As sweepPoses, for fly mode's eye. */
+export function sweepEye(poses: EyePose[], threshold?: number): SweepResult {
+  const look = window.__look!;
+  return sweepWith(poses.length, (i) => look.eye(poses[i]!), threshold);
+}
+
+function sweepWith(count: number, setPose: (i: number) => void, threshold?: number): SweepResult {
+  const look = window.__look!;
   const cv = [...document.querySelectorAll('canvas')].at(-1)!;
   const gl = cv.getContext('webgl2')!;
   let w = 0, h = 0, n = 0;
@@ -194,8 +226,8 @@ export function sweepPoses(poses: CameraPose[], threshold?: number): SweepResult
   let heat = new Uint16Array(0), mask = new Uint8Array(0), tmn = new Uint8Array(0), tmx = new Uint8Array(0);
   let blink = 0, pop = 0, area = 0, change = 0, triples = 0, pairs = 0, dark = 0;
   const crops: Crop[] = [];
-  for (let f = 0; f < poses.length; f++) {
-    look.camera(poses[f]!);
+  for (let f = 0; f < count; f++) {
+    setPose(f);
     look.frameOnly(0);
     if (f === 0) {
       w = gl.drawingBufferWidth;
@@ -316,13 +348,13 @@ export function sweepPoses(poses: CameraPose[], threshold?: number): SweepResult
   }
   g.putImageData(img, 0, 0);
   return {
-    frames: poses.length,
+    frames: count,
     width: w,
     height: h,
     blink: (blink / Math.max(1, triples)) * 1000,
     pop: (pop / Math.max(1, pairs)) * 1000,
     area: (area / Math.max(1, pairs)) * 1000,
-    dark: dark / poses.length,
+    dark: dark / count,
     threshold: T,
     change: change / Math.max(1, pairs),
     crops: crops.map((cr) => ({ ...cr })),
@@ -336,6 +368,10 @@ const api = {
   /** A sweep of `n` frames of one motion from `base`, in a view of `width` × `height` CSS pixels. */
   sweep(base: CameraPose, motion: Motion, n: number, width: number, height: number, stepPx?: number, threshold?: number): SweepResult {
     return sweepPoses(posesFor(base, motion, n, width, height, stepPx), threshold);
+  },
+  /** A sweep of fly mode's eye. */
+  sweepEye(base: EyePose, motion: 'turn' | 'tilt' | 'forward', n: number, width: number, height: number, stepPx?: number, threshold?: number): SweepResult {
+    return sweepEye(eyePosesFor(base, motion, n, width, height, stepPx), threshold);
   },
 };
 

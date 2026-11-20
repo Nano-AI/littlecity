@@ -38,9 +38,16 @@ for (const [scn, cams] of [['everything', E], ['grown-town-1', G]]) {
     add(scn, cams, zoom, { ...phone, ratio: 2, ink: 'half' }, 'day', 'yaw');
   }
 }
+// Fly mode's eye (design section 7): down the longest street of the grown town at a person's height,
+// and over the roofs; turning, tilting and flying forward. Against the builder's view turning (above).
+for (const ratio of [1, 2]) {
+  for (const motion of ['turn', 'tilt', 'forward']) cases.push({ scenario: 'grown-town-1', eye: 'street', zoom: 'street', ...desk, ratio, ink: 'full', time: 'day', motion });
+  cases.push({ scenario: 'grown-town-1', eye: 'street', zoom: 'street', ...desk, ratio, ink: 'full', time: 'night', motion: 'turn' });
+  cases.push({ scenario: 'grown-town-1', eye: 'roofs', zoom: 'roofs', ...desk, ratio, ink: 'full', time: 'day', motion: 'turn' });
+}
 // Open sea, close: nothing but water and its wave marks, which used to slide over the sea as the view turned.
 add('everything', { sea: { yaw: 45, pitch: 32, zoom: 9, target: [39, 0, 39] } }, 'sea', { ...desk, ratio: 1, ink: 'full' }, 'day', 'yaw');
-const nameOf = (c) => `${c.scenario}-${c.zoom}-${c.motion}-${c.time}-${c.ink === 'half' ? 'phone' : `${c.ratio}x`}`;
+const nameOf = (c) => `${c.scenario}-${c.eye ? 'fly-' : ''}${c.zoom}-${c.motion}-${c.time}-${c.ink === 'half' ? 'phone' : `${c.ratio}x`}`;
 let wanted = cases;
 if (flags.quick) wanted = wanted.filter((c) => c.time === 'day' && c.ratio === 1);
 if (flags.only) wanted = wanted.filter((c) => nameOf(c).includes(String(flags.only)));
@@ -72,7 +79,12 @@ try {
     for (const kv of styles) await page.evaluate(([m, k, v]) => window.__look.style(m, k, v), kv);
     const t0 = Date.now();
     const name = nameOf(c);
-    const r = await page.evaluate(([c, n, t]) => window.__flicker.sweep(c.pose, c.motion, n, c.width, c.height, undefined, t ?? undefined), [c, frames, against[name] ?? null]);
+    const r = await page.evaluate(([c, n, t]) => {
+      if (!c.eye) return window.__flicker.sweep(c.pose, c.motion, n, c.width, c.height, undefined, t ?? undefined);
+      const st = window.__look.street();
+      const pose = c.eye === 'street' ? { eye: st.eye, yaw: st.yaw, pitch: -2, fov: 62 } : { eye: [st.eye[0] + 3, st.eye[1] + 3.5, st.eye[2] + 3], yaw: st.yaw + 30, pitch: -14, fov: 62 };
+      return window.__flicker.sweepEye(pose, c.motion, n, c.width, c.height, undefined, t ?? undefined);
+    }, [c, frames, against[name] ?? null]);
     for (const old of fs.readdirSync(outDir)) if (old.startsWith(`${name}-`)) fs.rmSync(path.join(outDir, old));
     save(path.join(outDir, `${name}-heat.png`), r.heat);
     r.crops.forEach((cr, i) => save(path.join(outDir, `${name}-crop${i}-f${cr.frame}-x${cr.x}-y${cr.y}.png`), cr.png));

@@ -9,10 +9,12 @@
 //   ?seed=<n>          a fresh island with that seed (&gen=1 for the first island generator)
 //   otherwise          the autosaved town, or a fresh island
 //
-// The phone fallbacks of design section 14 pick themselves on a small touch
-// screen (half-resolution ink in the view, a smaller crowd in life); for
-// measuring, ?ink=full|half and ?density=1|2|3 (the highest rule tier that
-// dresses the town) override them.
+// How sharp the page is drawn governs itself (src/render/quality.ts): it starts at the sharpest the
+// screen allows and steps down only while frames are really slow. ?quality=<level> holds a level (0
+// the sharpest); under automation (browser tests, captures) the sharpest is held unless
+// ?quality=auto. ?ink=full|half fixes the ink and the pixel ratio as before. A small touch screen
+// also gets a smaller crowd in life; ?density=1|2|3 (the highest rule tier that dresses the town)
+// overrides it.
 //
 // Seasons and weather (design section 13a) run by themselves; ?season=spring|summer|autumn|winter|
 // festival|<year 0..1> and ?weather=auto|clear|cloudy|rain|storm|fog|wind|snow hold them (a scenario
@@ -28,6 +30,7 @@ import { mischiefOf } from '@/life/mischief/director';
 import { applyCalendar } from '@/life/season';
 import { createSignals, type TownSignals } from '@/life/signals';
 import { createTownView, type CameraPose } from '@/render/index';
+import { createGovernor } from '@/render/quality';
 import type { ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
@@ -246,10 +249,27 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') autosave.flush();
 });
 
+// ── how sharp ────────────────────────────────────────────────────────────
+const qualityParam = params.get('quality');
+const levelCount = view.quality?.().levels.length ?? 1;
+const automated = (navigator as { webdriver?: boolean }).webdriver === true;
+if (qualityParam !== null && qualityParam !== 'auto') view.setQuality?.(Number(qualityParam) | 0);
+const governor = levelCount > 1 && (qualityParam === 'auto' || (qualityParam === null && !automated)) ? createGovernor(levelCount) : null;
+let lastPose = '';
+
 // ── the frame loop ───────────────────────────────────────────────────────
 let last = performance.now();
 function frame(now: number): void {
   const real = Math.min(0.1, Math.max(0, (now - last) / 1000));
+  if (governor) {
+    // A change of sharpness waits for the picture to be moving, where it does not show.
+    const c = view.getCamera();
+    const pose = `${c.yaw}|${c.pitch}|${c.zoom}|${c.target.join(',')}`;
+    const moving = pose !== lastPose || (ui?.fly.active ?? false);
+    lastPose = pose;
+    const next = governor.frame(now - last, moving);
+    if (next !== null) view.setQuality?.(next);
+  }
   const dt = signals.advance((now - last) / 1000);
   last = now;
   const ready = game.poll();
@@ -292,4 +312,6 @@ window.__lc = {
   ui,
   autosave,
   mischief,
+  /** How sharp the page is drawn: the level in use and the levels (src/render/quality.ts). */
+  quality: () => view.quality?.() ?? null,
 };

@@ -54,6 +54,7 @@ import {
   type CameraFrame,
 } from './camera';
 import { gradeAt } from './grade';
+import { qualityLevels, type Quality } from './quality';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
@@ -146,7 +147,7 @@ interface DrawnItem {
   handle: InstanceHandle;
 }
 
-/** True on phones: small screen and a coarse pointer. They get the half-resolution ink pass. */
+/** True on phones: small screen and a coarse pointer. They bake the soft grounding shade smaller and get fewer raindrops. */
 function looksLikePhone(): boolean {
   const g = globalThis as { matchMedia?: (q: string) => { matches: boolean }; screen?: { width: number; height: number } };
   const coarse = g.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -164,16 +165,29 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     powerPreference: 'high-performance',
     preserveDrawingBuffer: opts.preserveDrawingBuffer ?? false,
   });
-  const pixelRatio = opts.pixelRatio ?? Math.min(globalThis.devicePixelRatio ?? 1, 2);
+  // How sharp the page is drawn (./quality.ts). Given a pixel ratio or an ink, the view keeps to it;
+  // otherwise it has levels from its sharpest down, and the app's governor picks among them by how fast
+  // frames really come (phones used to be held at a pixel ratio of 2 with half-resolution ink, a guess
+  // that looked pixelated on a 3x screen).
+  const phone = looksLikePhone();
+  const fixedQuality = opts.pixelRatio !== undefined || opts.ink === 'full' || opts.ink === 'half';
+  const levels: Quality[] = fixedQuality
+    ? (() => {
+        const pr = opts.pixelRatio ?? Math.min(globalThis.devicePixelRatio ?? 1, 2);
+        const half = opts.ink === 'half';
+        // The drawing is made at 2 device pixels per CSS pixel at least (as the spike did) and averaged
+        // down: that is what makes the colour edges under the ink smooth. Half-resolution ink skips it.
+        return [{ pixelRatio: pr, superSample: half || pr >= 1.5 ? 1 : 2, halfInk: half } as Quality];
+      })()
+    : qualityLevels(globalThis.devicePixelRatio ?? 1);
+  let level = 0;
+  let pixelRatio = levels[0]!.pixelRatio;
+  let superSample: 1 | 2 = levels[0]!.superSample;
+  let halfInk = levels[0]!.halfInk;
   renderer.setPixelRatio(pixelRatio);
   renderer.autoClear = false;
   renderer.setClearColor(0x000000, 0);
   renderer.info.autoReset = false;
-
-  const halfInk = opts.ink === 'half' || ((opts.ink ?? 'auto') === 'auto' && looksLikePhone());
-  // The drawing is made at 2 device pixels per CSS pixel at least (as the spike did) and averaged down:
-  // that is what makes the colour edges under the ink smooth. Phones skip it.
-  const superSample = halfInk || pixelRatio >= 1.5 ? 1 : 2;
 
   let width = Math.max(1, canvas.clientWidth || canvas.width || 1);
   let height = Math.max(1, canvas.clientHeight || canvas.height || 1);
@@ -194,12 +208,18 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const colorTex = sceneRT.textures[0]!;
   const idTex = sceneRT.textures[1]!;
   colorTex.minFilter = colorTex.magFilter = THREE.LinearFilter; // averages the super-sampled colour down
-  const inkRT = halfInk
-    ? new THREE.WebGLRenderTarget(4, 4, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace })
-    : null;
+  /** The half-resolution ink mask: made the first time a level uses it. */
+  let inkRT: THREE.WebGLRenderTarget | null = null;
+  const inkTarget = (): THREE.WebGLRenderTarget => {
+    if (inkRT) return inkRT;
+    inkRT = new THREE.WebGLRenderTarget(4, 4, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false, generateMipmaps: false, colorSpace: THREE.NoColorSpace });
+    compositeUniforms.tInk.value = inkRT.texture;
+    return inkRT;
+  };
 
   // Grounding: the town's heights from straight above, and the shade baked from them (shaders/ground.ts).
-  const groundSize = halfInk ? 512 : 1024;
+  // A soft shade: phones bake it smaller whatever their level.
+  const groundSize = phone || halfInk ? 512 : 1024;
   const heightRT = new THREE.WebGLRenderTarget(groundSize, groundSize, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, stencilBuffer: false, generateMipmaps: false });
   heightRT.depthTexture = new THREE.DepthTexture(groundSize, groundSize, THREE.UnsignedIntType);
   // The shade is soft, so it is baked at half the size: a quarter of the work each time it is redrawn.
@@ -414,7 +434,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     tId: { value: idTex as THREE.Texture },
     tDepth: { value: sceneRT.depthTexture as THREE.Texture },
     tNoise: { value: noiseTex as THREE.Texture },
-    tInk: { value: (inkRT?.texture ?? null) as THREE.Texture | null },
+    tInk: { value: null as THREE.Texture | null },
     uOut: { value: new THREE.Vector2(1, 1) },
     uPR: { value: 1 },
     uOrigin: { value: new THREE.Vector2() },
@@ -467,25 +487,24 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       depthTest: false,
       depthWrite: false,
     });
-  const compositeMaterial = post(halfInk ? { INK_TEX: 1 } : superSample > 1 ? { FINE_DEPTH: 1 } : {});
+  const compositeDefines = (): Record<string, number> => (halfInk ? { INK_TEX: 1 } : superSample > 1 ? { FINE_DEPTH: 1 } : {});
+  const compositeMaterial = post(compositeDefines());
   // The half-resolution ink mask shares the uniforms but has its own target size.
   const inkUniforms = { ...compositeUniforms, uOut: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
-  const inkMaterial = halfInk
-    ? new THREE.RawShaderMaterial({
-        glslVersion: THREE.GLSL3,
-        defines: { INK_ONLY: 1 },
-        vertexShader: screenVertex,
-        fragmentShader: compositeFragment,
-        uniforms: inkUniforms,
-        depthTest: false,
-        depthWrite: false,
-      })
-    : null;
+  const inkMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { INK_ONLY: 1 },
+    vertexShader: screenVertex,
+    fragmentShader: compositeFragment,
+    uniforms: inkUniforms,
+    depthTest: false,
+    depthWrite: false,
+  });
 
   // Seasons: falling rain and snow, drawn over the finished page (./precip.ts).
   const precip = createPrecip(
     { tHeight: surfaceUniforms.tHeight, tDepth: surfaceUniforms.tDepth, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uZOrigin: surfaceUniforms.uZOrigin, uZAxis: surfaceUniforms.uZAxis, uCanvas: surfaceUniforms.uCanvas, uFocal: surfaceUniforms.uFocal, uClip: surfaceUniforms.uClip },
-    halfInk,
+    phone,
     pixelRatio,
   );
 
@@ -594,11 +613,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       overlay: twin(overlayMaterial),
       sky: new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: screenVertex, fragmentShader: skyFragment, uniforms: skyUniforms, depthTest: false, depthWrite: false }),
       composite: twin(compositeMaterial),
-      ink: inkMaterial ? twin(inkMaterial, inkUniforms) : null,
+      ink: twin(inkMaterial, inkUniforms),
     };
     return persp;
   };
   let eyePose: EyePose | null = null;
+  let eyePrepared = false;
   let lens: EyeFrame | null = null;
   /** Which set of materials the meshes wear now. */
   let wearing: 'orbit' | 'fly' = 'orbit';
@@ -621,8 +641,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const postScene = new THREE.Scene();
   const postMesh = screenMesh(compositeMaterial);
   postScene.add(postMesh);
-  const inkMesh = inkMaterial ? screenMesh(inkMaterial) : null;
-  const inkScene = inkMesh ? new THREE.Scene().add(inkMesh) : null;
+  const inkMesh = screenMesh(inkMaterial);
+  const inkScene = new THREE.Scene().add(inkMesh);
   const shadeScene = new THREE.Scene().add(screenMesh(shadeMaterial));
   // The height pass ignores this camera's matrices (its shader maps the map square itself), but
   // Three.js still culls against it, so it looks straight down at the whole map from above.
@@ -740,7 +760,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     moverCaps.material = m?.cap ?? capMaterial;
     paperMesh.material = m?.sky ?? paperMaterial;
     postMesh.material = m?.composite ?? compositeMaterial;
-    if (inkMesh && inkMaterial) inkMesh.material = m?.ink ?? inkMaterial;
+    inkMesh.material = m?.ink ?? inkMaterial;
     precip.perspective(m ? { PERSP: 1, ...(revz ? { REVZ: 1 } : {}) } : null);
   };
   const wear = (mode: 'orbit' | 'fly'): void => {
@@ -759,7 +779,25 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     const h = Math.max(1, Math.round(height * pixelRatio));
     sceneRT.setSize(w * superSample, h * superSample);
     eyeRT?.setSize(w * superSample, h * superSample);
-    inkRT?.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+    if (halfInk) inkTarget().setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+  };
+  /** Changes how sharp the page is drawn: the targets are resized, the composite recompiled if it must be. */
+  const applyQuality = (q: Quality): void => {
+    const shader = q.halfInk !== halfInk || q.superSample !== superSample;
+    pixelRatio = q.pixelRatio;
+    superSample = q.superSample;
+    halfInk = q.halfInk;
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(width, height, false);
+    resizeTargets();
+    if (shader) {
+      compositeMaterial.defines = compositeDefines();
+      compositeMaterial.needsUpdate = true;
+      if (persp) {
+        persp.composite.defines = { ...compositeMaterial.defines, PERSP: 1, ...(revz ? { REVZ: 1 } : {}) };
+        persp.composite.needsUpdate = true;
+      }
+    }
   };
 
   // ── building geometry ────────────────────────────────────────────────────
@@ -1243,6 +1281,41 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       eyePose = pose ? { eye: [pose.eye[0], pose.eye[1], pose.eye[2]], yaw: pose.yaw, pitch: pose.pitch, fov: pose.fov } : null;
       applyEyeCamera();
     },
+    prepareEye() {
+      if (eyePrepared || lens) return;
+      eyePrepared = true;
+      // Dressed for a moment in the fly-mode twins, every scene is compiled as it will be drawn (the
+      // town into a two-target buffer like the eye's own; the rest to the screen), then dressed back.
+      eyeTarget();
+      wearing = 'fly';
+      dress();
+      const was = renderer.getRenderTarget();
+      renderer.setRenderTarget(eyeTarget());
+      void renderer.compileAsync(scene, perspCamera).catch(() => undefined);
+      renderer.setRenderTarget(null);
+      void renderer.compileAsync(postScene, postCamera).catch(() => undefined);
+      void renderer.compileAsync(overlayScene, perspCamera).catch(() => undefined);
+      if (halfInk) {
+        renderer.setRenderTarget(inkTarget());
+        void renderer.compileAsync(inkScene, postCamera).catch(() => undefined);
+      }
+      renderer.setRenderTarget(was);
+      wearing = 'orbit';
+      dress();
+      // The target's storage is made by drawing into it once (a clear).
+      renderer.setRenderTarget(eyeTarget());
+      renderer.clear(true, true, false);
+      renderer.setRenderTarget(was);
+    },
+    quality() {
+      return { level, levels: levels.map((q) => ({ ...q })) };
+    },
+    setQuality(next) {
+      const to = Math.max(0, Math.min(levels.length - 1, Math.round(next)));
+      if (to === level) return;
+      level = to;
+      applyQuality(levels[to]!);
+    },
     getEyeCamera() {
       return eyePose ? { ...eyePose, eye: [eyePose.eye[0], eyePose.eye[1], eyePose.eye[2]] } : null;
     },
@@ -1414,7 +1487,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         cu.uNear.value = CAMERA_NEAR;
         cu.uDepthRange.value = CAMERA_FAR - CAMERA_NEAR;
       }
-      if (inkRT) {
+      if (halfInk && inkRT) {
         inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
         inkUniforms.uPR.value = pixelRatio / 2;
       }
@@ -1449,6 +1522,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uCast.value = grade.cast;
 
       renderer.info.reset();
+      mark(null);
       // Grounding: redraw the height picture when geometry changed; at most every other frame while a
       // lifted structure bounces; every GROUND_ITEMS frames while props and actors move (a bobbing
       // boat's shade at 15 Hz is indistinguishable, and it is the most expensive pass in the frame).
@@ -1476,6 +1550,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         movers.mesh.visible = moversShown;
         renderer.setRenderTarget(shadeRT);
         renderer.render(shadeScene, postCamera);
+        mark('ground');
       }
       moverCaps.visible = movers.mesh.visible && capSlots.size > 0;
       surfaceUniforms.uSlab.value = TERRAIN.slabRadius;
@@ -1487,21 +1562,25 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       renderer.clear(true, true, false);
       renderer.render(scene, eyeCamera);
       if (reversed) depthBuffer.setReversed(false);
-      if (inkRT && inkScene) {
-        renderer.setRenderTarget(inkRT);
+      mark('town');
+      if (halfInk) {
+        renderer.setRenderTarget(inkTarget());
         renderer.render(inkScene, postCamera);
+        mark('ink');
       }
       renderer.setRenderTarget(null);
       renderer.render(postScene, postCamera);
+      mark('composite');
       const weather = weatherOf(signals);
       if (weather.rain > 0.01 || weather.snow > 0.01) {
         const at = lens ? lens.eye : frame.target;
         const w = signals.wind(at[0], at[2]);
         const eye = lens ? { eye: { at: lens.eye, forward: lens.forward } } : {};
-        if (precip.update({ frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt), ...eye })) {
+        if (precip.update({ pixelRatio, frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt), ...eye })) {
           if (reversed) depthBuffer.setReversed(true);
           renderer.render(precip.scene, eyeCamera);
           if (reversed) depthBuffer.setReversed(false);
+          mark('precip');
         }
       }
       if (overlay) {
@@ -1509,6 +1588,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         renderer.clear(false, true, false);
         renderer.render(overlayScene, eyeCamera);
         if (reversed) depthBuffer.setReversed(false);
+        mark('overlay');
       }
       if (ghostKeys.length > 0 && !lens) {
         renderer.setRenderTarget(ghostTarget());
@@ -1547,9 +1627,31 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       windTex.dispose();
       noiseTex.dispose();
       screenGeometry.dispose();
-      for (const m of [surfaceMaterial, bareMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
+      for (const m of [surfaceMaterial, bareMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m.dispose();
       if (persp) for (const m of Object.values(persp)) m?.dispose();      renderer.dispose();
     },
+  };
+  // ── a profiler for the measuring tools (src/fly/testing/judder.mjs) ─────────────────────────────
+  // While on, each render pass is waited for (a one-pixel read) and timed: the split of a frame's GPU
+  // time between the passes. The frame itself is then slower than real, so read it for the split.
+  let profile: Record<string, number> | null = null;
+  let profileAt = 0;
+  const px = new Uint8Array(4);
+  function mark(name: string | null): void {
+    if (!profile) return;
+    const gl = renderer.getContext();
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const now = performance.now();
+    if (name) profile[name] = (profile[name] ?? 0) + (now - profileAt);
+    profileAt = now;
+  }
+  (view as TownView & { profilePasses(frames: number, signals: Signals): Record<string, number> }).profilePasses = (frames, signals) => {
+    profile = {};
+    for (let i = 0; i < frames; i++) view.render(signals);
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(profile)) out[k] = +(v / frames).toFixed(2);
+    profile = null;
+    return out;
   };
   return view;
 }

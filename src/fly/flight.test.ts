@@ -174,3 +174,29 @@ describe('the way back out', () => {
     }
   });
 });
+
+describe('motion follows the frame', () => {
+  const map = town();
+  test('at a steady speed the eye moves by exactly its speed times each frame, however uneven the frames', () => {
+    // Frames round 1/60 s that wobble (as a display's do), and some round 1/120 s: a fixed step with
+    // the remainder carried gave one, two or three steps a frame here, and the eye moved in jerks.
+    const f = startFlight(map, [6, 6, 24], -90, 0);
+    fly(map, f, { forward: 1 }, 2);
+    const frames = [0.0166, 0.0167, 0.0168, 0.0166, 0.0083, 0.0084, 0.0083, 0.0167, 0.025, 0.0166, 0.0041];
+    for (const dt of frames) {
+      const x0 = f.eye[0];
+      stepFlight(map, f, { ...none, forward: 1 }, dt);
+      expect((f.eye[0] - x0) / dt).toBeCloseTo(FLIGHT.speed, 3);
+    }
+  });
+  test('a long frame moves the eye by at most FLIGHT.maxFrame worth, with no catching up after', () => {
+    const f = startFlight(map, [6, 6, 24], -90, 0);
+    fly(map, f, { forward: 1 }, 2);
+    let x0 = f.eye[0];
+    stepFlight(map, f, { ...none, forward: 1 }, 0.5);
+    expect(f.eye[0] - x0).toBeCloseTo(FLIGHT.speed * FLIGHT.maxFrame, 3);
+    x0 = f.eye[0];
+    stepFlight(map, f, { ...none, forward: 1 }, 1 / 60);
+    expect((f.eye[0] - x0) * 60).toBeCloseTo(FLIGHT.speed, 3);
+  });
+});

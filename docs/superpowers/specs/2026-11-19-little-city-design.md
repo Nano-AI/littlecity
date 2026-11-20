@@ -1079,13 +1079,32 @@ a 600-block town.
 | `resolveShape()` after one edit (also each ghost hover) | ≤ 8 ms | ≤ 25 ms |
 | `resolveDressing()` after one edit (may be deferred) | ≤ 30 ms | ≤ 80 ms |
 | Geometry rebuild after one edit | ≤ 8 ms | ≤ 25 ms |
-| Pixel ratio | native up to 2 | capped at 2, ink at half resolution if needed |
+| Pixel ratio | native up to 3, governed | native up to 3, governed (see below) |
 
 Wave 0 must measure the ported renderer against a synthetic 2,000-block town
 before other waves build on it. The Wave 1 integration task measures both
 logic stages on the same town with the rule engine loaded. If the phone budget cannot be met, the
 fallbacks in order are: half-resolution ink pass, lower actor caps, lower
 decoration density (one global knob).
+
+**How sharp, governed** (Derek, 2026-11-20: "mobile is very pixelated"). Phones
+used to be held at a pixel ratio of 2 with the ink at half resolution: on a 3x
+screen the whole page was drawn at two thirds of the screen's resolution and
+stretched, and the ink lines at a third, thick and soft. Now every view starts
+at its sharpest and a governor (`src/render/quality.ts`, fed real frame gaps
+by `src/app/main.ts`) steps down only while frames are really slow, a level at
+a time: super-sampling first (only a low-density screen has it), then the
+pixel ratio from 3 toward 2, the half-resolution ink last, then 1.5. A 3x
+phone has five levels (3, 2.5, 2, 2 with half ink, 1.5 with half ink); a 2x
+laptop three. Slow is a 2 s window with the median frame over 21 ms or 15 %
+of frames over 34 ms, twice in a row (once if the median is over 30 ms). After
+five fast windows in a row (median ≤ 17.5 ms, 90th percentile ≤ 20 ms) it tries
+a level up; a level that proves slow again is not tried for 30 s, then 60 s,
+and so on. Pauses over 250 ms are not counted, nor the 1.5 s after starting
+and after each change. A change waits (up to 3 s) for the picture to be
+moving, where a change of sharpness does not show. `?quality=<level>` holds a
+level; under browser automation the sharpest level is held unless
+`?quality=auto`.
 
 ## 15. Saving and sharing
 

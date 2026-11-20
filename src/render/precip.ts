@@ -38,6 +38,8 @@ export interface PrecipInput {
    * what the eye sees, not round the orbit camera's target (frame is still passed, and ignored).
    */
   eye?: { at: readonly [number, number, number]; forward: readonly [number, number, number] };
+  /** Device pixels per CSS pixel now (the quality governor may change it). */
+  pixelRatio?: number;
 }
 
 export interface Precip {
@@ -214,6 +216,7 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
         u.uTime.value = input.seconds;
         u.uDrift.value.set(d[0]!, d[1]!);
         u.uView.value.copy(shared.uCanvas.value);
+        if (input.pixelRatio !== undefined) u.uPR.value = input.pixelRatio;
         u.uAmount.value = Math.min(1, 0.6 + amount * 0.5);
         u.uRainInk.value = WEATHER.rainInk * (1 - 0.35 * input.night);
         u.uFlakeInk.value = WEATHER.flakeInk;

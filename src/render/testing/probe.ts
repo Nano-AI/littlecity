@@ -20,7 +20,7 @@ import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { applyEdit, canApply } from '@/world/world';
-import type { CameraPose, TownView, ViewOptions } from '../api';
+import type { EyePose, CameraPose, TownView, ViewOptions } from '../api';
 import { createTownView } from '../index';
 
 export interface FrameSummary {
@@ -250,6 +250,37 @@ const api = {
   },
   camera(pose: Partial<CameraPose>): void {
     view!.setCamera(pose);
+  },
+  /** Fly mode's perspective eye (or back to the orbit camera with null). */
+  eye(pose: EyePose | null): void {
+    view!.setEyeCamera(pose);
+  },
+  /**
+   * A street to look down at eye level: the open floor cell with the longest straight run of open
+   * floor ahead, its eye (world units, a little over a person's eyes) and the way along it (yaw).
+   */
+  street(): { eye: [number, number, number]; yaw: number; run: number } | null {
+    const kinds = shape!.kinds;
+    const floors = shape!.world.floors;
+    const open = (k: number): boolean => floors.has(k) && !kinds.has(k) && !kinds.has(k + 4096);
+    const dirs: [number, number, number][] = [[0, -1, 0], [1, 0, -90], [0, 1, 180], [-1, 0, 90]];
+    let best: { k: number; n: number; yaw: number } | null = null;
+    for (const k of floors.keys()) {
+      if (!open(k)) continue;
+      for (const [dx, dz, yaw] of dirs) {
+        let n = 0, c = k;
+        for (;;) {
+          const x = (c & 63) + dx, z = ((c >> 6) & 63) + dz;
+          if (x < 0 || z < 0 || x > 47 || z > 47) break;
+          c = (c & ~4095) | x | (z << 6);
+          if (!open(c)) break;
+          n++;
+        }
+        if (!best || n > best.n) best = { k, n, yaw };
+      }
+    }
+    if (!best) return null;
+    return { eye: [(best.k & 63) + 0.5, (best.k >> 12) * 0.8 + 0.45, ((best.k >> 6) & 63) + 0.5], yaw: best.yaw, run: best.n };
   },
   orbit(dYaw: number, dPitch: number): CameraPose {
     view!.orbit(dYaw, dPitch);
