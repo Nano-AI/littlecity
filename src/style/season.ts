@@ -16,7 +16,7 @@ export const SEASON = defineStyle(
     /** Day-night loops in one season. */
     days: 3,
     /** How many loops the change from one season to the next takes (centred on the boundary). */
-    blend: 1,
+    blend: 0.6,
     /** Where a new town starts its year: the second day of summer, so a town opens as it always has. */
     start: 1 / 3,
     /** Where the season button holds each season (0 to 1 through that season). Winter holds inside the festival. */
@@ -65,11 +65,11 @@ export const WEATHER = defineStyle(
     soak: 25,
     dry: 140,
     /** Ink and graphite: how dark falling rain streaks and the rim of a flake are (0 to 1). */
-    rainInk: 0.42,
-    flakeInk: 0.3,
+    rainInk: 0.55,
+    flakeInk: 0.45,
     /** Most falling streaks or flakes on screen, desktop and phone. */
-    capDesktop: 9000,
-    capPhone: 3000,
+    capDesktop: 14000,
+    capPhone: 4000,
   },
   {
     spell: [20, 600, 5],

@@ -212,7 +212,7 @@ function targetOf(kind: WeatherKind, r: number): Target {
     case 'wind':
       return { precip: 0, cloud: 0.25, fog: 0, gust: 0.9 };
     case 'snow':
-      return { precip: 0.55 + 0.4 * r, cloud: 0.7, fog: 0.1, gust: 0.05 };
+      return { precip: 0.55 + 0.4 * r, cloud: 0.45, fog: 0.1, gust: 0.05 };
     default:
       return { precip: 0, cloud: 0, fog: 0, gust: 0 };
   }

@@ -55,6 +55,7 @@ import {
 import { gradeAt } from './grade';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
+import { createPrecip } from './precip';
 import { registriesFor, type Registries } from './registries';
 import { compositeFragment, paperFragment, screenVertex } from './shaders/composite';
 import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
@@ -443,6 +444,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         depthWrite: false,
       })
     : null;
+
+  // Seasons: falling rain and snow, drawn over the finished page (./precip.ts).
+  const precip = createPrecip(
+    { tHeight: surfaceUniforms.tHeight, tDepth: surfaceUniforms.tDepth, uMap: surfaceUniforms.uMap, uMapRange: surfaceUniforms.uMapRange, uZOrigin: surfaceUniforms.uZOrigin, uZAxis: surfaceUniforms.uZAxis, uCanvas: surfaceUniforms.uCanvas },
+    halfInk,
+    pixelRatio,
+  );
 
   let ghostRT: THREE.WebGLRenderTarget | null = null;
   const ghostUniforms = { ...compositeUniforms, tColor: { value: null as THREE.Texture | null }, tId: { value: null as THREE.Texture | null }, tDepth: { value: null as THREE.Texture | null } };
@@ -1217,6 +1225,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       }
       renderer.setRenderTarget(null);
       renderer.render(postScene, postCamera);
+      const weather = weatherOf(signals);
+      if (weather.rain > 0.01 || weather.snow > 0.01) {
+        const w = signals.wind(frame.target[0], frame.target[2]);
+        if (precip.update({ frame, rain: weather.rain, snow: weather.snow, wind: w, grade, night: grade.glow, seconds, dt: Math.max(0, dt) })) renderer.render(precip.scene, camera);
+      }
       if (overlay) {
         renderer.clear(false, true, false);
         renderer.render(overlayScene, camera);
@@ -1243,6 +1256,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       structures.clear();
       layers.clear();
       items.clear();
+      precip.dispose();
       ghostRT?.depthTexture?.dispose();
       ghostRT?.dispose();
       heightRT.depthTexture?.dispose();
