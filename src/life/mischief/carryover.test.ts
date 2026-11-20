@@ -13,8 +13,9 @@ import { emptyWorld } from '@/world/world';
 import type { InstanceHandle, LifeStage } from '../api';
 import { createLife } from '../runtime';
 import { createSignals } from '../signals';
-import { mischiefOf } from './director';
+import { mischiefOf, STRIKE, type MischiefEvent } from './director';
 import mischiefSystem from './mischief.system';
+import lightningSystem from './lightning.system';
 import nukeSystem, { SCORCH } from './nuke.system';
 
 /** A stage that knows which of the handles it gave out are still there, and which of those are shown. */
@@ -43,8 +44,9 @@ function setup() {
   const b = new TownBuilder(emptyWorld(3), terrain);
   for (let i = 0; i < 6; i++) b.house(14 + i * 2, 20, { floors: 2, color: i });
   b.put('tree', 20, 24);
+  b.put('fountain', 30, 20);
   const signals = createSignals(3);
-  const life = createLife(counting.stage, signals, { behaviours: [], systems: [mischiefSystem, nukeSystem] });
+  const life = createLife(counting.stage, signals, { behaviours: [], systems: [mischiefSystem, nukeSystem, lightningSystem] });
   const d = mischiefOf(counting.stage);
   const game = createGame({ world: b.world, terrain }, { show: (shape) => life.sync({ shape, dressing: null }) });
   d.connect({
@@ -128,6 +130,42 @@ describe('nothing of the mischief outlives the town', () => {
     expect(counting.shown()).toBeGreaterThan(0);
     run(SCORCH.gone + 60 - SCORCH.from - 5);
     expect(d.busy).toBe(false);
+    expect(counting.shown()).toBe(0);
+  });
+
+  test('lightning: a cloud, the bolt, the house alight; undo puts it back; nothing left drawn once the cloud has gone', () => {
+    const { counting, d, game, run } = setup();
+    const before = game.world;
+    const events: MischiefEvent['type'][] = [];
+    d.on((e) => events.push(e.type));
+    const cell = key(16, 2, 20);
+    expect(d.strike(cell, [16.5, 2.4, 20.5])).toBe(true);
+    // The cloud gathers first; nothing is alight yet.
+    run(STRIKE.at - 0.2);
+    expect(events).toEqual(['cloud']);
+    expect(d.engine.burning().length).toBe(0);
+    expect(counting.shown()).toBeGreaterThan(0);
+    // The bolt comes down and the house catches, within a second of the click.
+    run(0.4);
+    expect(events).toEqual(['cloud', 'strike', 'lit']);
+    expect(d.engine.burning().some((b) => b.cell === cell)).toBe(true);
+    run(10);
+    expect([...game.world.blocks.values()].some((b) => b.ruin)).toBe(true);
+    // Undo while it burns: the town as before, and nothing of the strike or the fire drawn.
+    d.cancel();
+    run(0.5);
+    expect([...game.world.blocks]).toEqual([...before.blocks]);
+    expect(counting.shown()).toBe(0);
+  });
+
+  test('lightning on what cannot burn: the bolt strikes and fizzles, nothing burns, and the cloud goes', () => {
+    const { counting, d, run } = setup();
+    // A fountain (nothing in it burns).
+    expect(d.strike(key(30, 1, 20), [30.5, 2.4, 20.5])).toBe(false);
+    run(STRIKE.at + 0.1);
+    expect(d.engine.burning().length).toBe(0);
+    run(STRIKE.gone);
+    expect(d.active).toBe(false);
     expect(counting.shown()).toBe(0);
   });
 });

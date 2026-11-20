@@ -108,6 +108,8 @@ export interface MischiefEngine {
   /** The town changed (or first appeared). */
   sync(shape: ShapePlan): void;
   ignite(cell: CellKey): boolean;
+  /** Would `ignite` catch (decided now, done a moment later by a lightning strike)? Changes nothing. */
+  canLight(cell: CellKey): boolean;
   /**
    * A bang. `fly`: blocks further than this from the point change state without chunks in the air (a
    * big blast flies only what is near its middle). `rim`: fires start round the edge rather than near.
@@ -344,6 +346,13 @@ export function createMischiefEngine(seed: number): MischiefEngine {
     },
     ignite(cell) {
       return light(cell);
+    },
+    canLight(cell) {
+      if (!world?.blocks.has(cell) || catchOf(cell) <= 0) return false;
+      const f = fires.get(cell);
+      if (f && (f.burning || f.done)) return false;
+      const ruin = ruinOf(cell);
+      return !(ruinStage(ruin) === 3 && ruinCause(ruin) === 'fire');
     },
     blast(point, power = 1, opts = {}) {
       const ev: BlastEvent = { point: [point[0], point[1], point[2]], power, water: false, hit: [], lit: [] };

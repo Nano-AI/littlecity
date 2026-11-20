@@ -64,7 +64,7 @@ const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
   change: { label: 'Change', hint: 'Change what a block is, or turn stairs' },
   paint: { label: 'Paint', hint: 'Recolour a block' },
   erase: { label: 'Erase', hint: 'Remove a piece' },
-  torch: { label: 'Torch', hint: 'Set a building alight' },
+  torch: { label: 'Lightning', hint: 'Strike a building with lightning' },
   bomb: { label: 'Bomb', hint: 'Drop a bomb' },
   nuke: { label: 'Nuke', hint: 'The big one: a mushroom cloud and a crater' },
   mallet: { label: 'Mallet', hint: 'Knock a building down a stage' },

@@ -1,6 +1,6 @@
 // The Mischief drawer's tools, in use (design section 13b). Owner: Mischief.
 //
-//   Torch   click a building: it catches fire
+//   Lightning  click a building: a storm cloud gathers, a bolt strikes, it catches fire
 //   Bomb    click anywhere: a bomb drops there, fizzes, and goes off
 //   Mallet  click a building: it is knocked a stage worse (cracked, half, rubble)
 //   Mend    click a damaged building: scaffolding goes up, then it is mended a
@@ -24,7 +24,7 @@ import type { MischiefToolId } from './pieces';
 
 /** The field guide's Mischief group: what each tool does, in a sentence (no recipe town: nothing here is built). */
 export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how: string }[] = [
-  { tool: 'torch', name: 'Torch', how: 'Click a building to set it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
+  { tool: 'torch', name: 'Lightning', how: 'Click a building: a little storm cloud gathers over it and a bolt of lightning sets it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
   { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes BOOM. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
   { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a white flash, a shockwave racing out, a fireball rising into a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
   { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
@@ -223,7 +223,9 @@ export function createMischiefTools(host: {
       }
       let ok: boolean;
       if (tool === 'torch') {
-        ok = director.ignite(cell);
+        // Lightning (the tool's id is still `torch`): a storm cloud gathers and the bolt sets it alight. On
+        // what will not burn the bolt strikes all the same and only flashes.
+        ok = director.strike(cell, pick!.point);
         if (!ok) host.refuse("that won't catch");
       } else if (tool === 'mallet') {
         ok = director.knock(cell);
