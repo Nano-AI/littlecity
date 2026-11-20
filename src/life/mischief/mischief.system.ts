@@ -23,6 +23,7 @@ import { ruinCause, ruinSettling, ruinStage, ruinUninhabitable } from '@/world/d
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SpawnSpec } from '../api';
 import { scaresOf } from '../birds/scare';
 import { fxOf } from '../fx/fx';
+import { ownStage, type Owned } from './owned';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
 import { bombMesh, dustMesh, emberMesh, fallenSailsMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
 
@@ -151,6 +152,8 @@ interface Spout {
 
 interface State {
   d: Director;
+  /** Everything this draws (so dispose takes back all of it). */
+  own: Owned;
   shape: ShapePlan | null;
   flames: Map<CellKey, Flame>;
   puffs: Puff[];
@@ -182,7 +185,7 @@ interface State {
 
 function pool(st: State, stage: LifeStage, k: string, mesh: () => MeshData): Pool {
   let p = st.pools.get(k);
-  if (!p) st.pools.set(k, (p = new Pool(stage, mesh)));
+  if (!p) st.pools.set(k, (p = new Pool(st.own.stage, mesh)));
   return p;
 }
 
@@ -264,7 +267,7 @@ function startFlight(st: State, stage: LifeStage, id: StructureId): void {
   if (old) for (const h of old.handles) h.release();
   const flight: Flight = { chunks, handles: [], age: 0, arcs: [], landed: chunks.map(() => false) };
   for (const ch of chunks) {
-    const h = stage.spawnMesh(chunkMesh(ch), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    const h = st.own.stage.spawnMesh(chunkMesh(ch), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     flight.handles.push(h);
     const r = (n: string): number => rand(ch.key, n);
     flight.arcs.push({
@@ -285,11 +288,30 @@ function endFlight(st: State, id: StructureId): void {
 }
 
 function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent): void {
+  if (e.type === 'reset') {
+    // Called off (undo while it is going on, a new town grown here, a different town): what is in the air goes
+    // at once. (Flames, firelight, embers and fallen sails follow the town and the fires, and go with them.)
+    for (const p of st.puffs) for (const h of [p.ink, p.mist]) h.release();
+    for (const d of st.dust) for (const h of [d.ink, d.mist]) h.release();
+    for (const x of [...st.sparks, ...st.flashes, ...st.spouts, ...st.bombs.values()]) x.h.release();
+    for (const s of st.shakes) s.h?.release();
+    for (const id of [...st.flights.keys()]) endFlight(st, id);
+    st.puffs = [];
+    st.dust = [];
+    st.sparks = [];
+    st.flashes = [];
+    st.spouts = [];
+    st.shakes = [];
+    st.bombs.clear();
+    st.toFly.clear();
+    st.toShake = [];
+    return;
+  }
   const fx = fxOf(stage);
   if (e.type === 'drop') {
     // The nuke's casing is drawn by nuke.system.ts.
     if (e.bomb.nuke) return;
-    const h = stage.spawnMesh(bombMesh(), HIDDEN);
+    const h = st.own.stage.spawnMesh(bombMesh(), HIDDEN);
     st.bombs.set(e.bomb.id, { h, sparkIn: 0 });
   } else if (e.type === 'blast') {
     const b = st.bombs.get(e.bomb);
@@ -301,7 +323,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     // Every bird in town takes off.
     scaresOf(stage).add(key(Math.floor(x), Math.max(0, Math.floor(y / CELL_H)), Math.floor(z)), 99, false, signals.time.seconds);
     if (e.blast.water) {
-      st.spouts.push({ h: stage.spawnMesh(spoutMesh(), HIDDEN), age: 0, x, z });
+      st.spouts.push({ h: st.own.stage.spawnMesh(spoutMesh(), HIDDEN), age: 0, x, z });
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
         fx.play({ actor: 'puff', variant: 'mist' } as SpawnSpec, 1.6, (t, m) => {
@@ -313,7 +335,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     }
     // The nuke's flash, shockwave, cloud and shudders are drawn by nuke.system.ts.
     if (!e.nuke) {
-      st.flashes.push({ h: stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
+      st.flashes.push({ h: st.own.stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
       addDust(st, stage, x, y, z, LIGHT ? 12 : 20, 1.6, e.bomb);
     }
     const hitStructures = new Map<StructureId, number>();
@@ -420,6 +442,7 @@ export default defineSystem<State>({
     const d = mischiefOf(ctx.stage);
     const st: State = {
       d,
+      own: ownStage(ctx.stage),
       shape: null,
       flames: new Map(),
       puffs: [],
@@ -460,7 +483,7 @@ export default defineSystem<State>({
     // Neighbours shaken by a blast wobble once they are redrawn.
     for (const s of st.toShake) {
       if (!next.shape.structures.has(s.id)) continue;
-      st.shakes.push({ id: s.id, h: ctx.stage.liftStructure(s.id), age: 0, amp: s.amp });
+      st.shakes.push({ id: s.id, h: st.own.stage.liftStructure(s.id), age: 0, amp: s.amp });
     }
     st.toShake = [];
     // A wrecked windmill's sails lie beside it; they fall there when the mill is wrecked before our eyes.
@@ -484,7 +507,7 @@ export default defineSystem<State>({
       // Seen falling only if the mill was whole a moment ago.
       const was = _prev?.shape.structures.get(s.id);
       const fall = !!was && !was.cells.some((c) => ruinUninhabitable(_prev!.shape.world.blocks.get(c)?.ruin));
-      const h = ctx.stage.spawnMesh(fallenSailsMesh(burnt), HIDDEN);
+      const h = st.own.stage.spawnMesh(fallenSailsMesh(burnt), HIDDEN);
       st.sails.set(s.id, {
         h,
         burnt,
@@ -946,5 +969,7 @@ export default defineSystem<State>({
     for (const s of st.spouts) s.h.release();
     for (const s of st.shakes) s.h?.release();
     for (const p of st.pools.values()) p.dispose();
+    // And whatever is still out (a window glow, a scorch, a puff in some list): none of it outlives the town.
+    st.own.releaseAll();
   },
 });

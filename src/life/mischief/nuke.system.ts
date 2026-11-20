@@ -30,6 +30,7 @@ import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { DAMAGE_COLORS, rgb } from '@/style/damage';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals } from '../api';
 import { scaresOf } from '../birds/scare';
+import { ownStage, type Owned } from './owned';
 import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director';
 import { ARCS, ashMesh, dustMesh, dustWallMesh, emberMesh, fireLobeMesh, firelightMesh, nukeCasingMesh, nukeCoreMesh, shockBandMesh, shockRingMesh, smokeMesh, sprayMesh } from './meshes';
 import { easeOut, NUKE_TIME as T, riseHeight, waveRadius } from './nuke-timing';
@@ -101,6 +102,10 @@ interface Nuke {
   scorch: InstanceHandle | null;
   /** The ground it was drawn on (redrawn only when that changes). */
   scorchOf: unknown;
+  /** The crater's columns and their heights once it was dug: if they change back (undo) the show is over. */
+  dug: Map<number, number> | null;
+  /** The show is over; only the scorch is left. */
+  done: boolean;
   embers: InstanceHandle[];
   frame: number;
 }
@@ -115,6 +120,8 @@ interface Falling {
 
 interface State {
   d: Director;
+  /** Everything this draws (so dispose takes back all of it). */
+  own: Owned;
   shape: ShapePlan | null;
   falling: Map<number, Falling>;
   nukes: Nuke[];
@@ -127,7 +134,7 @@ interface State {
 
 function pool(st: State, stage: LifeStage, k: string, mesh: () => MeshData): Pool {
   let p = st.pools.get(k);
-  if (!p) st.pools.set(k, (p = new Pool(stage, mesh)));
+  if (!p) st.pools.set(k, (p = new Pool(st.own.stage, mesh)));
   return p;
 }
 
@@ -284,9 +291,27 @@ function scorchMesh(n: Nuke, shape: ShapePlan): MeshData {
   return b.build();
 }
 
+/** A nuke's show over at once (undone): every handle of it back. */
+function endNuke(st: State, n: Nuke): void {
+  for (const s of n.slots) s.h?.release();
+  for (const a of n.ash) a.h.release();
+  for (const h of [n.core, n.band, ...n.arcs.flatMap((a) => [a.ring, a.wall, a.mist]), n.light, n.scorch, ...n.embers]) h?.release();
+  st.nukes.splice(st.nukes.indexOf(n), 1);
+}
+
 function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent): void {
+  if (e.type === 'reset') {
+    // Called off (undo while it is going on, or a different town): nothing of it stays, falling or showing.
+    for (const f of st.falling.values()) f.h.release();
+    st.falling.clear();
+    for (const n of [...st.nukes]) endNuke(st, n);
+    st.toShake = [];
+    for (const s of st.shakes) s.h?.release();
+    st.shakes = [];
+    return;
+  }
   if (e.type === 'drop' && e.bomb.nuke) {
-    st.falling.set(e.bomb.id, { h: stage.spawnMesh(nukeCasingMesh(), HIDDEN), point: [...e.bomb.point], age: 0, fall: e.bomb.fall, seed: e.bomb.id });
+    st.falling.set(e.bomb.id, { h: st.own.stage.spawnMesh(nukeCasingMesh(), HIDDEN), point: [...e.bomb.point], age: 0, fall: e.bomb.fall, seed: e.bomb.id });
   } else if (e.type === 'blast' && e.nuke) {
     const f = st.falling.get(e.bomb);
     if (f) {
@@ -306,7 +331,7 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
       near.push({ id: sid, d: Math.hypot((c & 63) + 0.5 - x, ((c >> 6) & 63) + 0.5 - z) });
     }
     near.sort((a, b) => a.d - b.d);
-    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, scorchOf: null, embers: [], frame: -1 });
+    st.nukes.push({ id: e.bomb, x, y, z, t: 0, water: e.blast.water, slots: [], core: null, band: null, arcs: [], light: null, near, nextShake: 0, ash: [], scorch: null, scorchOf: null, dug: null, done: false, embers: [], frame: -1 });
   }
 }
 
@@ -315,21 +340,32 @@ export default defineSystem<State>({
   order: 13,
   create(ctx) {
     const d = mischiefOf(ctx.stage);
-    const st: State = { d, shape: null, falling: new Map(), nukes: [], pools: new Map(), toShake: [], shakes: [], off: () => {} };
+    const st: State = { d, own: ownStage(ctx.stage), shape: null, falling: new Map(), nukes: [], pools: new Map(), toShake: [], shakes: [], off: () => {} };
     st.off = d.on((e) => onEvent(st, ctx.stage, ctx.signals, e));
     return st;
   },
-  sync(st, next, _prev, ctx) {
+  sync(st, next) {
     st.shape = next.shape;
     // Buildings the ring has reached shudder once they are redrawn with their damage.
-    for (const s of st.toShake) if (next.shape.structures.has(s.id)) st.shakes.push({ h: ctx.stage.liftStructure(s.id), age: 0, amp: s.amp });
+    for (const s of st.toShake) if (next.shape.structures.has(s.id)) st.shakes.push({ h: st.own.stage.liftStructure(s.id), age: 0, amp: s.amp });
     st.toShake = [];
-    // The scorched crater, once the ground has gone down (and again if the land changes under it).
-    for (const n of st.nukes) {
+    // The scorched crater, once the ground has gone down. If the crater's ground changes after that (the nuke
+    // undone, or the player filling it in), the scorch and whatever is left of the show go with it.
+    for (const n of [...st.nukes]) {
       if (n.water || n.t < 0.3 || n.scorchOf === next.shape.terrain) continue;
+      const h = next.shape.terrain.height;
+      if (!n.dug) {
+        n.dug = new Map();
+        for (let z = Math.floor(n.z - NUKE.crater); z <= Math.ceil(n.z + NUKE.crater); z++) {
+          for (let x = Math.floor(n.x - NUKE.crater); x <= Math.ceil(n.x + NUKE.crater); x++) if (inColumnBounds(x, z)) n.dug.set(columnIndex(x, z), h[columnIndex(x, z)]!);
+        }
+      } else if ([...n.dug].some(([i, v]) => h[i] !== v)) {
+        endNuke(st, n);
+        continue;
+      }
       n.scorchOf = next.shape.terrain;
       n.scorch?.release();
-      n.scorch = ctx.stage.spawnMesh(scorchMesh(n, next.shape), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+      n.scorch = st.own.stage.spawnMesh(scorchMesh(n, next.shape), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     }
   },
   update(st, dt, signals, ctx) {
@@ -356,16 +392,20 @@ export default defineSystem<State>({
     // ── each nuke's show ────────────────────────────────────────────────
     for (let ni = st.nukes.length - 1; ni >= 0; ni--) {
       const n = st.nukes[ni]!;
+      if (n.done) continue;
       n.t += dt;
       const t = n.t;
       if (t > T.gone + 2 && n.ash.length === 0 && n.embers.length === 0) {
         for (const s of n.slots) if (s.h) st.pools.get(s.key)?.give(s.h);
+        n.slots = [];
         n.core?.release();
         n.band?.release();
         for (const a of n.arcs) for (const h of [a.ring, a.wall, a.mist]) h?.release();
+        n.arcs = [];
         n.light?.release();
-        // The scorch stays (the crater is there until the player fills it).
-        st.nukes.splice(ni, 1);
+        n.core = n.band = n.light = null;
+        // The scorch stays (the crater is there until the player fills it, or the nuke is undone).
+        n.done = true;
         continue;
       }
       // The ring reaches buildings in order of distance: each shudders as it passes.
@@ -377,7 +417,7 @@ export default defineSystem<State>({
       // Smooth things (the flash, the ring) every frame; the cloud on twos.
       // The core: white-hot, shrinking fast.
       if (t < 0.35) {
-        n.core ??= stage.spawnMesh(nukeCoreMesh(), HIDDEN);
+        n.core ??= st.own.stage.spawnMesh(nukeCoreMesh(), HIDDEN);
         const s = 2.6 * (1 - t / 0.35) ** 1.5 + 0.3;
         n.core.setMatrix([s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, n.x, n.y + s * 0.5, n.z, 1]);
         n.core.setParams(1);
@@ -391,7 +431,7 @@ export default defineSystem<State>({
       // Drawn in arcs, so what would hang off the edge of the island is left out.
       const g0 = groundAt(st.shape, n.x, n.z).y;
       if (t < T.waveTime + 0.35) {
-        n.band ??= stage.spawnMesh(shockBandMesh(), HIDDEN);
+        n.band ??= st.own.stage.spawnMesh(shockBandMesh(), HIDDEN);
         const rr = Math.max(0.2, r);
         n.band.setMatrix([rr, 0, 0, 0, 0, 0.9, 0, 0, 0, 0, rr, 0, n.x, g0, n.z, 1]);
         n.band.setParams(0.55 * Math.max(0, 1 - t / (T.waveTime + 0.35)));
@@ -417,7 +457,7 @@ export default defineSystem<State>({
         // The ring.
         const ringOn = t < T.waveTime + 0.15 && inColumnBounds(Math.floor(n.x + Math.cos(am) * r), Math.floor(n.z + Math.sin(am) * r));
         if (ringOn) {
-          arc.ring ??= stage.spawnMesh(shockRingMesh(), HIDDEN);
+          arc.ring ??= st.own.stage.spawnMesh(shockRingMesh(), HIDDEN);
           place(arc.ring, Math.max(0.2, r), groundAt(st.shape, n.x + Math.cos(am) * r, n.z + Math.sin(am) * r).y + 0.06, 1);
           arc.ring.setParams(1);
         } else if (arc.ring) {
@@ -454,7 +494,7 @@ export default defineSystem<State>({
       const dark = 1 - signals.time.light;
       const glow = t < 0.12 ? 1 : Math.max(0, 1 - (t - 0.12) / 5) ** 1.5;
       if (glow > 0.01) {
-        n.light ??= stage.spawnMesh(firelightMesh(), HIDDEN);
+        n.light ??= st.own.stage.spawnMesh(firelightMesh(), HIDDEN);
         const lr = 9 + 5 * Math.min(1, t);
         n.light.setMatrix([lr, 0, 0, 0, 0, lr * 0.7, 0, 0, 0, 0, lr, 0, n.x, n.y + riseHeight(t) * 0.6, n.z, 1]);
         n.light.setParams((0.12 + 0.5 * dark) * glow);
@@ -566,5 +606,6 @@ export default defineSystem<State>({
     }
     for (const s of st.shakes) s.h?.release();
     for (const p of st.pools.values()) p.dispose();
+    st.own.releaseAll();
   },
 });
