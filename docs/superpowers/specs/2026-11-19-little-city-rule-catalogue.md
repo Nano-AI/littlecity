@@ -136,8 +136,8 @@ type and which later rules apply.
   10+ house structures, of the houses with no role yet that have 1 storey,
   a footprint of 1–4 and a ground-storey facade with a street within 2,
   the one with the largest yard (the free grass or garden cells at its
-  level within 2 of it, 4+ of them, with a fence or wall on some side; then
-  the lowest id) → a bell cupola on the middle of its ridge (J30), tall
+  level round it, side or corner, 4+ of them, with a fence or wall on some
+  side and some cell beside a path; then the lowest id) → a bell cupola on the middle of its ridge (J30), tall
   windows (J09), no chimney, and a hopscotch court chalked on its yard, in
   the fenced part if it has one (R-H98). One per town. Not: a house that
   already has another role. Priority 9855 (just before the cottage).

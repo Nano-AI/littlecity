@@ -5,8 +5,9 @@
 //   first), of one storey and a footprint of 1–4 cells, with a facade on a
 //   street within 2;
 //   its yard: the free ground cells (bare grass, or garden) at its level
-//   within 2 of it, 4 or more of them, with a fence or wall (an edge piece
-//   or a fence or wall piece) on at least one of their sides;
+//   round it (side or corner), 4 or more of them, with a fence or wall (an edge piece
+//   or a fence or wall piece) on at least one of their sides, and some of
+//   them beside a path (a back yard behind a row is not a school yard);
 //   of all such houses, the one with the biggest yard (then the lowest id).
 //
 // Town-wide: it counts the houses and picks one in the whole town, so a
@@ -34,8 +35,8 @@ export function schoolYard(f: Facts, s: Structure): CellKey[] {
   const yard = new Set<CellKey>();
   for (const c of s.cells) {
     if (keyY(c) !== f.terrain.height[columnIndex(keyX(c), keyZ(c))]) continue;
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dz = -2; dz <= 2; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
         const x = keyX(c) + dx, z = keyZ(c) + dz;
         if (!inColumnBounds(x, z)) continue;
         const n = key(x, f.terrain.height[columnIndex(x, z)]!, z);
@@ -55,7 +56,9 @@ export function schoolYard(f: Facts, s: Structure): CellKey[] {
       return k === 'fence' || k === 'wall';
     }),
   );
-  return fenced ? [...yard].sort((a, b) => a - b) : [];
+  // A school yard is open to the street: some cell of it beside a path (a back yard behind a row is not).
+  const onStreet = [...yard].some((c) => DIRS.some((d) => f.world.floors.get(neighbor(c, d)) === 'path'));
+  return fenced && onStreet ? [...yard].sort((a, b) => a - b) : [];
 }
 
 export default defineRule({
