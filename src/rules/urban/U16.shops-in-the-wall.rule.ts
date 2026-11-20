@@ -17,9 +17,10 @@
 // a quay wall (it faces water), a temple or a plinth.
 //
 // Along the run, one thing every second cell (a lattice fixed to the map):
-//   facing a street or a plaza: an arched booth with its goods (wine, bread,
-//   pots, a cobbler, fruit), or, once in a run of 4 or more, a wall fountain;
-//   the grass strip in front of the wall is paved (a derived apron);
+//   facing a street or a plaza (straight out, up to 4 cells away across bare
+//   grass): an arched booth with its goods (wine, bread, pots, a cobbler,
+//   fruit), or, once in a run of 4 or more, a wall fountain; the grass strip
+//   between the wall and the street is paved (a derived apron);
 //   facing open ground: a storeroom door, a bench in a niche, or ivy
 //   climbing two storeys.
 // Sockets for the life builder: a booth's 'activity'/'vend' and 'browse', a
@@ -43,6 +44,7 @@ import { DIRS } from '@/resolve/facts/lib';
 import type { Slot } from '@/resolve/plan';
 import { clearways, edgePos } from '../decoration/clearways.fact';
 import { onGround } from '../decoration/lib';
+import { landUse } from './land-use.fact';
 import { claimsOf, emit, placer, type Placed } from './plots';
 
 const RULE = 'U16.shops-in-the-wall';
@@ -50,6 +52,8 @@ const RULE = 'U16.shops-in-the-wall';
 const KEEP_BLANK = new Set(['keep', 'gatehouse', 'quay-wall', 'temple', 'plinth']);
 const GOODS = ['wine', 'bread', 'pots', 'cobbler', 'fruit'] as const;
 const RUN_MIN = 3;
+/** A wall is a shopfront when a street or plaza lies this many cells out or nearer, across bare grass. */
+const FRONT_REACH = 4;
 
 export default defineRule<{ items: Placed[]; paved: CellKey[] }>({
   id: RULE,
@@ -60,6 +64,22 @@ export default defineRule<{ items: Placed[]; paved: CellKey[] }>({
   find({ facts, plan, seed }) {
     const clear = clearways(facts);
     const grass = wildGrass(facts);
+    const uses = landUse(facts);
+    // The bare grass between a wall cell and a street or plaza straight out from it, up to FRONT_REACH
+    // away; null if there is none (or something else is in the way).
+    const strip = (f: Facade): CellKey[] | null => {
+      const cells: CellKey[] = [];
+      let c = f.cell;
+      for (let k = 1; k <= FRONT_REACH + 1; k++) {
+        c = neighbor(c, f.dir);
+        if (c === NO_CELL || keyY(c) !== keyY(f.cell)) return null;
+        const floor = facts.world.floors.get(c);
+        if (floor === 'path' || floor === 'plaza') return cells;
+        if (!grass.has(c) || (uses.byCell.has(c) && uses.byCell.get(c)!.use !== 'green')) return null;
+        cells.push(c);
+      }
+      return null;
+    };
     const featured = new Set<string>();
     const doors = new Set<string>();
     for (const ft of plan.features) {
@@ -104,9 +124,10 @@ export default defineRule<{ items: Placed[]; paved: CellKey[] }>({
         const fountainAt = run.length >= 4 ? run.filter((f) => along(f) % 2 === 0 && !doors.has(`${f.cell}:${f.dir}`)).sort((a, b) => hash(seed, RULE, 'fountain', a.cell) - hash(seed, RULE, 'fountain', b.cell))[0] : undefined;
         for (const f of run) {
           const cell = neighbor(f.cell, dir);
-          const front = (f.street ?? 99) <= 2 || (f.plaza ?? 99) <= 2;
+          const between = strip(f);
+          const front = between !== null;
           // The strip in front of a street or square is paved, booth or not.
-          if (front && grass.has(cell)) paved.push(cell);
+          if (between) paved.push(...between);
           if (along(f) % 2 !== 0 || doors.has(`${f.cell}:${f.dir}`)) continue;
           const pos = edgePos(opposite(dir));
           const look = hash(seed, RULE, 'look', f.cell) % 1000;

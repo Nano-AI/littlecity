@@ -534,7 +534,7 @@ when two rules want the same slot, unless a rule says otherwise.
 
 Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
 
-- **D35 · 3 · Guardians at the head of the stair** (DC-03) — a flight of grand
+- **D39 · 3 · Guardians at the head of the stair** (DC-03) — a flight of grand
   steps 3+ wide → a pair of stone lions or urns (seeded per flight) on the
   landing above its two outer top steps, looking down it; a pair of tall
   lamps on the ground before its two outer bottom steps. Outer corner slots

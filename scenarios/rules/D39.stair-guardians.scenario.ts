@@ -1,4 +1,4 @@
-// Fixture for D35 (guardians at the head of the stair).
+// Fixture for D39 (guardians at the head of the stair).
 //   a marble terrace 3 high with a grand stair 4 wide down its south side    a pair of guardians on the
 //                                                                            landing at the head, a pair
 //                                                                            of lamps at the foot
@@ -7,7 +7,7 @@
 import { scenario } from '@/scenario';
 
 export default scenario({
-  name: 'D35.stair-guardians',
+  name: 'D39.stair-guardians',
   seed: 3535,
   about: 'A flight of grand steps three or more wide gets a pair of stone lions or urns at its head and a pair of tall lamps at its foot; narrower flights get none.',
   build(b) {
@@ -31,7 +31,7 @@ export default scenario({
     { name: 'all', yaw: 30, pitch: 40, zoom: 2.6, target: [20, 2, 12] },
   ],
   expect(_plan, dressing, check) {
-    const rule = 'D35.stair-guardians';
+    const rule = 'D39.stair-guardians';
     const xz = (p: (typeof dressing.props)[number]): [number, number] => ('cell' in p.at ? [p.at.cell & 63, (p.at.cell >> 6) & 63] : [-1, -1]);
     const guardians = check.props({ rule, type: 'guardian' });
     check.equal(guardians.length, 2, 'a pair of guardians at the head');

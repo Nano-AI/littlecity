@@ -1,5 +1,5 @@
 // Flights of grand steps (R-M04 'broad-steps' features), each as its rows:
-// for D35 (guardians at the head, lamps at the foot) and U19 (the forecourt
+// for D39 (guardians at the head, lamps at the foot) and U19 (the forecourt
 // at the foot). Reads the finished shape plan: dressing-stage rules only.
 //
 // A flight is the step cells of one structure that share a downhill side and
