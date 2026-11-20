@@ -901,3 +901,19 @@ ruined). Full gate not completed: load 40 (two agents, the other
 session), only timeouts; typecheck, lint, mischief unit and browser
 tests pass serially.
 Running: mischief (mending over water, scorch fade), grow-town pass 5b.
+
+**Grow a town pass 5b merged** (`8e5ef63`, Opus). Farming village: a
+small centre (well, inn, green, chapel) in farmland, 6–8 wheat fields
+with windmills in the survey, veg plots, barns, paddocks; river town:
+bank walks and houses facing the water for the river's length, only
+rolled with a long river; hill town: terraced rows climbing to the
+summit; market town: a great market with two stall rows and a market
+hall. A castle town with no site for its castle re-rolls. Gate: 2,113
+passed, 8 skipped, clean (this run also covers the nuke-on-water fix).
+Known gaps (agent's own): castle wall gaps not fixed; hill town on
+generator-2 seed 5 has 31 of 74 houses reaching the square on foot
+(stairs land inside the castle walls) and hill towns are excluded from
+one walking test; great market does not fit on some small islands; two
+market towns lack a town hall. Orchestrator's eye: farming and market
+overviews have few trees and no orchard shows in `grown-farming`.
+Running: mischief (mending over water, scorch fade; running its checks).
