@@ -161,6 +161,8 @@ export interface Person {
   hop: { x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; t: number } | null;
   /** Their home is gone: walking off. */
   leaving: boolean;
+  /** Come up out of the water (mischief: off a ship or boat that went down): on their way in at a door. */
+  ashore?: boolean;
   /** Stop and look (L26): seconds left, and the heading to turn to. */
   startled: number;
   startledFace: number;
@@ -260,6 +262,12 @@ export interface Crowd {
   rethink(p: Person): void;
   /** Something stands in a cell for a while (L56: a market stall): walkers route round it (0 lifts it). */
   setCrowded(cell: CellKey, extra: number): void;
+  /**
+   * Mischief: somebody climbing out of the water at (x, y, z), facing `heading`, if there is somewhere to
+   * stand within reach (a quay, a beach, a dock): they stand a moment and then walk into town and in at the
+   * nearest door. Null if there is nowhere to stand there.
+   */
+  ashore(x: number, y: number, z: number, heading: number, look: number): Person | null;
 }
 
 const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
@@ -690,6 +698,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (!nav || p.node < 0) return null;
     const part = nav.part[p.node]!;
     const here = nav.nodes[p.node]!.cell;
+    // Out of the water already: they go in, not back out to sea.
+    const inland = p.ashore === true;
     let best: Haunt | null = null;
     let bestD = Infinity;
     for (const h of haunts) {
@@ -701,7 +711,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         best = h;
       }
     }
-    if (best && edgeOf(best.node)) return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
+    if (!inland && best && edgeOf(best.node)) return { kind: 'leave', node: best.node, haunt: null, door: null, spot: null, face: NaN, pose: 'stand', linger: 0, seat: -1 };
     // No water or map's edge to step out of view at: they go in at the nearest door instead (gone inside, not
     // shrunk away where they stand; nothing in the town shrinks out of existence).
     let door: NavDoor | null = null;
@@ -1630,6 +1640,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.want = homeGoal(p);
   };
 
+  let ashoreCount = 0;
   const makePerson = (id: string, home: StructureId, index: number, look: number, child: boolean): Person => {
     const s = hash(seed, 'person', id);
     return {
@@ -1652,6 +1663,31 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   };
 
   const crowd: Crowd = {
+    ashore(x, y, z, heading, look) {
+      if (!nav) return null;
+      const node = nearestNode(x, y, z);
+      if (node < 0) return null;
+      const c = nodeCentre(nav, node);
+      if (Math.hypot(c.x - x, c.z - z) > 1.3 || Math.abs(nodeHeight(nav, node) - y) > 0.9) return null;
+      const id = `ashore:${(ashoreCount = ashoreCount + 1)}`;
+      const p = makePerson(id, -1 as StructureId, 0, look, false);
+      p.ashore = true;
+      p.leaving = true;
+      standAt(p, node);
+      p.x = x;
+      p.z = z;
+      p.heading = heading;
+      p.mode = 'wait';
+      p.visible = true;
+      p.fade = 1;
+      p.pose = 'stand';
+      // A moment to catch their breath on the quay, then off.
+      p.timer = 1.2;
+      people.push(p);
+      byId.set(id, p);
+      events.added?.(p);
+      return p;
+    },
     people,
     get nav() {
       return nav;

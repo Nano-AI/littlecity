@@ -14,7 +14,7 @@
 //                drift a while and sink. Its berth comes free and another ship calls.
 // Nothing shrinks or fades: what goes, goes under the water.
 
-import { columnIndex, inColumnBounds, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
+import { CELL_H, columnIndex, inColumnBounds, key, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { compose, rotationY, translation, type Mat4 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { allParts } from '@/gen/discover';
@@ -27,7 +27,8 @@ import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import { harbourOf, type Ship, type ShipHit } from '../ships/visit';
 import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director';
 import { wakeRing } from '../boats/afloat';
-import { flameMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
+import { crowdOf } from '../doors/table';
+import { flameMesh, shockRingMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
 import { forgetBoatWrecks, strikeBoats } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 
@@ -59,6 +60,11 @@ interface Piece {
  */
 interface Swimmer {
   h: [InstanceHandle, InstanceHandle];
+  /** A pale ring on the water round them (so a head in the water reads from far off, and at night). */
+  halo: InstanceHandle;
+  /** Where they climb out (a quay, a beach), if one is in reach: the crowd takes them from there. */
+  shore: { x: number; y: number; z: number } | null;
+  look: number;
   x: number;
   y: number;
   z: number;
@@ -228,6 +234,33 @@ function wayOut(shape: ShapePlan, x: number, z: number): [number, number] | null
 }
 
 /** The crew of a ship going down jump clear and swim for it. */
+/** The nearest place to climb out within a few cells of (x, z), reached over open water: its edge, and the ground's height. */
+function shoreNear(shape: ShapePlan, x: number, z: number): { x: number; y: number; z: number; dx: number; dz: number } | null {
+  let best: { x: number; y: number; z: number; dx: number; dz: number; d: number } | null = null;
+  const R = 7;
+  for (let cz = Math.floor(z) - R; cz <= Math.floor(z) + R; cz++) {
+    for (let cx = Math.floor(x) - R; cx <= Math.floor(x) + R; cx++) {
+      if (!inColumnBounds(cx, cz)) continue;
+      const h = shape.terrain.height[columnIndex(cx, cz)]!;
+      const dock = shape.kinds.get(key(cx, 0, cz)) === 'dock';
+      if (h === 0 && !dock) continue;
+      const tx = cx + 0.5, tz = cz + 0.5;
+      const d = Math.hypot(tx - x, tz - z);
+      if (d > R || (best && d >= best.d)) continue;
+      // Over open water all the way to within a cell of it.
+      const ux = (tx - x) / d, uz = (tz - z) / d;
+      let open = true;
+      for (let t = 0.4; t < d - 1 && open; t += 0.4) {
+        const sx = Math.floor(x + ux * t), sz = Math.floor(z + uz * t);
+        if (!inColumnBounds(sx, sz) || shape.terrain.height[columnIndex(sx, sz)]! > 0 || shape.kinds.has(key(sx, 0, sz))) open = false;
+      }
+      if (!open) continue;
+      best = { x: tx, y: dock ? CELL_H : h * CELL_H, z: tz, dx: ux, dz: uz, d };
+    }
+  }
+  return best;
+}
+
 function abandon(st: State, h: ShipHit, seed: number): void {
   if (!st.shape) return;
   const n = h.crew;
@@ -238,9 +271,14 @@ function abandon(st: State, h: ShipHit, seed: number): void {
     const x0 = h.x + sin * along + cos * side * h.halfBeam * 0.6, y0 = SEA_Y + 0.75, z0 = h.z + cos * along - sin * side * h.halfBeam * 0.6;
     // Over the side, a body's length out, then away.
     const ox = cos * side, oz = -sin * side;
-    const out = wayOut(st.shape, x0 + ox * 1.2, z0 + oz * 1.2) ?? [ox, oz];
+    // For the nearest quay or beach if there is one in reach; else away to the edge of the map.
+    const shore = shoreNear(st.shape, x0 + ox * 1.1, z0 + oz * 1.1);
+    const out = shore ? [shore.dx, shore.dz] : (wayOut(st.shape, x0 + ox * 1.2, z0 + oz * 1.2) ?? [ox, oz]);
     const look = Math.floor(rand(seed, 'swimmer', i) * 60);
     st.swimmers.push({
+      halo: st.own.stage.spawnMesh(shockRingMesh(), HIDDEN),
+      shore: shore ? { x: shore.x, y: shore.y, z: shore.z } : null,
+      look,
       h: [st.own.stage.spawnMesh(swimmerMesh(look, 0), HIDDEN), st.own.stage.spawnMesh(swimmerMesh(look, 1), HIDDEN)],
       x: x0 + ox * 1.1, y: SEA_Y, z: z0 + oz * 1.1, x0, y0, z0, dx: out[0], dz: out[1], age: -i * 0.35, jump: 0.7, ring: 0, seed: seed + i,
     });
@@ -267,7 +305,7 @@ function strike(st: State, stage: LifeStage, x: number, z: number, power: number
 
 function clearAll(st: State): void {
   for (const p of st.pieces) p.h.release();
-  for (const w of st.swimmers) for (const h of w.h) h.release();
+  for (const w of st.swimmers) for (const h of [...w.h, w.halo]) h.release();
   st.swimmers = [];
   for (const b of st.burning) for (const f of b.flames) f.release();
   for (const p of st.puffs) {
@@ -385,7 +423,26 @@ export default defineSystem<State>({
         continue;
       }
       if (w.ring === 0) wakeRing(stage, w.x, w.z, 0.12, 2.4, 1.2);
-      // Swimming: two drawings in turn (on twos), a ripple each stroke.
+      // Swimming: two drawings in turn (on twos), a ripple each stroke; toward the shore, they steer for it.
+      if (w.shore) {
+        const ex = w.shore.x - w.x, ez = w.shore.z - w.z, el = Math.hypot(ex, ez) || 1;
+        w.dx = ex / el;
+        w.dz = ez / el;
+        // Close: they climb out, and are one of the town from here (the crowd takes them, same frame).
+        if (el < 0.75) {
+          const p = crowdOf(stage)?.ashore(w.x + w.dx * 0.6, w.shore.y, w.z + w.dz * 0.6, Math.atan2(w.dx, w.dz), w.look);
+          if (p) {
+            for (const h of [...w.h, w.halo]) h.release();
+            st.swimmers.splice(i, 1);
+            continue;
+          }
+          // Nowhere to stand after all: away to the edge instead.
+          w.shore = null;
+          const out = st.shape ? wayOut(st.shape, w.x, w.z) : null;
+          if (out) [w.dx, w.dz] = out;
+          else [w.dx, w.dz] = [-w.dx, -w.dz];
+        }
+      }
       w.x += w.dx * dt * 0.42;
       w.z += w.dz * dt * 0.42;
       w.ring += dt;
@@ -401,11 +458,16 @@ export default defineSystem<State>({
       show.setMatrix(m);
       show.setVisible(true);
       hide.setVisible(false);
+      const k = 0.26 + 0.03 * Math.sin(st.time * 3 + w.seed);
+      w.halo.setMatrix([k, 0, 0, 0, 0, 1, 0, 0, 0, 0, k, 0, w.x, SEA_Y + 0.01, w.z, 1]);
+      w.halo.setParams(0.8);
+      w.halo.setVisible(true);
       // At the edge of the map the renderer cuts them off, as it does a ship sailing out.
       const out = Math.min(w.x, SIZE_X - w.x, w.z, SIZE_Z - w.z);
       for (const h of w.h) h.setParams(1, 0, 0, out < 1.5 ? -2 : 0);
+      w.halo.setParams(0.8, 0, 0, out < 1.5 ? -2 : 0);
       if (out < -0.6) {
-        for (const h of w.h) h.release();
+        for (const h of [...w.h, w.halo]) h.release();
         st.swimmers.splice(i, 1);
       }
     }

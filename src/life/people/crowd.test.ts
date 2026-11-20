@@ -581,3 +581,31 @@ describe('the town changes (L27)', () => {
     expect([N, E]).toEqual([0, 1]);
   });
 });
+
+describe('mischief: somebody climbs out of the water', () => {
+  test('they stand a moment, then walk into town and in at a door; never shrinking, never jumping', () => {
+    const town = scenarioTown(peopleTown);
+    const c = clock(town.world.seed, 'day');
+    const crowd = createCrowd();
+    crowd.sync(town.shape, town.dressing, c.time);
+    // A walkable place on the ground.
+    const nav = crowd.nav!;
+    const n = nav.nodes.findIndex((_, i) => nav.part[i] === nav.part[usableDoors(nav, crowd.people[0]!.home)[0]!.node]);
+    const cell = nav.nodes[n]!.cell;
+    const p = crowd.ashore(keyX(cell) + 0.5, keyY(cell) * 0.8, keyZ(cell) + 0.5, 0, 7)!;
+    expect(p).not.toBeNull();
+    let shrank = 0, jump = 0;
+    let lx = p.x, lz = p.z;
+    for (let i = 0; i < 30 * 120 && p.mode !== 'gone'; i++) {
+      crowd.step(c.tick(1 / 30), c.time);
+      if (p.visible && p.fade < 1) shrank++;
+      if (p.visible && Math.hypot(p.x - lx, p.z - lz) > 0.3) jump++;
+      lx = p.x;
+      lz = p.z;
+    }
+    expect(p.mode).toBe('gone');
+    expect(p.goal?.door ?? null).not.toBeNull();
+    expect(shrank).toBe(0);
+    expect(jump).toBe(0);
+  });
+});
