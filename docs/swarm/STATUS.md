@@ -974,3 +974,21 @@ acceptable. Weak spots (agent's): the cloud sits up and behind the
 building at the default angle so the bolt is long; the flash barely
 shows by day.
 Running: sea-patch agent.
+
+**Sea patch merged** (`f5996d9`, Opus, `swarm/sea-patch`). Derek's dark
+flickering star on the sea: every town has three clouds, each with a
+soft shadow disc (a 20-triangle fan at height 0.9); where two discs
+overlapped, the pass that draws mist and beams wrote depth for them, so
+wedges of one shadow hid behind the other and changed as the clouds
+drifted. Fix in `src/render/shaders/surface.ts`: a flat cloud shadow no
+longer covers anything. Proven by switching depth recording off and on;
+new browser test in `src/render/view.e2e.test.ts` (fails without the
+fix). Not reproduced in ordinary play (four towns, 30 s each), only by
+forcing the shadows together. Orchestrator added: crossing shadows share
+their shade (`src/life/sky/cloud.behaviour.ts`, each divided by 1 + how
+much the others overlap it), because with the fix alone two or three
+stacked added up to a very dark blot. Gate: 2,124 passed, 8 skipped,
+clean. Not measured: the small cost of the mist pass losing early depth
+rejection.
+Running: nothing. Unmerged experiments: walk, big-islands. Separate
+session: `capture/promo` in the workspace folder.
