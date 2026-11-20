@@ -1185,3 +1185,13 @@ columns. Screenshot `/tmp/lc-pavilion.png`. → new agent
 columns at the corners, a light entablature, tented roof, plinth and
 rail; the trigger stays as it is unless it reports otherwise.
 Running: pavilion.
+
+**Derek on the live build (2026-11-20 afternoon).** Fly mode: "the jitter
+is insane… very visibly not smooth"; phones: "super pixelated". Both →
+the fly agent (`a118f47399afb0a2a`, `swarm/fly`), resumed: measure frame
+pacing at pixel ratio 2 (p99, long frames, per pass), input handling and
+ink stability in perspective, then fix; phones get the half-resolution
+ink pass and a pixel ratio cap of 2 on purpose (`src/render/index.ts`),
+to be replaced by a quality governor that starts sharp and steps down
+only when frames are slow.
+Running: pavilion, fly (judder, phone sharpness).
