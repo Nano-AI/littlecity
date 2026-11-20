@@ -1,6 +1,6 @@
-// The ☰ menu (design section 7): grow a town (design 15a; with a dice
-// button beside it for a different town on a new island), new island (with a
-// confirm), share link, postcard, town file out and in, sound, and the dev
+// The ☰ menu (design section 7): grow a town (design 15a; it opens a second
+// screen that asks where: on this island or on a new one), new island (with
+// a confirm), share link, postcard, town file out and in, sound, and the dev
 // tuning panel.
 // Owner: Interface.
 
@@ -96,14 +96,8 @@ export function createMenu(actions: MenuActions): Menu {
             true,
           )
         : null;
-    const dice = iconButton('dice', 'New island with a new town', {
-      class: 'lc-menu-item lc-menu-dice',
-      title: 'New island with a new town',
-      attrs: { role: 'menuitem', 'data-menu': 'grow-new' },
-      on: { click: () => ask('grow-new') },
-    });
     panel.replaceChildren(
-      el('div', { class: 'lc-menu-row' }, [item('grow', 'grow', 'Grow a town here', () => ask('grow'), true), dice]),
+      item('grow', 'grow', 'Grow a town', showGrow, true),
       el('div', { class: 'lc-menu-rule' }),
       item('new', 'island', 'New island', showConfirm, true),
       item('share', 'share', 'Share link', actions.shareLink),
@@ -118,32 +112,22 @@ export function createMenu(actions: MenuActions): Menu {
     );
   };
 
-  /** Grows at once on an island with nothing but its starting trees; otherwise asks first. */
-  const ask = (what: 'grow' | 'grow-new'): void => {
-    const run = what === 'grow' ? actions.growTown : actions.growNewIsland;
-    if (!actions.hasTown()) {
-      api.close();
-      run();
-      return;
-    }
+  /**
+   * Grow a town, second screen: where. On this island (over whatever is here) or on a new one. The
+   * choice is the confirmation: each says what happens to the town there is now.
+   */
+  const showGrow = (): void => {
+    const town = actions.hasTown();
+    const choice = (id: string, iconId: string, label: string, note: string, run: () => void): HTMLElement[] => [
+      item(id, iconId, label, run),
+      el('small', { class: 'lc-choice-note', text: note }),
+    ];
     panel.replaceChildren(
-      el('div', { class: 'lc-confirm', attrs: { 'data-ui': 'confirm' } }, [
-        el('p', { text: what === 'grow' ? 'Grow a town on this island?' : 'Grow a town on a new island?' }),
-        el('small', { text: 'The town you have now will be cleared. One undo brings it back.' }),
-        el('div', { class: 'lc-confirm-buttons' }, [
-          el('button', {
-            class: 'lc-text-btn lc-primary',
-            text: 'Grow it',
-            attrs: { type: 'button', 'data-menu': `${what}-yes` },
-            on: {
-              click: () => {
-                api.close();
-                run();
-              },
-            },
-          }),
-          el('button', { class: 'lc-text-btn', text: 'Keep this one', attrs: { type: 'button', 'data-menu': `${what}-no` }, on: { click: () => api.close() } }),
-        ]),
+      el('div', { class: 'lc-confirm lc-choice', attrs: { 'data-ui': 'grow-choice' } }, [
+        el('p', { text: 'Grow a town' }),
+        ...choice('grow-here', 'grow', 'On this island', town ? 'Builds over the town here. One undo brings it back.' : 'Fills this island with a town.', actions.growTown),
+        ...choice('grow-new', 'island', 'On a new island', town ? 'Leaves this island: the town you have now will be gone.' : 'A fresh island with a town on it.', actions.growNewIsland),
+        el('div', { class: 'lc-confirm-buttons' }, [el('button', { class: 'lc-text-btn', text: 'Back', attrs: { type: 'button', 'data-menu': 'grow-back' }, on: { click: showItems } })]),
       ]),
     );
   };

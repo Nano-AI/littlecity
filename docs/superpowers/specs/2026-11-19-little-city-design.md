@@ -214,7 +214,7 @@ saved before it keep the island they were built on.
 - **Old towns.** The save and the share link record which generator made
   the island (`World.terrainGen`, 1 or 2). Generator 1 stays in the code
   unchanged, so every existing town, link, test town and guide picture loads
-  on the island it was built on. New islands and the dice use generator 2.
+  on the island it was built on. New islands (and a town grown on a new island) use generator 2.
 
 **Shaping the land** (Derek's request, 2026-11-19: "terrain should be able
 to be deleted, added, removed. This is pretty important."). This replaces
@@ -1102,12 +1102,14 @@ town is meant to show off every building combination the rules know.
   anything on it besides the starting trees, clears those, then plays the
   edits in order at about 25 a second so the town visibly builds itself with
   the landing bounce, district by district. A click or key skips to the end.
-  The whole growth is one undo step. The entry ("Grow a town here") keeps the
-  island and grows a different kind of town on it each time it is asked
-  again; the dice button beside it makes a new island and grows a town
-  there. Neither repeats a character
-  until every character that suits the island rolled has had a turn, so a
-  handful of rolls shows the whole range.
+  The whole growth is one undo step. The menu entry "Grow a town" opens a
+  second screen that asks where: "On this island" keeps the island and
+  grows a different kind of town on it each time it is asked again; "On a
+  new island" makes a new island and grows a town there. Each choice says
+  what happens to the town there is now (built over, one undo brings it
+  back; or gone), so there is no further confirmation; Back returns to the
+  menu. Neither repeats a character until every character that suits the
+  island has had a turn, so a handful of goes shows the whole range.
 - **Speed.** Generating the edit list takes under 200 ms for a full island.
 
 ## 16. Code layout and contracts

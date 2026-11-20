@@ -223,7 +223,7 @@ export function createInterface(host: InterfaceHost): Interface {
       api.sync();
     },
   });
-  /** The characters the dice have shown, oldest first: none repeats until all that suit an island have had a turn. */
+  /** The characters grown so far, oldest first: none repeats until all that suit an island have had a turn. */
   let shown: Character[] = [];
   const grow = (avoid: readonly Character[] = []): void => {
     mischief.undo();

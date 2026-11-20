@@ -25,7 +25,8 @@ describe('grow a town', () => {
 
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
-    // Only starting trees on the island: no confirmation, it starts growing.
+    // The second screen asks where: on this island.
+    await page.click('[data-menu="grow-here"]');
     await page.waitForFunction(growing);
     await page.waitForFunction(`${blocks} > 10`);
 
@@ -57,7 +58,7 @@ describe('grow a town', () => {
     expect(errors).toEqual([]);
   });
 
-  test('over a town it asks first; a key skips; the dice grows on a new island', async () => {
+  test('it asks where; Back goes back to the menu; a key skips; the other choice grows on a new island', async () => {
     const { page, errors } = await app.open('/?seed=5&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     // Put something down, so there is a town to lose.
@@ -67,16 +68,20 @@ describe('grow a town', () => {
 
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
-    await page.waitForSelector('[data-ui="confirm"]');
-    await page.click('[data-menu="grow-no"]');
+    await page.waitForSelector('[data-ui="grow-choice"]');
+    // Over a town each choice says what happens to it.
+    expect(await page.textContent('[data-ui="grow-choice"]')).toContain('One undo brings it back');
+    await page.click('[data-menu="grow-back"]');
+    await page.waitForSelector('[data-menu="share"]');
     expect(await page.evaluate(growing)).toBe(false);
+    await page.click('[data-ui="menu-button"]');
 
     // The new island's seed comes from the clock and Math.random: pin them to a positive seed
     // so the run is the same every time.
     await page.evaluate('Date.now = () => 3; Math.random = () => 0.5;');
     await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
     await page.click('[data-menu="grow-new"]');
-    await page.click('[data-menu="grow-new-yes"]');
     await page.waitForFunction(growing);
     expect(await page.evaluate('window.__lc.world().seed')).not.toBe(seed);
     await page.keyboard.press('Space');
@@ -90,6 +95,7 @@ describe('grow a town', () => {
     await page.waitForFunction('window.__lc !== undefined');
     await page.tap('[data-ui="menu-button"]');
     await page.tap('[data-menu="grow"]');
+    await page.tap('[data-menu="grow-here"]');
     await page.waitForFunction(growing);
     await page.tap('#town', { position: { x: 195, y: 420 } });
     await page.waitForFunction(`!${growing}`, undefined, { timeout: 10_000 });
