@@ -15,6 +15,9 @@
 //   --warm 2000              milliseconds of life to play before the sequence starts
 //   --edit 'place:house@10,1,10; erase@12,1,10; floor:path@9,1,9; kind:tower@10,1,10; edge:fence@10,1,10,E'
 //                            edits applied at the first frame (x,y,z are grid cells; y is the level)
+//            'raise@10,12; dig@10,12,14,12; level:2@8,8,12,12'
+//                            shaping the land: one column (x,z) or a rectangle (x0,z0,x1,z1), one level up or
+//                            down, or one step toward a height (level:<h>); each is one edit, as one brush dab
 //   --then '<edits>' --after 400   a second batch of edits, that many ms into the sequence
 //   --frames 8 --every 100   how many frames to keep, and the milliseconds between them
 //   --zoom 3 --target 10,1,10 --yaw 45 --pitch 35   move the camera (the app opens on the scenario's first camera)
@@ -59,7 +62,7 @@ function parseEdits(text) {
       const [head, where] = s.split('@');
       const [verb, what] = head.split(':');
       const parts = where.split(',').map((p) => p.trim());
-      return { verb, what, x: Number(parts[0]), y: Number(parts[1]), z: Number(parts[2]), side: parts[3] };
+      return { verb, what, x: Number(parts[0]), y: Number(parts[1]), z: Number(parts[2]), side: parts[3], parts: parts.map(Number) };
     });
 }
 
@@ -181,7 +184,16 @@ try {
       for (const e of edits) {
         const cell = key(e.x, e.y, e.z);
         let edit;
-        if (e.verb === 'place') edit = { type: 'placeBlock', cell, kind: e.what, color: 'auto', from: null };
+        if (e.verb === 'raise' || e.verb === 'dig' || e.verb === 'level') {
+          // Shaping the land: a column (x,z) or a rectangle of them (x0,z0,x1,z1).
+          const [x0, z0, x1 = x0, z1 = z0] = e.parts;
+          const cols = [];
+          for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) cols.push(x + z * 48);
+          const h = lc.terrain().height;
+          if (e.verb === 'raise') edit = { type: 'land', up: cols, down: [] };
+          else if (e.verb === 'dig') edit = { type: 'land', up: [], down: cols };
+          else edit = { type: 'land', up: cols.filter((c) => h[c] < Number(e.what)), down: cols.filter((c) => h[c] > Number(e.what)) };
+        } else if (e.verb === 'place') edit = { type: 'placeBlock', cell, kind: e.what, color: 'auto', from: null };
         else if (e.verb === 'erase') edit = { type: 'eraseBlock', cell };
         else if (e.verb === 'floor') edit = { type: 'placeFloor', cell, floor: e.what };
         else if (e.verb === 'nofloor') edit = { type: 'eraseFloor', cell };

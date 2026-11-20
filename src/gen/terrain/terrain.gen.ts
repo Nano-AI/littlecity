@@ -923,6 +923,19 @@ export const terrainLayer = defineLayer({
         hsh = hashCombine(hsh, t.height[i]!, t.material[i]!);
       }
     }
+    // The river's flow is worked out over the whole island (riverField): a channel dug far away can turn
+    // the current here, so the flow in and around the chunk is part of its key (shaping the land).
+    const rf = riverField(t);
+    if (rf) {
+      for (let z = chunk.z0 - 1; z <= chunk.z1 + 1; z++) {
+        for (let x = chunk.x0 - 1; x <= chunk.x1 + 1; x++) {
+          if (!inColumnBounds(x, z)) continue;
+          const i = columnIndex(x, z);
+          if (rf.riv[i] === 0) continue;
+          hsh = hashCombine(hsh, i, Math.round(rf.riv[i]! * 64), Math.round(rf.fx[i]! * 64), Math.round(rf.fz[i]! * 64));
+        }
+      }
+    }
     // What stands at a step in the ground squares its corner (mustSquare). Flat ground does not care.
     const h = (x: number, z: number): number => (inColumnBounds(x, z) ? t.height[columnIndex(x, z)]! : 0);
     for (let z = chunk.z0 - 2; z <= chunk.z1 + 2; z++) {
