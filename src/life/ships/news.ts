@@ -10,6 +10,7 @@
 //                        creak of timber and rope as it casts off) for the
 //                        sound system to play and empty.
 
+import { SIZE_X as SIZE } from '@/core/grid';
 import type { LifeStage } from '../api';
 
 export interface BigShipNews {
@@ -83,7 +84,7 @@ export function fromHull(s: BigShipNews, x: number, z: number): { gap: number; a
  * speed, falling to nothing as it closes on a hull ahead of it; (px, pz) is a push in columns a second,
  * away from any hull within `reach`, so it stands aside instead of waiting in a ship's way.
  */
-export function giveWay(stage: LifeStage, x: number, z: number, yaw: number, reach = 2.2): { slow: number; px: number; pz: number } {
+export function giveWay(stage: LifeStage, x: number, z: number, yaw: number, reach = 2.8): { slow: number; px: number; pz: number } {
   const n = newsOf(stage);
   if (n.small.length < 64) n.small.push({ x, z });
   const ships = n.ships;
@@ -100,10 +101,10 @@ export function giveWay(stage: LifeStage, x: number, z: number, yaw: number, rea
     const d = Math.hypot(nx, nz) || 1e-6;
     const ahead = (nx * hx + nz * hz) / d;
     // Closing on it (it lies ahead): slow to a stop half a column off.
-    if (ahead > -0.2) out.slow = Math.min(out.slow, Math.max(0, Math.min(1, (near.gap - 0.5) / reach)));
+    if (ahead > -0.2) out.slow = Math.min(out.slow, Math.max(0, Math.min(1, (near.gap - 0.9) / reach)));
     // And stand aside, harder the closer, harder still for a ship under way.
     if (near.gap < reach) {
-      const k = (1 - Math.max(0, near.gap) / reach) * (0.25 + 0.5 * Math.min(1, s.speed));
+      const k = (1 - Math.max(0, near.gap) / reach) * (0.45 + 0.6 * Math.min(1, s.speed));
       out.px -= (nx / d) * k;
       out.pz -= (nz / d) * k;
     }
@@ -144,6 +145,10 @@ export function standAside(stage: LifeStage, owner: object, x: number, z: number
   if (g.px !== 0 || g.pz !== 0) {
     off.x += g.px * dt;
     off.z += g.pz * dt;
+    // Never out over the edge of the map: it stands aside along it instead.
+    const lo = 0.8, hi = SIZE - 0.8;
+    off.x = Math.min(hi - x, Math.max(lo - x, off.x));
+    off.z = Math.min(hi - z, Math.max(lo - z, off.z));
   } else {
     const k = Math.min(1, dt * 0.6);
     off.x -= off.x * k;

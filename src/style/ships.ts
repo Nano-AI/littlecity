@@ -53,12 +53,12 @@ export const SHIPS = defineStyle(
     firstCall: 12,
     callEvery: 11,
     /** Seconds between one ship leaving and the next call (galleon, cog, galley), at least … at most. */
-    galleonGapMin: 40,
-    galleonGapMax: 100,
-    cogGapMin: 25,
-    cogGapMax: 70,
-    galleyGapMin: 35,
-    galleyGapMax: 90,
+    galleonGapMin: 15,
+    galleonGapMax: 50,
+    cogGapMin: 10,
+    cogGapMax: 40,
+    galleyGapMin: 12,
+    galleyGapMax: 45,
     /** Seconds at the berth. */
     galleonStay: 75,
     cogStay: 45,

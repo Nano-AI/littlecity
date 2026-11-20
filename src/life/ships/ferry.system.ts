@@ -68,6 +68,8 @@ interface Leaver {
 }
 
 interface State {
+  /** The town's boats have been placed (a sync with its dressing has happened). */
+  dressed: boolean;
   leavers: Leaver[];
   water: Uint8Array | null;
   n: number;
@@ -191,12 +193,13 @@ export default defineSystem<State>({
   id: 'ferry',
   order: 45,
   create(ctx) {
-    const state: State = { leavers: [], water: null, n: 0 };
+    const state: State = { dressed: false, leavers: [], water: null, n: 0 };
     onStage.set(ctx.stage, state);
     return state;
   },
   sync(state, next, prev, ctx) {
     state.water = waterMask(next.shape.facts);
+    if (next.dressing) state.dressed = true;
     if (prev?.dressing && next.dressing) {
       const now = new Set(next.dressing.actors.map((a) => a.id));
       const at = poses.get(ctx.stage);
@@ -228,7 +231,7 @@ export default defineSystem<State>({
     }
   },
   update(state, dt, signals, ctx) {
-    live.add(ctx.stage);
+    if (state.dressed) live.add(ctx.stage);
     for (const l of state.leavers) step(l, dt, signals, ctx.stage, state.water);
     for (let i = state.leavers.length - 1; i >= 0; i--) {
       const l = state.leavers[i]!;

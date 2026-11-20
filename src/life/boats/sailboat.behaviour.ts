@@ -12,7 +12,7 @@
 // A sailboat anchored to a cell does not sail: it lies there with its sails
 // trimmed to the wind (the gallery).
 
-import { SEA_Y } from '@/core/grid';
+import { SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { ActorOf, DressingPlan, ShapePlan } from '@/resolve/plan';
 import { seaLane, type SeaLane } from '@/rules/life/sea-lanes.fact';
@@ -92,6 +92,8 @@ export interface SailboatState {
   started: boolean;
   /** Sailing in from the edge of the map (a sailboat that comes to a town already shown). */
   coming: { route: Pt[]; len: number; s: number } | null;
+  /** Made for a town already shown: it comes in from the edge (decided when it is made). */
+  arrives: boolean;
   m: Mat4;
 }
 
@@ -120,7 +122,7 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
         state.yaw = Math.atan2(p.dx, p.dz);
         state.started = true;
         // A sailboat that comes to a town already shown sails in from the edge of the map to its place on the lane.
-        if (townLive(ctx.stage)) {
+        if (state.arrives) {
           const route = entryRoute(waterMask(ctx.shape.facts), p.x, p.z);
           if (route) {
             state.coming = { route, len: routeLength(route), s: 0 };
@@ -167,6 +169,9 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   want *= yieldTo.slow;
   state.offX += yieldTo.px * dt;
   state.offZ += yieldTo.pz * dt;
+  // (Never out over the edge of the map.)
+  state.offX = Math.min(SIZE_X - 0.8 - state.x, Math.max(0.8 - state.x, state.offX));
+  state.offZ = Math.min(SIZE_Z - 0.8 - state.z, Math.max(0.8 - state.z, state.offZ));
   state.speed += (want - state.speed) * glide(0.9, dt);
   state.place.s = (state.place.s + state.speed * dt) % lane.length;
   const p = lane.at(state.place.s);
@@ -226,6 +231,7 @@ export default defineBehaviour<'sailboat', SailboatState>({
       sails: new Sails(ctx.stage, Math.abs(Math.round(item.params?.look ?? 0)), ctx.instance.base),
       started: false,
       coming: null,
+      arrives: !item.at && townLive(ctx.stage),
       m: new Array<number>(16).fill(0),
     };
     if (!item.at) fleetOf(ctx.stage).set(item.id, state.place);
