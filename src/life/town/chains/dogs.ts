@@ -6,10 +6,13 @@
 // small/cat.behaviour.ts reads dogsOf), and runs to bark at a scuffle (L50).
 // It goes wherever its person goes and never far from them, so it stays on
 // the streets; it is never in anybody's way (the crowd does not wait for it).
+// Its house wrecked, it runs off to the door of the nearest house that
+// stands and in (or off along its street), never out of existence on the spot.
 //
 // Drawn here, through the stage: a few held drawings (parts/people/dog.ts),
 // shown in turn on twos.
 
+import { wrecked } from '../../birds/town';
 import { DIR4 } from '@/core/grid';
 import { rand } from '@/core/rand';
 import type { InstanceHandle, LifeStage } from '@/life/api';
@@ -50,8 +53,37 @@ export interface DogChain extends Chain {
 
 const SIZE = 1.35;
 
+/** How fast a dog whose house is wrecked runs off (units a second), and how far it will run for a door. */
+const BOLT = 2.6;
+const BOLT_REACH = 10;
+
+/** Where a dog whose house is wrecked runs to: the door of the nearest house that stands, else out along its street. */
+function refuge(board: Board, d: Dog): { x: number; y: number; z: number; door: boolean } {
+  const shape = board.shape;
+  if (shape) {
+    const broken = wrecked(shape);
+    let best: { x: number; y: number; z: number; door: boolean } | null = null;
+    let bestD = BOLT_REACH;
+    for (const sk of shape.sockets) {
+      if (sk.type !== 'door' || sk.structure === undefined || sk.structure === d.post.structure || broken.has(sk.structure)) continue;
+      if (shape.structures.get(sk.structure)?.kind !== 'house') continue;
+      const c = board.centre(sk.cell);
+      const dd = Math.hypot(c.x - d.x, c.z - d.z);
+      if (dd < bestD) {
+        bestD = dd;
+        best = { x: c.x, y: c.y, z: c.z, door: true };
+      }
+    }
+    if (best) return best;
+  }
+  const [dx, dz] = DIR4[d.post.dir ?? 0]!;
+  return { x: d.x + dx * 6, y: d.y, z: d.z + dz * 6, door: false };
+}
+
 export function dogsChain(): DogChain {
   let dogs: Dog[] = [];
+  /** Dogs whose house was wrecked, running for another door (drawn until they reach it). */
+  let leaving: { d: Dog; to: { x: number; y: number; z: number } }[] = [];
   let seed = 0;
 
   const release = (d: Dog): void => {
@@ -89,16 +121,47 @@ export function dogsChain(): DogChain {
           const had = before.get(post.structure);
           before.delete(post.structure);
           if (had) return { ...had, post };
+          // Its house stands again while it is still running off: it turns round and goes home.
+          const back = leaving.findIndex((l) => l.d.post.structure === post.structure);
+          if (back >= 0) {
+            const d = leaving.splice(back, 1)[0]!.d;
+            return { ...d, post, doing: 'door' as const, aim: null };
+          }
           const c = board.centre(post.cell);
           return { post, coat: Number(post.ref) || 0, x: c.x, y: c.y, z: c.z, heading: 0, pose: 'sit' as DogPose, doing: 'door' as const, t: 0, rest: 5, aim: null, stride: 0, handles: null, shown: null };
         });
-      for (const gone of before.values()) release(gone);
-      if (board.stage) registry.set(board.stage, dogs);
+      // Its house wrecked (or gone): it runs off to another door, not out of existence.
+      for (const gone of before.values()) {
+        if (!gone.handles) continue;
+        gone.doing = 'chase';
+        gone.aim = null;
+        leaving.push({ d: gone, to: refuge(board, gone) });
+      }
+      if (board.stage) registry.set(board.stage, leaving.length > 0 ? [...dogs, ...leaving.map((l) => l.d)] : dogs);
     },
     offer() {
       return null;
     },
     step(dt, time, board) {
+      for (let i = leaving.length - 1; i >= 0; i--) {
+        const { d, to } = leaving[i]!;
+        const dx = to.x - d.x, dz = to.z - d.z, dist = Math.hypot(dx, dz);
+        const step = Math.min(dist, BOLT * dt);
+        if (dist < 0.05) {
+          // In at the door (or round the corner).
+          release(d);
+          leaving.splice(i, 1);
+          if (board.stage) registry.set(board.stage, leaving.length > 0 ? [...dogs, ...leaving.map((l) => l.d)] : dogs);
+          continue;
+        }
+        d.x += (dx / dist) * step;
+        d.z += (dz / dist) * step;
+        d.y += (to.y - d.y) * Math.min(1, dt * 8);
+        d.heading = Math.atan2(dx, dz);
+        d.stride += step / 0.11;
+        d.pose = Math.floor(d.stride) % 2 === 0 ? 'trot-a' : 'trot-b';
+        draw(board, d);
+      }
       for (const d of dogs) {
         d.t -= dt;
         d.rest = Math.max(0, d.rest - dt);
@@ -174,6 +237,8 @@ export function dogsChain(): DogChain {
     },
     dispose() {
       for (const d of dogs) release(d);
+      for (const l of leaving) release(l.d);
+      leaving = [];
     },
   };
 

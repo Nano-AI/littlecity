@@ -16,14 +16,24 @@
 // Travel is smooth; poses (hops, pecks, looks, wing beats) are on twos.
 // A bird in flight is drawn squashed across on alternate drawings: its
 // folded wings read as beating.
+//
+// When the town is wrecked: a frightened sparrow flits to a roof that still
+// stands and waits there, and does not come back down while a fire burns by
+// its street. A bird whose home goes (the stork's tower, the owl's tree, the
+// dovecote, the street) flies away off the island (flight.ts, flyOff); one
+// whose home stands again, or is new, flies in to it. None ever blinks out.
 
-import { SEA_Y } from '@/core/grid';
+import { columnIndex, inColumnBounds, key, SEA_Y, SIZE_Y } from '@/core/grid';
 import { positionOf, type Mat4 } from '@/core/mat4';
-import { defineBehaviour, type InstanceHandle } from '../api';
-import { arc, easeInOut } from '../motion/ease';
+import type { ShapePlan } from '@/resolve/plan';
+import { ruinUninhabitable } from '@/world/damage';
+import { defineBehaviour, type InstanceHandle, type SpawnSpec } from '../api';
+import { arc, easeInOut, lerp } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
-import { scareDistance, scaresOf } from './scare';
+import { arriving, ARRIVE, flyOff } from './flight';
+import { scareDistance, scaresOf, type ScareTable } from './scare';
+import { columnTops } from './town';
 
 interface State {
   phase: number;
@@ -40,6 +50,19 @@ interface State {
   tx: number;
   tz: number;
   hopT: number;
+  /** A sparrow away: the height it waits at, and whether that is on something (else it hangs in the air). */
+  ty: number;
+  sits: boolean;
+  /** Where its flight away began (its street, or a roof it had to leave), and the town it chose its roof in. */
+  ox: number;
+  oy: number;
+  oz: number;
+  town: ShapePlan | null;
+  /** Seconds until a sparrow waiting in the air looks again for somewhere to sit. */
+  retry: number;
+  /** Flying in to its place: seconds left, and the way it comes from. */
+  arrive: number;
+  from: number;
   seen: number;
   shown: boolean;
   trail: number[];
@@ -50,6 +73,77 @@ interface State {
 const TAU = Math.PI * 2;
 /** Seconds a sparrow stays away after a fright; seconds a dove wheels and sits. */
 export const SPARROW_AWAY = 4;
+/** Seconds a sparrow takes to flit in to a new street. */
+const SPARROW_ARRIVE = 1.4;
+
+const LOOK: Record<string, SpawnSpec> = {
+  sparrow: { actor: 'small-bird', variant: 'sparrow' },
+  dove: { actor: 'small-bird', variant: 'dove' },
+  stork: { actor: 'small-bird', variant: 'stork' },
+  owl: { actor: 'small-bird', variant: 'owl' },
+  crow: { actor: 'small-bird', variant: 'crow' },
+  duck: { actor: 'small-bird', variant: 'duck' },
+  duckling: { actor: 'small-bird', variant: 'duckling' },
+};
+
+/** Is anything in this column wrecked (or under scaffolding)? No bird sits there. */
+function wreckedColumn(shape: ShapePlan, x: number, z: number): boolean {
+  const blocks = shape.world.blocks;
+  for (let y = 0; y < SIZE_Y; y++) {
+    const b = blocks.get(key(x, y, z));
+    if (b && ruinUninhabitable(b.ruin)) return true;
+  }
+  return false;
+}
+
+/**
+ * Where a frightened sparrow waits: a roof or wall top a couple of cells away from the fright, higher than
+ * its street, standing whole, and not by a fire; failing that, any dry ground or roof a little further off
+ * that stands and is clear of fire. Null if there is none at all (it waits in the air).
+ */
+function sparrowPerch(shape: ShapePlan, scares: ScareTable, now: number, x: number, z: number, y: number, away: number): { x: number; y: number; z: number } | null {
+  const tops = columnTops(shape);
+  for (const [far, high] of [[2.2, true], [2.2, false], [3.6, false], [5, false], [7, false], [9.5, false]] as const) {
+    for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 2]) {
+      const a = away + turn;
+      const cx = Math.floor(x + Math.cos(a) * far), cz = Math.floor(z + Math.sin(a) * far);
+      if (!inColumnBounds(cx, cz)) continue;
+      const top = tops[columnIndex(cx, cz)]!;
+      if ((high ? top < y + 0.6 : top <= SEA_Y + 0.05) || wreckedColumn(shape, cx, cz) || scares.danger(cx + 0.5, cz + 0.5, now, high ? 0.5 : 1)) continue;
+      return { x: cx + 0.5, y: top, z: cz + 0.5 };
+    }
+  }
+  return null;
+}
+const spot = { x: 0, y: 0, z: 0 };
+
+/** Sends a frightened sparrow (from ox, oy, oz) to a roof away from the fright, or into the air if there is none. */
+function flitTo(state: State, shape: ShapePlan, scares: ScareTable, now: number, away: number, street: number): void {
+  const perch = sparrowPerch(shape, scares, now, state.ox, state.oz, street, away);
+  state.town = shape;
+  state.sits = perch !== null;
+  state.tx = perch?.x ?? state.ox + Math.cos(away) * 2.2;
+  state.tz = perch?.z ?? state.oz + Math.sin(away) * 2.2;
+  state.ty = perch?.y ?? street + 1.1;
+}
+
+/** Seconds a sparrow's flit takes: a second for the usual couple of cells, longer for further (never a dart). */
+const flit = (dx: number, dz: number): number => Math.min(4, Math.max(SPARROW_AWAY / 4, Math.hypot(dx, dz) / 2.4));
+/** Seconds an away sparrow waits on its roof before it comes back (longer while a fire burns by its street). */
+const WAIT = SPARROW_AWAY / 2;
+const outLen = (state: State): number => flit(state.tx - state.ox, state.tz - state.oz);
+const backLen = (state: State): number => flit(state.fx - state.tx, state.fz - state.tz);
+
+/** Where an away sparrow is: out to its roof, waiting there, and back down to its street (fx, fz). */
+function sparrowAt(state: State, street: number): [number, number, number] {
+  const o = outLen(state);
+  if (state.modeT <= o + WAIT) {
+    const out = easeInOut(Math.min(1, state.modeT / o));
+    return [lerp(state.ox, state.tx, out), lerp(state.oy, state.ty, out) + 0.05 * out + arc(out) * (state.sits ? 0.3 : 0), lerp(state.oz, state.tz, out)];
+  }
+  const back = easeInOut(Math.min(1, (state.modeT - o - WAIT) / backLen(state)));
+  return [lerp(state.tx, state.fx, back), lerp(state.ty + 0.05, street, back) + arc(back) * (state.sits ? 0.3 : 0), lerp(state.tz, state.fz, back)];
+}
 
 export default defineBehaviour({
   actor: 'small-bird',
@@ -59,7 +153,11 @@ export default defineBehaviour({
     if (item.variant === 'duck') for (let i = 0; i < 3; i++) ducklings.push(ctx.stage.spawn({ actor: 'small-bird', variant: 'duckling' }, ctx.instance.base));
     return {
       phase: ctx.rand('phase'), n: 0, t: ctx.rand('t') * 20, mode: item.variant === 'dove' ? 'perch' : 'ground', modeT: 0, modeLen: 3 + 8 * ctx.rand('len'),
-      x, z, yaw: ctx.rand('yaw') * TAU, fx: x, fz: z, tx: x, tz: z, hopT: 1, seen: scaresOf(ctx.stage).seq, shown: true,
+      x, z, yaw: ctx.rand('yaw') * TAU, fx: x, fz: z, tx: x, tz: z, hopT: 1, ty: 0, sits: false, ox: x, oy: 0, oz: z, town: null, retry: 0,
+      // Made after the town opened: its home is new, or stands again. It flies in.
+      arrive: scaresOf(ctx.stage).towns > 1 ? (item.variant === 'sparrow' ? SPARROW_ARRIVE : ARRIVE.time) : 0,
+      from: ctx.rand('from') * TAU,
+      seen: scaresOf(ctx.stage).seq, shown: true,
       trail: [], ducklings, m: new Array<number>(16).fill(0),
     };
   },
@@ -73,6 +171,36 @@ export default defineBehaviour({
     state.t += dt;
     state.modeT += dt;
     const m = state.m;
+
+    if (state.arrive > 0) {
+      // Flying in to its place (an owl only once it is out).
+      const owlIn = v === 'owl' && !(signals.time.isNight || (signals.time.isDusk && signals.time.light < 0.4));
+      if (owlIn) state.arrive = 0;
+      else {
+        const len = v === 'sparrow' ? SPARROW_ARRIVE : ARRIVE.time;
+        state.arrive = Math.max(0, state.arrive - dt);
+        const u = 1 - state.arrive / len;
+        const ty = v === 'duck' ? SEA_Y : by + h;
+        // The ducklings come in close behind, each a beat after the one ahead.
+        state.ducklings.forEach((d, i) => {
+          const dyaw = arriving(u - 0.05 * (i + 1), bx, ty, bz, state.from, spot);
+          fly(spot.x, spot.y, spot.z, dyaw, 0, 0, 1, m);
+          d.setMatrix(m);
+        });
+        const yaw = arriving(u, bx, ty, bz, state.from, spot);
+        fly(spot.x, spot.y, spot.z, yaw, 0, 0, 1, m);
+        if (u < 0.9 && frame % 2 === 1) {
+          m[0]! *= 0.45; m[1]! *= 0.45; m[2]! *= 0.45;
+        }
+        ctx.instance.setMatrix(m);
+        if (!state.shown) {
+          state.shown = true;
+          ctx.instance.setVisible(true);
+        }
+        state.modeT = 0;
+        return;
+      }
+    }
 
     if (v === 'owl') {
       const out = signals.time.isNight || (signals.time.isDusk && signals.time.light < 0.4);
@@ -153,24 +281,50 @@ export default defineBehaviour({
         state.modeT = 0;
         state.fx = state.x;
         state.fz = state.z;
-        const a = Math.atan2(state.z - e.z, state.x - e.x);
-        state.tx = state.x + Math.cos(a) * 2.2;
-        state.tz = state.z + Math.sin(a) * 2.2;
+        state.ox = state.x;
+        state.oy = by;
+        state.oz = state.z;
+        flitTo(state, ctx.shape, scares, s, Math.atan2(state.z - e.z, state.x - e.x), by);
       }
       state.seen = scares.seq;
     }
     if (state.mode === 'air') {
-      // Up and away, a wait out of sight on a roof or fence (held aloft here), and back down to its street.
-      const u = state.modeT / SPARROW_AWAY;
-      const out = u < 0.25 ? easeInOut(u / 0.25) : u > 0.75 ? 1 - easeInOut((u - 0.75) / 0.25) : 1;
-      const x = state.fx + (state.tx - state.fx) * out, z = state.fz + (state.tz - state.fz) * out;
-      const beat = frame % 2 === 0 ? 1 : 0.4;
-      fly(x, by + 1.1 * out + 0.05, z, Math.atan2(state.tx - state.fx, state.tz - state.fz) + (u > 0.5 ? Math.PI : 0), 0, 0, 1, m);
+      // Its roof was wrecked under it (the blast goes on hitting the town): on to another. Waiting in the air
+      // (there was nowhere to go when it took off): somewhere to sit, once there is.
+      const o = outLen(state);
+      const waiting = state.modeT > o && state.modeT < o + WAIT;
+      const lost = state.sits ? ctx.shape !== state.town && state.modeT < o + WAIT && wreckedColumn(ctx.shape, Math.floor(state.tx), Math.floor(state.tz)) : waiting && (state.retry -= dt) <= 0;
+      if (lost) {
+        state.retry = 1;
+        const fright = scares.latest();
+        const [px, py, pz] = sparrowAt(state, by);
+        const away = fright ? Math.atan2(pz - fright.z, px - fright.x) : state.yaw;
+        if (state.sits || sparrowPerch(ctx.shape, scares, s, px, pz, by, away)) {
+          state.ox = px;
+          state.oy = py;
+          state.oz = pz;
+          state.modeT = 0;
+          flitTo(state, ctx.shape, scares, s, away, by);
+        }
+      }
+      // Up and away to a roof that stands (or, with none, a wait in the air), and back down to its street, but
+      // not while a fire burns by it: it waits on.
+      const hold = outLen(state) + WAIT;
+      if (state.modeT > hold - 0.04 && state.modeT < hold && scares.danger(state.fx, state.fz, s, 1)) state.modeT = hold - 0.04;
+      const [x, y, z] = sparrowAt(state, by);
+      const flying = !state.sits || state.modeT < outLen(state) || state.modeT > hold;
+      const beat = flying && frame % 2 === 1 ? 0.4 : 1;
+      const yaw = state.modeT <= outLen(state) + WAIT / 2 ? Math.atan2(state.tx - state.ox, state.tz - state.oz) : Math.atan2(state.fx - state.tx, state.fz - state.tz);
+      fly(x, y, z, yaw, 0, 0, 1, m);
       m[0]! *= beat; m[1]! *= beat; m[2]! *= beat;
       ctx.instance.setMatrix(m);
-      if (u >= 1) {
+      if (state.modeT >= hold + backLen(state)) {
+        // Down where it took off. (A hop it was in the middle of is over: its target was the roof it flew to.)
         state.mode = 'ground';
         state.modeT = 0;
+        state.x = state.tx = state.fx;
+        state.z = state.tz = state.fz;
+        state.hopT = 1;
       }
       return;
     }
@@ -203,7 +357,16 @@ export default defineBehaviour({
     fly(state.x, by + lift, state.z, state.yaw, peck, 0, 1, m);
     ctx.instance.setMatrix(m);
   },
-  dispose(state) {
+  dispose(state, ctx) {
+    // Its home has gone (or the town has): it flies off, unless it is not out to be seen.
+    const v = ctx.item.variant ?? 'sparrow';
+    const table = scaresOf(ctx.stage);
+    if (state.shown && table.towns > 0) {
+      const fright = table.latest() ?? undefined;
+      const from = state.m[15] === 1 ? state.m : ctx.instance.base;
+      flyOff(ctx.stage, LOOK[v] ?? LOOK.sparrow!, from, ctx.seed, fright);
+      state.ducklings.forEach((_, i) => flyOff(ctx.stage, LOOK.duckling!, from, ctx.seed + i + 1, fright));
+    }
     for (const d of state.ducklings) d.release();
   },
 });

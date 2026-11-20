@@ -22,7 +22,7 @@ import { fly, yawOf } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { attitude, steer, Wings, type Attitude } from './flight';
 import { scareDistance, scaresOf } from './scare';
-import { floatSpot, tallestNear, waterCentre } from './town';
+import { drift, floatSpot, tallestNear, waterCentre, wrecked } from './town';
 
 type Mode = 'fly' | 'land' | 'sit' | 'rise' | 'hold';
 type Ctx = LifeContext<ActorOf<'gull'>>;
@@ -45,11 +45,14 @@ export interface GullState {
   modeLen: number;
   /** Counts its doings, so each gets its own seeded chance. */
   n: number;
-  // The circle.
+  // The circle (where it is now; it drifts toward the `want` ones when the town changes).
   cx: number;
   cz: number;
   radius: number;
   height: number;
+  wantX: number;
+  wantZ: number;
+  wantH: number;
   // Where it settles: a perch, or a spot on the water.
   hasSpot: boolean;
   afloat: boolean;
@@ -70,8 +73,9 @@ export interface GullState {
   dressing: DressingPlan | null;
   seen: number;
   fresh: boolean;
-  /** A fright: extra height that dies away, and seconds of hard beating still to come. */
+  /** A fright: extra height wanted, which dies away; the height it has climbed for it so far; seconds of hard beating still to come. */
   startle: number;
+  lift: number;
   flurry: number;
   drawn: number;
   wing: number;
@@ -100,7 +104,7 @@ function orbit(s: GullState): void {
   const r = s.radius * (1 + 0.16 * Math.sin(0.21 * s.t + s.p1));
   spot.x = s.cx + s.followX + 0.5 * Math.sin(0.083 * s.t + s.p2) + r * Math.cos(s.theta) * (1 + 0.12 * Math.sin(0.13 * s.t + s.p3));
   spot.z = s.cz + s.followZ + 0.5 * Math.cos(0.061 * s.t + s.p3) + r * Math.sin(s.theta);
-  spot.y = s.height + 0.2 * Math.sin(0.37 * s.t + s.p1) + 0.1 * Math.sin(0.9 * s.t + s.p2) + s.startle;
+  spot.y = s.height + 0.2 * Math.sin(0.37 * s.t + s.p1) + 0.1 * Math.sin(0.9 * s.t + s.p2) + s.lift;
 }
 
 /** Reads the town: where to circle, how high, and where to settle. */
@@ -112,13 +116,14 @@ function survey(s: GullState, ctx: Ctx): void {
   const home = params.home;
   const hx = home === undefined ? Math.floor(base[0]) : keyX(home), hz = home === undefined ? Math.floor(base[2]) : keyZ(home);
   const centre = waterCentre(shape, hx, hz, BIRDS.gullReach);
-  s.cx = centre?.x ?? hx + 0.5;
-  s.cz = centre?.z ?? hz + 0.5;
+  s.wantX = centre?.x ?? hx + 0.5;
+  s.wantZ = centre?.z ?? hz + 0.5;
   s.radius = BIRDS.gullRadius + BIRDS.gullRadiusMore * ctx.rand('radius');
-  const over = tallestNear(shape, s.cx, s.cz, s.radius * 1.3 + 1);
-  s.height = Math.max(SEA_Y + BIRDS.gullHeight + BIRDS.gullHeightMore * ctx.rand('height'), over + BIRDS.gullClear + 0.5 * ctx.rand('height'));
-  // The perch the rule gave it, if it still stands; else a spot on the water near home.
-  const socket = params.perch ? shape.sockets.find((k) => k.id === params.perch) : undefined;
+  const over = tallestNear(shape, s.wantX, s.wantZ, s.radius * 1.3 + 1);
+  s.wantH = Math.max(SEA_Y + BIRDS.gullHeight + BIRDS.gullHeightMore * ctx.rand('height'), over + BIRDS.gullClear + 0.5 * ctx.rand('height'));
+  // The perch the rule gave it, if it still stands (not on a wreck); else a spot on the water near home.
+  const found = params.perch ? shape.sockets.find((k) => k.id === params.perch) : undefined;
+  const socket = found && (found.structure === undefined || !wrecked(shape).has(found.structure)) ? found : undefined;
   const frame = socket ? ctx.stage.socket(socket.id) : null;
   if (socket && frame) {
     s.hasSpot = true;
@@ -136,7 +141,14 @@ function survey(s: GullState, ctx: Ctx): void {
       s.pz = water.z + (ctx.rand('fz') - 0.5) * 0.5;
     }
   }
-  if (home !== undefined && !centre) s.height = Math.max(s.height, (keyY(home) + 1) * CELL_H + 1);
+  if (home !== undefined && !centre) s.wantH = Math.max(s.wantH, (keyY(home) + 1) * CELL_H + 1);
+}
+
+/** Its circle drifts toward where the town now puts it. */
+function settleHome(s: GullState, dt: number): void {
+  s.cx = drift(s.cx, s.wantX, dt);
+  s.cz = drift(s.cz, s.wantZ, dt);
+  s.height = drift(s.height, s.wantH, dt);
 }
 
 function takeOff(s: GullState, hard: boolean): void {
@@ -172,11 +184,13 @@ function wingAt(s: GullState, q: number): number {
 
 export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx): void {
   if (ctx.shape !== s.shape) {
+    const px = s.px, py = s.py, pz = s.pz;
     survey(s, ctx);
-    // Its perch went from under it.
+    // Its perch went from under it (or moved): up from where it is.
     if (s.mode === 'sit' && (!s.hasSpot || Math.hypot(s.px - s.body.x, s.py - s.body.y, s.pz - s.body.z) > 0.05)) takeOff(s, true);
-    if (s.mode === 'land' && !s.hasSpot) takeOff(s, false);
+    if (s.mode === 'land' && (!s.hasSpot || Math.hypot(s.px - px, s.py - py, s.pz - pz) > 0.05)) takeOff(s, false);
   }
+  settleHome(s, dt);
   s.t += dt;
   s.modeT += dt;
   const q = onTwos(s.t, s.phase);
@@ -203,9 +217,10 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
     for (const e of scares.since(s.seen)) {
       if (e.person || (s.fresh && signals.time.seconds - e.at > 0.6)) continue;
       if (scareDistance(e, s.body.x, s.body.z) > e.radius) continue;
+      // However many frights come at once, it reacts once: up, or a lurch higher and a flurry of beats.
       if (s.mode === 'sit' || s.mode === 'land') takeOff(s, true);
       else {
-        s.startle += 0.45;
+        s.startle = Math.max(s.startle, 0.45);
         s.flurry = 1.3;
       }
     }
@@ -213,6 +228,8 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
   }
   s.fresh = false;
   s.startle *= Math.exp(-1.1 * dt);
+  // It climbs for the fright (it does not jump up in a frame).
+  s.lift += (s.startle - s.lift) * glide(5, dt);
   s.flurry = Math.max(0, s.flurry - dt);
 
   // L18: the fishing boat coming home at dusk draws the harbour's gulls out to it, wheeling over its wake.
@@ -256,7 +273,8 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
     orbit(s);
     steer(b, spot.x, spot.y, spot.z, dt);
     const wantsDown = s.modeT >= s.modeLen || (signals.time.isNight && s.modeT > 3);
-    if (wantsDown && s.hasSpot && s.flurry <= 0 && !trailing) {
+    // Not down onto a fire, or where something has just gone off: round again.
+    if (wantsDown && s.hasSpot && s.flurry <= 0 && !trailing && !scares.danger(s.px, s.pz, signals.time.seconds, 1)) {
       s.mode = 'land';
       s.modeT = 0;
       s.modeLen = BIRDS.gullLand * (0.85 + 0.3 * ctx.rand('land', s.n++));
@@ -312,7 +330,7 @@ export default defineBehaviour<'gull', GullState>({
       modeT: 0,
       modeLen: BIRDS.gullAloft * (0.25 + ctx.rand('first')),
       n: 0,
-      cx: 0, cz: 0, radius: 1, height: 2,
+      cx: 0, cz: 0, radius: 1, height: 2, wantX: 0, wantZ: 0, wantH: 2,
       hasSpot: false, afloat: false, px: 0, py: 0, pz: 0,
       sx: 0, sy: 0, sz: 0,
       look: 0, lookFrom: 0, lookAt: 0, lookStart: 0, nextLook: 0,
@@ -321,6 +339,7 @@ export default defineBehaviour<'gull', GullState>({
       seen: scaresOf(ctx.stage).seq,
       fresh: true,
       startle: 0,
+      lift: 0,
       flurry: 0,
       drawn: NaN,
       wing: 0.16,
@@ -329,6 +348,9 @@ export default defineBehaviour<'gull', GullState>({
     };
     if (s.mode === 'hold') return s;
     survey(s, ctx);
+    s.cx = s.wantX;
+    s.cz = s.wantZ;
+    s.height = s.wantH;
     orbit(s);
     // Some start the day already sitting.
     if (s.hasSpot && ctx.rand('start') < 0.3) {

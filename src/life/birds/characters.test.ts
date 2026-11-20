@@ -50,15 +50,19 @@ describe('sparrows (L14) and characters (L15)', () => {
     for (const d of ducklings) expect(Math.hypot(positionOf(d.matrix)[0] - duck[0], positionOf(d.matrix)[2] - duck[2])).toBeLessThan(0.8);
   });
 
-  test('a block landing near puts the sparrows up, and they are back down a few seconds later', () => {
+  test('a block landing near puts the sparrows up and away, and they are back down a few seconds later', () => {
     const { signals, life, of, pos } = live();
     step(life, signals, 1);
     const sp = of('sparrow')[0]!;
     const [x, y, z] = pos(sp.id);
     signals.emit('blockLanded', key(Math.floor(x) + 1, 1, Math.floor(z)));
     step(life, signals, SPARROW_AWAY * 0.4);
-    expect(pos(sp.id)[1]).toBeGreaterThan(y + 0.5);
-    step(life, signals, SPARROW_AWAY * 0.8);
+    // Gone from its spot: onto a roof, or (with none near) onto clear ground a couple of cells off.
+    const [ax, ay, az] = pos(sp.id);
+    expect(Math.hypot(ax - x, az - z) > 1.5 || ay > y + 0.5).toBe(true);
+    expect(ax).toBeLessThan(x); // away from the fright
+    step(life, signals, SPARROW_AWAY * 1.2);
     expect(pos(sp.id)[1]).toBeLessThan(y + 0.08);
+    expect(Math.hypot(pos(sp.id)[0] - x, pos(sp.id)[2] - z)).toBeLessThan(0.5);
   });
 });

@@ -20,7 +20,7 @@ import { fly, yawOf } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { attitude, steer, Wings, type Attitude } from './flight';
 import { scareDistance, scaresOf, type Scare } from './scare';
-import { columnTops, topUnder } from './town';
+import { columnTops, drift, topUnder, wrecked } from './town';
 
 type Mode = 'ground' | 'air' | 'toPerch' | 'perched' | 'fromPerch' | 'hold';
 type Act = 'idle' | 'walk' | 'peck' | 'hop';
@@ -67,6 +67,8 @@ export interface PigeonState {
   wheelUp: number;
   /** Its wheel's radius, as a share of the full one (smaller beside tall houses). */
   wheelR: number;
+  /** Where the town now puts the wheel: the four above drift here, so a re-read town never jerks a bird in the air. */
+  want: { wx: number; wz: number; up: number; r: number };
   landX: number;
   landZ: number;
   // Its perch, if the rule gave it one.
@@ -153,13 +155,17 @@ function survey(s: PigeonState, ctx: Ctx): void {
     s.blocked.push(f[12]!, f[14]!);
   }
   const spot = params.spot;
-  s.wx = spot === undefined ? s.homeX : keyX(spot) + 0.5;
-  s.wz = spot === undefined ? s.homeZ : keyZ(spot) + 0.5;
+  const w = s.want;
+  w.wx = spot === undefined ? s.homeX : keyX(spot) + 0.5;
+  w.wz = spot === undefined ? s.homeZ : keyZ(spot) + 0.5;
   s.wheelDir = ((params.plaza ?? 0) & 1) === 0 ? 1 : -1;
-  const wheel = wheelFor(shape, s.wx, s.wz, homeY, s.p1);
-  s.wheelUp = wheel.up;
-  s.wheelR = wheel.scale;
-  const frame = params.perch ? ctx.stage.socket(params.perch) : null;
+  const wheel = wheelFor(shape, w.wx, w.wz, homeY, s.p1);
+  w.up = wheel.up;
+  w.r = wheel.scale;
+  // Its perch, unless that is on a wreck (or under scaffolding).
+  const perch = params.perch ? shape.sockets.find((k) => k.id === params.perch) : undefined;
+  const standing = !perch || perch.structure === undefined || !wrecked(shape).has(perch.structure);
+  const frame = params.perch && standing ? ctx.stage.socket(params.perch) : null;
   s.hasPerch = frame !== null;
   if (frame) {
     s.px = frame[12]!;
@@ -295,6 +301,14 @@ function frighten(s: PigeonState, ctx: Ctx, e: Scare): void {
   else s.modeLen = Math.max(s.modeLen, s.modeT + BIRDS.pigeonSettle * 0.8);
 }
 
+function settleHome(s: PigeonState, dt: number): void {
+  const w = s.want;
+  s.wx = drift(s.wx, w.wx, dt);
+  s.wz = drift(s.wz, w.wz, dt);
+  s.wheelUp = drift(s.wheelUp, w.up, dt);
+  s.wheelR = drift(s.wheelR, w.r, dt);
+}
+
 export function updatePigeon(s: PigeonState, dt: number, signals: Signals, ctx: Ctx): void {
   if (ctx.shape !== s.shape || ctx.dressing !== s.dressing) {
     survey(s, ctx);
@@ -307,6 +321,7 @@ export function updatePigeon(s: PigeonState, dt: number, signals: Signals, ctx: 
     }
     if ((s.mode === 'perched' || s.mode === 'toPerch') && !s.hasPerch) burst(s, ctx, { x: s.body.x + 1, z: s.body.z }, 0);
   }
+  settleHome(s, dt);
   s.t += dt;
   s.modeT += dt;
   const q = onTwos(s.t, s.phase);
@@ -400,6 +415,8 @@ export function updatePigeon(s: PigeonState, dt: number, signals: Signals, ctx: 
       return;
     }
     s.wings.show(true);
+    // About to come down onto a fire, or where something has just gone off: round the wheel again.
+    if (s.modeT > s.modeLen - LAND - 0.2 && s.modeT <= s.modeLen - LAND && scares.danger(s.landX, s.landZ, signals.time.seconds, 1)) s.modeLen += BIRDS.pigeonSettle * 0.6;
     airAt(s, s.modeT);
     steer(b, air.x, air.y, air.z, dt, 0.5, 0.75);
     if (s.modeT >= s.modeLen) return land(s, ctx, s.landX, s.landZ);
@@ -473,6 +490,7 @@ export default defineBehaviour<'pigeon', PigeonState>({
       fromX: 0, fromZ: 0, toX: 0, toZ: 0,
       homeX: 0, homeZ: 0, free: new Map(), blocked: [],
       ax: 0, ay: 0, az: 0, wx: 0, wz: 0, wheelAt: 0, wheelDir: 1, wheelUp: BIRDS.pigeonHeight, wheelR: 1, landX: 0, landZ: 0,
+      want: { wx: 0, wz: 0, up: BIRDS.pigeonHeight, r: 1 },
       hasPerch: false, px: 0, py: 0, pz: 0,
       shape: null, dressing: null,
       seen: scaresOf(ctx.stage).seq,
@@ -483,6 +501,10 @@ export default defineBehaviour<'pigeon', PigeonState>({
     s.wantYaw = s.yaw;
     if (s.mode === 'hold') return s;
     survey(s, ctx);
+    s.wx = s.want.wx;
+    s.wz = s.want.wz;
+    s.wheelUp = s.want.up;
+    s.wheelR = s.want.r;
     s.x = s.fromX = s.toX = s.homeX;
     s.z = s.fromZ = s.toZ = s.homeZ;
     s.y = floorAt(s, s.x, s.z);

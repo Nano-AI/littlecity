@@ -6,6 +6,13 @@
 // Drawn "on twos" at PERSON.drawRate, like the crowd; a figure whose drawing
 // did not change is not touched. Residents give way to the column and the
 // horse (crowd.ts reads obstaclesOf).
+//
+// A change in the town (every mend step of a wrecked street is one) keeps a
+// castle's troop and rider marching where they are, as long as their beat is
+// the same: only a castle whose patrol or ride really changed starts afresh.
+// (Rebuilding them all on every change put every soldier and the rider back
+// at the start of their round, drawn anew, every few seconds while the town
+// mended.)
 
 import { defineSystem, type InstanceHandle, type LifeStage } from '@/life/api';
 import type { MeshData } from '@/gen/mesh';
@@ -22,6 +29,7 @@ import { PERSON } from '@/style/people';
 import { crowdOf, setObstacles, type Obstacle } from '../doors/table';
 import { createRide, rideOf, tetherOf, type Ride } from './rider';
 import { createRouter } from './route';
+import type { Track } from './track';
 import { createTroop, patrolOf, type Troop } from './troop';
 
 interface Figure {
@@ -33,6 +41,9 @@ interface Figure {
 interface Garrison {
   key: string;
   castle: Castle;
+  /** The beat they were made for (compared on a change in the town: the same beat keeps them going). */
+  patrol: Track | null;
+  route: Track | null;
   troop: Troop | null;
   ride: Ride | null;
   colour: string;
@@ -142,12 +153,13 @@ function build(shape: ShapePlan, dressing: DressingPlan, seed: number, time: Par
     const colours = clothColors();
     const colour = colours[(((Number((a.params as { color?: number } | undefined)?.color ?? 0)) % colours.length) + colours.length) % colours.length]!;
     if (!g) {
-      g = { key: `castle${castle.id}`, castle, troop: null, ride: null, colour, soldiers: [], horse: null, rider: null, horseLook: 0 };
+      g = { key: `castle${castle.id}`, castle, patrol: null, route: null, troop: null, ride: null, colour, soldiers: [], horse: null, rider: null, horseLook: 0 };
       out.push(g);
     }
     if (a.type === 'garrison') {
       const track = patrolOf(nav, castle);
       if (!track) continue;
+      g.patrol = track;
       g.troop = createTroop(nav, castle, track, time);
       g.soldiers = g.troop.soldiers.map((s) => {
         const look = soldierLook(seed * 31 + castle.id * 7 + s.index, colour);
@@ -158,6 +170,7 @@ function build(shape: ShapePlan, dressing: DressingPlan, seed: number, time: Par
       // Nowhere to ride (no street from the gate): the horse still stands tethered by it.
       const tether = tetherOf(nav, castle);
       if (!track && !tether) continue;
+      g.route = track;
       g.ride = createRide(castle, track, seed ^ castle.id, time, tether);
       const look = soldierLook(seed * 37 + castle.id, colour);
       g.rider = { look, rig: rigOf(look), fig: null, reins: null };
@@ -165,6 +178,21 @@ function build(shape: ShapePlan, dressing: DressingPlan, seed: number, time: Par
     }
   }
   return out;
+}
+
+/** The same line on the ground (samples within a hair of each other), or both none. */
+function sameTrack(a: Track | null, b: Track | null): boolean {
+  if (!a || !b) return a === b;
+  if (a.loop !== b.loop || a.x.length !== b.x.length || Math.abs(a.length - b.length) > 1e-6) return false;
+  for (let i = 0; i < a.x.length; i++) {
+    if (Math.abs(a.x[i]! - b.x[i]!) > 1e-6 || Math.abs(a.y[i]! - b.y[i]!) > 1e-6 || Math.abs(a.z[i]! - b.z[i]!) > 1e-6) return false;
+  }
+  return true;
+}
+
+/** Same castle, same colours, same numbers, same beat: the old garrison carries on. */
+function sameGarrison(a: Garrison, b: Garrison): boolean {
+  return a.key === b.key && a.colour === b.colour && a.soldiers.length === b.soldiers.length && (a.ride === null) === (b.ride === null) && a.horseLook === b.horseLook && sameTrack(a.patrol, b.patrol) && sameTrack(a.route, b.route);
 }
 
 /** Where the rider's left hand holds the reins, body frame: low and forward over the withers. */
@@ -214,8 +242,18 @@ export default defineSystem<State>({
     // Keep a troop that is still there (same castle and same actors) going across unrelated edits.
     const keep = prev?.dressing && next.dressing.nav === prev.dressing.nav;
     if (keep && state.list.length > 0) return;
-    for (const g of state.list) release(g);
-    state.list = build(next.shape, next.dressing, ctx.seed, ctx.signals.time);
+    // The town changed: each castle whose beat is the same keeps its troop and rider where they are.
+    const made = build(next.shape, next.dressing, ctx.seed, ctx.signals.time);
+    const kept = new Set<Garrison>();
+    const before = state.list;
+    state.list = made.map((g) => {
+      const old = before.find((o) => !kept.has(o) && sameGarrison(o, g));
+      if (!old) return g;
+      kept.add(old);
+      old.castle = g.castle;
+      return old;
+    });
+    for (const o of before) if (!kept.has(o)) release(o);
     state.fresh = true;
   },
   update(state, dt, signals, ctx) {
