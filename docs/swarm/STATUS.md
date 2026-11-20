@@ -445,3 +445,15 @@ people walk through each other → animation-polish agent resumed to add
 local avoidance with a no-overlap test.
 Running: ships, coplanar follow-up (doormats first), walk (preview fixes),
 animation-polish (people avoidance).
+
+**Big ships merged** (`3cbedfe`, Opus 5.5): L38 galleon, L39 cog, L40
+galley, L41 river barge, L42 passing sails; berths found by sailing a hull
+in and out; one big ship at sea at a time; small boats give way; guide
+entries for galleon, cog and galley. Full check green: 1,610 tests.
+Published. In the grown-town scenarios: galleon calls at 1, 6 and 7; cog
+and galley also at 4; none at 2 and 5 (no berth); the river barge fires in
+none of them (no pair of river docks 10 apart by water qualifies).
+Open: fishing boat only slows for ships, rower ignores them; barge under a
+bridge untested; rigging busy at overview.
+Running: coplanar follow-up (doormats first), walk (preview fixes),
+animation-polish (people avoidance).
