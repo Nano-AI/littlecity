@@ -198,7 +198,7 @@ export interface Person {
   /** In an event's party (a wedding, a parade): never drawn into a scuffle. */
   party: boolean;
   /** Dressed for an event (L57: the bride and the groom), else null. */
-  costume: 'bride' | 'groom' | null;
+  costume: 'bride' | 'groom' | 'askew' | null;
 }
 
 export interface CrowdEvents {
@@ -231,6 +231,8 @@ export interface CrowdOptions {
   obstacles?(): readonly { x: number; y: number; z: number }[];
   /** L51 and up: the town's chains, which send people on errands. */
   errands?: ErrandHost;
+  /** L50: sends somebody to break up a scuffle (the town's chains know the watchman); returns them, or null. */
+  respond?(s: Scuffle): Person | null;
   /** L50: overrides the scuffle dials (a fixture forcing one). */
   scuffle?: { chance?: number; squeeze?: number; rest?: number };
   /** L38–L40: how much a place that is only sometimes worth going to weighs now (a quay with a ship in); 0 = not now. */
@@ -254,6 +256,8 @@ export interface Crowd {
   blockLanded(cell: CellKey): void;
   /** L50: the scuffle going on now, if any, and the means to start one at once (fixtures, sequences). */
   readonly scuffles: Scuffles;
+  /** Makes somebody choose what to do now (an errand has come up for them), as soon as they can. */
+  rethink(p: Person): void;
 }
 
 const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
@@ -1119,6 +1123,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     events: {
       scuffle: (s, what) => events.scuffle?.(s, what),
     },
+    respond: (s) => opts.respond?.(s) ?? null,
     ...(opts.scuffle ? { dials: opts.scuffle } : {}),
   });
   const follow = (dt: number): void => {
@@ -1927,6 +1932,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
 
     get scuffles() {
       return scuffles;
+    },
+    rethink(p) {
+      if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit' || p.mode === 'wait') p.timer = Math.min(p.timer, 0);
+      else if (p.mode === 'walk' && now && !p.want && p.walk && p.walk[p.at]!.kind === 'move') p.want = nextGoal(p, now, false);
     },
     blockLanded(cell) {
       const x = keyX(cell) + 0.5, z = keyZ(cell) + 0.5;

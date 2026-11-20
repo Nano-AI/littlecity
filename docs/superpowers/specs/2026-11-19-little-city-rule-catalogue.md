@@ -555,8 +555,13 @@ under `src/rules/life/` with its fixture.
   dust off (1.1 s) and either stomp off their own ways or (p=0.35) shake
   hands and walk to the nearest inn together. One at a time in the town,
   then a rest of 75–130 s. With sound on: a rumble of thumps and boings.
+  Anybody carrying their own things (a loaf, a fish, a basket, pails) sets
+  them down beside them first and picks them up after; hats sit askew from
+  the dazed moment until they walk off. At night the watchman (L55) on his
+  round within 12 cells, or by day a guard on duty, trots over: the cloud
+  rolls on (up to 16 s) until he gets there and breaks up as he arrives.
   **Must not:** involve children, anybody on a job, a round or called home,
-  anybody carrying something, leaving, in a doorway or single-file
+  anybody carrying work (a sack, a tray, a crate), leaving, in a doorway or single-file
   stretch, or in an event's party; happen on stairs, gates, docks, roofs,
   bridges or any cell standing on a structure, or in a cluttered cell.
   Building over the spot ends it at once; anybody in it taken off the

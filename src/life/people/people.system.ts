@@ -26,6 +26,7 @@ import { setOccupied } from '../dusk/occupancy';
 import { type Crowd, type Person } from './crowd';
 import { createLivingTown, type LivingTown } from '../town';
 import { restingMesh } from '@/parts/people/loads';
+import { place } from '../motion/pose';
 import { markCensusReady, recordHome } from './home';
 import { carriedMesh, HEAVY, HOLD_OF, holdAnchor } from '@/parts/people/loads';
 import type { Load } from './errand';
@@ -49,6 +50,8 @@ interface ScuffleArt {
   pops: { kind: PopKind; h: InstanceHandle }[];
   swears: InstanceHandle[];
   stars: InstanceHandle[];
+  /** What the two set down before it started, lying beside where they stood. */
+  setDown: InstanceHandle[];
   tick: number;
 }
 const artMeshes: { clouds?: MeshData[]; pops?: Map<PopKind, MeshData>; swears?: MeshData[]; star?: MeshData } = {};
@@ -59,9 +62,10 @@ function releaseArt(a: ScuffleArt): void {
   for (const p of a.pops) p.h.release();
   for (const h of a.swears) h.release();
   for (const h of a.stars) h.release();
+  for (const h of a.setDown) h.release();
 }
 
-function spawnArt(stage: LifeStage, n: number): ScuffleArt {
+function spawnArt(stage: LifeStage, n: number, s: Scuffle): ScuffleArt {
   artMeshes.clouds ??= [0, 1, 2].map((v) => cloudMesh(v, SCUFFLE.cloudR, SCUFFLE.cloudH));
   artMeshes.swears ??= [0, 1, 2, 3].map((v) => swearMesh(v));
   artMeshes.star ??= dazeStarMesh();
@@ -80,6 +84,11 @@ function spawnArt(stage: LifeStage, n: number): ScuffleArt {
     pops: POPS.map((kind) => ({ kind, h: hidden(artMeshes.pops!.get(kind)!) })),
     swears: artMeshes.swears.map(hidden),
     stars: [0, 1, 2, 3, 4, 5].map(() => hidden(artMeshes.star!)),
+    // Set down on the ground a step to the side, away from the cloud.
+    setDown: [...s.setDown].map(([p, kind]) => {
+      const dx = p.x - s.x, dz = p.z - s.z, d = Math.hypot(dx, dz) || 1;
+      return stage.spawnMesh(restingMesh(kind), place(p.x + (dx / d) * 0.25 - (dz / d) * 0.15, p.y, p.z + (dz / d) * 0.25 + (dx / d) * 0.15, p.heading));
+    }),
     tick: -1,
   };
 }
@@ -171,6 +180,8 @@ interface Drawn {
   /** Their everyday look, and the costume the drawing is in now (L57). */
   base: Look;
   costume: Person['costume'];
+  /** L50: the hat knocked askew in a scuffle, drawn on its own. */
+  askew: InstanceHandle | null;
 }
 
 const loadM = new Float32Array(16);
@@ -189,6 +200,8 @@ function loadScale(): number {
 export function costumeLook(base: Look, costume: Person['costume']): Look {
   if (costume === 'bride') return { ...base, top: '#fbf8f2', bottom: '#fbf8f2', dress: true, hat: 'none', hairStyle: 'bun', girth: base.girth * 1.08 };
   if (costume === 'groom') return { ...base, top: '#2c2b38', bottom: '#2c2b38', dress: false, hat: 'cap', hatColor: '#24232e' };
+  // L50: after a scuffle the hat sits askew (drawn on its own, tipped; see draw()).
+  if (costume === 'askew') return { ...base, hat: 'none' };
   return base;
 }
 
@@ -255,6 +268,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.tool = null;
     d.load?.handle.release();
     d.load = null;
+    d.askew?.release();
+    d.askew = null;
     return;
   }
   if (d.costume !== p.costume) {
@@ -374,6 +389,29 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
+  // L50: a hat tipped over one ear after a scuffle.
+  const askew = p.costume === 'askew' && d.base.hat !== 'none';
+  if (askew && !d.askew) d.askew = stage.spawnMesh(popMesh('hat'), IDENTITY);
+  if (!askew && d.askew) {
+    d.askew.release();
+    d.askew = null;
+  }
+  if (d.askew) {
+    // On the head (the body frame's top, figure units), tipped sideways and a little back.
+    const t = 0.55, ct = Math.cos(t), st = Math.sin(t);
+    const k = 0.95;
+    // body · T(0.03, 0.385, -0.01) · Rz(t) · S(k / scale): the hat is in world units, the body frame in figure units.
+    const sc = k / d.look.scale;
+    const lx = [ct * sc, st * sc, 0], ly = [-st * sc, ct * sc, 0], lz = [0, 0, sc];
+    const m = new Array<number>(16).fill(0);
+    for (let c = 0; c < 3; c++) {
+      const v = [lx, ly, lz][c]!;
+      for (let r = 0; r < 3; r++) m[c * 4 + r] = world[r]! * v[0]! + world[4 + r]! * v[1]! + world[8 + r]! * v[2]!;
+    }
+    for (let r = 0; r < 3; r++) m[12 + r] = world[r]! * 0.03 + world[4 + r]! * 0.385 + world[8 + r]! * -0.01 + world[12 + r]!;
+    m[15] = 1;
+    d.askew.setMatrix(m);
+  }
   if (d.load) {
     // About its hold anchor, and bigger when the camera is far off (so a sack still reads on a shoulder
     // from the whole-island view; close up it is its own size).
@@ -442,7 +480,7 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null, base: look, costume: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null, base: look, costume: null, askew: null });
         },
         removed(p) {
           const d = drawn.get(p);
@@ -452,6 +490,7 @@ export default defineSystem<State>({
           d?.kite?.line.release();
           d?.tool?.handle.release();
           d?.load?.handle.release();
+          d?.askew?.release();
           drawn.delete(p);
         },
       },
@@ -506,7 +545,7 @@ export default defineSystem<State>({
       state.art = null;
     }
     if (sc) {
-      state.art ??= spawnArt(ctx.stage, sc.n);
+      state.art ??= spawnArt(ctx.stage, sc.n, sc);
       drawArt(state.art, sc, signals.time.seconds);
     }
     // Drawn "on twos": the crowd steps every frame, but the picture of it changes PERSON.drawRate times
@@ -580,6 +619,7 @@ export default defineSystem<State>({
       d.kite?.line.release();
       d.tool?.handle.release();
       d.load?.handle.release();
+      d.askew?.release();
     }
     state.drawn.clear();
   },

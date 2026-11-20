@@ -114,6 +114,8 @@ export interface Board {
   claim(p: Person, chain: Chain): void;
   /** Ends a person's plan now (as a failure: its `fail` runs). */
   drop(p: Person): void;
+  /** Gives somebody a plan now, in place of whatever they were doing (they set off as soon as they can). */
+  assign(p: Person, plan: Plan): void;
   unclaim(p: Person): void;
   claimedBy(p: Person): Chain | null;
   /** A step at a cell: standing at `spot` facing `face`, or going in at a door. */
@@ -280,6 +282,11 @@ export function createBoard(opts: BoardOptions): Board {
     },
     drop(p) {
       end(p, true);
+    },
+    assign(p, plan) {
+      end(p, true);
+      plans.set(p, plan);
+      opts.crowd.rethink(p);
     },
     unclaim(p) {
       claimed.delete(p);

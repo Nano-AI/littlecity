@@ -36,6 +36,10 @@ export const SCUFFLE = defineStyle(
     drawRate: 12,
     /** Seconds each grawlix stays up in the bubble. */
     swear: 0.42,
+    /** Seconds the cloud may roll on while somebody comes to break it up. */
+    waitBreak: 16,
+    /** How far off (cells) the watchman or a guard notices a scuffle and comes to break it up. */
+    responderReach: 12,
   },
   {
     chance: [0, 1, 0.01],
@@ -57,6 +61,8 @@ export const SCUFFLE = defineStyle(
     roll: [0, 0.5, 0.01],
     drawRate: [4, 30, 1],
     swear: [0.1, 1.5, 0.02],
+    waitBreak: [0, 60, 1],
+    responderReach: [0, 48, 1],
   },
 );
 
