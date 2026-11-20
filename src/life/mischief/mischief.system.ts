@@ -48,6 +48,16 @@ class Pool {
   }
 }
 
+/** A phone-sized viewport (as the crowd decides): fewer puffs and sparks, one flame at a window instead of two. */
+function phone(): boolean {
+  const w = (globalThis as { innerWidth?: number }).innerWidth;
+  const h = (globalThis as { innerHeight?: number }).innerHeight;
+  return typeof w === 'number' && typeof h === 'number' && Math.min(w, h) < 600;
+}
+const LIGHT = phone();
+const PUFF_CAP = LIGHT ? 60 : 160;
+const SPARK_CAP = LIGHT ? 50 : 140;
+
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
 const FPS = 12;
 
@@ -174,7 +184,7 @@ function spotsOf(shape: ShapePlan, cell: CellKey): Spot[] {
     );
     // Two openings at most, picked by the seed.
     feats.sort((a, b) => hash(seed, a.id) - hash(seed, b.id));
-    for (const f of feats.slice(0, 2)) {
+    for (const f of feats.slice(0, LIGHT ? 1 : 2)) {
       const [dx, dz] = DIR4[f.dir!]!;
       out.push({ x: x + 0.5 + dx * 0.5, y: y * CELL_H + (f.type === 'door' ? 0.05 : 0.3), z: z + 0.5 + dz * 0.5, rot: Math.atan2(dx, dz), size: 0.62, roof: false });
     }
@@ -450,10 +460,10 @@ export default defineSystem<State>({
     const smokeInk = [0, 1, 2].map((l) => pool(st, stage, `smoke${l}`, () => smokeMesh(false, l)));
     const smokeMist = [0, 1, 2].map((l) => pool(st, stage, `mist${l}`, () => smokeMesh(true, l)));
     for (const [sid, src] of fierce) {
-      const acc = (st.smokeAcc.get(sid) ?? rand(sid, 'smoke')) + dt * (1.2 + 2.2 * Math.min(2.5, src.i));
+      const acc = (st.smokeAcc.get(sid) ?? rand(sid, 'smoke')) + dt * (1.2 + 2.2 * Math.min(2.5, src.i)) * (LIGHT ? 0.5 : 1);
       let n = Math.floor(acc);
       st.smokeAcc.set(sid, acc - n);
-      while (n-- > 0 && st.puffs.length < 160) {
+      while (n-- > 0 && st.puffs.length < PUFF_CAP) {
         const look = Math.floor(rand(sid, 'look', st.time * 100) * 3);
         const p: Puff = {
           ink: smokeInk[look]!.take(),
@@ -524,7 +534,7 @@ export default defineSystem<State>({
       for (const sp of f.spots) {
         if (!sp.roof) continue;
         if (rand(f.cell, 'spark', Math.floor(st.time * 30)) > dt * 6 * f.intensity) continue;
-        if (st.sparks.length >= 140) break;
+        if (st.sparks.length >= SPARK_CAP) break;
         const h = sparkPool.take();
         h.setParams(1);
         const a = rand(f.cell, 'sa', st.time) * Math.PI * 2;
@@ -587,7 +597,7 @@ export default defineSystem<State>({
         const wob = Math.sin(t * 30) * 0.04 * Math.min(1, t / 1.5);
         m = compose(translation(x, y + bounce, z), rotationY(3), [1, 0, 0, 0, wob, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], scaling(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash)));
         draw.sparkIn -= dt;
-        if (draw.sparkIn <= 0 && st.sparks.length < 160) {
+        if (draw.sparkIn <= 0 && st.sparks.length < SPARK_CAP + 20) {
           draw.sparkIn = 0.04;
           const tip = multiply(m, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, FUSE_TIP[0], FUSE_TIP[1] * (1 - 0.6 * Math.min(1, t / 1.8)), FUSE_TIP[2], 1]);
           const h = sparkPool.take();

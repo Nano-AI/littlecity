@@ -34,7 +34,7 @@ export function mischiefGuideSection(): HTMLElement {
   const list = el('ul', { class: 'lc-guide-list' });
   for (const m of MISCHIEF_GUIDE) {
     list.append(
-      el('li', { class: 'lc-guide-entry', attrs: { 'data-entry': `mischief-${m.tool}` } }, [
+      el('li', { class: 'lc-guide-entry', attrs: { 'data-mischief': m.tool } }, [
         el('div', { class: 'lc-guide-picture lc-guide-mischief-icon', html: icon(m.tool) }),
         el('div', { class: 'lc-guide-words' }, [el('h4', {}, [el('span', { text: m.name })]), el('p', { text: m.how })]),
       ]),
