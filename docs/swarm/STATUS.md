@@ -754,3 +754,18 @@ games and gardens), a budgeted plan that drops districts instead of
 squeezing them, composed marble ensembles, coverage across seeds rather
 than within one town, no wall-clock test assertions.
 Running: mischief (final iteration), test-diet, grow-town pass 4.
+
+**MISCHIEF MERGED AND PUBLISHED** (`9ea58b4`, at Derek's word after the
+final local iteration): torch, bomb, nuke, mallet, mend; staged damage and
+ruins saved as section bit 1; fire brigade with a parked pump cart, hose
+paid out along the walked path, continuous jet; every damaged building
+mends itself (crews speed it up); nuke with crater via terrain edits.
+Unit tests 2,013 green; core browser tests green serially. Source pushed.
+**Derek on the nuke (after merge):** it has no asset of its own and the
+mushroom cloud "looks pretty bad… super goofy": wants a fast shockwave
+first, then a fireball that rises quickly into a mushroom cloud, settles
+into smoke and dissipates, like nukes in video games → sent to the
+mischief agent.
+Note for big-islands (experimental): mischief owns save-section bit 1; the
+size section must move to bit 2 before that branch could merge.
+Running: test-diet, grow-town pass 4, mischief (nuke redo).
