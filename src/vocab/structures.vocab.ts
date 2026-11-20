@@ -20,6 +20,8 @@ declare module '@/core/vocab' {
   interface TagVocab {
     'barn': true; //             R-H18: weatherboarded timber walls, no chimney, barn doors (J30)
     'farmstead': true; //        R-H18: a farmhouse within 4: a yard with hay and a cart
+    'watch:pyramid': true; //    R-T07 (FX-10): a crowded watchtower: square, under a tiled pyramid
+    'watch:crenel': true; //     R-T07 (FX-10): a crowded watchtower: a square tower house, crenellated
   }
   interface PropVocab {
     // The loose things that belong to the new buildings (R-H98.structure-props), at a floor slot,

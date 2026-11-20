@@ -50,7 +50,13 @@ export default defineRule({
     if (keyY(bottom) === 0 && plan.terrain.height[columnIndex(keyX(bottom), keyZ(bottom))] === 0) out.tag(s.id, 'footing:water');
 
     if (s.kind === 'tower') {
-      const look = BY_ROLE[plan.roles.get(s.id)?.role ?? 'watchtower'] ?? BY_ROLE.watchtower!;
+      const tags = plan.tags.get(s.id);
+      // FX-10: a crowded watchtower's other looks (R-T07).
+      const look = tags?.has('watch:pyramid')
+        ? { body: 'body:square' as Tag, cap: 'pyramid' as const }
+        : tags?.has('watch:crenel')
+          ? { body: 'body:square' as Tag, cap: 'battlements' as const }
+          : (BY_ROLE[plan.roles.get(s.id)?.role ?? 'watchtower'] ?? BY_ROLE.watchtower!);
       out.tag(s.id, look.body);
       if (!plan.kinds.has(above(top)) && !have.some((f) => f.type === 'cap')) {
         const cap = out.feature({ type: 'cap', variant: look.cap, structure: s.id, cell: top });
