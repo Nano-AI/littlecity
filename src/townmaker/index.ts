@@ -25,8 +25,8 @@ import type { Edit, Terrain } from '@/core/world';
 import { rollCharacter, type Character } from './character';
 import { buildCastle } from './districts/castle';
 import { buildForum } from './districts/forum';
-import { buildBarn, buildFields, buildOrchard, buildPark, buildSchool, buildSmithy, buildVillageGreen } from './districts/village';
-import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
+import { buildBarn, buildFields, buildFollyTower, buildOrchard, buildPark, buildSchool, buildSmithy, buildVillageGreen } from './districts/village';
+import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWalledLawn, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour } from './districts/harbour';
 import { buildRiverside } from './districts/riverside';
@@ -108,6 +108,8 @@ const STEPS: Record<string, Step> = {
   park: (t) => buildPark(t),
   inhabitedBridge: buildInhabitedBridge,
   farmstead: reserveFarmstead,
+  follyTower: buildFollyTower,
+  walledLawn: buildWalledLawn,
 };
 
 /**
@@ -117,13 +119,13 @@ const STEPS: Record<string, Step> = {
  */
 const PLANS: Record<Character, readonly string[]> = {
   harbour: ['square', 'greatHarbour', 'lighthouse', 'willow', 'housing:0:8', 'courtyard', 'chapel', 'smithy', 'boardwalk', 'bridge', 'jetty', 'riverside', 'housing:1:11', 'walledGarden', 'stairs', 'viaduct'],
-  marble: ['forum', 'willow', 'acropolis', 'folly', 'housing:0:9', 'courtyard', 'viaduct', 'chapel', 'walledGarden', 'harbour', 'lighthouse', 'manor', 'courtyard:1', 'housing:1:12', 'bridge', 'boardwalk', 'stairs'],
-  castle: ['square', 'castle', 'smithy', 'chapel', 'hilltop', 'housing:0:8', 'housing:1:11', 'walledGarden', 'watchtower', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard'],
-  market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'housing:2:13', 'greenhouse', 'willow', 'bridge', 'stairs'],
-  river: ['square', 'riverside', 'inhabitedBridge', 'mill', 'willow', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'park', 'greenhouse', 'boardwalk', 'bridge', 'courtyard', 'housing:1:12', 'walledGarden'],
-  farming: ['square', 'green', 'chapel', 'farmstead', 'barn', 'orchard', 'mill', 'paddock', 'barn:1', 'orchard:1', 'smithy', 'greenhouse', 'manor', 'willow', 'harbour', 'lighthouse', 'paddock:1'],
-  hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'chapel', 'acropolis', 'folly', 'viaduct', 'stairs', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower', 'bridge'],
-  gardens: ['square', 'park', 'fields', 'school', 'manor', 'greenhouse', 'walledGarden', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
+  marble: ['forum', 'willow', 'acropolis', 'folly', 'follyTower', 'housing:0:9', 'courtyard', 'viaduct', 'chapel', 'walledGarden', 'walledLawn', 'harbour', 'lighthouse', 'manor', 'courtyard:1', 'housing:1:12', 'bridge', 'boardwalk', 'stairs'],
+  castle: ['square', 'castle', 'smithy', 'chapel', 'hilltop', 'housing:0:8', 'housing:1:11', 'walledGarden', 'walledLawn', 'watchtower', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard', 'fields'],
+  market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'fields', 'housing:2:13', 'greenhouse', 'willow', 'bridge', 'stairs'],
+  river: ['square', 'riverside', 'inhabitedBridge', 'mill', 'willow', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'park', 'fields', 'greenhouse', 'boardwalk', 'bridge', 'courtyard', 'housing:1:12', 'walledGarden'],
+  farming: ['square', 'green', 'manor', 'chapel', 'farmstead', 'barn', 'orchard', 'mill', 'paddock', 'barn:1', 'orchard:1', 'smithy', 'greenhouse', 'manor', 'fields', 'willow', 'harbour', 'lighthouse', 'paddock:1', 'walledLawn'],
+  hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'chapel', 'acropolis', 'folly', 'follyTower', 'viaduct', 'stairs', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower', 'bridge'],
+  gardens: ['square', 'manor', 'park', 'fields', 'school', 'greenhouse', 'walledGarden', 'walledLawn', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
 };
 
 /** What a secondary character adds: its showpieces, after the primary's first few districts. */
@@ -160,6 +162,9 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
   const town: Town = { g, site, square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 && primary !== 'marble', marketCross: primary === 'market' || secondary === 'market' };
 
   const plan = planFor(primary, secondary);
+  // A marble city stands or falls by its forum: on an island with no site for one, grow another kind of town.
+  if (primary === 'marble' && !opts.character && plan[0] === 'forum' && !buildForum(town)) return planTown(terrain, seed, { avoid: 'marble' });
+  if (primary === 'marble' && town.square) plan.shift();
   for (const step of plan) {
     const [name, a, b] = step.split(':');
     if (name === 'housing') buildHousing(town, Number(a), Number(b));

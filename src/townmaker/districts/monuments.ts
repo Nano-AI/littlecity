@@ -122,7 +122,8 @@ export function buildChapel(town: Town): boolean {
   C.stack('tower', 3, 0, 5, C.color('tower', [[3, h, 0]], 'steeple'));
   // A flying buttress off the chapel's north wall, at the upper storey.
   C.put('arch', 1, h + 1, -1, 0);
-  // The churchyard behind it: grass walled round on the chapel's far side (R-G02 fills it with headstones and a yew).
+  // The churchyard behind it: a garden walled round on the chapel's far side (R-G02: headstones and a yew).
+  for (let v = -3; v <= -1; v++) for (let u = 0; u <= 2; u++) C.floor('garden', u, v, h);
   for (let u = 0; u <= 2; u++) C.edge(u, h, -3, 0, 'wall');
   for (let v = -3; v <= -1; v++) {
     C.edge(0, h, v, 3, 'wall');

@@ -152,29 +152,33 @@ export function buildSchool(town: Town, near = 9): boolean {
 }
 
 /**
- * Playing fields side by side along a street: a football pitch (4 × 6), a
- * tennis court (2 × 5), a bowling green (4 × 4), as room allows.
+ * Playing fields (R-G03: the shape decides the game), each its own ground
+ * with a street along it, as room allows: a big one (a football pitch or a
+ * croquet lawn), a long one (a tennis court, or a running track with a boules
+ * court beside it), and a square one (a bowling green, or a kickabout green).
  */
 export function buildFields(town: Town, near = 11): boolean {
   const { g } = town;
-  const found = place(town, 'fields', 14, 6, near, 6, [0, 1]);
-  if (!found) return false;
-  const f = found.frame, h = found.data;
-  const P = new Local(g, f);
-  const d = startDistrict(town, 'fields', f.x(7, 3), f.z(7, 3));
-  P.claim(0, 0, 14, 5, CLAIM.built);
-  const field = (u0: number, v0: number, u1: number, v1: number): void => {
-    for (let v = v0; v <= v1; v++) for (let u = u0; u <= u1; u++) P.floor('field', u, v, h);
-  };
-  field(0, 0, 3, 5); // football 4 × 6
-  field(5, 0, 6, 4); // tennis 2 × 5
-  field(8, 0, 11, 3); // bowls 4 × 4
-  P.put('tree', 13, h, 1, 0);
-  P.put('tree', 13, h, 4, 0);
-  for (let u = 0; u <= 14; u++) pave(g, f.x(u, 6), f.z(u, 6));
-  P.way(d, 0, 6);
-  P.way(d, 14, 6);
-  return true;
+  // Each ground: [width, depth, cells as [u0, v0, u1, v1] rectangles of field].
+  const grounds: [number, number, [number, number, number, number][]][] = [
+    g.chance(0.5, 'fields-big') ? [4, 6, [[0, 0, 3, 5]]] : [4, 5, [[0, 0, 3, 4]]],
+    g.chance(0.5, 'fields-long') ? [2, 5, [[0, 0, 1, 4]]] : [3, 6, [[0, 0, 0, 5], [2, 0, 2, 2]]],
+    g.chance(0.5, 'fields-square') ? [4, 4, [[0, 0, 3, 3]]] : [2, 2, [[0, 0, 1, 1]]],
+  ];
+  let made = 0;
+  for (const [i, [w, dd, rects]] of grounds.entries()) {
+    const found = place(town, `ground${i}`, w - 1, dd, near + i * 2, 6);
+    if (!found) continue;
+    const f = found.frame, h = found.data;
+    const P = new Local(g, f);
+    const d = startDistrict(town, made === 0 ? 'fields' : `fields${i}`, f.x(w >> 1, dd >> 1), f.z(w >> 1, dd >> 1));
+    P.claim(0, 0, w - 1, dd - 1, CLAIM.built);
+    for (const [u0, v0, u1, v1] of rects) for (let v = v0; v <= v1; v++) for (let u = u0; u <= u1; u++) P.floor('field', u, v, h);
+    for (let u = 0; u < w; u++) pave(g, f.x(u, dd), f.z(u, dd));
+    P.way(d, 0, dd);
+    made++;
+  }
+  return made > 0;
 }
 
 /** A park: a 5 × 5 lawn with a bandstand in the middle (marble on four pillars on the garden), trees at its corners. */
@@ -196,5 +200,26 @@ export function buildPark(town: Town, near = 10): boolean {
   for (const [u, v] of [[0, 0], [4, 0], [0, 4], [4, 4]] as const) P.put('tree', u, h, v, 0);
   for (let u = 0; u <= 4; u++) pave(g, f.x(u, 5), f.z(u, 5));
   P.way(d, 0, 5);
+  return true;
+}
+
+/** A folly tower: the Light piece far inland (six or more from any water), a belvedere on top for the view. */
+export function buildFollyTower(town: Town): boolean {
+  const { g, site } = town;
+  const found = search(g, 'folly-tower', (f) => {
+    if (!fits(g, f, 0, 0, 0, 1)) return null;
+    const i = columnIndex(f.ox, f.oz);
+    if (site.waterDist[i]! < 8 || g.h(f.ox, f.oz) === 0) return null;
+    if (Math.abs(g.h(f.x(0, 1), f.z(0, 1)) - g.h(f.ox, f.oz)) > 1) return null;
+    return { score: -g.h(f.ox, f.oz) * 2 + Math.abs(fromSquare(town, f.ox, f.oz) - 12) * 0.3, data: null };
+  }, { turns: [0, 1, 2, 3] });
+  if (!found) return false;
+  const f = found.frame;
+  const T = new Local(g, f);
+  const d = startDistrict(town, 'folly-tower', f.ox, f.oz);
+  T.claim(0, 0, 0, 0, CLAIM.built);
+  T.claim(-1, -1, 1, 1, CLAIM.keep);
+  T.stack('lighthouse', 0, 0, 5, 0);
+  if (pave(g, f.x(0, 1), f.z(0, 1))) T.way(d, 0, 1);
   return true;
 }

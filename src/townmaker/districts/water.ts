@@ -157,7 +157,7 @@ export function buildViaduct(town: Town): boolean {
 export function buildInhabitedBridge(town: Town): boolean {
   const { g } = town;
   let found = null;
-  for (const n of [5, 4, 6, 3]) {
+  for (const n of [4, 5, 3, 6, 2]) {
     if (found) break;
     found = search(g, `bridge-shops${n}`, (f) => {
       const top = g.h(f.ox, f.oz);
@@ -184,7 +184,7 @@ export function buildInhabitedBridge(town: Town): boolean {
   for (const u of [-1, 0, n + 1, n + 2]) pave(g, f.x(u, 0), f.z(u, 0));
   for (let u = 1; u <= n; u++) for (const v of [0, 1]) B.put('arch', u, top - 1, v, 0);
   for (let u = 1; u <= n; u++) B.floor('path', u, 0, top);
-  for (let u = 2; u <= n - 1; u++) {
+  for (let u = n > 2 ? 2 : 1; u <= (n > 2 ? n - 1 : n); u++) {
     const c = B.color('house', [[u, top, 1], [u, top + 1, 1]], `bridge-shop${u}`);
     B.put('house', u, top, 1, c);
     B.put('house', u, top + 1, 1, c);

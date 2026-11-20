@@ -333,3 +333,33 @@ export function buildTrees(town: Town): void {
     }
   }
 }
+
+/** A walled lawn: grass shut in by low walls on every side, nothing inside (U02: espaliers, beds). */
+export function buildWalledLawn(town: Town): boolean {
+  const { g } = town;
+  const found = search(g, 'walled-lawn', (f) => {
+    if (!fits(g, f, 0, 0, 2, 3)) return null;
+    const h = rectFlat(g, f, 0, 0, 2, 3);
+    if (h < 0) return null;
+    const d = fromSquare(town, f.x(1, 1), f.z(1, 1));
+    if (d < 6) return null;
+    return { score: Math.abs(d - 10), data: h };
+  });
+  if (!found) return false;
+  const f = found.frame;
+  const h = found.data;
+  const W = new Local(g, f);
+  const d = startDistrict(town, 'walled-lawn', f.x(1, 1), f.z(1, 1));
+  W.claim(0, 0, 2, 2, CLAIM.built);
+  for (let u = 0; u <= 2; u++) {
+    W.edge(u, h, 0, 0, 'wall');
+    W.edge(u, h, 2, 2, 'wall');
+  }
+  for (let v = 0; v <= 2; v++) {
+    W.edge(0, h, v, 3, 'wall');
+    W.edge(2, h, v, 1, 'wall');
+  }
+  for (let u = 0; u <= 2; u++) pave(g, f.x(u, 3), f.z(u, 3));
+  W.way(d, 0, 3);
+  return true;
+}
