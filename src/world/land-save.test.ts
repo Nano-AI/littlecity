@@ -109,7 +109,7 @@ describe('saving the reshaped land', () => {
     const at = payload.length - 6;
     expect(payload[at]).toBe(1);
     const changed = payload.slice();
-    changed[at] = 3;
+    changed[at] = 5; // bit 2: nobody's yet (bit 1 is mischief's ruins)
     let h = 0x811c9dc5;
     for (let i = 0; i < changed.length; i++) h = Math.imul(h ^ changed[i]!, 0x01000193);
     const sum = h >>> 0;

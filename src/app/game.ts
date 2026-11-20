@@ -13,7 +13,7 @@ import type { Edit, EditResult, Terrain, World } from '@/core/world';
 import type { ResolveOptions } from '@/resolve/index';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { createStagedResolver, type StagedResolver } from '@/resolve/staged';
-import { canRedo, canUndo, createHistory, pushHistory, redo, undo, type History } from '@/world/history';
+import { canRedo, canUndo, createHistory, pushHistory, redo, replacePresent, undo, type History } from '@/world/history';
 import { islandOf } from '@/terrain/land';
 import { applyEdit, canApply } from '@/world/world';
 
@@ -54,6 +54,21 @@ export interface Game {
   /** Opens a batch: the edits until end() are one undo step. */
   begin(): void;
   end(): void;
+  /** A batch is open. */
+  readonly batching: boolean;
+  /**
+   * Closes the open batch without recording it: the town goes back to how it
+   * was when the batch began (mischief: undo in the middle of a fire).
+   * False if no batch was open.
+   */
+  abort(): boolean;
+  /**
+   * Applies every legal edit of a list and shows the result, as part of
+   * whatever undo step is current: inside a batch it joins the batch,
+   * otherwise it changes the present step instead of making a new one (the
+   * town mending itself). Returns how many were applied.
+   */
+  amend(edits: readonly Edit[]): number;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   undo(): boolean;
@@ -142,6 +157,30 @@ export function createGame(start: GameStart, events: GameEvents): Game {
       batch = world;
     },
     end: closeBatch,
+    get batching() {
+      return batch !== null;
+    },
+    abort() {
+      if (batch === null) return false;
+      const before = batch;
+      batch = null;
+      if (world !== before) show(before, null);
+      else events.changed?.();
+      return true;
+    },
+    amend(edits) {
+      let next = world;
+      let n = 0;
+      for (const e of edits) {
+        if (!canApply(next, terrain, e).ok) continue;
+        next = applyEdit(next, terrain, e);
+        n++;
+      }
+      if (n === 0) return 0;
+      if (batch === null) history = replacePresent(history, next);
+      show(next, null);
+      return n;
+    },
     get canUndo() {
       return batch === null && canUndo(history);
     },

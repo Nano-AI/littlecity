@@ -10,13 +10,16 @@
 import { ALL_KINDS, FLOOR_KINDS, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 
 export type PieceId = PlacedKind | FloorKind;
-export type ToolId = 'change' | 'paint' | 'erase';
+/** Mischief (design section 13b): tools that wreck and mend, in their own drawer. */
+export type MischiefToolId = 'torch' | 'bomb' | 'nuke' | 'mallet' | 'mend';
+export type ToolId = 'change' | 'paint' | 'erase' | MischiefToolId;
 /** Shaping the land (design section 6): the Land group at the start of the Nature drawer. */
 export type LandId = 'raise' | 'dig' | 'level';
 export type ItemId = PieceId | ToolId | LandId;
-export type DrawerId = 'build' | 'ground' | 'nature' | 'tools';
+export type DrawerId = 'build' | 'ground' | 'nature' | 'tools' | 'mischief';
 
 export const TOOL_IDS: readonly ToolId[] = ['change', 'paint', 'erase'];
+export const MISCHIEF_TOOL_IDS: readonly MischiefToolId[] = ['torch', 'bomb', 'nuke', 'mallet', 'mend'];
 export const LAND_IDS: readonly LandId[] = ['raise', 'dig', 'level'];
 
 export interface TrayItem {
@@ -61,10 +64,15 @@ const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
   change: { label: 'Change', hint: 'Change what a block is, or turn stairs' },
   paint: { label: 'Paint', hint: 'Recolour a block' },
   erase: { label: 'Erase', hint: 'Remove a piece' },
+  torch: { label: 'Torch', hint: 'Set a building alight' },
+  bomb: { label: 'Bomb', hint: 'Drop a bomb' },
+  nuke: { label: 'Nuke', hint: 'The big one: a mushroom cloud and a crater' },
+  mallet: { label: 'Mallet', hint: 'Knock a building down a stage' },
+  mend: { label: 'Mend', hint: 'Mend a building a stage (Shift: all at once)' },
 };
 
-export const DRAWER_LABELS: Record<DrawerId, string> = { build: 'Build', ground: 'Ground', nature: 'Nature', tools: 'Tools' };
-export const DRAWER_IDS: readonly DrawerId[] = ['build', 'ground', 'nature', 'tools'];
+export const DRAWER_LABELS: Record<DrawerId, string> = { build: 'Build', ground: 'Ground', nature: 'Nature', tools: 'Tools', mischief: 'Mischief' };
+export const DRAWER_IDS: readonly DrawerId[] = ['build', 'ground', 'nature', 'tools', 'mischief'];
 
 const titleCase = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -74,7 +82,10 @@ export function allPieceIds(): PieceId[] {
 }
 
 export function isToolId(id: ItemId): id is ToolId {
-  return id === 'change' || id === 'paint' || id === 'erase';
+  return id === 'change' || id === 'paint' || id === 'erase' || isMischiefTool(id);
+}
+export function isMischiefTool(id: ItemId): id is MischiefToolId {
+  return (MISCHIEF_TOOL_IDS as readonly string[]).includes(id);
 }
 /** Raise, Dig or Level: they shape the ground instead of placing a piece. */
 export function isLandTool(id: ItemId): id is LandId {
@@ -92,7 +103,7 @@ export function paintsRuns(id: ItemId): boolean {
 }
 
 export function trayItem(id: ItemId): TrayItem {
-  if (isToolId(id)) return { id, drawer: 'tools', ...TOOL_INFO[id] };
+  if (isToolId(id)) return { id, drawer: isMischiefTool(id) ? 'mischief' : 'tools', ...TOOL_INFO[id] };
   if (isLandTool(id)) return { id, drawer: 'nature', ...LAND_INFO[id], ...(id === 'raise' ? { group: 'land' as const } : {}) };
   const info = PIECE_INFO[id];
   return { id, label: info?.label ?? titleCase(id), hint: info?.hint ?? titleCase(id), drawer: info?.drawer ?? 'build' };
@@ -101,6 +112,7 @@ export function trayItem(id: ItemId): TrayItem {
 /** The items of one drawer, in tray order. Keys 1–9 and 0 pick them by position. */
 export function drawerItems(drawer: DrawerId): TrayItem[] {
   if (drawer === 'tools') return TOOL_IDS.map(trayItem);
+  if (drawer === 'mischief') return MISCHIEF_TOOL_IDS.map(trayItem);
   // The Land group comes first in the Nature drawer.
   const land = drawer === 'nature' ? LAND_IDS.map(trayItem) : [];
   return land.concat(pieceItems(drawer));

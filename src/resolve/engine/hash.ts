@@ -134,6 +134,8 @@ export function hashStructure(s: Structure, plan: ShapePlan): number {
     const floor = world.floors.get(c);
     h = mix(h, c);
     h = mix(h, block ? block.rot : 9);
+    // Damage (mischief): mixed in only when present, so a sound town hashes as before.
+    if (block?.ruin) h = mix(mix(h, 0x7a1d), block.ruin);
     h = mix(h, kinds.has(c) ? KIND_CODE.get(kinds.get(c)!)! : 0);
     h = mix(h, floor ? KIND_CODE.get(floor)! : 0);
     h = mix(h, floorAt.get(c) ?? -1);

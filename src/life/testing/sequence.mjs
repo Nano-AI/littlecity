@@ -19,6 +19,9 @@
 //                            shaping the land: one column (x,z) or a rectangle (x0,z0,x1,z1), one level up or
 //                            down, or one step toward a height (level:<h>); each is one edit, as one brush dab
 //   --then '<edits>' --after 400   a second batch of edits, that many ms into the sequence
+//   mischief (design section 13b), in either list: 'fire@10,1,10' sets that block alight, 'bomb@10,1,10'
+//   drops a bomb on the floor of that cell (y = the level it lands on), 'knock@10,1,10' knocks its
+//   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo
 //   --frames 8 --every 100   how many frames to keep, and the milliseconds between them
 //   --zoom 3 --target 10,1,10 --yaw 45 --pitch 35   move the camera (the app opens on the scenario's first camera)
 //   --size 640x400 --scale 1 --cols 4
@@ -183,6 +186,13 @@ try {
       const done = [];
       for (const e of edits) {
         const cell = key(e.x, e.y, e.z);
+        const m = lc.mischief;
+        if (e.verb === 'fire') { done.push(m.ignite(cell) ? 'lit' : 'would not catch'); continue; }
+        if (e.verb === 'bomb') { m.dropBomb([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('bomb'); continue; }
+        if (e.verb === 'nuke') { m.dropNuke([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('nuke'); continue; }
+        if (e.verb === 'knock') { done.push(m.knock(cell) ? 'knocked' : 'no'); continue; }
+        if (e.verb === 'mend' || e.verb === 'mendall') { done.push(m.mend(cell, e.verb === 'mendall') ? 'mended' : 'no'); continue; }
+        if (e.verb === 'undo') { if (!(m.active && (m.cancel(), true))) lc.game.undo(); done.push('undone'); continue; }
         let edit;
         if (e.verb === 'raise' || e.verb === 'dig' || e.verb === 'level') {
           // Shaping the land: a column (x,z) or a rectangle of them (x0,z0,x1,z1).

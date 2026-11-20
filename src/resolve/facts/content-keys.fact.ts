@@ -93,7 +93,7 @@ function buildContentKeys(f: Facts): ContentKeys {
   const { world, kinds, structureAt, floorAt, edgeAt } = f;
   for (const [c, block] of world.blocks) {
     const sid = structureAt.get(c);
-    add(columnIndex(keyX(c), keyZ(c)), 1, c, code(block.kind) * 64 + block.color, block.rot + (block.style ?? 0) * 8, code(kinds.get(c)), sid === undefined ? -1 : sid);
+    add(columnIndex(keyX(c), keyZ(c)), 1, c, code(block.kind) * 64 + block.color, block.rot + (block.style ?? 0) * 8 + (block.ruin ?? 0) * 128, code(kinds.get(c)), sid === undefined ? -1 : sid);
   }
   // Resolved kinds of cells with no placed block (none today; cheap insurance).
   if (kinds.size !== world.blocks.size) {

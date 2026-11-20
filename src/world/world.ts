@@ -26,6 +26,7 @@ import { AUTO_KINDS, EDGE_KINDS, FLOOR_KINDS, KINDS, PALETTE_SIZE, placedInfo, t
 import { hash } from '@/core/rand';
 import type { Edit, EditResult, Rot, Terrain, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
+import { isRuin } from './damage';
 import { islandOf } from '@/terrain/land';
 import { canShapeLand, shapeLand } from './land';
 
@@ -242,6 +243,21 @@ function verdict(w: World, t: Terrain, e: Edit): EditResult {
       if (!validColor(e.color)) return no('unknown colour');
       return yes;
     }
+    case 'setRuin': {
+      // Mischief (design section 13b): never terrain, only a block that is there.
+      if (!cellInGrid(e.cell)) return no('outside the map');
+      const b = w.blocks.get(e.cell);
+      if (!b) return no('nothing there');
+      if (e.ruin !== 0 && !isRuin(e.ruin)) return no('unknown damage');
+      if ((b.ruin ?? 0) === e.ruin) return no(e.ruin ? 'it is already like that' : 'it is not damaged');
+      return yes;
+    }
+    case 'repair': {
+      if (!cellInGrid(e.cell)) return no('outside the map');
+      const b = w.blocks.get(e.cell);
+      if (!b) return no('nothing there');
+      return b.ruin ? yes : no('it is not damaged');
+    }
     case 'land':
       return canShapeLand(w, t, e);
     default:
@@ -320,6 +336,15 @@ export function applyEdit(w: World, t: Terrain, e: Edit): World {
     case 'paint': {
       const blocks = new Map(w.blocks);
       blocks.set(e.cell, { ...w.blocks.get(e.cell)!, color: e.color });
+      return { ...w, blocks };
+    }
+    case 'setRuin':
+    case 'repair': {
+      // The block keeps everything else (kind, colour, style, seq): repairing restores exactly what was built.
+      const blocks = new Map(w.blocks);
+      const { ruin: _old, ...rest } = w.blocks.get(e.cell)!;
+      const ruin = e.type === 'setRuin' ? e.ruin : 0;
+      blocks.set(e.cell, ruin ? { ...rest, ruin } : rest);
       return { ...w, blocks };
     }
     case 'land': {

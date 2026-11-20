@@ -22,6 +22,9 @@ export interface MenuActions {
   sound(): boolean;
   setSound(on: boolean): void;
   toggleTuning(): void;
+  /** Mischief (design section 13b): the town mends its own damage. Left out of the menu when absent. */
+  rebuild?(): boolean;
+  setRebuild?(on: boolean): void;
 }
 
 export interface Menu {
@@ -77,6 +80,22 @@ export function createMenu(actions: MenuActions): Menu {
       },
       true,
     );
+    const label = (on: boolean): string => (on ? 'Rebuild: on' : 'Rebuild: off');
+    const rebuild =
+      actions.rebuild && actions.setRebuild
+        ? item(
+            'rebuild',
+            'mend',
+            label(actions.rebuild()),
+            () => {
+              const next = !actions.rebuild!();
+              actions.setRebuild!(next);
+              rebuild!.querySelector('.lc-btn-label')!.textContent = label(next);
+              rebuild!.setAttribute('aria-label', label(next));
+            },
+            true,
+          )
+        : null;
     const dice = iconButton('dice', 'Grow a town on a new island', {
       class: 'lc-menu-item lc-menu-dice',
       title: 'Grow a town on a new island',
@@ -94,6 +113,7 @@ export function createMenu(actions: MenuActions): Menu {
       item('open', 'open', 'Open a town file', () => file.click()),
       el('div', { class: 'lc-menu-rule' }),
       sound,
+      ...(rebuild ? [rebuild] : []),
       item('tuning', 'tune', 'Tuning', actions.toggleTuning),
     );
   };

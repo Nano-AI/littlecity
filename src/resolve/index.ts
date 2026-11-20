@@ -16,6 +16,7 @@ import { islandOf } from '@/terrain/land';
 import { resolveKinds } from './kinds';
 import { buildNav } from './nav';
 import type { DressingPlan, ShapePlan, TownPlan } from './plan';
+import { withoutRuinedDressing } from './ruins';
 import { buildStructures } from './structures';
 import { resolveSupports } from './supports';
 
@@ -36,7 +37,8 @@ export function resolveShape(w: World, t: Terrain, opts: ResolveOptions = {}): S
 }
 
 export function resolveDressing(shape: ShapePlan, opts: ResolveOptions = {}): DressingPlan {
-  return runDressingStage(shape, opts.rules ?? allRules(), { buildNav }, opts);
+  // A ruin houses nobody and carries no dressing (mischief, design section 13b).
+  return withoutRuinedDressing(shape, runDressingStage(shape, opts.rules ?? allRules(), { buildNav }, opts));
 }
 
 /** Both stages at once (tests, tools, screenshots). */

@@ -24,6 +24,14 @@ export interface Block {
    * its lowest-seq block. (Added 2026-11-19, docs/swarm/requests/house-styles.md.)
    */
   style?: number;
+  /**
+   * Damage (design section 13b, "Mischief"): absent = sound. A packed byte
+   * read and written only through src/world/damage.ts: stage 1–3 (hurt,
+   * half-destroyed, destroyed), cause (fire or blast), and whether builders
+   * are mending it. Set only by the `setRuin` and `repair` edits.
+   * (Added 2026-11-19, docs/swarm/requests/mischief.md.)
+   */
+  ruin?: number;
 }
 
 /** Everything that is saved. Immutable: applyEdit returns a new World. */
@@ -72,6 +80,10 @@ export type Edit =
   | { type: 'setKind'; cell: CellKey; kind: PlacedKind }
   | { type: 'setRot'; cell: CellKey; rot: Rot }
   | { type: 'paint'; cell: CellKey; color: number }
+  /** Mischief: sets a block's damage (a packed value from src/world/damage.ts; 0 = sound). */
+  | { type: 'setRuin'; cell: CellKey; ruin: number }
+  /** Mischief: makes a damaged block sound again, exactly as it was built. */
+  | { type: 'repair'; cell: CellKey }
   /**
    * Shaping the land (added 2026-11-19, docs/swarm/requests/landshaping.md):
    * the columns (column index x + z * 48) in `up` rise one level and those in

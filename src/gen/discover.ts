@@ -13,6 +13,7 @@ import {
   type GeneratorRegistry,
   type PartRegistry,
 } from './api';
+import { withDamage } from './damage/damage';
 import { fallbackGenerator, fallbackPart } from './fallback';
 
 const genModules = import.meta.glob('/src/gen/**/*.gen.ts', { eager: true });
@@ -20,11 +21,12 @@ const partModules = import.meta.glob('/src/parts/**/*.part.ts', { eager: true })
 
 /** Builds registries from glob results (tests pass their own fixtures). */
 export function collectGenerators(modules: Record<string, unknown>): GeneratorRegistry {
-  return createGeneratorRegistry(
+  // Every structure is drawn with its damage, if it has any (mischief: src/gen/damage).
+  return withDamage(createGeneratorRegistry(
     collectExports(modules, isGenerator).map((g) => g.item),
     collectExports(modules, isLayer).map((l) => l.item),
     fallbackGenerator,
-  );
+  ));
 }
 export function collectParts(modules: Record<string, unknown>): PartRegistry {
   return createPartRegistry(

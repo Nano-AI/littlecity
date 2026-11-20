@@ -30,6 +30,11 @@
 //          column in index order: index delta from the previous (varint, the
 //          first from -1), height (byte, 0–10)
 //
+//   bit 1, damaged blocks (Block.ruin, mischief: design section 13b): count
+//          (varint), then per damaged block its index in the block list
+//          above (delta varint, the first from -1) and its damage (varint; the
+//          passing "settling" mark is never saved)
+//
 // Each section is self-contained and length-prefixed, so another optional
 // section can take the next bit beside this one without touching it. A town
 // with no section to write is written as before (version 1, 2 or 3), byte for
@@ -44,6 +49,7 @@ import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, t
 import type { Block, Rot, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
 import { LAND_MAX, landEditable } from '@/terrain/land';
+import { isRuin, savedRuin } from './damage';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
 export type DecodeResult = { ok: true; world: World } | { ok: false; reason: string };
@@ -60,7 +66,8 @@ const VERSION_3 = 3;
 const VERSION_4 = 4;
 /** Section flags of version 4. Take the next free bit for a new section. */
 const SECTION_LAND = 1 << 0;
-const KNOWN_SECTIONS = SECTION_LAND;
+const SECTION_RUINS = 1 << 1;
+const KNOWN_SECTIONS = SECTION_LAND | SECTION_RUINS;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -180,7 +187,7 @@ export function encodeTown(w: World): string {
     prev = e;
     p.byte(EDGE_KINDS.indexOf(w.edges.get(e)!));
   }
-  if (version === VERSION_4) writeSections(p, w);
+  if (version === VERSION_4) writeSections(p, w, blocks.map(([, b]) => b));
   const payload = Uint8Array.from(p.bytes);
   const head = new Writer();
   head.byte(0x4c);
@@ -195,7 +202,7 @@ export function encodeTown(w: World): string {
 }
 
 /** Version 4's optional sections: the flags, then each present section with its length. */
-function writeSections(p: Writer, w: World): void {
+function writeSections(p: Writer, w: World, order: readonly Block[]): void {
   let flags = 0;
   const sections: number[][] = [];
   if (w.terrainEdits && w.terrainEdits.size > 0) {
@@ -211,6 +218,23 @@ function writeSections(p: Writer, w: World): void {
     }
     sections.push(s.bytes);
   }
+  const ruined: [number, number][] = [];
+  order.forEach((b, i) => {
+    const r = savedRuin(b.ruin);
+    if (r) ruined.push([i, r]);
+  });
+  if (ruined.length > 0) {
+    flags |= SECTION_RUINS;
+    const s = new Writer();
+    s.varint(ruined.length);
+    let prev = -1;
+    for (const [i, r] of ruined) {
+      s.varint(i - prev);
+      prev = i;
+      s.varint(r);
+    }
+    sections.push(s.bytes);
+  }
   p.varint(flags);
   for (const bytes of sections) {
     p.varint(bytes.length);
@@ -219,7 +243,7 @@ function writeSections(p: Writer, w: World): void {
 }
 
 /** Reads version 4's sections into the world's optional fields; a reason string if they are damaged. */
-function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }): string | null {
+function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }, order: readonly CellKey[], blocks: Map<CellKey, Block>): string | null {
   const flags = r.varint();
   if (flags & ~KNOWN_SECTIONS) return OTHER_VERSION;
   if (flags & SECTION_LAND) {
@@ -240,12 +264,30 @@ function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }): s
     if (r.pos !== end) return DAMAGED;
     out.terrainEdits = edits;
   }
+  if (flags & SECTION_RUINS) {
+    const length = r.varint();
+    const end = r.pos + length;
+    const n = r.varint();
+    if (n < 1 || n > order.length) return DAMAGED;
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const at = prev + r.varint();
+      const cell = order[at];
+      if (at === prev || cell === undefined) return DAMAGED;
+      prev = at;
+      const ruin = r.varint();
+      if (!isRuin(ruin) || savedRuin(ruin) !== ruin) return DAMAGED;
+      blocks.set(cell, { ...blocks.get(cell)!, ruin });
+    }
+    if (r.pos !== end) return DAMAGED;
+  }
   return null;
 }
 
-/** The codec version a town needs: 4 with reshaped land, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+/** The codec version a town needs: 4 with reshaped land or a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
 export function codecVersion(w: World): 1 | 2 | 3 | 4 {
   if (w.terrainEdits && w.terrainEdits.size > 0) return VERSION_4;
+  for (const b of w.blocks.values()) if (savedRuin(b.ruin)) return VERSION_4;
   if (w.terrainGen === 2) return VERSION_3;
   for (const b of w.blocks.values()) if (b.style) return VERSION_2;
   return VERSION_1;
@@ -296,6 +338,8 @@ function decode(code: string): DecodeResult {
   const nBlocks = r.varint();
   if (nBlocks > 48 * 48 * 32) return { ok: false, reason: DAMAGED };
   let px = 0, py = 0, pz = 0, pseq = 0;
+  /** Cells in the order they were read (the ruins section points into it). */
+  const order: CellKey[] = [];
   for (let i = 0; i < nBlocks; i++) {
     const seq = pseq + 1 + r.varint();
     pseq = seq;
@@ -305,6 +349,7 @@ function decode(code: string): DecodeResult {
     if (!inBounds(px, py, pz)) return { ok: false, reason: DAMAGED };
     const cell = key(px, py, pz);
     if (blocks.has(cell) || seq >= nextSeq) return { ok: false, reason: DAMAGED };
+    order.push(cell);
     const kc = r.byte();
     const kind = PLACED[kc & 15];
     const styled = version !== VERSION_1 && (kc & 0x80) !== 0;
@@ -350,7 +395,7 @@ function decode(code: string): DecodeResult {
   }
   const extra: { terrainEdits?: Map<number, number> } = {};
   if (version === VERSION_4) {
-    const bad = readSections(r, extra);
+    const bad = readSections(r, extra, order, blocks);
     if (bad) return { ok: false, reason: bad };
   }
   if (!r.done) return { ok: false, reason: DAMAGED };

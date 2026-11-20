@@ -10,6 +10,7 @@
 // change, and only while the guide is open.
 
 import { ENTRIES, GROUPS, type GuideEntry } from '@/guide/entries';
+import { mischiefGuideSection } from './mischief';
 import { contentsOf, holds, propsOf, type TownContents } from '@/guide/proof';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { el, iconButton } from './dom';
@@ -106,6 +107,9 @@ export function createGuide(host: GuideHost): Guide {
       ]),
     );
   }
+
+  // Mischief (design section 13b): what each of its tools does.
+  scroller.append(mischiefGuideSection());
 
   // ── the ticks ───────────────────────────────────────────────────────────
   let town: TownContents | null = null;
