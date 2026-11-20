@@ -23,7 +23,7 @@
 
 import { CELL_H, DIR4, type Dir4 } from '@/core/grid';
 import { rotationY, translation } from '@/core/mat4';
-import { MeshBuilder, PATTERN, type ColorInput } from '@/gen/mesh';
+import { PATTERN, type ColorInput, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 
 type V2 = [number, number];
@@ -343,7 +343,7 @@ export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours,
   const base = pv.eave + t;
   if (!pv.tier) {
     const top = roofTier(b, pv, pv.eaveOut, base, null, col.roof, 'roof');
-    crown(b, pv, pv.eaveOut, top, col);
+    crown(b, pv, top, col);
   } else {
     const { inset, drum, eave: e2 } = pv.tier;
     const cut = inset + pv.eaveOut;
@@ -367,7 +367,7 @@ export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours,
     const e = e2 - inset;
     b.with({ color: col.stone, pattern: PATTERN.none, ink: 'soffit2' }, () => b.polygon(up(offset(P, e), y1)));
     const top = roofTier(b, pv, e, y1 + t, null, col.roof, 'roof2');
-    crown(b, pv, e, top, col);
+    crown(b, pv, top, col);
   }
 
 }
@@ -535,7 +535,7 @@ function roofTier(b: MeshBuilder, pv: Pavilion, e: number, base: number, cut: nu
 }
 
 /** The crown: over the octagon a lantern (one tier) or a finial (two); a finial at each end of a one-wide roof's ridges. */
-function crown(b: MeshBuilder, pv: Pavilion, e: number, top: number, col: PavilionColours): void {
+function crown(b: MeshBuilder, pv: Pavilion, top: number, col: PavilionColours): void {
   const finial = (x: number, y: number, z: number, s: number): void => {
     b.at(translation(x, y, z), () => b.lathe([[0.025 * s, -0.03], [0.04 * s, 0.03 * s], [0.012 * s, 0.07 * s], [0.022 * s, 0.1 * s], [0, 0.15 * s]], { segments: 6 }));
   };
@@ -567,7 +567,6 @@ function crown(b: MeshBuilder, pv: Pavilion, e: number, top: number, col: Pavili
     b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => finial(cx, top + 0.13 + (r + 0.04) * 1.15, cz, 1));
     return;
   }
-  void e;
   b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => {
     for (const hub of pv.hubs) {
       const n = hub.joined.filter(Boolean).length;
