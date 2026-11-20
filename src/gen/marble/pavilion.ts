@@ -163,6 +163,25 @@ export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours,
   const eaveLine = offset(P, pv.eaveOut);
   b.with({ color: col.stone, pattern: PATTERN.none, ink: 'soffit' }, () => b.polygon(up(eaveLine, pv.eave)));
 
+  // ── a one-wide shelter: a lantern hanging under the ridge at each end and bend, lit at dusk ──
+  // (The octagon's light is its lantern on the roof; under its deep eave a hanging one would not be seen.)
+  if (!pv.round) {
+    for (const h of pv.hubs) {
+      const n = h.joined.filter(Boolean).length;
+      if (n === 2 && h.joined[0] === h.joined[2]) continue; // the middle of a straight run
+      const y = pv.eave - 0.46; // low enough to be seen under the eave, high over the heads
+      b.at(translation(h.c[0], 0, h.c[1]), () => {
+        b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'lamp' }, () => {
+          b.boxAt([0, y + 0.13, 0], [0.022, pv.eave - y - 0.13, 0.022], { skip: ['top', 'bottom'] });
+          b.lathe([[0.085, y + 0.13], [0.025, y + 0.175]], { segments: 6, smooth: false, capBottom: true });
+        });
+        b.with({ color: PALETTE.yellow, pattern: PATTERN.glow, ink: 'lamp-glass' }, () =>
+          b.lathe([[0.04, y], [0.064, y + 0.04], [0.064, y + 0.115], [0.054, y + 0.13]], { segments: 6, smooth: false, capBottom: true }),
+        );
+      });
+    }
+  }
+
   // ── the roof: one tier, or over a taller stack two, with a clerestory drum between them ──
   const t = 0.045;
   const base = pv.eave + t;

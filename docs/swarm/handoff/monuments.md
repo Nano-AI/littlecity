@@ -28,6 +28,19 @@ Branch `swarm/monuments`. Brief: `docs/swarm/art-review-1.md`, section "Monument
   equal-pitch hipped roof built as a per-cell fan (`roofFan`). Stack 3+: raised
   plinth, columns +0.3 per storey (capped), a glazed clerestory drum and an
   upper tier. The open bay faces `bandstand:<side>` (path, else plaza).
+- Pure layout lives in `src/rules/roles/pavilion.lib.ts` (the rule needs the
+  floor height and the way in; gen may import rules, not the reverse).
+- Trigger widened (2026-11-20): any four cells on four pillars standing on the
+  ground is a bandstand, plaza or not. Temples are five cells or more, or up on
+  a podium. Grow a town's marble shrines now stand on a one-block marble
+  podium to stay temples. R-M01 and D22 fixtures build their small temple 2 × 3
+  on corner pillars.
+- The floor is walkable: R-M11 pins `pavilion-floor` on each floor cell (lift =
+  plinth height; `dir` on the way in). `src/resolve/nav.ts` links them only to
+  each other and out across the way in; `walk.ts` ramps up the plinth and
+  squares through the bay with no lane offset. The rail opens exactly the bays
+  that walk-in line crosses (`doorBays`). One-wide shelters put columns on the
+  cell lines so each cell's middle is a bay's middle; change both together.
 - Fragile: a pillar under a bandstand with no column in its cell would draw
   nothing (no footprint does that today; `pavilion.test.ts` checks every one).
   Damage is per structure: pillars topple their own columns, the marble loses its

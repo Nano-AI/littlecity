@@ -283,7 +283,10 @@ export function buildColonnade(town: Town, n: number): boolean {
   return true;
 }
 
-/** A shrine: a small temple (2 × 2 on four pillars) on grass with a path to its front. */
+/**
+ * A shrine: a small temple (2 × 2 on four pillars) raised on a low marble podium, on grass with a path to
+ * its front. (On the bare ground the same four cells on four pillars would be a bandstand, R-M11.)
+ */
 export function buildShrine(town: Town, n: number): boolean {
   const { g } = town;
   const found = search(g, `shrine${n}`, (f) => {
@@ -299,9 +302,11 @@ export function buildShrine(town: Town, n: number): boolean {
   const S = new Local(g, f);
   const d = startDistrict(town, `shrine${n}`, f.ox, f.oz);
   S.claim(0, 0, 1, 1, CLAIM.built);
-  const color = S.color('marble', [[0, h + 2, 0]], `shrine${n}`);
+  const color = S.color('marble', [[0, h + 3, 0]], `shrine${n}`);
+  const base = S.color('marble', [[0, h, 0]], `shrine-podium${n}`);
+  for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) S.put('marble', u, h, v, base);
   for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) S.stack('pillar', u, v, 2, 0);
-  for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) S.put('marble', u, h + 2, v, color);
+  for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) S.put('marble', u, h + 3, v, color);
   for (let u = 0; u <= 1; u++) pave(g, f.x(u, 2), f.z(u, 2));
   S.way(d, 0, 2);
   return true;

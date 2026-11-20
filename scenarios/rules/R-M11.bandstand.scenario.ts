@@ -2,7 +2,8 @@
 // A 2 × 2 slab on four pillars on a big plaza is a bandstand (an octagonal
 // pavilion); a 2 × 7 slab on pillars along the side of a square is a stoa
 // (one roof sloping away from the square, goods in its back bays); a 2 × 2 on
-// a podium and a 3 × 3 temple stay temples.
+// a podium and a 3 × 3 temple stay temples; four cells on four pillars on
+// bare grass are a pavilion too.
 //
 // South of the square, every footprint the rule accepts, side by side: the
 // 2 × 2 on pillars 3 and 4 tall, a 1 × 4 each way, an L, a T and an S, with
@@ -18,7 +19,7 @@ function bandstand(b: TownBuilder, cells: readonly (readonly [number, number])[]
 export default scenario({
   name: 'R-M11.bandstand',
   seed: 4211,
-  about: 'A bandstand on a plaza; a stoa on the side of the same square; a small temple on a podium; a 3 × 3 temple on grass; every bandstand footprint and height.',
+  about: 'A bandstand on a plaza and one on bare grass; a stoa on the side of the same square; a small temple on a podium; a 3 × 3 temple on grass; every bandstand footprint and height.',
   build(b) {
     b.plaza(8, 8, 18, 16);
     bandstand(b, [[12, 11], [13, 11], [12, 12], [13, 12]], 2, 2);
@@ -31,6 +32,8 @@ export default scenario({
     // A 3 × 3 on grass: a temple.
     for (const x of [26, 28]) for (const z of [16, 18]) b.stack('pillar', x, z, { floors: 2 });
     for (let x = 26; x <= 28; x++) for (let z = 16; z <= 18; z++) b.block('marble', x, 3, z, { color: 3 });
+    // Four cells on four pillars on bare grass: a pavilion too (R-M11 needs no square or park).
+    bandstand(b, [[31, 16], [32, 16], [31, 17], [32, 17]], 2, 1);
 
     // ── every footprint and height, on one long plaza with a path along its south side ──
     b.plaza(6, 22, 37, 31);
@@ -59,6 +62,7 @@ export default scenario({
     { name: 'footprints', yaw: 25, pitch: 32, zoom: 2.6, target: [21, 2, 26] },
     { name: 'footprints-back', yaw: 205, pitch: 32, zoom: 2.6, target: [21, 2, 26] },
     { name: 'scale', yaw: 30, pitch: 22, zoom: 5.5, target: [12, 2, 28.5] },
+    { name: 'shelters', yaw: 25, pitch: 24, zoom: 6, target: [22, 1.8, 24.5] },
     { name: 'far', yaw: 35, pitch: 35, zoom: 0.9, target: [20, 1.5, 20] },
   ],
   expect(_plan, _dressing, check) {
@@ -76,5 +80,6 @@ export default scenario({
     check.hasProp({ type: 'structure-prop', variant: 'crates', rule: 'R-H98.structure-props' });
     check.role(27, 5, 9, 'temple');
     check.role(26, 3, 16, 'temple');
+    check.role(31, 3, 16, 'bandstand');
   },
 });
