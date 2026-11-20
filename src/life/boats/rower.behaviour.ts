@@ -7,6 +7,8 @@
 //
 // Travel is smooth, every frame; the swell is posed on twos.
 
+import { notePose } from '../ships/ferry.system';
+import { standAside } from '../ships/news';
 import { SEA_Y } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { ShapePlan } from '@/resolve/plan';
@@ -133,7 +135,10 @@ export default defineBehaviour({
       swellAt(now, state.phase, BOATS.rowLength, signals.wind(state.x, state.z).strength, state.swell);
     }
     // The bow lifts a little on each pull.
-    fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch - surge * 0.035, state.swell.roll, 1, state.m);
+    // Big ships (L38–L42) have the way: it stands aside out of one's way.
+    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt);
+    fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch - surge * 0.035, state.swell.roll, 1, state.m);
     ctx.instance.setMatrix(state.m);
+    notePose(ctx.stage, ctx.item.id, state.m);
   },
 });

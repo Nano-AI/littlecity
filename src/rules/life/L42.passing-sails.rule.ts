@@ -1,11 +1,12 @@
-// L42 · tier 3 · Passing sails (town-wide). Any lighthouse → far out, beyond
-// where the small boats sail, a tall ship crosses the horizon once in a
-// while without calling.
+// L42 · tier 3 · Passing sails (town-wide; "Boats and ships": the sea is
+// never empty). On any island, far out beyond where the small boats sail, a
+// tall ship crosses once in a while without calling; a lighthouse in the
+// town makes it a little more often (the `often` param).
 //
 // "Far out" on this map is a line close along one edge, where a whole hull
 // fits all the way across (the side most open to the sea is tried first).
 // The rule names the line; the harbour system sails it (visit.ts): the ship
-// comes up out of the distance at one end and goes down into it at the
+// sails in through the edge of the map at one end and out through it at the
 // other, and never while a ship is coming in or going out.
 
 import { key, SIZE_X, SIZE_Z } from '@/core/grid';
@@ -16,6 +17,9 @@ import { townFacts } from '@/resolve/facts/town.fact';
 import { hullSize } from './berths.fact';
 import { hullClear, obstacleColumns, seaField } from './ship-routes';
 import { SHIP_LOOKS } from './ships.lib';
+
+/** How far beyond the edge of the map a tall ship starts and ends: its whole length and a bit. */
+export const PASS_BEYOND = 8;
 
 export interface PassingLine {
   x: number;
@@ -29,8 +33,11 @@ export function passingLine(f: Facts): PassingLine | null {
   const field = seaField(obstacleColumns(f.terrain, f.kinds));
   const h = hullSize('galleon');
   const lines: (PassingLine & { room: number })[] = [];
-  for (const inset of [2.3, 3.2]) {
-    const lo = 1, hiX = SIZE_X - 1, hiZ = SIZE_Z - 1;
+  // In from beyond one side of the map and out beyond the other, crossing the straight part of the edge
+  // (the slab's corners are rounded: the line keeps out of them).
+  const out = PASS_BEYOND;
+  for (const inset of [4.0, 4.8]) {
+    const lo = -out, hiX = SIZE_X + out, hiZ = SIZE_Z + out;
     const cand: PassingLine[] = [
       { x: lo, z: inset, x2: hiX, z2: inset },
       { x: SIZE_X - inset, z: lo, x2: SIZE_X - inset, z2: hiZ },
@@ -41,8 +48,8 @@ export function passingLine(f: Facts): PassingLine | null {
       const len = Math.hypot(c.x2 - c.x, c.z2 - c.z);
       const yaw = Math.atan2(c.x2 - c.x, c.z2 - c.z);
       let ok = true, room = Infinity;
-      // Only the stretch inside the map counts: the ends are where it rises and sinks.
-      for (let s = 4; s <= len - 4 && ok; s += 0.5) {
+      // Only the stretch inside the map counts: beyond the edge it is cut off (the edge is a wall).
+      for (let s = out + 2; s <= len - out - 2 && ok; s += 0.5) {
         const x = c.x + ((c.x2 - c.x) * s) / len, z = c.z + ((c.z2 - c.z) * s) / len;
         ok = hullClear(field, h, x, z, yaw, 0.4);
         room = Math.min(room, field.at(x, z));
@@ -63,14 +70,14 @@ export default defineRule<PassingLine>({
   tier: 3,
   priority: 580,
   townWide: true,
-  about: 'Reads: lighthouses; the open sea along the edges of the map. Emits: one ship-call (passing) with the line it crosses on.',
+  about: 'Reads: the open sea along the edges of the map; lighthouses (more often). Emits: one ship-call (passing) with the line it crosses on.',
   find({ facts }) {
-    if ((townFacts(facts).structuresByKind.get('lighthouse') ?? 0) === 0) return [];
     const line = passingLine(facts);
     return line ? [{ anchor: key(0, 0, 0), key: 'passing', data: line }] : [];
   },
   apply(c, out, ctx) {
     const d = c.data;
-    out.actor({ type: 'ship-call', variant: 'passing', at: null, params: { look: hash(ctx.seed, 'L42', 'look') % SHIP_LOOKS, x: d.x, z: d.z, x2: d.x2, z2: d.z2 } });
+    const often = (townFacts(ctx.facts).structuresByKind.get('lighthouse') ?? 0) > 0 ? 1 : 0;
+    out.actor({ type: 'ship-call', variant: 'passing', at: null, params: { look: hash(ctx.seed, 'L42', 'look') % SHIP_LOOKS, x: d.x, z: d.z, x2: d.x2, z2: d.z2, often } });
   },
 });

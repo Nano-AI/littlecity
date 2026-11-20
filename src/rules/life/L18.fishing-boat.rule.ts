@@ -1,5 +1,6 @@
-// L18 · tier 2 · Fishing boat (town-wide). Once the town has 6+ dock cells
-// it keeps a fishing boat: it lies at a berth beside the docks overnight,
+// L18 · tier 2 · Fishing boat (town-wide; "Boats and ships": fit is the only
+// test). Any dock it fits beside, reachable from the sea, keeps a fishing
+// boat: it lies at a berth beside the docks overnight,
 // leaves at dawn for the sea lane, works its way round it through the day
 // and comes home at dusk with the gulls trailing after it
 // (src/life/boats/fishing-boat.behaviour.ts).
@@ -12,12 +13,8 @@ import { columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ } from '@/core
 import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
-import { townFacts } from '@/resolve/facts/town.fact';
-import { harbour } from './berths.fact';
+import { edgeWater } from './berths.fact';
 import { seaLane } from './sea-lanes.fact';
-
-/** Dock cells the town needs before it keeps a fishing boat. */
-export const FISHING_DOCKS = 6;
 
 interface Berth {
   x: number;
@@ -33,12 +30,12 @@ export function berthOf(facts: Facts): Berth | null {
   let best: Berth | null = null;
   let bestScore = -1;
   const docks = [...facts.kinds].filter(([c, k]) => k === 'dock' && keyY(c) === 0).map(([c]) => c).sort((a, b) => a - b);
-  // Not in the water a big ship's berth needs (L38–L40).
-  const reserved = facts.shapeReady ? harbour(facts).reserved : new Set<number>();
+  // Only where it could have got in from the sea.
+  const reach = facts.shapeReady ? edgeWater(facts) : null;
   for (const c of docks) {
     for (const [dx, dz] of DIR4) {
       const x = keyX(c) + dx, z = keyZ(c) + dz;
-      if (!open(facts, x, z) || reserved.has(columnIndex(x, z))) continue;
+      if (!open(facts, x, z) || (reach && !reach[columnIndex(x, z)])) continue;
       let wet = 0;
       for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (open(facts, x + i + dx, z + j + dz)) wet++;
       if (wet > bestScore) {
@@ -59,9 +56,8 @@ export default defineRule<Berth>({
   tier: 2,
   priority: 820,
   townWide: true,
-  about: 'Reads: dock cells, the sea lane, open water by the docks. Emits: one fishing boat (at = null) with its berth, once the town has 6+ dock cells.',
+  about: 'Reads: dock cells, the sea lane, open water by the docks reachable from the sea. Emits: one fishing boat (at = null) with its berth beside any dock it fits.',
   find({ facts }) {
-    if ((townFacts(facts).cellsByKind.get('dock') ?? 0) < FISHING_DOCKS) return [];
     if (seaLane(facts).kind === 'none') return [];
     const berth = berthOf(facts);
     return berth ? [{ anchor: key(0, 0, 0), key: 0, data: berth }] : [];

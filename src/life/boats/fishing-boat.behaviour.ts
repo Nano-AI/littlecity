@@ -21,7 +21,8 @@ import { angleDelta, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { swellAt, wakeRing, type Swell } from './afloat';
-import { giveWay } from '../ships/news';
+import { notePose } from '../ships/ferry.system';
+import { standAside } from '../ships/news';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
 /** Columns a second, under way. */
@@ -147,9 +148,9 @@ export default defineBehaviour({
       if (lane) state.s = lane.nearest(state.x, state.z);
     }
 
-    // Travel: smooth, every frame. Big ships (L38–L42) have the way: it slows for one ahead.
-    const yieldTo = giveWay(ctx.stage, state.x, state.z, state.yaw);
-    dt *= yieldTo.slow;
+    // Travel: smooth, every frame. Big ships (L38–L42) have the way: it slows for one ahead and stands aside.
+    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt);
+    dt *= aside.slow;
     const px = state.x, pz = state.z;
     let heading: number;
     if (state.mode === 'out' || state.mode === 'home') {
@@ -210,8 +211,9 @@ export default defineBehaviour({
       state.drawn = now;
       swellAt(now, state.phase, BOATS.fishLength, signals.wind(state.x, state.z).strength, state.swell);
     }
-    fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll + state.bank, 1, state.m);
+    fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch, state.swell.roll + state.bank, 1, state.m);
     ctx.instance.setMatrix(state.m);
+    notePose(ctx.stage, ctx.item.id, state.m);
   },
   dispose(_state, ctx) {
     news.delete(ctx.stage);

@@ -648,68 +648,44 @@ export const ENTRIES: readonly GuideEntry[] = [
     },
     view: FRONT,
   },
-  // Big ships (L38–L40): the picture shows the ship moored; a town opened with a port has its first ship in.
+  // Boats and ships ("Boats and ships": whatever fits comes). The picture shows the ship moored: a town opened
+  // with a port has its biggest ship in.
   {
-    id: 'galleon',
+    id: 'ships',
     group: 'waterfront',
-    name: 'Galleon',
-    how: 'Lay a quay of eight or more docks in a row along the shore, with open sea off it, in a port of twelve docks or more: now and then a galleon sails in and moors there.',
+    name: 'Boats and ships',
+    how: 'Build docks with open water beside them and boats come: a rowboat at a single dock, and the longer the quay, the bigger the ship that calls: a cog at about four docks in a row, a galley or a galleon at about seven.',
     proof: { actor: { rule: 'L38.galleon', type: 'ship-call' } },
     seed: 7504,
     ground: seaSouth,
     build(b) {
-      for (let x = 14; x <= 25; x++) b.block('dock', x, 0, 21);
-      b.path(14, 20, 25, 20);
-      b.house(15, 17, { w: 2, floors: 2, color: 1 }).house(21, 17, { w: 2, floors: 3, color: 4 });
+      for (let x = 15; x <= 22; x++) b.block('dock', x, 0, 21);
+      b.path(15, 20, 22, 20);
+      b.house(15, 17, { w: 2, floors: 2, color: 1 }).house(20, 17, { w: 2, floors: 3, color: 4 });
     },
+    also: [{ ground: seaSouth, build: (b) => void [14, 15, 16, 17, 18, 19, 20].forEach((x) => b.put('marble', x, 20)) }],
     view: { yaw: 30, pitch: 28 },
     pad: 0.2,
     life: { settle: 6 },
-    frame: [12, 18, 27, 24, 6],
+    frame: [13, 18, 25, 24, 6],
   },
   {
     id: 'cog',
     group: 'waterfront',
     name: 'Merchant cog',
-    how: 'Lay a quay of five or more docks in a row along the shore, with open sea off it, in a port of six docks or more: a round-bellied trading cog calls.',
+    how: 'Lay about four docks in a row along the shore with open sea beside them: a round-bellied trading cog calls there.',
     proof: { actor: { rule: 'L39.cog', type: 'ship-call' } },
     seed: 7505,
     ground: seaSouth,
     build(b) {
-      for (let x = 17; x <= 22; x++) b.block('dock', x, 0, 21);
-      b.path(17, 20, 22, 20);
+      for (let x = 18; x <= 21; x++) b.block('dock', x, 0, 21);
+      b.path(18, 20, 21, 20);
       b.house(18, 17, { w: 2, floors: 2, color: 6 });
     },
     view: { yaw: 30, pitch: 28 },
     pad: 0.2,
     life: { settle: 6 },
     frame: [16, 18, 24, 24, 5],
-  },
-  {
-    id: 'galley',
-    group: 'waterfront',
-    name: 'Galley',
-    how: 'Build a Light, and a quay six or more long along the shore (docks, or marble at the water’s edge) with open sea off it: now and then a galley rows in.',
-    proof: { actor: { rule: 'L40.galley', type: 'ship-call' } },
-    seed: 7506,
-    ground: seaSouth,
-    build(b) {
-      for (let x = 15; x <= 22; x++) b.put('marble', x, 20);
-      b.put('lighthouse', 24, 19);
-    },
-    also: [
-      {
-        ground: seaSouth,
-        build(b) {
-          for (let x = 15; x <= 21; x++) b.block('dock', x, 0, 21);
-          b.put('lighthouse', 24, 19);
-        },
-      },
-    ],
-    view: { yaw: 30, pitch: 28 },
-    pad: 0.2,
-    life: { settle: 6 },
-    frame: [13, 18, 25, 24, 5],
   },
 
   // ── green ─────────────────────────────────────────────────────────────

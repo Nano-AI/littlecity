@@ -31,6 +31,12 @@ export class Wings {
     this.shoulder = shoulderOf(species);
   }
 
+  /** Cut off at the edge of the map like what they fly with (a ship's escort): see ShipBody.setCut. */
+  cutAtEdge(): void {
+    this.left.setParams(1, 0, 0, -1);
+    this.right.setParams(1, 0, 0, -1);
+  }
+
   /** Folded wings are simply not drawn: the body's own back shows instead. */
   show(visible: boolean): void {
     if (visible === this.shown) return;

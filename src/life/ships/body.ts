@@ -232,8 +232,19 @@ export class ShipBody {
     s.cloth.forEach((c, i) => c.setVisible(i === which));
   }
 
-  setVisible(v: boolean): void {
-    this.hull.setVisible(v);
+  private cut = false;
+  /**
+   * Crossing the edge of the map: the renderer cuts the ship off at it and fills its cut face (params.w
+   * −2; the movers' EDGECUT, src/render/shaders/surface.ts). Nothing about its size or colour changes.
+   */
+  setCut(on: boolean): void {
+    if (on === this.cut || this.released) return;
+    this.cut = on;
+    const w = on ? -2 : 0;
+    const all = [this.hull, ...this.sails.flatMap((s) => [s.yard, ...s.cloth]), ...this.oars];
+    for (const h of all) h.setParams(1, 0, 0, w);
+    // Flags are cut at the edge but have no section to fill (they are flat).
+    for (const h of [this.pennant, this.ensign]) h?.setParams(1, 0, 0, on ? -1 : 0);
   }
 
   release(): void {

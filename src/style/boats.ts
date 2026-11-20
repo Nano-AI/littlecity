@@ -31,9 +31,9 @@ export const BOATS = defineStyle(
 
     // ── L17 moored rowboats ──
     /** One rowboat per this many dock cells (and never more than one per mooring). */
-    rowPerCells: 3,
-    /** A pier or quay shorter than this has none. */
-    rowMinCells: 2,
+    rowPerCells: 2,
+    /** (No longer read: any dock a rowboat fits at gets one; see the catalogue's "Boats and ships".) */
+    rowMinCells: 1,
     /** Length of the mooring line, from the mooring to the bow. */
     line: 0.34,
     /** How hard the wind pushes a moored boat, how stiff the line is, and how fast the motion dies. */

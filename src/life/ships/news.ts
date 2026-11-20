@@ -32,6 +32,8 @@ export interface ShipSound {
 
 interface News {
   ships: BigShipNews[];
+  /** The stretches of quay a big ship is taking now (coming in, alongside, casting off): hull-shaped zones. */
+  zones: BigShipNews[];
   /** Small boats seen this frame (each that asked giveWay), for the ships to slow for. */
   small: { x: number; z: number }[];
   inPort: Set<string>;
@@ -42,7 +44,7 @@ const all = new WeakMap<LifeStage, News>();
 
 export function newsOf(stage: LifeStage): News {
   let n = all.get(stage);
-  if (!n) all.set(stage, (n = { ships: [], small: [], inPort: new Set(), sounds: [] }));
+  if (!n) all.set(stage, (n = { ships: [], zones: [], small: [], inPort: new Set(), sounds: [] }));
   return n;
 }
 
@@ -121,4 +123,31 @@ export function clearAhead(s: BigShipNews, boats: readonly { x: number; z: numbe
     k = Math.min(k, Math.max(0, Math.min(1, (along - 0.4) / 2.5)));
   }
   return k;
+}
+
+/** The zone of a big ship's berth (stretch of quay and the water off it) that covers (x, z), if any. */
+export function berthZoneAt(stage: LifeStage, x: number, z: number): BigShipNews | null {
+  for (const s of all.get(stage)?.zones ?? []) if (fromHull(s, x, z).gap < 0) return s;
+  return null;
+}
+
+const offsets = new WeakMap<object, { x: number; z: number }>();
+/**
+ * A small boat at (x, z) heading `yaw` standing aside for the big ships: where to draw it (its place pushed
+ * out of a ship's way, easing back once the ship has passed) and how much to slow. `owner` is any object
+ * that lives as long as the boat (its behaviour state).
+ */
+export function standAside(stage: LifeStage, owner: object, x: number, z: number, yaw: number, dt: number): { x: number; z: number; slow: number } {
+  let off = offsets.get(owner);
+  if (!off) offsets.set(owner, (off = { x: 0, z: 0 }));
+  const g = giveWay(stage, x + off.x, z + off.z, yaw);
+  if (g.px !== 0 || g.pz !== 0) {
+    off.x += g.px * dt;
+    off.z += g.pz * dt;
+  } else {
+    const k = Math.min(1, dt * 0.6);
+    off.x -= off.x * k;
+    off.z -= off.z * k;
+  }
+  return { x: x + off.x, z: z + off.z, slow: g.slow };
 }

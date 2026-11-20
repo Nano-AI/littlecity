@@ -27,6 +27,7 @@
 import { columnIndex, keyX, keyZ, SIZE_X, SIZE_Z, type CellKey } from '@/core/grid';
 import type { Kind } from '@/core/kinds';
 import type { Terrain } from '@/core/world';
+import { TERRAIN } from '@/style/terrain';
 
 export type Pt = readonly [number, number];
 
@@ -331,10 +332,14 @@ export interface EdgePoint {
   side: number;
 }
 
-/** Points `inset` columns in from the map's edge, every 2 columns, where a hull of half-beam r fits. */
+/**
+ * Points `inset` columns in from the map's edge, every 2 columns, where a hull of half-beam r fits. Only
+ * on the straight part of each side (the slab's corners are rounded): a ship crosses the edge square to it.
+ */
 export function edgePoints(field: SeaField, inset: number, r: number): EdgePoint[] {
   const out: EdgePoint[] = [];
-  for (let v = 3; v <= SIZE_X - 3; v += 2) {
+  const keep = Math.ceil(TERRAIN.slabRadius + r + 1);
+  for (let v = keep; v <= SIZE_X - keep; v += 2) {
     out.push({ x: v, z: inset, yaw: 0, side: 0 });
     out.push({ x: SIZE_X - inset, z: v, yaw: -Math.PI / 2, side: 1 });
     out.push({ x: v, z: SIZE_Z - inset, yaw: Math.PI, side: 2 });
@@ -365,8 +370,18 @@ export interface Pose {
   yaw: number;
 }
 
+/** How far beyond the map's edge a ship's way starts and ends, for a hull of this length: all of it out of sight. */
+export const beyond = (h: HullSize): number => h.bow - h.stern + 2.5;
+
+/** Signed distance from the map's edge (the slab's rounded square): negative inside. The renderer's wall is the same. */
+export function mapEdge(x: number, z: number): number {
+  const R = TERRAIN.slabRadius;
+  const qx = Math.abs(x - SIZE_X / 2) - (SIZE_X / 2 - R), qz = Math.abs(z - SIZE_Z / 2) - (SIZE_Z / 2 - R);
+  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - R;
+}
+
 export interface Voyage {
-  /** From the edge to where it swings in (arriving), or from where it has swung out to the edge (leaving). */
+  /** From beyond the edge to where it swings in (arriving), or from where it has swung out to beyond the edge (leaving). */
   path: Path;
   /** The edge it comes in over or goes out over. */
   edge: EdgePoint;
@@ -468,15 +483,17 @@ export function planArrival(field: SeaField, h: HullSize, m: Mooring, inset: num
         starts = first ? [first, ...starts.filter((e) => e !== first)] : starts;
       }
       for (const e of starts.slice(0, 5)) {
+        // From beyond the edge, square in through it (or on ahead from where it is), then the route.
+        const out = start ? 0 : beyond(h);
+        const outside: Pt = [e.x - Math.sin(e.yaw) * out, e.z - Math.cos(e.yaw) * out];
         const from: Pt = [e.x, e.z];
-        // Square in from the edge first (or on ahead from where it is), then the route.
         const ahead: Pt = [e.x + Math.sin(e.yaw) * 2.5, e.z + Math.cos(e.yaw) * 2.5];
         const back = routeTo(g, stage, ahead);
         if (!back) continue;
-        const route = [from, ...back.slice().reverse().slice(0, -1), ...tail];
+        const route = [...(start ? [] : [outside]), from, ...back.slice().reverse().slice(0, -1), ...tail];
         const path = pathOf(smoothRoute(field, dedupe(route), r));
         const near = Math.max(0, path.length - len * 1.6);
-        if (pathClear(field, h, path, margin, start ? 0 : len * 0.5, near) && pathClear(field, h, path, NEAR, near, path.length)) {
+        if (pathClear(field, h, path, margin, start ? 0 : out, near) && pathClear(field, h, path, NEAR, near, path.length)) {
           return { path, edge: e, swing: -sense * swing, swung: end };
         }
       }
@@ -514,10 +531,13 @@ export function planDeparture(field: SeaField, h: HullSize, m: Mooring, inset: n
           const outward: Pt = [e.x + Math.sin(e.yaw) * 2.5, e.z + Math.cos(e.yaw) * 2.5];
           const way = routeTo(g, clear, outward);
           if (!way) continue;
-          const route = [[s0.x, s0.z] as Pt, ahead, ...way.slice(0, -1), [e.x, e.z] as Pt];
+          // Out through the edge, square to it, and on until all of it is beyond.
+          const out = beyond(h);
+          const outside: Pt = [e.x - Math.sin(e.yaw) * out, e.z - Math.cos(e.yaw) * out];
+          const route = [[s0.x, s0.z] as Pt, ahead, ...way.slice(0, -1), [e.x, e.z] as Pt, outside];
           const path = pathOf(smoothRoute(field, dedupe(route), r));
           const near = Math.min(path.length, len * 1.4);
-          if (pathClear(field, h, path, NEAR, 0, near) && pathClear(field, h, path, margin, near, Math.max(near, path.length - len * 0.5))) {
+          if (pathClear(field, h, path, NEAR, 0, near) && pathClear(field, h, path, margin, near, Math.max(near, path.length - out))) {
             return { path, edge: { ...e, yaw: e.yaw + Math.PI }, swing: from ? 0 : sense * swing, swung: s0 };
           }
         }

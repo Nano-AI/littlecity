@@ -1,13 +1,17 @@
-// The river barge (L41): poled to and fro between two docks on a river,
-// lying a while at each to load and unload. It is double-ended in use: the
-// bargeman walks his pole from the bow up, and the barge goes stern first on
-// the way back rather than turning in a narrow river. It never moves
-// sideways. Under a bridge (anything built over the water just ahead) the
-// mast comes down aft, and goes up again beyond. A sail is set only with
-// the wind astern.
+// The river barge (L41): poled to and fro between its two ends (two river
+// docks, or a river dock and the river's mouth), lying a while at each to
+// load and unload. It is double-ended in use: the bargeman poles from
+// whichever end is aft, and the barge goes stern first on the way back
+// rather than turning in a narrow river. It never moves sideways. Under a
+// bridge (anything built over the water just ahead, an arch at the water
+// included) the mast comes down aft, and goes up again beyond. A sail is set
+// only with the wind astern.
 //
-// The route is worked out from the water alone (L41.river-barge.rule.ts):
-// whatever carves a river, the barge follows it.
+// It never vanishes. A barge that comes to a town already open poles in
+// through the edge of the map (the renderer cuts it off there); a barge
+// whose run has gone poles away out through it. If the water under it is
+// built on it is nudged aside first; with no way out it stays where it is,
+// afloat; only with no water left at all does it go, in the removal puff.
 
 import type { Mat4 } from '@/core/mat4';
 import { columnIndex, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
@@ -16,26 +20,35 @@ import { toolMesh, TOOL_PIECE } from '@/parts/people/extras';
 import { buildPerson, lookOf, PIECES, type Look } from '@/parts/people/person';
 import { poseOf, rigMatrices } from '@/parts/people/pose';
 import type { ShapePlan } from '@/resolve/plan';
+import { hullSize } from '@/rules/life/berths.fact';
 import { BARGE_CLEAR, lowObstacles } from '@/rules/life/L41.river-barge.rule';
-import { graphFrom, pathAt, pathOf, routeTo, seaField, type Path, type Pt } from '@/rules/life/ship-routes';
+import { beyond, edgePoints, graphFrom, hullClear, mapEdge, pathAt, pathOf, routeTo, seaField, type Path, type Pt, type SeaField } from '@/rules/life/ship-routes';
 import { SHIPS } from '@/style/ships';
 import { PALETTE, RAMPS } from '@/style/palette';
 import type { InstanceHandle, LifeStage, Signals } from '../api';
 import { swellAt, wakeRing, type Swell } from '../boats/afloat';
-import { angleDelta, approach, glide } from '../motion/ease';
+import { angleDelta, approach, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { ShipBody } from './body';
 import type { BigShipNews } from './news';
+import { removalPuff } from './puff';
+import { nearestFree } from './visit';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-/** Seconds lying at each dock. */
+/** Seconds lying at each end. */
 const LIE = 18;
+const HULL = hullSize('barge');
+
+type Mode = 'run' | 'coming' | 'leaving' | 'nudging' | 'resident';
 
 export class Barge {
   private body: ShipBody;
+  /** Its run between A and B, and (coming or leaving) the way in or out through the edge. */
   private path: Path | null = null;
-  /** Distance along the path from A; which way it is going (+1 to B, −1 back to A); seconds lying at a dock. */
+  private leg: Path | null = null;
+  private mode: Mode = 'run';
+  /** Distance along the run from A, which way it is going (+1 to B, −1 back to A), seconds lying at an end. */
   private s = 0;
   private way = 1;
   private lying = LIE * 0.5;
@@ -43,23 +56,25 @@ export class Barge {
   x = 0;
   z = 0;
   yaw = 0;
+  private from = { x: 0, z: 0, yaw: 0 };
+  private to = { x: 0, z: 0, yaw: 0 };
+  private t = 0;
   private swell: Swell = { heave: 0, roll: 0, pitch: 0 };
   private drawn = NaN;
   private phase: number;
   private wake = 0;
-  /** Its river or its docks have gone: it sinks away where it lies (it never pops). */
-  fading = false;
-  private scale = 1;
   private m: Mat4 = new Array<number>(16).fill(0);
   private bridges = new Set<number>();
-  // The bargeman.
+  private field: SeaField | null = null;
+  /** True once it has gone (out through the edge, or in a puff): the harbour releases it. */
+  gone = false;
   private look: Look;
   private man: InstanceHandle[];
   private pole: InstanceHandle;
   private mats = new Float32Array(80);
   private world = new Array<number>(16).fill(0);
 
-  constructor(private stage: LifeStage, seed: number, readonly id: string, look: number, public a: Pt, public b: Pt) {
+  constructor(private stage: LifeStage, private seed: number, readonly id: string, look: number, public a: Pt, public b: Pt, private arrive = false) {
     this.body = new ShipBody(stage, 'barge', look, HIDDEN, 0);
     this.phase = rand(seed, 'barge', id);
     this.look = { ...lookOf((rand(seed, 'bargeman', id) * 1e9) >>> 0), dress: false, hat: 'straw', hatColor: PALETTE.yellow, top: RAMPS.roof[3]!, child: false };
@@ -70,19 +85,66 @@ export class Barge {
     this.z = a[1];
   }
 
-  /** The town changed: the way between the docks (null: no way, it lies where it is). */
+  /** On its way out for good (its run has gone). */
+  get leaving(): boolean {
+    return this.mode === 'leaving' || this.mode === 'resident';
+  }
+
+  /** The way between a point and the edge of the map through water a barge fits, out to beyond it (or in, reversed). */
+  private toEdge(from: Pt, reverse: boolean): Path | null {
+    const field = this.field!;
+    const g = graphFrom(field, from, BARGE_CLEAR);
+    const ends = edgePoints(field, SHIPS.edgeIn, BARGE_CLEAR).filter((e) => g.cost[columnIndex(Math.floor(e.x), Math.floor(e.z))]! < Infinity);
+    ends.sort((p, q) => g.cost[columnIndex(Math.floor(p.x), Math.floor(p.z))]! - g.cost[columnIndex(Math.floor(q.x), Math.floor(q.z))]!);
+    const e = ends[0];
+    if (!e) return null;
+    const route = routeTo(g, from, [e.x, e.z]);
+    if (!route) return null;
+    const out = beyond(HULL);
+    const pts: Pt[] = [...route, [e.x - Math.sin(e.yaw) * out, e.z - Math.cos(e.yaw) * out]];
+    return pathOf(reverse ? pts.reverse() : pts);
+  }
+
+  /** The town changed: the way between the ends, the bridges, and what to do if its water has gone. */
   sync(shape: ShapePlan): void {
     const low = lowObstacles(shape.facts);
-    const field = seaField(low);
-    const g = graphFrom(field, this.a, BARGE_CLEAR);
-    const route = routeTo(g, this.a, this.b);
+    this.field = seaField(low);
     this.bridges.clear();
-    for (const c of shape.facts.kinds.keys()) {
-      if (keyY(c) >= 1 && shape.terrain.height[columnIndex(keyX(c), keyZ(c))] === 0) this.bridges.add(columnIndex(keyX(c), keyZ(c)));
+    for (const [c, k] of shape.facts.kinds) {
+      const col = columnIndex(keyX(c), keyZ(c));
+      if (shape.terrain.height[col] === 0 && (keyY(c) >= 1 || k === 'arch')) this.bridges.add(col);
     }
+    if (this.mode !== 'nudging' && !hullClear(this.field, HULL, this.x, this.z, this.yaw, -0.05)) {
+      this.nudge();
+      return;
+    }
+    if (this.mode === 'leaving' || this.mode === 'resident') {
+      this.leg = this.toEdge([this.x, this.z], false);
+      if (this.leg) {
+        this.mode = 'leaving';
+        this.s = 0;
+      } else this.mode = 'resident';
+      return;
+    }
+    const g = graphFrom(this.field, this.a, BARGE_CLEAR);
+    const route = routeTo(g, this.a, this.b);
     const was = this.path;
     this.path = route ? pathOf(route) : null;
-    if (this.path && was) {
+    if (this.arrive && !was) {
+      // Coming to a town already open: in through the edge of the map to its first end.
+      this.arrive = false;
+      this.leg = this.toEdge(this.a, true);
+      if (this.leg) {
+        this.mode = 'coming';
+        this.s = 0;
+        const p = pathAt(this.leg, 0);
+        this.x = p.x;
+        this.z = p.z;
+        this.yaw = p.yaw;
+        return;
+      }
+    }
+    if (this.path && was && this.mode === 'run') {
       // Pick up from where it is on the new way.
       let best = 0, bestD = Infinity;
       for (let s = 0; s <= this.path.length; s += 0.1) {
@@ -95,43 +157,84 @@ export class Barge {
       }
       this.s = best;
     }
+    if (!this.path && this.mode === 'run') this.leave(shape);
   }
 
-  /** False once it has faded right away. */
-  get alive(): boolean {
-    return this.scale > 0;
+  /** Its run has gone: it poles away out through the edge (or stays, if there is no way out). */
+  leave(shape: ShapePlan): void {
+    this.mode = 'leaving';
+    this.sync(shape);
   }
 
-  update(dt: number, signals: Signals): BigShipNews {
-    if (this.fading) {
-      this.scale = Math.max(0, this.scale - dt / 2);
-      if (this.scale <= 0.5) for (const h of [...this.man, this.pole]) h.setVisible(false);
+  private nudge(): void {
+    const to = this.field ? nearestFree(this.field, HULL, { x: this.x, z: this.z, yaw: this.yaw }) : null;
+    if (!to) {
+      removalPuff(this.stage, this.seed, this.x, SEA_Y + 0.3, this.z, 1.4, 7);
+      this.gone = true;
+      return;
     }
-    const path = this.fading ? null : this.path;
+    this.from = { x: this.x, z: this.z, yaw: this.yaw };
+    this.to = to;
+    this.t = 0;
+    this.mode = 'nudging';
+  }
+
+  update(dt: number, signals: Signals): BigShipNews | null {
+    if (this.gone) return null;
     let moving = false;
-    if (path) {
-      if (this.lying > 0) {
-        this.lying -= dt;
-        this.speed = 0;
-      } else {
-        const end = this.way > 0 ? path.length : 0;
-        const left = Math.abs(end - this.s);
-        const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + (path.length - left) / 1.5);
-        this.speed += (want - this.speed) * glide(1.2, dt);
-        this.s = Math.max(0, Math.min(path.length, this.s + this.way * this.speed * dt));
-        moving = true;
-        if ((this.way > 0 && this.s >= path.length - 1e-6) || (this.way < 0 && this.s <= 1e-6)) {
-          this.way = -this.way;
-          this.lying = LIE;
-        }
-      }
+    const pole = (path: Path, target: number): boolean => {
+      const left = Math.abs(target - this.s);
+      const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + this.t / 3);
+      this.speed += (want - this.speed) * glide(1.2, dt);
+      this.s = target > this.s ? Math.min(target, this.s + this.speed * dt) : Math.max(target, this.s - this.speed * dt);
       const p = pathAt(path, this.s);
       const px = this.x, pz = this.z;
       this.x = p.x;
       this.z = p.z;
-      // The bow always toward B: back to A it goes stern first.
       this.yaw += angleDelta(this.yaw, p.yaw) * glide(2, dt);
       this.wake += Math.hypot(this.x - px, this.z - pz);
+      return Math.abs(target - this.s) < 1e-6;
+    };
+    this.t += dt;
+    if (this.mode === 'run' && this.path) {
+      if (this.lying > 0) {
+        this.lying -= dt;
+        this.speed = 0;
+        this.t = 0;
+      } else {
+        moving = true;
+        if (pole(this.path, this.way > 0 ? this.path.length : 0)) {
+          this.way = -this.way;
+          this.lying = LIE;
+        }
+      }
+    } else if (this.mode === 'coming' && this.leg) {
+      moving = true;
+      this.way = 1;
+      if (pole(this.leg, this.leg.length)) {
+        this.mode = 'run';
+        this.s = 0;
+        this.lying = LIE * 0.5;
+      }
+    } else if (this.mode === 'leaving' && this.leg) {
+      moving = true;
+      this.way = 1;
+      if (pole(this.leg, this.leg.length)) {
+        // All of it is out beyond the edge of the map.
+        this.gone = true;
+        return null;
+      }
+    } else if (this.mode === 'nudging') {
+      const k = easeInOut(Math.min(1, this.t / 2));
+      this.x = this.from.x + (this.to.x - this.from.x) * k;
+      this.z = this.from.z + (this.to.z - this.from.z) * k;
+      this.yaw = this.from.yaw + angleDelta(this.from.yaw, this.to.yaw) * k;
+      if (this.t >= 2) {
+        this.mode = 'leaving';
+        this.leg = this.field ? this.toEdge([this.x, this.z], false) : null;
+        this.s = 0;
+        if (!this.leg) this.mode = 'resident';
+      }
     }
     // A bridge just ahead (or overhead): the mast comes down.
     const hx = Math.sin(this.yaw) * this.way, hz = Math.cos(this.yaw) * this.way;
@@ -151,14 +254,17 @@ export class Barge {
       swellAt(now, this.phase, 1.2, wind.strength * 0.5, this.swell);
       this.body.trim(1 / 12, { lee: (wind.dirX * cs - wind.dirZ * sn) * this.way, along, strength: wind.strength }, SHIPS.sailTime);
     }
-    fly(this.x, SEA_Y + this.swell.heave * 0.5, this.z, this.yaw, this.swell.pitch * 0.4, this.swell.roll * 0.4, Math.max(0.001, this.scale), this.m);
-    this.body.pose(this.m, Math.atan2(wind.dirX, wind.dirZ), this.scale);
+    fly(this.x, SEA_Y + this.swell.heave * 0.5, this.z, this.yaw, this.swell.pitch * 0.4, this.swell.roll * 0.4, 1, this.m);
+    const edge = Math.max(mapEdge(this.x + sn * 2, this.z + cs * 2), mapEdge(this.x - sn * 2, this.z - cs * 2));
+    this.body.setCut(edge > -2);
+    for (const h of [...this.man, this.pole]) h.setParams(1, 0, 0, edge > -2 ? -1 : 0);
+    this.body.pose(this.m, Math.atan2(wind.dirX, wind.dirZ));
     if (this.wake > 0.9) {
       this.wake = 0;
       wakeRing(this.stage, this.x - hx * 1.4, this.z - hz * 1.4, 0.3, 2.2, 1.8);
     }
-    if (!this.fading) this.drawMan(signals, moving);
-    return { x: this.x, z: this.z, yaw: this.yaw, stern: -1.65, bow: 1.62, halfBeam: 0.52, speed: this.speed };
+    this.drawMan(signals, moving);
+    return { x: this.x, z: this.z, yaw: this.yaw, stern: HULL.stern, bow: HULL.bow, halfBeam: HULL.halfBeam, speed: moving ? this.speed : 0 };
   }
 
   /** The bargeman at the end he poles from (the stern going to B, the bow coming back), facing the way. */

@@ -104,7 +104,7 @@ describe('boats afloat', () => {
   test('sailboats keep to open water at the waterline for minutes on end, and travel', () => {
     const { rec, signals, life, shape, dressing } = harbour();
     const boats = dressing.actors.filter((a) => a.type === 'sailboat');
-    expect(boats).toHaveLength(2);
+    expect(boats).toHaveLength(3);
     const travelled = boats.map(() => 0);
     const last = boats.map(() => [0, 0, 0] as [number, number, number]);
     for (let f = 0; f < 60 * 150; f++) {

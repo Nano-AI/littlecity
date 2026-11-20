@@ -1,7 +1,8 @@
 // The harbour fixture for the water and the boats: L06 (rings round posts
 // and pillars), L17 (moored rowboats) and L19 (sailboats on the sea lane).
 // An island with a pier, a quay, a lone jetty block, a pillar in the sea and
-// one lighthouse (so two sailboats).
+// a lighthouse. Every dock a rowboat fits at gets one ("Boats and ships"):
+// one per two cells, round the docks in turn; the sea always has sailboats.
 //
 //   node src/life/testing/sequence.mjs L17.rowboats --frames 12 --every 400 --name moored --zoom 8 --target 18,0,31
 //   node src/life/testing/sequence.mjs L17.rowboats --frames 12 --every 5000 --name loop --zoom 1.3 --target 24,0,24
@@ -35,17 +36,18 @@ export default scenario({
     { name: 'dusk', yaw: 225, pitch: 30, zoom: 4.2, target: [22, 0, 29], time: 'dusk' },
   ],
   expect(plan, dressing, check) {
-    // L17: the pier (6 cells) and the quay (7 cells) each moor boats, one per 3 cells at most; the lone block none.
+    // L17: the pier (6 cells), the quay (7) and the lone block each moor boats, one per 2 cells at most, two columns apart.
     const boats = check.actors({ type: 'rowboat', rule: 'L17.rowboats' });
-    check.ok(boats.length >= 2 && boats.length <= 4, `2 to 4 moored rowboats, got ${boats.length}`);
+    check.ok(boats.length >= 4 && boats.length <= 8, `4 to 8 moored rowboats, got ${boats.length}`);
     const moorings = new Set(check.sockets({ type: 'mooring' }).map((s) => s.id));
     const used = boats.map((a) => (a.at && 'socket' in a.at ? a.at.socket : ''));
     check.ok(used.every((id) => moorings.has(id)), 'every rowboat is tied to a mooring socket');
     check.equal(new Set(used).size, used.length, 'no two boats on one mooring');
-    for (const a of boats) check.ok(a.home !== plan.structureAt.get(key(32, 0, 22)), 'a single dock block moors nothing');
-    // L19: 1 + lighthouses.
+    check.ok(boats.some((a) => a.home === plan.structureAt.get(key(32, 0, 22))), 'a single dock block gets a rowboat too');
+    for (const a of boats) check.ok(typeof (a.params as { rank?: number }).rank === 'number', 'each knows its rank (a phone shows fewer)');
+    // L19: two always (no lighthouse needed), one more per 14 dock cells: 14 here.
     const sail = check.actors({ type: 'sailboat', rule: 'L19.sailboats' });
-    check.equal(sail.length, 2, 'one sailboat, and one more for the lighthouse');
+    check.equal(sail.length, 3, 'two sailboats, and one more for fourteen dock cells');
     check.ok(sail.every((a) => a.at === null), 'sailboats roam free');
     const lane = computeLane(plan.terrain, plan.kinds);
     check.ok(lane.points.length >= 16, 'the island has a sea lane');

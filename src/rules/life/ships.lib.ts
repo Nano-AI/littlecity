@@ -10,11 +10,11 @@ import { harbour, type BigShip, type ShipPlan } from './berths.fact';
 /** Liveries × figureheads × sails: the looks a ship can have. */
 export const SHIP_LOOKS = 48;
 
-/** The candidate for a ship kind: one, at the berth's first quay cell, if the harbour has a plan for it. */
+/** The candidates for a ship kind: one at every berth it fits (berths.fact.ts), at the berth's first quay cell. */
 export function shipCandidates(facts: Facts, ship: BigShip): Candidate<ShipPlan>[] {
-  const plan = harbour(facts)[ship];
-  if (!plan) return [];
-  return [{ anchor: key(plan.berth.x, 0, plan.berth.z) as CellKey, key: ship, data: plan }];
+  return harbour(facts)
+    .plans.filter((p) => p.ship === ship)
+    .map((plan) => ({ anchor: key(plan.berth.x, 0, plan.berth.z) as CellKey, key: `${ship}:${plan.berth.key}`, data: plan }));
 }
 
 /** Emits the call and, every other cell along the berth, a place to stand and watch (dir: toward the water). */

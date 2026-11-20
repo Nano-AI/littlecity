@@ -1,59 +1,68 @@
-// The harbour master (L38–L42): every big ship's visit, one at a time at sea.
+// The harbour master (L38–L42): every big ship in the town.
 //
-// A VISIT, for a ship that calls at a berth:
+// WHO CALLS WHERE. The rules name, for each of the longest few berths, every
+// big ship that fits there (berths.fact.ts). Each berth has its own turn:
+// when it is free and nothing else is at sea, a ship comes for it, chosen
+// by weight among those that fit (the biggest most often, the others taking
+// turns: a smooth weighted rotation), so a long quay sees galleons, galleys
+// and cogs. A phone serves
+// fewer berths (SHIPS.shipBerthsPhone).
 //
-//   idle       waiting for its next call (the first comes SHIPS.firstCall
-//              seconds after the berth exists; then a seeded gap)
-//   arriving   up over an edge of the map (it grows out of the distance as
-//              it comes), under full sail along a route a whole hull can
-//              sail (ship-routes.ts), bow following the path. Sails come in
-//              one by one as it nears; it slows to a glide
+// A VISIT:
+//   arriving   in through the edge of the map (a wall it passes through:
+//              the renderer cuts it off there, bow first), under full sail
+//              along a route a whole hull can sail (ship-routes.ts). Sails
+//              come in one by one as it nears; it slows to a glide
 //   swing-in   if it came in at an angle, the stern swings in about the bow
-//              until it lies along the quay
-//   warp-in    the mooring lines take it in the last stretch; a bell
-//   moored     lines fast, gangplank down, the crew land goods, residents
-//              come to look, gulls wheel round the masts. It stays the
-//              night, lanterns lit, and never leaves in the dark
+//   warp-in    the mooring lines take it the last stretch; a bell
+//   moored     gangplank down; the crew carry any goods waiting on the quay
+//              aboard and land new ones; residents come to look; gulls wheel
+//              round the masts. It stays the night, lanterns lit
 //   warp-out   gangplank up, lines cast off (a creak), sails set one by one
 //   swing-out  if it must, the bow swings out about the stern
-//   leaving    it gathers way and sails off over another edge, going down
-//              into the distance as it goes
+//   leaving    it gathers way and sails out through the edge of the map
 //
-// Only one ship is ever at sea (arriving or leaving) at a time, and two
-// never share a berth at once, so ships never meet. A ship alongside is an
-// obstacle to the others' routes.
+// One ship is at sea (arriving or leaving) at a time, and a berth takes one
+// ship at a time, so ships never meet. A ship alongside is an obstacle to
+// the others' routes. Small boats give way (news.ts).
 //
-// THE TOWN CHANGES UNDER IT. On every change the harbour checks each ship:
-// a ship whose way ahead is now blocked finds another; a ship whose berth
-// has gone (or whose call has: the port shrank) gives up and leaves from
-// where it is; a ship with no way at all, or with something built right
-// where it floats, sinks away into the distance where it is (it shrinks,
-// it never pops). The goods it landed are carted off a while later.
+// NOTHING EVER VANISHES. A ship never changes size or fades. When the town
+// changes under it:
+//   - its way ahead is blocked: it finds another way in or out;
+//   - its berth (or its call) has gone: it casts off and sails away;
+//   - something is built on the water it floats in: it is nudged aside to
+//     the nearest free water first, then sails away;
+//   - it has no way out (shut into a pool): it stays afloat there, a
+//     resident, until a way opens;
+//   - it has no water left at all: it goes with the removal puff.
+// Goods it landed stay on the quay (a Pile per berth) until a later crew
+// carries them aboard; only if the quay under them goes do they puff away.
 //
-// Pure of the clock: everything comes from `dt`, signals and seeded rand,
-// so the same town and clock give the same visits.
+// Pure of the clock: everything comes from `dt`, signals and seeded rand, so
+// the same town and clock give the same visits.
 
-import { CELL_H, columnIndex, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
+import { CELL_H, columnIndex, key, keyY, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Mat4, Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
-import { MeshBuilder } from '@/gen/mesh';
+import { MeshBuilder, type MeshData } from '@/gen/mesh';
+import { stick } from '@/parts/actors/boats/hull';
 import { rigOf, type ShipKind } from '@/parts/actors/ships/rig';
 import type { ActorOf, DressingPlan, ShapePlan } from '@/resolve/plan';
 import { findBerths, hullSize, planningField, SEA_MARGIN, type Berth } from '@/rules/life/berths.fact';
-import { hullClear, mooringAt, pathAt, pathClear, pivot, planArrival, planDeparture, type HullSize, type Mooring, type Pose, type SeaField, type Voyage } from '@/rules/life/ship-routes';
-import { SHIPS } from '@/style/ships';
+import { hullClear, mapEdge, mooringAt, pathAt, pathClear, pivot, planArrival, planDeparture, type HullSize, type Mooring, type Pose, type SeaField, type Voyage } from '@/rules/life/ship-routes';
 import { RAMPS } from '@/style/palette';
-import { stick } from '@/parts/actors/boats/hull';
+import { SHIPS } from '@/style/ships';
 import type { InstanceHandle, LifeStage, Signals } from '../api';
-import { swellAt, hullRing, wakeRing, type Swell } from '../boats/afloat';
-import { angleDelta, clamp01, easeInOut, easeOut, glide } from '../motion/ease';
+import { hullRing, swellAt, wakeRing, type Swell } from '../boats/afloat';
+import { angleDelta, clamp01, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { Barge } from './barge';
 import { ShipBody, type ShipWind } from './body';
-import { Crew, LeftGoods, type Gangway, type Spot } from './crew';
+import { Crew, type Gangway, type Pile, type Spot } from './crew';
 import { Escort } from './escort';
-import { clearAhead, newsOf, type BigShipNews } from './news';
+import { clearAhead, newsOf } from './news';
+import { removalPuff } from './puff';
 
 export interface CallInfo {
   id: string;
@@ -61,7 +70,7 @@ export interface CallInfo {
   call: ActorOf<'ship-call'>;
 }
 
-export type Phase = 'idle' | 'arriving' | 'swing-in' | 'warp-in' | 'moored' | 'warp-out' | 'swing-out' | 'leaving' | 'fading';
+export type Phase = 'idle' | 'arriving' | 'swing-in' | 'warp-in' | 'moored' | 'warp-out' | 'swing-out' | 'leaving' | 'nudging' | 'stranded';
 
 export interface Ship {
   id: string;
@@ -71,27 +80,23 @@ export interface Ship {
   berth: Berth;
   dir: 1 | -1;
   mooring: Mooring;
-  /** The call has gone from the plan: finish (or abandon) this visit and stop. */
+  /** The call has gone from the plan (or its berth changed): finish this visit by leaving, and stop. */
   orphan: boolean;
   phase: Phase;
   /** Seconds in this phase. */
   t: number;
-  /** Seconds until it next calls (idle). */
-  due: number;
   visits: number;
   voyage: Voyage | null;
-  /** Distance along the voyage's path, and speed (columns a second). */
   s: number;
   speed: number;
   pose: Pose;
-  /** Drawn size: grows out of the distance arriving, shrinks into it leaving or fading. */
-  scale: number;
-  /** The edge it came in over (it leaves by another). */
+  /** Nudging: where it moves from and to. */
+  from: Pose;
+  to: Pose;
   cameFrom: number;
   body: ShipBody | null;
   crew: Crew | null;
   plank: InstanceHandle | null;
-  /** The plank's drawn length, and how far down it is (0 up, 1 resting on the quay). */
   plankLen: number;
   plankK: number;
   lines: InstanceHandle[];
@@ -101,26 +106,25 @@ export interface Ship {
   swell: Swell;
   phaseSeed: number;
   drawn: number;
-  /** Columns sailed since the last ring of the wake; seconds since the last ring alongside. */
   wake: number;
   bowWave: number;
   ring: number;
   m: Mat4;
 }
 
-/** L42: a tall ship crossing far out along one edge, never calling. */
+/** L42: a tall ship crossing far out, in through one side of the map and out through the other, never calling. */
 export interface Passer {
   id: string;
   kind: ShipKind;
   look: number;
   from: [number, number];
   to: [number, number];
+  often: boolean;
   orphan: boolean;
   phase: 'idle' | 'crossing';
   due: number;
   s: number;
   body: ShipBody | null;
-  scale: number;
   swell: Swell;
   phaseSeed: number;
   drawn: number;
@@ -132,6 +136,8 @@ export interface Harbour {
   readonly ships: readonly Ship[];
   readonly passers: readonly Passer[];
   readonly barges: readonly Barge[];
+  /** Goods lying on each quay, by berth key. */
+  readonly piles: ReadonlyMap<string, Pile>;
   sync(shape: ShapePlan, dressing: DressingPlan, calls: readonly CallInfo[]): void;
   update(dt: number, signals: Signals): void;
   dispose(): void;
@@ -142,7 +148,8 @@ const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
 const NEAR = 0.1;
 /** Radians a second a ship swings at the quay. */
 const SWING_RATE = 0.085;
-
+/** How often each kind is chosen when it fits (the biggest most often). */
+const WEIGHT: Record<ShipKind, number> = { galleon: 5, galley: 3, cog: 2, barge: 0 };
 const STAY: Record<ShipKind, () => number> = { galleon: () => SHIPS.galleonStay, cog: () => SHIPS.cogStay, galley: () => SHIPS.galleyStay, barge: () => 30 };
 const GAP: Record<ShipKind, () => [number, number]> = {
   galleon: () => [SHIPS.galleonGapMin, SHIPS.galleonGapMax],
@@ -151,8 +158,7 @@ const GAP: Record<ShipKind, () => [number, number]> = {
   barge: () => [30, 60],
 };
 const CREW: Record<ShipKind, number> = { galleon: 3, cog: 2, galley: 2, barge: 1 };
-/** The order calls are first answered in when a town opens with several. */
-const FIRST: Record<ShipKind, number> = { galleon: 0, cog: 1, galley: 2, barge: 3 };
+const SIZE: Record<ShipKind, number> = { galleon: 0, galley: 1, cog: 2, barge: 3 };
 
 /** The berth a call names (the same numbers berths.fact.ts gives it). */
 export function berthOfCall(call: ActorOf<'ship-call'>, berths: readonly Berth[]): Berth | null {
@@ -161,9 +167,16 @@ export function berthOfCall(call: ActorOf<'ship-call'>, berths: readonly Berth[]
   return berths.find((b) => b.key === key) ?? null;
 }
 
-/** A unit line of rope along +Z, for mooring lines (scaled to length). */
-let LINE: ReturnType<MeshBuilder['build']> | null = null;
-function lineMesh(): ReturnType<MeshBuilder['build']> {
+/** True on a phone-sized viewport (the crowd's test, src/life/people/people.system.ts). */
+function phone(): boolean {
+  const w = typeof window !== 'undefined' ? window.innerWidth : undefined;
+  const h = typeof window !== 'undefined' ? window.innerHeight : undefined;
+  return typeof w === 'number' && typeof h === 'number' && Math.min(w, h) < 600;
+}
+
+let LINE: MeshData | null = null;
+/** A unit line of rope along +Z, for mooring lines (stretched to length). */
+function lineMesh(): MeshData {
   if (!LINE) {
     const b = new MeshBuilder({ ink: 'ship-line' });
     b.setColor(RAMPS.wood[7]!).setInk('rope');
@@ -187,84 +200,66 @@ function hullColumns(h: HullSize, p: Pose): number[] {
   return [...out];
 }
 
+/** The nearest pose (same heading, or a quarter turn either way) where the hull floats clear: nudged aside. */
+export function nearestFree(field: SeaField, h: HullSize, p: Pose): Pose | null {
+  for (let r = 0.25; r <= 8; r += 0.25) {
+    const n = Math.max(8, Math.round(r * 8));
+    for (const turn of [0, 0.4, -0.4, Math.PI / 2, -Math.PI / 2]) {
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+        if (mapEdge(x, z) > -1) continue;
+        if (hullClear(field, h, x, z, p.yaw + turn, 0.05)) return { x, z, yaw: p.yaw + turn };
+      }
+    }
+  }
+  return null;
+}
+
 const harbours = new WeakMap<LifeStage, Harbour>();
-/** The harbour running on a stage (for tests and the guide). */
+/** The harbour running on a stage (for tests). */
 export function harbourOf(stage: LifeStage): Harbour | null {
   return harbours.get(stage) ?? null;
 }
 
 export function createHarbour(stage: LifeStage, seed: number): Harbour {
   const ships: Ship[] = [];
-  const left: LeftGoods[] = [];
+  const passers: Passer[] = [];
+  const barges: Barge[] = [];
+  const piles = new Map<string, Pile>();
+  /** Each berth's turn: seconds until its next ship, the berths in order (longest first), and its visits. */
+  const turns = new Map<string, { due: number; visits: number; credit: Map<ShipKind, number> }>();
+  let order: string[] = [];
   let shape: ShapePlan | null = null;
   let opened = false;
   const fields = new Map<string, SeaField>();
   const news = newsOf(stage);
+  let small: { x: number; z: number }[] = [];
 
   /** The field a ship plans in: the town, the small boats' moorings, and the hulls of the other ships alongside. */
   const fieldFor = (ship: Ship): SeaField => {
     const others = ships.filter((o) => o !== ship && o.body && o.phase !== 'arriving' && o.phase !== 'leaving' && o.phase !== 'idle');
-    const k = `${ship.id}|${others.map((o) => `${o.id}:${o.phase === 'moored' ? 'm' : 'x'}`).join(',')}`;
+    const k = `${ship.id}|${ship.berth.key}|${others.map((o) => `${o.id}:${o.pose.x.toFixed(1)},${o.pose.z.toFixed(1)}`).join(',')}`;
     let f = fields.get(k);
     if (!f) {
-      const extra = others.flatMap((o) => hullColumns(o.hull, o.phase === 'moored' ? o.mooring : o.pose));
+      const extra = others.flatMap((o) => hullColumns(o.hull, o.pose));
       f = planningField(shape!.facts, ship.berth, extra);
       fields.set(k, f);
     }
     return f;
   };
   const r = (ship: Ship, what: string): number => rand(seed, 'ship', ship.id, what, ship.visits);
-  const gap = (ship: Ship): number => {
-    const [lo, hi] = GAP[ship.kind]();
-    return lo + (hi - lo) * r(ship, 'gap');
-  };
-  const passers: Passer[] = [];
-  const barges: Barge[] = [];
-  const atSea = (): boolean => ships.some((s) => s.phase === 'arriving' || s.phase === 'leaving') || passers.some((p) => p.phase === 'crossing');
-  const berthBusy = (ship: Ship): boolean => ships.some((s) => s !== ship && s.phase !== 'idle' && s.phase !== 'arriving' && s.phase !== 'fading' && s.phase !== 'leaving' && s.berth.key === ship.berth.key) || ships.some((s) => s !== ship && s.phase === 'arriving' && s.berth.key === ship.berth.key);
-
-  const spawnBody = (ship: Ship, set: number): void => {
-    ship.body?.release();
-    ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, set);
-  };
-
+  /** Something is at sea, or casting off to go to sea (one at a time: ships never meet). */
+  const atSea = (but?: Ship): boolean =>
+    ships.some((s) => s !== but && (s.phase === 'arriving' || s.phase === 'leaving' || s.phase === 'warp-out' || s.phase === 'swing-out')) || passers.some((p) => p.phase === 'crossing');
+  const berthBusy = (key: string): boolean => ships.some((s) => s.phase !== 'idle' && s.berth.key === key);
   const setPhase = (ship: Ship, phase: Phase): void => {
     ship.phase = phase;
     ship.t = 0;
   };
+  const yieldFor = (ship: Ship): number => clearAhead({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.speed }, small);
 
-  /** Ends a visit: everything the ship drew goes; its goods stay a while. */
-  const finish = (ship: Ship): void => {
-    ship.body?.release();
-    ship.body = null;
-    ship.crew?.release();
-    if (ship.crew && ship.crew.landed.length) left.push(new LeftGoods([...ship.crew.landed], pileSpots(ship), SHIPS.goodsLinger));
-    ship.crew = null;
-    ship.plank?.release();
-    ship.plank = null;
-    ship.plankK = 0;
-    for (const l of ship.lines) l.release();
-    ship.lines = [];
-    ship.escort?.leave();
-    ship.voyage = null;
-    ship.visits++;
-    ship.due = gap(ship);
-    setPhase(ship, 'idle');
-  };
-
-  /** Off to sea from where it is now (the berth has gone, or its way ahead is blocked). */
-  const leaveFromHere = (ship: Ship): void => {
-    const field = fieldFor(ship);
-    const v = planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), -1, ship.pose);
-    if (v && hullClear(field, ship.hull, ship.pose.x, ship.pose.z, ship.pose.yaw, 0)) {
-      ship.voyage = v;
-      ship.s = 0;
-      ship.body?.setAll(1);
-      setPhase(ship, 'leaving');
-    } else setPhase(ship, 'fading');
-  };
-
-  /** Where the gangplank comes down, and where the goods are piled: on the quay beside the ship's middle. */
+  /** Where the gangplank comes down, and where goods are piled: on the quay beside the ship's middle. */
   const gangwayOf = (ship: Ship): { way: Gangway; side: number } => {
     const rig = rigOf(ship.kind, ship.look);
     const m = ship.mooring;
@@ -272,73 +267,120 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     const side = Math.cos(m.yaw) * -m.ox + -Math.sin(m.yaw) * -m.oz > 0 ? 1 : -1;
     const [gx, gy, gz] = rig.gangway;
     const deck = rig.hull.deck(rig.hull.t(gz));
-    const way: Gangway = {
-      hatch: [side * -0.1, deck, gz - 0.55],
-      rail: [side * (gx - 0.22), deck, gz],
-      top: [side * (gx - 0.04), gy + 0.02, gz],
-      foot: [0, 0, 0],
-    };
-    // The foot: straight across onto the quay, 0.45 in from its face.
+    const way: Gangway = { hatch: [side * -0.1, deck, gz - 0.55], rail: [side * (gx - 0.22), deck, gz], top: [side * (gx - 0.04), gy + 0.02, gz], foot: [0, 0, 0] };
     const b = ship.berth;
     const wx = m.x + Math.cos(m.yaw) * side * gx + Math.sin(m.yaw) * gz, wz = m.z - Math.sin(m.yaw) * side * gx + Math.cos(m.yaw) * gz;
     const faceDist = (wx - b.face.ax) * b.face.ox + (wz - b.face.az) * b.face.oz;
     way.foot = [wx - b.face.ox * (faceDist + 0.45), b.level * CELL_H + 0.02, wz - b.face.oz * (faceDist + 0.45)];
     return { way, side };
   };
-  const pileSpots = (ship: Ship): Spot[] => {
+  /** The berth's pile: two rows of spots on the quay beside where the gangplank comes down. */
+  const pileOf = (ship: Ship): Pile => {
+    let pile = piles.get(ship.berth.key);
+    if (pile) return pile;
     const { way } = gangwayOf(ship);
     const b = ship.berth;
     const f = way.foot;
     const yaw = Math.atan2(-b.face.ox, -b.face.oz);
-    const out: Spot[] = [];
+    const spots: Spot[] = [];
     const n = Math.max(0, Math.round(SHIPS.goodsMax));
     for (let i = 0; i < n; i++) {
-      // Two rows along the quay, beside the plank's foot, a little further in.
       const along = (i % 3 === 0 ? 0.55 : i % 3 === 1 ? 0.82 : -0.6) * (i >= 3 ? -1 : 1);
       const depth = 0.18 + (i >= 3 ? 0.04 : 0);
-      out.push({ x: f[0] + b.face.dx * along - b.face.ox * depth, y: f[1], z: f[2] + b.face.dz * along - b.face.oz * depth, yaw: yaw + (rand(seed, 'pile', ship.id, i) - 0.5) * 0.5 });
+      spots.push({ x: f[0] + b.face.dx * along - b.face.ox * depth, y: f[1], z: f[2] + b.face.dz * along - b.face.oz * depth, yaw: yaw + (rand(seed, 'pile', b.key, i) - 0.5) * 0.5 });
     }
-    return out;
+    pile = { spots, items: spots.map(() => null) };
+    piles.set(ship.berth.key, pile);
+    return pile;
   };
 
-  /** Starts a call: plan the way in, or try again a little later. */
-  const begin = (ship: Ship): void => {
+  /** Ends a visit (the ship is out beyond the edge, or gone in a puff): its pieces go; goods stay. */
+  const finish = (ship: Ship): void => {
+    ship.body?.release();
+    ship.body = null;
+    ship.crew?.release();
+    ship.crew = null;
+    ship.plank?.release();
+    ship.plank = null;
+    ship.plankK = 0;
+    for (const l of ship.lines) l.release();
+    ship.lines = [];
+    ship.escort?.release();
+    ship.escort = null;
+    ship.voyage = null;
+    ship.visits++;
+    const turn = turns.get(ship.berth.key);
+    if (turn) {
+      const [lo, hi] = GAP[ship.kind]();
+      turn.due = lo + (hi - lo) * r(ship, 'gap');
+    }
+    setPhase(ship, 'idle');
+  };
+
+  /** Off to sea from where it is (its berth has gone, or its way is blocked); a resident if there is no way. */
+  const leaveFromHere = (ship: Ship): void => {
     const field = fieldFor(ship);
-    const v = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'entry'));
-    if (!v) {
-      ship.due = 20;
+    if (!hullClear(field, ship.hull, ship.pose.x, ship.pose.z, ship.pose.yaw, -0.05)) {
+      nudge(ship, field);
       return;
     }
+    ship.crew?.release();
+    ship.crew = null;
+    const v = planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), -1, ship.pose) ?? planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, 0.05, r(ship, 'exit'), -1, ship.pose);
+    if (v) {
+      ship.voyage = v;
+      ship.s = 0;
+      ship.body?.setAll(1);
+      setPhase(ship, 'leaving');
+    } else setPhase(ship, 'stranded');
+  };
+
+  /** Something stands where it floats: aside to the nearest free water, or (no water left) the removal puff. */
+  const nudge = (ship: Ship, field: SeaField): void => {
+    const to = nearestFree(field, ship.hull, ship.pose);
+    if (!to) {
+      const mid = (ship.hull.stern + ship.hull.bow) / 2;
+      removalPuff(stage, seed, ship.pose.x + Math.sin(ship.pose.yaw) * mid, SEA_Y + 0.6, ship.pose.z + Math.cos(ship.pose.yaw) * mid, 2.4, ship.visits);
+      finish(ship);
+      return;
+    }
+    ship.from = { ...ship.pose };
+    ship.to = to;
+    ship.crew?.release();
+    ship.crew = null;
+    setPhase(ship, 'nudging');
+  };
+
+  const begin = (ship: Ship): boolean => {
+    const field = fieldFor(ship);
+    const v = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'entry'));
+    if (!v) return false;
     ship.voyage = v;
     ship.s = 0;
     ship.speed = SHIPS.sailSpeed * 0.8;
     ship.cameFrom = v.edge.side;
-    ship.scale = 0.02;
     const p = pathAt(v.path, 0);
     ship.pose = { x: p.x, z: p.z, yaw: p.yaw };
-    spawnBody(ship, 1);
-    ship.escort ??= new Escort(stage, seed, ship.id);
+    ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 1);
+    ship.escort = new Escort(stage, seed, ship.id);
     setPhase(ship, 'arriving');
+    return true;
   };
 
   /** Lies at the berth right away (a town opened with a ship in). */
   const moorNow = (ship: Ship, into: number): void => {
     ship.pose = { x: ship.mooring.x, z: ship.mooring.z, yaw: ship.mooring.yaw };
-    ship.scale = 1;
-    spawnBody(ship, 0);
-    ship.escort ??= new Escort(stage, seed, ship.id);
+    ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 0);
+    ship.escort = new Escort(stage, seed, ship.id);
     ship.cameFrom = -1;
     setPhase(ship, 'moored');
     ship.t = into;
   };
 
-  /** Small boats seen last frame: a ship under way slows for one under its bow. */
-  let small: { x: number; z: number }[] = [];
-  const yieldFor = (ship: Ship): number => clearAhead({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.speed }, small);
-
   const stepShip = (ship: Ship, dt: number, signals: Signals): void => {
     ship.t += dt;
     const body = ship.body;
+    if (!body) return;
     const wind = signals.wind(ship.pose.x, ship.pose.z);
     const sin = Math.sin(ship.pose.yaw), cos = Math.cos(ship.pose.yaw);
     const w: ShipWind = { lee: wind.dirX * cos - wind.dirZ * sin, along: wind.dirX * sin + wind.dirZ * cos, strength: wind.strength };
@@ -346,13 +388,9 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     const len = ship.hull.bow - ship.hull.stern;
     const before = { ...ship.pose };
     const rowing = ship.kind === 'galley';
+    const m = ship.mooring;
 
     switch (ship.phase) {
-      case 'idle': {
-        if (ship.orphan) return;
-        ship.due -= dt;
-        return;
-      }
       case 'arriving': {
         const v = ship.voyage!;
         const remaining = v.path.length - ship.s;
@@ -363,17 +401,14 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         ship.pose.x = p.x;
         ship.pose.z = p.z;
         ship.pose.yaw += angleDelta(ship.pose.yaw, p.yaw) * glide(SHIPS.turn * 3, dt);
-        ship.scale = Math.max(0.02, easeOut(clamp01(ship.t / SHIPS.rise)));
-        if (body) {
-          // Sails come in one by one as it nears, the last at the very end.
-          const n = body.sails.length;
-          body.sails.forEach((sp, i) => {
-            const rank = n - 1 - body.rig.sails[i]!.order;
-            sp.want = remaining > SHIPS.slowing * (1 - rank / Math.max(1, n)) * 0.95 + 0.6 ? 1 : 0;
-            if (rowing) sp.want = w.along > 0.35 && remaining > 4 ? 1 : 0;
-          });
-          if (rowing) body.rowing = remaining > 2.2 ? Math.min(1, body.rowing + dt) : Math.max(0, body.rowing - dt * 0.8);
-        }
+        // Sails come in one by one as it nears, the last at the very end.
+        const n = body.sails.length;
+        body.sails.forEach((sp, i) => {
+          const rank = n - 1 - body.rig.sails[i]!.order;
+          sp.want = remaining > SHIPS.slowing * (1 - rank / Math.max(1, n)) * 0.95 + 0.6 ? 1 : 0;
+          if (rowing) sp.want = w.along > 0.35 && remaining > 4 ? 1 : 0;
+        });
+        if (rowing) body.rowing = remaining > 2.2 ? Math.min(1, body.rowing + dt) : Math.max(0, body.rowing - dt * 0.8);
         if (ship.s >= v.path.length - 1e-6) setPhase(ship, v.swing !== 0 ? 'swing-in' : 'warp-in');
         break;
       }
@@ -381,101 +416,96 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         const v = ship.voyage!;
         const dur = Math.abs(v.swing) / SWING_RATE;
         const k = easeInOut(clamp01(ship.t / dur));
-        const warp: Pose = { x: ship.mooring.wx, z: ship.mooring.wz, yaw: ship.mooring.yaw };
-        pivot(warp, ship.hull.bow, v.swing * (1 - k), ship.pose);
-        if (body && rowing) body.rowing = Math.max(0, body.rowing - dt);
+        pivot({ x: m.wx, z: m.wz, yaw: m.yaw }, ship.hull.bow, v.swing * (1 - k), ship.pose);
+        if (rowing) body.rowing = Math.max(0, body.rowing - dt);
         if (ship.t >= dur) setPhase(ship, 'warp-in');
         break;
       }
       case 'warp-in': {
-        if (ship.t < dt * 1.5) {
+        if (!ship.lines.length) {
           news.sounds.push({ kind: 'bell', x: ship.pose.x, z: ship.pose.z });
           ship.lines = [stage.spawnMesh(lineMesh(), HIDDEN), stage.spawnMesh(lineMesh(), HIDDEN)];
         }
         const k = easeInOut(clamp01(ship.t / SHIPS.warp));
-        const m = ship.mooring;
         ship.pose.x = m.wx + (m.x - m.wx) * k;
         ship.pose.z = m.wz + (m.z - m.wz) * k;
         ship.pose.yaw = m.yaw;
-        if (body) {
-          body.setAll(0);
-          if (rowing) body.rowing = Math.max(0, body.rowing - dt);
-        }
+        body.setAll(0);
+        if (rowing) body.rowing = Math.max(0, body.rowing - dt);
         if (ship.t >= SHIPS.warp) {
           setPhase(ship, 'moored');
           ship.voyage = null;
-          ship.crew?.release();
-          ship.crew = null;
         }
         break;
       }
       case 'moored': {
-        const m = ship.mooring;
         ship.pose.x = m.x;
         ship.pose.z = m.z;
         ship.pose.yaw = m.yaw;
         if (!ship.lines.length) ship.lines = [stage.spawnMesh(lineMesh(), HIDDEN), stage.spawnMesh(lineMesh(), HIDDEN)];
-        body?.setAll(0);
-        if (body && rowing) body.rowing = 0;
+        body.setAll(0);
+        if (rowing) body.rowing = 0;
         const stay = STAY[ship.kind]();
         const night = signals.time.isNight || signals.time.isDusk;
-        if (!ship.crew) ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, CREW[ship.kind], Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67)), pileSpots(ship));
+        const pile = pileOf(ship);
+        if (!ship.crew) ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, CREW[ship.kind], Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67)), pile);
         if (!ship.plank) {
           const { way } = gangwayOf(ship);
           const top = transform(fly(m.x, SEA_Y, m.z, m.yaw, 0, 0, 1), way.top);
-          ship.plankLen = Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2]));
-          ship.plank = stage.spawn({ actor: 'gangplank', params: { length: Math.round(ship.plankLen * 20) / 20 } }, HIDDEN);
-          ship.plankLen = Math.round(ship.plankLen * 20) / 20;
+          ship.plankLen = Math.round(Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2])) * 20) / 20;
+          ship.plank = stage.spawn({ actor: 'gangplank', params: { length: ship.plankLen } }, HIDDEN);
         }
         // The plank comes down once it is fast, and up again when the stay is over and the crew are aboard.
         const done = (ship.t >= stay && !night) || ship.orphan;
         const want = done && ship.crew.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
         ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 1.8));
-        if (done && ship.crew.aboard && ship.plankK <= 0) {
+        if (done && ship.crew.aboard && ship.plankK <= 0 && !atSea(ship)) {
           setPhase(ship, 'warp-out');
           news.sounds.push({ kind: 'creak', x: ship.pose.x, z: ship.pose.z });
         }
         break;
       }
       case 'warp-out': {
-        if (ship.t < dt * 1.5 && !ship.voyage) {
+        if (!ship.voyage) {
           const field = fieldFor(ship);
-          ship.voyage = planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), ship.cameFrom) ?? planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'));
+          ship.voyage = planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), ship.cameFrom) ?? planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'));
           if (!ship.voyage) {
-            // Nowhere to go: stay at the berth and try again later (or, if the berth is gone, sink away).
-            if (ship.orphan || !shape) setPhase(ship, 'fading');
-            else setPhase(ship, 'moored');
+            // Nowhere to go: it stays where it lies, lines fast, until a way opens.
+            setPhase(ship, ship.orphan ? 'stranded' : 'moored');
             return;
           }
         }
         const dur = SHIPS.warp * 0.8;
         const k = easeInOut(clamp01(ship.t / dur));
-        const m = ship.mooring;
-        ship.pose.x = m.x + (m.wx - m.x) * k;
-        ship.pose.z = m.z + (m.wz - m.z) * k;
-        ship.pose.yaw = m.yaw;
-        if (body) {
-          // Sails set one by one, the first as the lines come in.
-          body.sails.forEach((sp, i) => {
-            sp.want = ship.t > body.rig.sails[i]!.order * SHIPS.sailEvery ? 1 : 0;
-            if (rowing) sp.want = w.along > 0.35 ? sp.want : 0;
-          });
-          if (rowing) body.rowing = Math.min(1, ship.t / dur);
-        }
+        // From where it was (alongside, or partway in) out to the warp point.
+        ship.pose.x += (m.wx - ship.pose.x) * k * Math.min(1, dt * 4);
+        ship.pose.z += (m.wz - ship.pose.z) * k * Math.min(1, dt * 4);
+        ship.pose.yaw += angleDelta(ship.pose.yaw, m.yaw) * Math.min(1, dt * 2);
+        body.sails.forEach((sp, i) => {
+          sp.want = ship.t > body.rig.sails[i]!.order * SHIPS.sailEvery ? 1 : 0;
+          if (rowing) sp.want = w.along > 0.35 ? sp.want : 0;
+        });
+        if (rowing) body.rowing = Math.min(1, ship.t / dur);
         if (ship.t > 0.6 && ship.lines.length) {
           for (const l of ship.lines) l.release();
           ship.lines = [];
         }
-        if (ship.t >= dur && ship.voyage) setPhase(ship, ship.voyage.swing !== 0 ? 'swing-out' : 'leaving');
+        if (ship.t >= dur + 0.5 && ship.voyage) {
+          ship.pose.x = m.wx;
+          ship.pose.z = m.wz;
+          ship.pose.yaw = m.yaw;
+          setPhase(ship, ship.voyage.swing !== 0 ? 'swing-out' : 'leaving');
+          ship.s = 0;
+          ship.speed = 0.08;
+        }
         break;
       }
       case 'swing-out': {
         const v = ship.voyage!;
         const dur = Math.abs(v.swing) / SWING_RATE;
         const k = easeInOut(clamp01(ship.t / dur));
-        const warp: Pose = { x: ship.mooring.wx, z: ship.mooring.wz, yaw: ship.mooring.yaw };
-        pivot(warp, ship.hull.stern, v.swing * k, ship.pose);
-        if (body) body.sails.forEach((sp, i) => (sp.want = rowing ? sp.want : ship.t + SHIPS.warp * 0.8 > body.rig.sails[i]!.order * SHIPS.sailEvery ? 1 : 0));
+        pivot({ x: m.wx, z: m.wz, yaw: m.yaw }, ship.hull.stern, v.swing * k, ship.pose);
+        if (!rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp * 0.8 > body.rig.sails[i]!.order * SHIPS.sailEvery ? 1 : 0));
         if (ship.t >= dur) {
           setPhase(ship, 'leaving');
           ship.s = 0;
@@ -485,54 +515,54 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       }
       case 'leaving': {
         const v = ship.voyage!;
-        if (body && !rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp > body.rig.sails[i]!.order * SHIPS.sailEvery * 0.6 ? 1 : 0));
-        if (body && rowing) body.rowing = Math.min(1, body.rowing + dt);
-        // Gathering way as the sails fill.
-        const want = full * Math.min(1, 0.18 + ship.s / (len * 1.2)) * (rowing ? 1 : 0.35 + 0.65 * (body?.canvas ?? 1)) * yieldFor(ship);
+        if (!rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp > body.rig.sails[i]!.order * SHIPS.sailEvery * 0.6 ? 1 : 0));
+        else body.rowing = Math.min(1, body.rowing + dt);
+        const want = full * Math.min(1, 0.18 + ship.s / (len * 1.2)) * (rowing ? 1 : 0.35 + 0.65 * body.canvas) * yieldFor(ship);
         ship.speed += (want - ship.speed) * glide(0.6, dt);
         ship.s = Math.min(v.path.length, ship.s + ship.speed * dt);
         const p = pathAt(v.path, ship.s);
         ship.pose.x = p.x;
         ship.pose.z = p.z;
         ship.pose.yaw += angleDelta(ship.pose.yaw, p.yaw) * glide(SHIPS.turn * 3, dt);
-        const remaining = v.path.length - ship.s;
-        ship.scale = Math.min(1, Math.max(0, remaining / Math.max(0.5, SHIPS.rise * Math.max(0.3, ship.speed))));
-        ship.scale = easeOut(ship.scale);
-        if (remaining <= 1e-6) {
+        // Out through the edge of the map: once all of it is beyond, the visit is over.
+        if (v.path.length - ship.s <= 1e-6) {
           finish(ship);
           return;
         }
         break;
       }
-      case 'fading': {
-        ship.scale = Math.max(0, ship.scale - dt / 2.2);
-        if (ship.lines.length) {
-          for (const l of ship.lines) l.release();
-          ship.lines = [];
-        }
-        if (ship.plank) {
-          ship.plank.release();
-          ship.plank = null;
-        }
-        if (ship.scale <= 0) {
-          finish(ship);
-          return;
-        }
+      case 'nudging': {
+        const k = easeInOut(clamp01(ship.t / 2.5));
+        ship.pose.x = ship.from.x + (ship.to.x - ship.from.x) * k;
+        ship.pose.z = ship.from.z + (ship.to.z - ship.from.z) * k;
+        ship.pose.yaw = ship.from.yaw + angleDelta(ship.from.yaw, ship.to.yaw) * k;
+        for (const l of ship.lines) l.release();
+        ship.lines = [];
+        if (ship.t >= 2.5) leaveFromHere(ship);
         break;
       }
+      case 'stranded': {
+        // Afloat where it is, sails furled, a resident until a way opens (sync tries again on every change).
+        body.setAll(0);
+        if (rowing) body.rowing = 0;
+        for (const l of ship.lines) l.release();
+        ship.lines = [];
+        break;
+      }
+      default:
     }
+    if (!ship.body) return;
 
     // ── the crew, the gangplank and the lines, while it lies alongside ──
     const alongside = ship.phase === 'moored' || ship.phase === 'warp-out' || ship.phase === 'warp-in';
     const { way, side } = gangwayOf(ship);
     if (ship.crew) ship.crew.update(dt, ship.m, way, ship.phase === 'moored' && ship.t < STAY[ship.kind]() - 6 && !ship.orphan);
     if (ship.phase !== 'moored' && ship.crew && ship.crew.aboard) {
-      if (ship.crew.landed.length) left.push(new LeftGoods([...ship.crew.landed], pileSpots(ship), SHIPS.goodsLinger));
       ship.crew.release();
       ship.crew = null;
     }
     if (ship.plank) {
-      // Swung up from the rail (raised) down to rest on the quay.
+      // Swung up from the rail (raised) down to rest on the quay; hauled aboard (out of sight) once it is up.
       const top = transform(ship.m, way.top);
       const f = way.foot;
       const dx = f[0] - top[0], dy = f[1] - top[1], dz = f[2] - top[2];
@@ -541,16 +571,14 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       const k = easeInOut(ship.plankK);
       const pitch = Math.atan2(-dy, flat) * k - 1.25 * (1 - k);
       const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
-      const sz = length / ship.plankLen;
+      const sz = ship.plankK > 0.02 ? length / ship.plankLen : 1;
       ship.plank.setMatrix([cy, 0, -sy, 0, sy * sp, cp, cy * sp, 0, sy * cp * sz, -sp * sz, cy * cp * sz, 0, top[0], top[1] + 0.02, top[2], 1]);
-      if (ship.phase !== 'moored') {
+      if (ship.phase !== 'moored' && ship.plankK <= 0) {
         ship.plank.release();
         ship.plank = null;
-        ship.plankK = 0;
-      }
+      } else if (ship.phase !== 'moored') ship.plankK = Math.max(0, ship.plankK - dt / 1.2);
     }
     if (ship.lines.length === 2 && alongside) {
-      // Bow and stern lines from the rail to the quay, a little beyond each end.
       const rig = rigOf(ship.kind, ship.look);
       const b = ship.berth;
       const ends = [rig.hull.z(0.92, 0.5), rig.hull.z(0.08, 0.5)];
@@ -565,38 +593,40 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     }
 
     // ── the hull: swell on twos, heel, bank; everything placed every frame ──
-    if (!ship.body) return;
     const now = onTwos(signals.time.seconds, ship.phaseSeed);
     if (now !== ship.drawn) {
       const step = Number.isNaN(ship.drawn) ? 1 / 12 : Math.max(0, now - ship.drawn);
       ship.drawn = now;
       swellAt(now, ship.phaseSeed, len * 0.35, wind.strength, ship.swell);
-      ship.body.trim(step, w, SHIPS.sailTime);
-      if (rowing) ship.body.stroke = (ship.body.stroke + step * (0.35 + 0.45 * Math.min(1, ship.speed / SHIPS.rowSpeed))) % 1;
-      const heel = -SHIPS.heel * Math.min(1, wind.strength) * ship.body.canvas * w.lee;
+      body.trim(step, w, SHIPS.sailTime);
+      if (rowing) body.stroke = (body.stroke + step * (0.35 + 0.45 * Math.min(1, ship.speed / SHIPS.rowSpeed))) % 1;
+      const heel = -SHIPS.heel * Math.min(1, wind.strength) * body.canvas * w.lee;
       ship.heel += (heel - ship.heel) * Math.min(1, step * 1.5);
     }
     const turn = dt > 0 ? angleDelta(before.yaw, ship.pose.yaw) / dt : 0;
     ship.bank += (Math.max(-0.05, Math.min(0.05, -turn * 0.2)) - ship.bank) * Math.min(1, dt * 2);
     const sw = ship.swell;
     const calm = alongside ? 0.35 : 0.6;
-    fly(ship.pose.x, SEA_Y + sw.heave * calm * ship.scale, ship.pose.z, ship.pose.yaw, sw.pitch * calm * 0.6, sw.roll * calm * 0.6 + ship.heel + ship.bank, ship.scale, ship.m);
-    ship.body.pose(ship.m, Math.atan2(wind.dirX, wind.dirZ), ship.scale);
+    fly(ship.pose.x, SEA_Y + sw.heave * calm, ship.pose.z, ship.pose.yaw, sw.pitch * calm * 0.6, sw.roll * calm * 0.6 + ship.heel + ship.bank, 1, ship.m);
+    // Near the edge of the map it is cut off at it (and its cut face filled).
+    const reach = Math.max(mapEdge(ship.pose.x + sin * (ship.hull.bow + 1.5), ship.pose.z + cos * (ship.hull.bow + 1.5)), mapEdge(ship.pose.x + sin * ship.hull.stern, ship.pose.z + cos * ship.hull.stern));
+    body.setCut(reach > -2.5);
+    body.pose(ship.m, Math.atan2(wind.dirX, wind.dirZ));
 
     // ── the water: a wake astern and a bow wave under way, rings alongside ──
     const moved = Math.hypot(ship.pose.x - before.x, ship.pose.z - before.z);
     ship.wake += moved;
     ship.bowWave += moved;
-    if (ship.wake > 1.1 && ship.scale > 0.3) {
+    if (ship.wake > 1.1) {
       ship.wake = 0;
-      wakeRing(stage, ship.pose.x + sin * ship.hull.stern * ship.scale, ship.pose.z + cos * ship.hull.stern * ship.scale, ship.hull.halfBeam * 0.55 * ship.scale, 2.8, 2.6);
+      wakeRing(stage, ship.pose.x + sin * ship.hull.stern, ship.pose.z + cos * ship.hull.stern, ship.hull.halfBeam * 0.55, 2.8, 2.6);
     }
-    if (ship.bowWave > 0.55 && ship.scale > 0.3 && ship.speed > 0.25) {
+    if (ship.bowWave > 0.55 && ship.speed > 0.25) {
       ship.bowWave = 0;
-      const bx = ship.pose.x + sin * (ship.hull.bow - 0.9) * ship.scale, bz = ship.pose.z + cos * (ship.hull.bow - 0.9) * ship.scale;
-      hullRing(stage, bx, bz, ship.pose.yaw, ship.hull.halfBeam * 1.1 * ship.scale, 1.1 * ship.scale, 1.7, 1.1);
+      const bx = ship.pose.x + sin * (ship.hull.bow - 0.9), bz = ship.pose.z + cos * (ship.hull.bow - 0.9);
+      hullRing(stage, bx, bz, ship.pose.yaw, ship.hull.halfBeam * 1.1, 1.1, 1.7, 1.1);
     }
-    if (alongside) {
+    if (alongside || ship.phase === 'stranded') {
       ship.ring += dt;
       if (ship.ring > 3.4) {
         ship.ring = 0;
@@ -608,16 +638,15 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
 
   const stepPasser = (p: Passer, dt: number, signals: Signals): void => {
     if (p.phase === 'idle') {
-      p.due -= dt;
+      p.due -= dt * (p.often ? SHIPS.passLighthouse : 1);
       return;
     }
     const [x0, z0] = p.from, [x1, z1] = p.to;
     const len = Math.hypot(x1 - x0, z1 - z0);
     p.s = Math.min(len, p.s + SHIPS.passSpeed * dt);
     const x = x0 + ((x1 - x0) * p.s) / len, z = z0 + ((z1 - z0) * p.s) / len, yaw = Math.atan2(x1 - x0, z1 - z0);
-    const grow = SHIPS.rise * SHIPS.passSpeed;
-    p.scale = easeOut(clamp01(Math.min(p.s / grow, (len - p.s) / grow)));
     if (p.s >= len) {
+      // Out through the far side of the map: all of it is beyond the edge now.
       p.body?.release();
       p.body = null;
       p.phase = 'idle';
@@ -634,20 +663,38 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       p.body!.trim(1 / 12, w, SHIPS.sailTime);
     }
     const heel = -SHIPS.heel * Math.min(1, wind.strength) * w.lee;
-    fly(x, SEA_Y + p.swell.heave * 0.5 * p.scale, z, yaw, p.swell.pitch * 0.3, p.swell.roll * 0.3 + heel, Math.max(0.001, p.scale), p.m);
-    p.body!.pose(p.m, Math.atan2(wind.dirX, wind.dirZ), p.scale);
+    fly(x, SEA_Y + p.swell.heave * 0.5, z, yaw, p.swell.pitch * 0.3, p.swell.roll * 0.3 + heel, 1, p.m);
+    p.body!.setCut(true);
+    p.body!.pose(p.m, Math.atan2(wind.dirX, wind.dirZ));
     p.wake += SHIPS.passSpeed * dt;
-    if (p.wake > 1.2 && p.scale > 0.4) {
+    if (p.wake > 1.2) {
       p.wake = 0;
-      wakeRing(stage, x - sn * 2.4 * p.scale, z - cs * 2.4 * p.scale, 0.4 * p.scale, 2.6, 2.4);
+      wakeRing(stage, x - sn * 2.4, z - cs * 2.4, 0.4, 2.6, 2.4);
     }
-    news.ships.push({ x, z, yaw, stern: -2.85 * p.scale, bow: 3.55 * p.scale, halfBeam: 0.75 * p.scale, speed: SHIPS.passSpeed });
+    news.ships.push({ x, z, yaw, stern: -2.85, bow: 3.55, halfBeam: 0.75, speed: SHIPS.passSpeed });
+  };
+
+  /** Goods whose quay has gone: the removal puff (the pieces they stood on went the same way). */
+  const checkPiles = (s: ShapePlan): void => {
+    for (const pile of piles.values()) {
+      pile.items.forEach((it, i) => {
+        if (!it) return;
+        const sp = pile.spots[i]!;
+        const below = key(Math.floor(sp.x), Math.max(0, Math.round(sp.y / CELL_H) - 1), Math.floor(sp.z));
+        const k = s.kinds.get(below);
+        if (k === 'dock' || k === 'marble') return;
+        removalPuff(stage, seed, sp.x, sp.y + 0.12, sp.z, 0.5, i + keyY(below));
+        it.release();
+        pile.items[i] = null;
+      });
+    }
   };
 
   const harbour: Harbour = {
     ships,
     passers,
     barges,
+    piles,
     sync(nextShape, _dressing, calls) {
       const changed = nextShape !== shape;
       shape = nextShape;
@@ -655,32 +702,33 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       const berths = findBerths(nextShape.facts);
       const seen = new Set<string>();
       for (const c of calls) {
+        const p = c.call.params ?? {};
         if (c.call.variant === 'passing') {
           seen.add(c.id);
-          const p = c.call.params ?? {};
           let ps = passers.find((q) => q.id === c.id);
           const look = Math.abs(Math.round(p.look ?? 0));
           if (!ps) {
-            ps = { id: c.id, kind: look % 3 === 0 ? 'cog' : 'galleon', look, from: [p.x ?? 0, p.z ?? 0], to: [p.x2 ?? 0, p.z2 ?? 0], orphan: false, phase: 'idle', due: SHIPS.passGapMin * 0.4, s: 0, body: null, scale: 0, swell: { heave: 0, roll: 0, pitch: 0 }, phaseSeed: rand(seed, 'pass-phase', c.id), drawn: NaN, wake: 0, m: new Array<number>(16).fill(0) };
+            ps = { id: c.id, kind: look % 3 === 0 ? 'cog' : 'galleon', look, from: [p.x ?? 0, p.z ?? 0], to: [p.x2 ?? 0, p.z2 ?? 0], often: (p.often ?? 0) > 0, orphan: false, phase: 'idle', due: SHIPS.passGapMin * 0.4, s: 0, body: null, swell: { heave: 0, roll: 0, pitch: 0 }, phaseSeed: rand(seed, 'pass-phase', c.id), drawn: NaN, wake: 0, m: new Array<number>(16).fill(0) };
             passers.push(ps);
           } else if (ps.phase === 'idle') {
             ps.from = [p.x ?? 0, p.z ?? 0];
             ps.to = [p.x2 ?? 0, p.z2 ?? 0];
           }
+          ps.often = (p.often ?? 0) > 0;
           ps.orphan = false;
           continue;
         }
         if (c.kind === 'barge') {
           seen.add(c.id);
-          const p = c.call.params ?? {};
           const a: [number, number] = [p.x ?? 0, p.z ?? 0], b: [number, number] = [p.x2 ?? 0, p.z2 ?? 0];
-          let bg = barges.find((q) => q.id === c.id && !q.fading);
+          let bg = barges.find((q) => q.id === c.id && !q.leaving);
           if (bg && (bg.a[0] !== a[0] || bg.a[1] !== a[1] || bg.b[0] !== b[0] || bg.b[1] !== b[1])) {
-            bg.fading = true;
+            // A new run: this barge finishes by leaving, and a fresh one comes for the new run.
+            bg.leave(nextShape);
             bg = undefined;
           }
           if (!bg) {
-            bg = new Barge(stage, seed, c.id, Math.abs(Math.round(p.look ?? 0)), a, b);
+            bg = new Barge(stage, seed, c.id, Math.abs(Math.round(p.look ?? 0)), a, b, opened);
             barges.push(bg);
             bg.sync(nextShape);
           } else if (changed) bg.sync(nextShape);
@@ -688,22 +736,25 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         }
         seen.add(c.id);
         const berth = berthOfCall(c.call, berths);
-        if (!berth) continue;
-        const dir = (c.call.params?.dir ?? 1) < 0 ? -1 : 1;
+        const dir = (p.dir ?? 1) < 0 ? -1 : 1;
         const hull = hullSize(c.kind as 'galleon');
         let ship = ships.find((s) => s.id === c.id);
+        if (!berth) {
+          if (ship) ship.orphan = true;
+          continue;
+        }
         if (!ship) {
           ship = {
-            id: c.id, kind: c.kind, look: Math.abs(Math.round(c.call.params?.look ?? 0)), hull, berth, dir,
+            id: c.id, kind: c.kind, look: Math.abs(Math.round(p.look ?? 0)), hull, berth, dir,
             mooring: mooringAt(hull, berth.face, dir, SHIPS.alongside, SHIPS.warpGap),
-            orphan: false, phase: 'idle', t: 0, due: SHIPS.firstCall + FIRST[c.kind] * 30, visits: 0, voyage: null, s: 0, speed: 0,
-            pose: { x: 0, z: 0, yaw: 0 }, scale: 1, cameFrom: -1, body: null, crew: null, plank: null, plankLen: 1, plankK: 0, lines: [], escort: null,
+            orphan: false, phase: 'idle', t: 0, visits: 0, voyage: null, s: 0, speed: 0,
+            pose: { x: 0, z: 0, yaw: 0 }, from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 0, yaw: 0 }, cameFrom: -1,
+            body: null, crew: null, plank: null, plankLen: 1, plankK: 0, lines: [], escort: null,
             heel: 0, bank: 0, swell: { heave: 0, roll: 0, pitch: 0 }, phaseSeed: rand(seed, 'ship-phase', c.id), drawn: NaN, wake: 0, bowWave: 0, ring: 0,
             m: new Array<number>(16).fill(0),
           };
           ships.push(ship);
         } else if (ship.berth.key !== berth.key || ship.dir !== dir) {
-          // Its berth moved: finish this visit as if the old one had gone, then use the new one.
           if (ship.phase === 'idle') {
             ship.berth = berth;
             ship.dir = dir;
@@ -713,105 +764,143 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       }
       for (const s of ships) if (!seen.has(s.id)) s.orphan = true;
       for (const p of passers) if (!seen.has(p.id)) p.orphan = true;
-      for (const bg of barges) if (!seen.has(bg.id)) bg.fading = true;
-      // A town opened with a port: the first ship is already in.
+      for (const bg of barges) if (!seen.has(bg.id) && !bg.leaving) bg.leave(nextShape);
+      // The berths with ships, longest first; each has its turn.
+      const live = [...new Set(ships.filter((s) => !s.orphan).sort((a, b) => b.berth.cells - a.berth.cells || (a.berth.key < b.berth.key ? -1 : 1)).map((s) => s.berth.key))];
+      for (const k of live) if (!turns.has(k)) turns.set(k, { due: SHIPS.firstCall + live.indexOf(k) * 25, visits: 0, credit: new Map() });
+      order = live;
+      // A town opened with a port: the biggest ship that fits the longest berth is already in.
       const first = !opened;
       opened = true;
-      if (first && ships.length) {
-        const lead = [...ships].sort((a, b) => FIRST[a.kind] - FIRST[b.kind])[0]!;
-        if (lead.phase === 'idle' && !lead.orphan) moorNow(lead, STAY[lead.kind]() * 0.2);
-        for (const s of ships) if (s !== lead) s.due = Math.max(s.due, STAY[lead.kind]() + 30);
+      if (first && live.length) {
+        const lead = ships.filter((s) => s.berth.key === live[0] && !s.orphan).sort((a, b) => SIZE[a.kind] - SIZE[b.kind])[0];
+        if (lead && lead.phase === 'idle') {
+          moorNow(lead, STAY[lead.kind]() * 0.2);
+          turns.get(live[0]!)!.due = STAY[lead.kind]() + 40;
+        }
       }
       if (!changed) return;
+      checkPiles(nextShape);
       // ── the town changed: check every ship under it ──
       for (const ship of ships) {
-        if (ship.phase === 'idle' || ship.phase === 'fading') continue;
+        if (ship.phase === 'idle' || !ship.body) continue;
         const field = fieldFor(ship);
-        if (!hullClear(field, ship.hull, ship.pose.x, ship.pose.z, ship.pose.yaw, -0.05)) {
-          // Something stands where it floats: it sinks away into the distance.
-          setPhase(ship, 'fading');
+        if (!hullClear(field, ship.hull, ship.pose.x, ship.pose.z, ship.pose.yaw, -0.05) && ship.phase !== 'nudging') {
+          nudge(ship, field);
           continue;
         }
         const v = ship.voyage;
-        if (ship.phase === 'arriving' && v) {
-          if (ship.orphan) leaveFromHere(ship);
-          else if (!pathClear(field, ship.hull, v.path, NEAR, ship.s, v.path.length)) {
-            const again = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, 0, -1, ship.pose);
-            if (again) {
-              ship.voyage = again;
-              ship.s = 0;
-            } else leaveFromHere(ship);
-          }
-        } else if (ship.phase === 'leaving' && v) {
-          if (!pathClear(field, ship.hull, v.path, NEAR, ship.s, v.path.length)) leaveFromHere(ship);
-        } else if ((ship.phase === 'swing-in' || ship.phase === 'warp-in') && ship.orphan) {
-          leaveFromHere(ship);
-        } else if ((ship.phase === 'swing-out' || ship.phase === 'warp-out') && v) {
-          if (!pathClear(field, ship.hull, v.path, NEAR, 0, v.path.length)) {
-            ship.voyage = null;
-            if (ship.phase === 'swing-out') leaveFromHere(ship);
-          }
+        switch (ship.phase) {
+          case 'arriving':
+            if (ship.orphan) leaveFromHere(ship);
+            else if (v && !pathClear(field, ship.hull, v.path, NEAR, ship.s, v.path.length)) {
+              const again = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, 0, -1, ship.pose);
+              if (again) {
+                ship.voyage = again;
+                ship.s = 0;
+              } else leaveFromHere(ship);
+            }
+            break;
+          case 'leaving':
+            if (v && !pathClear(field, ship.hull, v.path, NEAR, ship.s, v.path.length)) leaveFromHere(ship);
+            break;
+          case 'swing-in':
+          case 'warp-in':
+            if (ship.orphan) leaveFromHere(ship);
+            break;
+          case 'swing-out':
+            if (v && !pathClear(field, ship.hull, v.path, NEAR, 0, v.path.length)) leaveFromHere(ship);
+            break;
+          case 'warp-out':
+            if (v && !pathClear(field, ship.hull, v.path, NEAR, 0, v.path.length)) ship.voyage = null;
+            break;
+          case 'stranded':
+            if (!ship.orphan && ship.berth && berths.some((b) => b.key === ship.berth.key)) {
+              // Its berth is still there: back alongside if it can get there, else away.
+              const back = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, 0.05, 0, -1, ship.pose);
+              if (back) {
+                ship.voyage = back;
+                ship.s = 0;
+                setPhase(ship, 'arriving');
+                break;
+              }
+            }
+            leaveFromHere(ship);
+            break;
+          default:
         }
       }
     },
     update(dt, signals) {
       small = news.small;
       news.small = [];
-      // Calls that are due, one at a time at sea, never two at one berth.
+      news.ships.length = 0;
+      news.zones.length = 0;
+      news.inPort.clear();
       if (!atSea()) {
         // A tall ship far out goes by when nothing else is at sea.
         const pass = passers.find((p) => p.phase === 'idle' && !p.orphan && p.due <= 0);
         if (pass) {
           pass.phase = 'crossing';
           pass.s = 0;
-          pass.scale = 0;
           pass.body = new ShipBody(stage, pass.kind, pass.look, HIDDEN, 1);
         }
       }
-      if (!atSea()) {
-        const due = ships.filter((s) => s.phase === 'idle' && !s.orphan && s.due <= 0 && !berthBusy(s)).sort((a, b) => a.due - b.due || FIRST[a.kind] - FIRST[b.kind]);
-        if (due[0] && shape) begin(due[0]);
+      // Each berth's turn: when it is due and free and nothing is at sea, a ship that fits comes for it.
+      const served = phone() ? Math.round(SHIPS.shipBerthsPhone) : order.length;
+      for (const [k, turn] of turns) {
+        turn.due -= dt;
+        const i = order.indexOf(k);
+        if (i < 0 || i >= served || turn.due > 0 || atSea() || berthBusy(k) || !shape) continue;
+        const fits = ships.filter((s) => s.berth.key === k && !s.orphan && s.phase === 'idle');
+        if (!fits.length) continue;
+        // A smooth weighted rotation: each turn every ship that fits gains its weight, the one with the most
+        // comes and pays the total back. The biggest comes most often; every other takes its turn.
+        let total = 0;
+        for (const s of fits) {
+          total += WEIGHT[s.kind];
+          turn.credit.set(s.kind, (turn.credit.get(s.kind) ?? 0) + WEIGHT[s.kind]);
+        }
+        const chosen = [...fits].sort((a, b) => (turn.credit.get(b.kind) ?? 0) - (turn.credit.get(a.kind) ?? 0) || SIZE[a.kind] - SIZE[b.kind])[0]!;
+        turn.credit.set(chosen.kind, (turn.credit.get(chosen.kind) ?? 0) - total);
+        turn.visits++;
+        if (!begin(chosen)) turn.due = 20;
       }
-      news.ships.length = 0;
-      news.inPort.clear();
       for (const ship of ships) {
         stepShip(ship, dt, signals);
         if (ship.body && ship.phase !== 'idle') {
-          const n: BigShipNews = { x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern * ship.scale, bow: ship.hull.bow * ship.scale, halfBeam: ship.hull.halfBeam * ship.scale, speed: ship.phase === 'arriving' || ship.phase === 'leaving' ? ship.speed : 0 };
-          news.ships.push(n);
+          news.ships.push({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.phase === 'arriving' || ship.phase === 'leaving' ? ship.speed : 0 });
+          // The stretch of quay it takes: small boats moored there row aside (rowboat.behaviour.ts).
+          if (ship.phase !== 'leaving' && ship.phase !== 'stranded' && ship.phase !== 'nudging' && !(ship.phase === 'arriving' && ship.voyage!.path.length - ship.s > 14)) {
+            news.zones.push({ x: ship.mooring.x, z: ship.mooring.z, yaw: ship.mooring.yaw, stern: ship.hull.stern - 0.6, bow: ship.hull.bow + 0.6, halfBeam: ship.hull.halfBeam + SHIPS.warpGap + 0.5, speed: 0 });
+          }
         }
         if (ship.phase === 'warp-in' || ship.phase === 'moored' || ship.phase === 'warp-out') news.inPort.add(ship.id);
-        // Gulls come out to a ship near the town and wheel round its masts.
-        if (ship.escort) {
-          const near = ship.phase !== 'idle' && ship.phase !== 'fading' && !(ship.phase === 'leaving' && ship.s > 10) && !(ship.phase === 'arriving' && ship.voyage!.path.length - ship.s > 14);
+        if (ship.escort && ship.body) {
           const rig = rigOf(ship.kind, ship.look);
           const top = rig.masts[Math.min(1, rig.masts.length - 1)]!;
-          const at = transform(ship.m, [0, top.head + 0.3, top.z]);
-          ship.escort.update(dt, signals, near && !signals.time.isNight, at, ship.phase === 'moored' ? 1.6 : 2.2);
+          ship.escort.update(dt, signals, true, transform(ship.m, [0, top.head + 0.3, top.z]), ship.phase === 'moored' ? 1.6 : 2.2);
         }
       }
-      // Orphans that have finished their last visit go.
       for (let i = ships.length - 1; i >= 0; i--) {
         const s = ships[i]!;
-        if (s.orphan && s.phase === 'idle') {
-          s.escort?.release();
-          ships.splice(i, 1);
-        }
+        if (s.orphan && s.phase === 'idle') ships.splice(i, 1);
       }
+      for (const k of [...turns.keys()]) if (!ships.some((s) => s.berth.key === k)) turns.delete(k);
       for (const p of passers) stepPasser(p, dt, signals);
-      for (let i = barges.length - 1; i >= 0; i--) {
-        const bg = barges[i]!;
-        news.ships.push(bg.update(dt, signals));
-        if (!bg.alive) {
-          bg.release();
-          barges.splice(i, 1);
-        }
-      }
       for (let i = passers.length - 1; i >= 0; i--) {
         const p = passers[i]!;
         if (p.orphan && p.phase === 'idle') passers.splice(i, 1);
       }
-      for (let i = left.length - 1; i >= 0; i--) if (!left[i]!.update(dt)) left.splice(i, 1);
+      for (let i = barges.length - 1; i >= 0; i--) {
+        const bg = barges[i]!;
+        const n = bg.update(dt, signals);
+        if (n) news.ships.push(n);
+        if (bg.gone) {
+          bg.release();
+          barges.splice(i, 1);
+        }
+      }
     },
     dispose() {
       for (const s of ships) {
@@ -820,16 +909,16 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         s.plank?.release();
         for (const l of s.lines) l.release();
         s.escort?.release();
-        if (s.crew) for (const g of s.crew.landed) g.release();
       }
       ships.length = 0;
       for (const p of passers) p.body?.release();
       passers.length = 0;
       for (const bg of barges) bg.release();
       barges.length = 0;
-      for (const l of left) l.release();
-      left.length = 0;
+      for (const pile of piles.values()) for (const it of pile.items) it?.release();
+      piles.clear();
       news.ships.length = 0;
+      news.zones.length = 0;
       news.inPort.clear();
     },
   };
@@ -841,12 +930,11 @@ function transform(m: Mat4, p: Vec3): Vec3 {
   return [m[0]! * p[0] + m[4]! * p[1] + m[8]! * p[2] + m[12]!, m[1]! * p[0] + m[5]! * p[1] + m[9]! * p[2] + m[13]!, m[2]! * p[0] + m[6]! * p[1] + m[10]! * p[2] + m[14]!];
 }
 
-/** A matrix taking the unit line (0,0,0)–(0,0,1) to run from a to b, sagging is left to the eye. */
+/** A matrix taking the unit line (0,0,0)–(0,0,1) to run from a to b. */
 function lineMatrix(a: Vec3, b: Vec3): Mat4 {
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
   const len = Math.hypot(dx, dy, dz) || 1e-6;
   const zx = dx / len, zy = dy / len, zz = dz / len;
-  // X square to the line and level; Y square to both.
   let xx = zz, xz = -zx;
   const xl = Math.hypot(xx, xz) || 1;
   xx /= xl;

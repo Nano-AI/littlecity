@@ -1,14 +1,14 @@
-// L39: a quay of six docks along a beach: a cog calls (six dock cells, a
-// berth of six). Fewer than twelve docks, so no galleon. The narrow cove to
-// the east is open water but too narrow for a ship. Ports that get nothing
-// (too short, too narrow, no way in) are in src/rules/life/berths.test.ts.
+// L39: a quay of four docks along a beach: a cog fits alongside it and calls;
+// nothing bigger fits. The narrow cove to the east is open water but too
+// narrow for a ship. Ports that get nothing (too short, too narrow, no way
+// in) are in src/rules/life/berths.test.ts.
 
 import { scenario } from '@/scenario';
 
 export default scenario({
   name: 'L39.cog',
   seed: 3901,
-  about: 'A cog calls at a six-dock quay; a four-dock quay and a quay in a narrow cove get no ship (L39).',
+  about: 'A cog calls at a quay of four docks, the size of its hull; nothing bigger fits (L39).',
   terrain(t) {
     t.flat(1);
     t.water(4, 24, 43, 43);
@@ -16,7 +16,7 @@ export default scenario({
     t.water(36, 16, 37, 23);
   },
   build(b) {
-    for (let x = 8; x <= 13; x++) b.block('dock', x, 0, 24);
+    for (let x = 8; x <= 11; x++) b.block('dock', x, 0, 24);
     b.path(8, 23, 13, 23);
     b.house(9, 20, { w: 2, floors: 2, color: 3 });
   },
@@ -27,7 +27,8 @@ export default scenario({
   expect(_plan, _dressing, check) {
     const calls = check.actors({ type: 'ship-call', rule: 'L39.cog' });
     check.equal(calls.length, 1, 'one cog calls');
-    check.equal((calls[0]!.params as { cells: number }).cells, 6, 'at the six-cell quay');
-    check.equal(check.actors({ type: 'ship-call', rule: 'L38.galleon' }).length, 0, 'no galleon at a port of six docks');
+    check.equal((calls[0]!.params as { cells: number }).cells, 4, 'at the four-cell quay');
+    check.equal(check.actors({ type: 'ship-call', rule: 'L38.galleon' }).length, 0, 'no galleon: it does not fit');
+    check.equal(check.actors({ type: 'ship-call', rule: 'L40.galley' }).length, 0, 'no galley either');
   },
 });

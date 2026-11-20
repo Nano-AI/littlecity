@@ -31,6 +31,11 @@ declare module '@/core/vocab' {
     // Gallery only (anchored calls): how far the sails are set (0 furled, 1 full) and the heel.
     'ship-call.set': number;
 
+    // L17: the order a rowboat was chosen in town-wide (a phone shows only the first few).
+    'rowboat.rank': number;
+    // L42: a lighthouse makes tall ships pass a little more often.
+    'ship-call.often': number;
+
     // The drawn pieces, spawned by the harbour system. Frame: afloat, +Z the bow, y = 0 the waterline.
     'galleon': true;
     'galleon.look': number;
