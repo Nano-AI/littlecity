@@ -14,6 +14,7 @@ import { positionOf, type Mat4 } from '@/core/mat4';
 import { SEA_Y } from '@/core/grid';
 import type { ActorOf } from '@/resolve/plan';
 import type { ShipKind } from '@/parts/actors/ships/rig';
+import { mapEdge } from '@/rules/life/ship-routes';
 import { SHIPS } from '@/style/ships';
 import { defineSystem, type Signals } from '../api';
 import { swellAt, type Swell } from '../boats/afloat';
@@ -56,10 +57,13 @@ function poseStill(s: StillShip, signals: Signals): void {
     s.body.rowing = s.body.canvas < 0.5 ? 1 : 0;
     s.body.stroke = (now / 2.2 + s.phase) % 1;
   }
-  const rig = s.body.rig;
-  swellAt(now, s.phase, (rig.bow - rig.stern) * 0.35, w.strength, s.swell);
+  swellAt(now, s.phase, (s.body.rig.bow - s.body.rig.stern) * 0.35, w.strength, s.swell);
   const heel = -SHIPS.heel * Math.min(1, w.strength) * s.body.canvas * wind.lee;
   fly(s.x, SEA_Y + s.swell.heave * 0.6, s.z, s.yaw, s.swell.pitch * 0.4, s.swell.roll * 0.4 + heel, 1, s.m);
+  // One lying across the edge of the map is cut off at it, like a ship sailing through.
+  const rig = s.body.rig;
+  const out = Math.max(mapEdge(s.x + Math.sin(s.yaw) * (rig.bow + 1.5), s.z + Math.cos(s.yaw) * (rig.bow + 1.5)), mapEdge(s.x + Math.sin(s.yaw) * rig.stern, s.z + Math.cos(s.yaw) * rig.stern));
+  s.body.setCut(out > -2.5);
   s.body.pose(s.m, Math.atan2(w.dirX, w.dirZ));
 }
 
