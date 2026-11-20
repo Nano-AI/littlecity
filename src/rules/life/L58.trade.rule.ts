@@ -49,7 +49,7 @@ export default defineRule<Place & { ref: string }>({
   },
   apply(c, out) {
     const d = c.data;
-    out.socket({ type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `trade|to|${d.ref}` });
+    out.socket({ id: `L58.trade@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `trade|to|${d.ref}` });
   },
 });
 

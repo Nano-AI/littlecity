@@ -33,6 +33,6 @@ export default defineRule<Place & { role: string }>({
   },
   apply(c, out) {
     const d = c.data;
-    out.socket({ type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `water|well|${d.role}` });
+    out.socket({ id: `L52.water@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `water|well|${d.role}` });
   },
 });

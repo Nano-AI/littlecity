@@ -44,6 +44,6 @@ export default defineRule<Data>({
   },
   apply(c, out) {
     const d = c.data;
-    out.socket({ type: 'errand', cell: c.anchor, ...(d.place ? { dir: d.place.dir, structure: d.place.structure } : { structure: d.field }), name: `harvest|${d.role}|${d.field}` });
+    out.socket({ id: `L59.harvest@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, ...(d.place ? { dir: d.place.dir, structure: d.place.structure } : { structure: d.field }), name: `harvest|${d.role}|${d.field}` });
   },
 });

@@ -929,7 +929,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const fx = scratch.dx / len, fz = scratch.dz / len;
     const ex = tx - p.offX, ez = tz - p.offZ;
     const eLat = ex * rx + ez * rz, eAlong = ex * fx + ez * fz;
-    const shrinkRoom = Math.abs(p.dodge) > room + 1e-9 ? AVOID.rate * 2 : 0;
+    // (Not while turning on the spot: that would slide them sideways, or backwards, before they face the way.)
+    const shrinkRoom = Math.abs(p.dodge) > room + 1e-9 && !turning ? AVOID.rate * 2 : 0;
     const latMost = Math.max(rate, shrinkRoom) * dt;
     const alongMost = moved * 0.5;
     const dLat = Math.max(-latMost, Math.min(latMost, eLat));

@@ -45,6 +45,6 @@ export default defineRule<{ order: number }>({
     return round.map((cell, order): Candidate<{ order: number }> => ({ anchor: cell, key: `beat${order}`, data: { order } }));
   },
   apply(c, out) {
-    out.socket({ type: 'errand', cell: c.anchor, name: `watch|beat|${c.data.order}` });
+    out.socket({ id: `L55.watchman@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, name: `watch|beat|${c.data.order}` });
   },
 });

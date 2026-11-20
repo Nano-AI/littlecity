@@ -18,11 +18,12 @@ import { marketChain } from './chains/market-day';
 import { weddingChain } from './chains/wedding';
 import { tradeChain } from './chains/trade';
 import { harvestChain } from './chains/harvest';
+import { laundryChain } from './chains/laundry';
 import { waterChain } from './chains/water';
 
 /** Every chain, in the order they are offered a person (the first that wants them has them). */
 export function allChains(): Chain[] {
-  return [weddingChain(), buildChain(), watchChain(), breadChain(), fishChain(), tradeChain(), harvestChain(), marketChain(), waterChain()];
+  return [weddingChain(), buildChain(), watchChain(), breadChain(), fishChain(), tradeChain(), harvestChain(), laundryChain(), marketChain(), waterChain()];
 }
 
 /** Whoever keeps the peace near a scuffle: the watchman out on his round, else a guard on duty; sent over at a trot. */

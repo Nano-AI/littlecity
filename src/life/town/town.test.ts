@@ -14,6 +14,9 @@ import marketTown from '../../../scenarios/life/L56.market-day.scenario';
 import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
 import tradeTown from '../../../scenarios/life/L58.trade.scenario';
 import harvestTown from '../../../scenarios/life/L59.harvest.scenario';
+import laundryTown from '../../../scenarios/life/L60.laundry.scenario';
+import type { LaundryChain } from './chains/laundry';
+import { CLEAR, SUMMER } from '../season';
 import { tradeChain } from './chains/trade';
 import type { Pile } from '../ships/crew';
 import type { InstanceHandle } from '../api';
@@ -256,6 +259,34 @@ describe('L51 bread and L52 water', () => {
     const heap = [...t.board.stores.values()].filter((s) => s.key.startsWith('mill-heap:')).reduce((n, s) => n + t.board.count(s), 0);
     expect(stooks + heap).toBeGreaterThanOrEqual(4);
     expect(ledger.setDown.get('sheaf@harvest:mill') ?? 0).toBeGreaterThanOrEqual(1);
+  });
+
+  test('L60: the washing comes in when it rains and at dusk, carried home in a basket, and goes out again', () => {
+    const where = scenarioTown(laundryTown);
+    const c = clock(where.world.seed, 'day');
+    const t = createLivingTown({ seed: where.world.seed });
+    t.sync(where.shape, where.dressing, c.time);
+    const w = watch(t.crowd, { maxStuck: 12 });
+    const lines = (): LaundryChain['lines'] => (t.board.chains.find((x) => x.id === 'laundry') as LaundryChain).lines;
+    const step = (seconds: number): void => {
+      for (let i = 0; i < seconds * 30; i++) {
+        t.step(c.tick(1 / 30), c.time);
+        w.check();
+      }
+    };
+    step(5);
+    expect(lines().length).toBeGreaterThan(0);
+    expect(lines().every((l) => l.out)).toBe(true);
+    // Rain: in it comes.
+    t.board.setSky(SUMMER, { ...CLEAR, kind: 'rain', rain: 0.8 });
+    step(120);
+    const inNow = lines().filter((l) => !l.out).length;
+    expect(inNow).toBeGreaterThanOrEqual(Math.ceil(lines().length / 2));
+    // The rain stops: out it goes again.
+    t.board.setSky(SUMMER, CLEAR);
+    step(120);
+    expect(lines().filter((l) => l.out).length).toBeGreaterThan(lines().length - inNow);
+    expect(w.problems).toEqual([]);
   });
 
   test('the same town stepped the same way tells the same story', () => {

@@ -693,6 +693,16 @@ its carrier. Nothing is ever left floating or vanishes in view.
   comes out. At dawn the field stands again. The gulls of a harbour (L11)
   wheel over anybody carrying the catch (L53) within 10 cells.
 
+- **L60 · 2 · Washing day** — every laundry line (D05) → a post on the
+  walkable cell under its first anchor (`laundry|line|<prop>`), its house
+  the one that anchor is on. Somebody from that house carries the wash out
+  in a basket on the head in the morning, stands under the line reaching up
+  (3 s) and the washing is out; at dusk, or when it rains (rain over 0.25),
+  somebody comes out, reaches up, and carries the wash home; when the rain
+  stops it goes out again. A puff as it goes up or comes in. The town as first
+  seen keeps its washing as drawn. *Simplified:* D05 draws rope and washing
+  as one piece, so the whole line shows or hides.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

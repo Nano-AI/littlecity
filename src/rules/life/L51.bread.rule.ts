@@ -95,6 +95,6 @@ export default defineRule<Data>({
   },
   apply(c, out) {
     const d = c.data;
-    out.socket({ type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `bread|${d.role}|${d.ref}` });
+    out.socket({ id: `L51.bread@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, dir: d.dir, structure: d.structure, name: `bread|${d.role}|${d.ref}` });
   },
 });

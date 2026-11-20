@@ -92,6 +92,6 @@ export default defineRule<Data>({
   },
   apply(c, out) {
     const d = c.data;
-    out.socket({ type: 'errand', cell: c.anchor, ...(d.dir !== undefined ? { dir: d.dir } : {}), name: `market|${d.role}|${d.goods}` });
+    out.socket({ id: `L56.market-day@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, ...(d.dir !== undefined ? { dir: d.dir } : {}), name: `market|${d.role}|${d.goods}` });
   },
 });
