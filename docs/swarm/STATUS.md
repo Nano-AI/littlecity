@@ -1111,3 +1111,20 @@ wrong up close (not fixed): huge pencil marks on tree crowns and hedges,
 chimney smoke as pale discs, flat walls at a hand's breadth, the moon
 jumping at take-off at night. `swarm/walk` is now superseded.
 Running: mischief (destruction round 2), life-under-fire.
+
+**Destruction round 2 merged** (`85d77fc`, Opus). Crew of a ship that
+goes down (3 for a galleon, 2 otherwise) and a barge's bargeman jump and
+swim for the nearest map edge over open water, cut off there as ships
+are (not climbing out onto a quay: that needs the crowd code). Barges:
+sail torn, pole away, or cargo overboard and down by the stern. Tall
+ships passing at sea: sails torn or sunk. Ships under way take damage; a
+sinking ship frees its lane at once and its berth when gone. Less dust
+beside water so the stilt fall shows. Sequence tool: `--ship moored` /
+`--ship underway`, verbs `shipbomb@d,0,0`, `shipnuke@d,0,0`. Gate: 2,159
+passed, 9 skipped, clean. Orchestrator watched a moored galleon bombed:
+flames, masts down, hull under in about 6 s, wreckage and swimmers
+visible. Left: small boats (`src/life/boats`, held back while
+life-under-fire is in `src/life`), lightning on sails, hull chunks cut
+from the hull, swimmers climbing out, the stilt fall at night, galleon
+stays dangling.
+Running: life-under-fire.
