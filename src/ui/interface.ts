@@ -19,11 +19,12 @@ import type { TimeHold } from '@/life/api';
 import { holdYear, type SeasonHold, type WeatherHold } from '@/life/season';
 import { partPhases } from '@/life/signals';
 import { createSlider, type SliderStop } from './slider';
-import type { Ghost, TownView } from '@/render/api';
+import type { CameraPose, Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
 import { brushAt, copyLook, landColumn, levelSteps, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
 import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
+import { createFly, type FlyMode, type FlyPhase } from './fly';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
 import { planTown } from '@/townmaker/index';
 import { CHARACTER_NAMES, type Character } from '@/townmaker/character';
@@ -64,6 +65,8 @@ export interface InterfaceHost {
   };
   /** Draws a frame right now (the postcard copies the canvas straight after). */
   renderNow(): void;
+  /** Added by Fly: the whole-island view a new island opens on (Escape with nothing open glides back to it). */
+  homeCamera?(): CameraPose;
   /** A fresh island, already confirmed by the player. */
   newIsland(): void;
   /** Replaces the town with one read from a file. */
@@ -80,6 +83,8 @@ export interface Interface {
   readonly growth: Growth;
   /** The guide to special buildings (design section 7, "The guide"). */
   readonly guide: Guide;
+  /** Fly mode (design section 7, "Fly mode"). main.ts calls fly.frame before each frame is drawn. */
+  readonly fly: FlyMode;
   /** The dressing for the newest world arrived (the guide's ticks for lamps, laundry and parks). */
   dressed(dressing: DressingPlan): void;
   /** Call once per frame, after the town has been drawn. */
@@ -108,6 +113,9 @@ export interface Interface {
     run: number | null;
     /** The guide is open. */
     guide: boolean;
+    /** Added by Fly: where fly mode is, and whether Escape's glide to the whole island is under way. */
+    fly: FlyPhase;
+    recentring: boolean;
   };
   dispose(): void;
 }
@@ -283,6 +291,21 @@ export function createInterface(host: InterfaceHost): Interface {
   }
 
   const guide = createGuide({ shape: () => game.shape });
+  const fly = createFly({
+    view,
+    shape: () => game.shape,
+    changed(flying) {
+      // Look only: the tray, its pop-ups, the ghost and the markers go; clicks reach a layer over the town.
+      root.classList.toggle('lc-flying', flying);
+      if (!flying) return;
+      recentre = null;
+      closeAll();
+      hoverAt = null;
+      shownRun = null;
+      setGhost(null, '');
+      showCount();
+    },
+  });
 
   const timeButton = iconButton('time-run', 'Time of day', { class: 'lc-round', attrs: { 'data-ui': 'time', 'aria-haspopup': 'true', 'aria-expanded': 'false' } });
   const seasonButton = iconButton('season-run', 'Season', { class: 'lc-round', attrs: { 'data-ui': 'season', 'aria-haspopup': 'true', 'aria-expanded': 'false' } });
@@ -364,7 +387,7 @@ export function createInterface(host: InterfaceHost): Interface {
     markers.el,
     el('div', { class: 'lc-card lc-corner lc-corner-left' }, [menu.button]),
     el('div', { class: 'lc-card lc-corner lc-corner-left lc-corner-guide' }, [guide.button]),
-    el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, ...(host.seasons ? [seasonButton, weatherButton] : []), undoButton, redoButton]),
+    el('div', { class: 'lc-card lc-corner lc-corner-right' }, [...(fly.button ? [fly.button] : []), timeButton, ...(host.seasons ? [seasonButton, weatherButton] : []), undoButton, redoButton]),
     tray.el,
     count,
     menu.el,
@@ -372,6 +395,7 @@ export function createInterface(host: InterfaceHost): Interface {
     feedback.el,
     guide.el,
     ...sliders.map((s) => s.el),
+    fly.el,
   );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
   tray.el.style.setProperty('--lc-slots', String(slots));
@@ -716,7 +740,18 @@ export function createInterface(host: InterfaceHost): Interface {
     menu.close();
     return tray.closePopups() || menuWasOpen;
   };
+  /** Closes everything that is open (menu, pop-ups, sliders, the guide); true if anything was. */
+  const closeAll = (): boolean => {
+    let any = false;
+    for (const s of sliders) {
+      any ||= s.isOpen;
+      s.close();
+    }
+    any = closePopups() || any;
+    return guide.close() || any;
+  };
   const onCanvasDown = (e: PointerEvent): void => {
+    recentre = null;
     dismissing = closePopups();
     copying = e.altKey && e.pointerType === 'mouse' && e.button === 0;
     lastUse.shift = e.shiftKey;
@@ -758,9 +793,16 @@ export function createInterface(host: InterfaceHost): Interface {
       const seen = look(x, y);
       if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) navigator.vibrate?.(12);
     },
-    orbit: (dx, dy) => view.orbit(-dx * INPUT.orbitYaw, dy * INPUT.orbitPitch),
-    pan: (dx, dy) => view.pan(dx, dy),
+    orbit(dx, dy) {
+      recentre = null;
+      view.orbit(-dx * INPUT.orbitYaw, dy * INPUT.orbitPitch);
+    },
+    pan(dx, dy) {
+      recentre = null;
+      view.pan(dx, dy);
+    },
     zoom(factor, x, y) {
+      recentre = null;
       view.zoomBy(factor, x, y);
       if (hoverAt) updateGhost();
     },
@@ -817,16 +859,66 @@ export function createInterface(host: InterfaceHost): Interface {
   };
   const detachPointer = attachPointer(canvas, sink);
 
-  // ── the keyboard ───────────────────────────────────────────────────────
-  const putDown = (): boolean => {
-    if (tray.state.idle) return false;
-    tray.setIdle(true);
-    return true;
+  // ── back to the whole island (Escape with nothing open) ────────────────
+  /** The glide to the view a new island opens on: from, to, and how far along (0 to 1). */
+  let recentre: { from: CameraPose; to: CameraPose; t: number; at: number } | null = null;
+  const RECENTRE_SECONDS = 0.8;
+  const startRecentre = (): void => {
+    const home = host.homeCamera?.();
+    if (!home) return;
+    const from = view.getCamera();
+    // The shorter way round.
+    const yaw = from.yaw + ((((home.yaw - from.yaw + 180) % 360) + 360) % 360) - 180;
+    recentre = { from, to: { ...home, yaw }, t: 0, at: performance.now() };
   };
-  const onKey = (e: KeyboardEvent): void => {
+  const stepRecentre = (): void => {
+    if (!recentre) return;
+    const now = performance.now();
+    recentre.t = Math.min(1, recentre.t + Math.min(0.1, (now - recentre.at) / 1000) / RECENTRE_SECONDS);
+    recentre.at = now;
+    const { from, to } = recentre;
+    const k = recentre.t * recentre.t * (3 - 2 * recentre.t);
+    const mix = (a: number, b: number): number => a + (b - a) * k;
+    view.setCamera({
+      yaw: mix(from.yaw, to.yaw),
+      pitch: mix(from.pitch, to.pitch),
+      zoom: Math.exp(mix(Math.log(from.zoom), Math.log(to.zoom))),
+      target: [mix(from.target[0], to.target[0]), mix(from.target[1], to.target[1]), mix(from.target[2], to.target[2])],
+    });
+    if (recentre.t >= 1) recentre = null;
+  };
+
+  // ── the keyboard ───────────────────────────────────────────────────────
+  /** Mouse buttons held down now: F does nothing in the middle of a drag. */
+  let buttons = 0;
+  const onButtons = (e: PointerEvent): void => {
+    if (e.pointerType === 'mouse') buttons = e.buttons;
+  };
+  window.addEventListener('pointerdown', onButtons, true);
+  window.addEventListener('pointerup', onButtons, true);
+  const typing = (e: KeyboardEvent): boolean => {
     const target = e.target as HTMLElement | null;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+  };
+  // Escape (design section 7, "Fly mode"): closes whatever is open; with nothing open, back to the
+  // whole island. The piece in hand stays in hand. Taken before anything else hears it, because the
+  // sliders and the guide close themselves on it and would leave nothing to tell it was open.
+  // (While flying, fly mode takes Escape first.)
+  const onEscape = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || typing(e) || growth.active || fly.active) return;
+    if (!closeAll()) startRecentre();
+  };
+  window.addEventListener('keydown', onEscape, true);
+  const onKey = (e: KeyboardEvent): void => {
+    if (typing(e) || fly.active) return;
     const key = e.key.toLowerCase();
+    // F takes off (desktop): what is open closes; a growing town goes on growing; not mid-drag.
+    if (key === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && fly.available) {
+      if (buttons !== 0) return;
+      e.preventDefault();
+      fly.enter();
+      return;
+    }
     if (growth.active && !['shift', 'control', 'alt', 'meta'].includes(key)) {
       // Any key finishes a growing town at once (and does nothing else).
       e.preventDefault();
@@ -845,8 +937,6 @@ export function createInterface(host: InterfaceHost): Interface {
       return;
     }
     if (e.altKey) return;
-    // Escape closes what is open; with nothing open it puts the piece down (nothing in hand).
-    if (key === 'escape') return void (closePopups() || guide.close() || putDown());
     if (/^[0-9]$/.test(e.key)) tray.pickNumber(Number(e.key));
   };
   window.addEventListener('keydown', onKey);
@@ -939,8 +1029,13 @@ export function createInterface(host: InterfaceHost): Interface {
     feedback,
     growth,
     guide,
-    dressed: (dressing) => guide.dressed(dressing),
+    fly,
+    dressed(dressing) {
+      guide.dressed(dressing);
+      fly.dressed(dressing);
+    },
     frame() {
+      stepRecentre();
       for (const s of sliders) s.refresh();
       flushStroke();
       growth.tick(performance.now());
@@ -971,17 +1066,23 @@ export function createInterface(host: InterfaceHost): Interface {
       length: heldLength(),
       run: shownRun && ghost ? shownRun.edits.length : null,
       guide: guide.isOpen,
+      fly: fly.phase,
+      recentring: recentre !== null,
     }),
     dispose() {
       offMischief();
       mischief.dispose();
       growth.stop();
+      fly.dispose();
       tray.styles.dispose();
       guide.dispose();
       welcome.dispose();
       detachPointer();
       canvas.removeEventListener('pointerdown', onCanvasDown, { capture: true });
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onEscape, true);
+      window.removeEventListener('pointerdown', onButtons, true);
+      window.removeEventListener('pointerup', onButtons, true);
       window.removeEventListener('wheel', noPageZoom);
       window.removeEventListener('gesturestart', noPageZoom);
       window.removeEventListener('dragover', onDragOver);

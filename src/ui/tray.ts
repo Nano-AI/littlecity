@@ -20,8 +20,9 @@ export interface TrayState {
   /** The house style new houses get: 0 = Random (the default), 1–6 a named style. For the session. */
   style: number;
   /**
-   * Nothing in hand: the player is just looking round. Clicking the selected piece again (or Escape)
-   * puts it down; picking any piece takes one up. `item` keeps the last piece for the drawer's sake.
+   * Nothing in hand: the player is just looking round. Clicking the selected piece again puts it
+   * down (Escape does not: it goes back to the whole island); picking any piece takes one up.
+   * `item` keeps the last piece for the drawer's sake.
    */
   idle: boolean;
 }

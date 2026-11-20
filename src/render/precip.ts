@@ -33,11 +33,22 @@ export interface PrecipInput {
   night: number;
   seconds: number;
   dt: number;
+  /**
+   * Fly mode: the perspective eye and the unit way it looks. The square of tiles is then laid round
+   * what the eye sees, not round the orbit camera's target (frame is still passed, and ignored).
+   */
+  eye?: { at: readonly [number, number, number]; forward: readonly [number, number, number] };
 }
 
 export interface Precip {
   /** Sets up this frame; false if nothing falls. */
   update(input: PrecipInput): boolean;
+  /**
+   * Fly mode: draws with twins of the materials compiled with these defines (PERSP, and REVZ for a
+   * reversed depth buffer), so particles have perspective size and are hidden by the fly view's depth;
+   * null goes back to the orbit camera's materials.
+   */
+  perspective(defines: Record<string, number> | null): void;
   readonly scene: THREE.Scene;
   /** Particles shown this frame (for the benchmark). */
   readonly shown: number;
@@ -52,6 +63,9 @@ export interface PrecipTargets {
   uZOrigin: { value: THREE.Vector3 };
   uZAxis: { value: THREE.Vector3 };
   uCanvas: { value: THREE.Vector2 };
+  /** Fly mode only: CSS pixels per world unit at a distance of one, and the near and far planes. */
+  uFocal: { value: number };
+  uClip: { value: THREE.Vector2 };
 }
 
 const rgb = (hex: string): [number, number, number] => {
@@ -114,7 +128,7 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
     mesh.frustumCulled = false;
     mesh.matrixAutoUpdate = false;
     scene.add(mesh);
-    return { mesh, u };
+    return { mesh, u, material, twin: null as THREE.RawShaderMaterial | null };
   };
   const rain = make(false);
   const snow = make(true);
@@ -126,18 +140,48 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
     get shown() {
       return shown;
     },
+    perspective(defines) {
+      for (const p of [rain, snow]) {
+        if (!defines) {
+          p.mesh.material = p.material;
+          continue;
+        }
+        if (!p.twin) {
+          p.twin = p.material.clone();
+          p.twin.uniforms = p.u;
+          p.twin.defines = { ...defines };
+        }
+        p.mesh.material = p.twin;
+      }
+    },
     update(input) {
       shown = 0;
       const { frame } = input;
-      const pitch = Math.max(0.17, -frame.forward[1]);
-      // The ground the picture shows, and toward the camera as far as a particle at the top of its
-      // column can stand and still be seen (high things look farther off).
-      const lean = (TOP - FLOOR) * Math.sqrt(1 - pitch * pitch) / pitch;
-      const fx = frame.forward[0], fz = frame.forward[2];
-      const fl = Math.hypot(fx, fz) || 1;
-      const reach = Math.max(frame.halfW, frame.halfH / pitch) + lean * 0.5 + TILE;
-      const cx = frame.target[0] - (fx / fl) * lean * 0.5, cz = frame.target[2] - (fz / fl) * lean * 0.5;
-      const tiles = Math.min(maxTiles, Math.ceil((2 * reach) / TILE) + 1);
+      let cx: number, cz: number, tiles: number;
+      if (input.eye) {
+        // Fly mode: as many tiles as there may be, round the ground ahead of the eye (where its view
+        // meets the ground, or 20 units on), the square kept over the map (on a desktop it covers the
+        // whole map wherever the eye is, a drone's far off included).
+        const { at, forward: f } = input.eye;
+        const fl = Math.hypot(f[0], f[2]) || 1;
+        const ahead = f[1] < -0.05 ? (at[1] / -f[1]) * fl : 20;
+        tiles = maxTiles;
+        const half = (tiles * TILE) / 2;
+        const keep = (v: number): number => (2 * half >= 50 ? 24 : Math.min(49 - half, Math.max(half - 1, v)));
+        cx = keep(at[0] + (f[0] / fl) * ahead);
+        cz = keep(at[2] + (f[2] / fl) * ahead);
+      } else {
+        const pitch = Math.max(0.17, -frame.forward[1]);
+        // The ground the picture shows, and toward the camera as far as a particle at the top of its
+        // column can stand and still be seen (high things look farther off).
+        const lean = (TOP - FLOOR) * Math.sqrt(1 - pitch * pitch) / pitch;
+        const fx = frame.forward[0], fz = frame.forward[2];
+        const fl = Math.hypot(fx, fz) || 1;
+        const reach = Math.max(frame.halfW, frame.halfH / pitch) + lean * 0.5 + TILE;
+        cx = frame.target[0] - (fx / fl) * lean * 0.5;
+        cz = frame.target[2] - (fz / fl) * lean * 0.5;
+        tiles = Math.min(maxTiles, Math.ceil((2 * reach) / TILE) + 1);
+      }
       const bx = Math.floor(cx / TILE - tiles / 2), bz = Math.floor(cz / TILE - tiles / 2);
       const cap = phone ? WEATHER.capPhone : WEATHER.capDesktop;
       const [rw, gw, bw] = input.grade.tint, [lr, lg, lb] = input.grade.lift;
@@ -186,7 +230,10 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
     },
     dispose() {
       geometry.dispose();
-      for (const p of [rain, snow]) (p.mesh.material as THREE.Material).dispose();
+      for (const p of [rain, snow]) {
+        p.material.dispose();
+        p.twin?.dispose();
+      }
     },
   };
 }

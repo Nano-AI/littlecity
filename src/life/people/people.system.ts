@@ -101,9 +101,13 @@ function spawnArt(stage: LifeStage, n: number, s: Scuffle): ScuffleArt {
  * (window.__lc.view), the one place it is known; the default view where there is none (tests, shots).
  */
 function cameraAngles(): { yaw: number; pitch: number } {
-  const view = (globalThis as { __lc?: { view?: { getCamera?(): { yaw: number; pitch: number } } } }).__lc?.view;
-  const c = view?.getCamera?.();
+  type Angles = { yaw: number; pitch: number };
+  const view = (globalThis as { __lc?: { view?: { getCamera?(): Angles; getEyeCamera?(): Angles | null } } }).__lc?.view;
   const deg = Math.PI / 180;
+  // Fly mode's eye, while someone flies (its pitch is above the horizon, the orbit camera's below).
+  const e = view?.getEyeCamera?.();
+  if (e) return { yaw: e.yaw * deg, pitch: -e.pitch * deg };
+  const c = view?.getCamera?.();
   return c ? { yaw: c.yaw * deg, pitch: c.pitch * deg } : { yaw: 45 * deg, pitch: 35 * deg };
 }
 

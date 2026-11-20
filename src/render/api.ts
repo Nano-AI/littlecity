@@ -25,6 +25,18 @@ export interface CameraPose {
   target: readonly [number, number, number];
 }
 
+/**
+ * Added by Fly: a perspective eye (fly mode, design section 7). World units, not grid levels.
+ * yaw as CameraPose (0 looks north, toward −z; 90 looks west); pitch in degrees above the horizon
+ * (negative looks down); fov the vertical field of view in degrees.
+ */
+export interface EyePose {
+  eye: readonly [number, number, number];
+  yaw: number;
+  pitch: number;
+  fov: number;
+}
+
 export interface Ray {
   /** World space. */
   origin: Vec3;
@@ -101,6 +113,15 @@ export interface TownView {
   screenToRay(x: number, y: number): Ray;
   /** CSS pixel position of a world point. */
   worldToScreen(p: Vec3): [number, number];
+
+  /**
+   * Added by Fly. Draws from a perspective eye instead of the orbit camera (fly mode), or goes back
+   * to the orbit camera with null. The orbit pose (getCamera) is left untouched, so leaving fly mode
+   * shows exactly the view that was there before. screenToRay and worldToScreen keep to the orbit camera.
+   */
+  setEyeCamera(pose: EyePose | null): void;
+  /** The perspective eye drawn from now, or null while the orbit camera draws. */
+  getEyeCamera(): EyePose | null;
 
   /** Match the canvas's CSS size. Call on window resize. */
   resize(width: number, height: number): void;
