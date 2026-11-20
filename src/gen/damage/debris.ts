@@ -13,7 +13,7 @@ import { hash, rand } from '@/core/rand';
 import type { Mat4 } from '@/core/mat4';
 import { RUIN } from '@/style/damage';
 import { STONE_KINDS, TOPPLE_KINDS, type Column, type Profile } from './field';
-import { backOf, bounds, centroid, clip, type Poly } from './poly';
+import { area, backOf, bounds, centroid, clip, normalOf, type Poly } from './poly';
 
 export interface Chunk {
   /** The chunk where it was, in world space; both sides drawn. */
@@ -80,6 +80,121 @@ export function chunkMatrix(ch: Chunk, tip: number, yaw: number, at: readonly [n
 }
 
 export const restMatrix = (ch: Chunk): Mat4 => chunkMatrix(ch, ch.tip, ch.yaw, ch.to);
+
+/**
+ * Breaks what a blast took off into whole parts of the building, not crumbs: a slab of each wall face for
+ * each storey (with its window frame, sill and door still on it), sometimes two faces together as a
+ * corner; each slope of the roof as one piece; whatever stood on top (a chimney, a ridge) as one. A dock
+ * (planks) is still broken into small pieces.
+ */
+function partsOf(polys: readonly Poly[], prof: Profile): Map<string, Poly[]> {
+  const out = new Map<string, Poly[]>();
+  const seed = prof.s.seed;
+  const add = (k: string, p: Poly): void => {
+    let l = out.get(k);
+    if (!l) out.set(k, (l = []));
+    l.push(p);
+  };
+  for (const p of polys) {
+    const c = centroid(p);
+    const col = prof.columnNear(c[0], c[2]);
+    if (!col) continue;
+    const ck = `${col.x},${col.z}`;
+    const [nx, ny, nz] = normalOf(p);
+    const ox = c[0] - (col.x + 0.5), oz = c[2] - (col.z + 0.5);
+    if (c[1] > col.top - 0.02) {
+      if (ny > 0.25 && Math.abs(nx) + Math.abs(nz) > 0.15) {
+        // A roof slope: the half it faces.
+        const side = Math.abs(nx) > Math.abs(nz) ? (nx > 0 ? 'e' : 'w') : nz > 0 ? 's' : 'n';
+        add(`roof:${ck}:${side}`, p);
+      } else add(`top:${ck}`, p);
+      continue;
+    }
+    // A wall slab: the face it is nearest, the storey it is in.
+    const face = Math.abs(ox) > Math.abs(oz) ? (ox > 0 ? 1 : 3) : oz > 0 ? 2 : 0;
+    const storey = Math.max(0, Math.floor((c[1] - col.base) / 0.8));
+    // Now and then a face comes away with the next one round as a corner.
+    const corner = rand(seed, 'corner', ck, storey, face) < 0.3 ? face - (face % 2) : face;
+    add(`wall:${ck}:${storey}:${corner}`, p);
+  }
+  return out;
+}
+
+const STRIPS = true;
+
+/** A thin surface made a solid piece: its back face set in by `t`, and every open edge closed by a strip. */
+function thicken(polys: readonly Poly[], t: number, dark: readonly number[] | null): Poly[] {
+  const out: Poly[] = [...polys];
+  // Only the piece's main surface (the wall, the roof slope) gets a back and edges; what stands on it
+  // (a window frame, a sill) stays as it is.
+  let dx = 0, dy = 0, dz = 0;
+  for (const p of polys) {
+    const a = area(p);
+    const [nx, ny, nz] = normalOf(p);
+    dx += nx * a;
+    dy += ny * a;
+    dz += nz * a;
+  }
+  const dl = Math.hypot(dx, dy, dz) || 1;
+  const main = polys.filter((p) => {
+    const [nx, ny, nz] = normalOf(p);
+    return (nx * dx + ny * dy + nz * dz) / dl > 0.95;
+  });
+  // Already solid (a roof drawn with its underside): nothing to add.
+  const backed = polys.some((p) => {
+    const [nx, ny, nz] = normalOf(p);
+    return (nx * dx + ny * dy + nz * dz) / dl < -0.9;
+  });
+  if (backed || main.length === 0) return out;
+  // The back and the edges are one surface (one ink): the piece is outlined as a solid, not as strips.
+  const inkArea = new Map<number, number>();
+  for (const p of main) inkArea.set(p.ink, (inkArea.get(p.ink) ?? 0) + area(p));
+  const ink = [...inkArea].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? polys[0]?.ink ?? 1;
+  const edges = new Map<string, { a: Float64Array; b: Float64Array; p: Poly; n: number }>();
+  const k = (v: Float64Array): string => `${Math.round(v[0]! * 500)},${Math.round(v[1]! * 500)},${Math.round(v[2]! * 500)}`;
+  for (const p of main) {
+    out.push(backOf(p, t, dark, ink));
+    for (let i = 0; i < p.v.length; i++) {
+      const a = p.v[i]!, b = p.v[(i + 1) % p.v.length]!;
+      const ka = k(a), kb = k(b);
+      const key = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+      const e = edges.get(key);
+      if (e) e.n++;
+      else edges.set(key, { a, b, p, n: 1 });
+    }
+  }
+  for (const { a, b, p, n } of edges.values()) {
+    if (n !== 1 || !STRIPS) continue;
+    const [nx, ny, nz] = normalOf(p);
+    const a2 = new Float64Array(a), b2 = new Float64Array(b);
+    a2[0] = a[0]! - nx * t; a2[1] = a[1]! - ny * t; a2[2] = a[2]! - nz * t;
+    b2[0] = b[0]! - nx * t; b2[1] = b[1]! - ny * t; b2[2] = b[2]! - nz * t;
+    // The strip faces outward: across the edge, away from the polygon's middle.
+    const ex = b[0]! - a[0]!, ey = b[1]! - a[1]!, ez = b[2]! - a[2]!;
+    let sx = ey * nz - ez * ny, sy = ez * nx - ex * nz, sz = ex * ny - ey * nx;
+    const l = Math.hypot(sx, sy, sz);
+    if (l < 1e-6) continue;
+    sx /= l; sy /= l; sz /= l;
+    const quad = [b, a, a2, b2];
+    const verts = quad.map((v) => {
+      const q = new Float64Array(v);
+      // Set in a hair from the edge, so the strip never lies in the plane of a face beside it.
+      q[0] = v[0]! - sx * 0.006;
+      q[1] = v[1]! - sy * 0.006;
+      q[2] = v[2]! - sz * 0.006;
+      q[3] = sx; q[4] = sy; q[5] = sz;
+      if (dark) { q[6] = dark[0]!; q[7] = dark[1]!; q[8] = dark[2]!; }
+      return q;
+    });
+    // Wind it so its face normal matches (sx, sy, sz).
+    const u = [verts[1]![0]! - verts[0]![0]!, verts[1]![1]! - verts[0]![1]!, verts[1]![2]! - verts[0]![2]!];
+    const w = [verts[2]![0]! - verts[0]![0]!, verts[2]![1]! - verts[0]![1]!, verts[2]![2]! - verts[0]![2]!];
+    const cx = u[1]! * w[2]! - u[2]! * w[1]!, cy = u[2]! * w[0]! - u[0]! * w[2]!, cz = u[0]! * w[1]! - u[1]! * w[0]!;
+    if (cx * sx + cy * sy + cz * sz < 0) verts.reverse();
+    out.push({ v: verts, pattern: p.pattern, ink });
+  }
+  return out;
+}
 
 /** Cuts polygons into pieces no bigger than a chunk, on a grid offset by the structure's seed. */
 function dice(polys: readonly Poly[], size: number, seed: number): Map<string, Poly[]> {
@@ -159,7 +274,8 @@ export function debrisOf(removed: readonly Poly[], prof: Profile): Chunk[] {
     if (col.stage === 3) return [toppleOf(removed, col, prof)];
   }
   const size = RUIN.chunk * (stone ? 1.15 : 1);
-  for (const [k, polys] of dice(removed, size, seed)) {
+  const groups = prof.s.kind === 'dock' ? dice(removed, size, seed) : partsOf(removed, prof);
+  for (const [k, polys] of groups) {
     const from = centroid({ v: polys.flatMap((p) => p.v), pattern: 0, ink: 0 });
     const col = prof.columnNear(from[0], from[2]);
     if (!col) continue;
@@ -213,9 +329,11 @@ export function debrisOf(removed: readonly Poly[], prof: Profile): Chunk[] {
       }
     }
     const dark = polys.length ? [polys[0]!.v[0]![6]! * 0.8, polys[0]!.v[0]![7]! * 0.8, polys[0]!.v[0]![8]! * 0.8] : null;
-    ch.polys = [...polys, ...polys.map((p) => backOf(p, 0.018, dark))];
+    // A real piece has depth: a wall slab its thickness, a roof its boards.
+    ch.polys = prof.s.kind === 'dock' ? [...polys, ...polys.map((p) => backOf(p, 0.018, dark))] : thicken(polys, k.startsWith('roof') ? 0.05 : 0.08, dark);
     const lo = lowestAfter(ch.polys, ch);
-    ch.to = [tx, ground - lo - 0.025, tz];
+    // A hair of height by the piece, so no two pieces ever lie in one plane.
+    ch.to = [tx, ground - lo - 0.025 + rand(key, 'lift') * 0.02, tz];
     out.push(ch);
   }
   out.sort((a, b) => a.key - b.key);

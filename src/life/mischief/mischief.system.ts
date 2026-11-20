@@ -133,6 +133,8 @@ interface Flight {
   handles: InstanceHandle[];
   age: number;
   arcs: { h: number; spin: number; delay: number; dur: number }[];
+  /** Pieces that have come down (each lands once, with a thump of dust). */
+  landed: boolean[];
 }
 interface Shake {
   id: StructureId;
@@ -258,7 +260,7 @@ function startFlight(st: State, stage: LifeStage, id: StructureId): void {
   if (chunks.length === 0) return;
   const old = st.flights.get(id);
   if (old) for (const h of old.handles) h.release();
-  const flight: Flight = { chunks, handles: [], age: 0, arcs: [] };
+  const flight: Flight = { chunks, handles: [], age: 0, arcs: [], landed: chunks.map(() => false) };
   for (const ch of chunks) {
     const h = stage.spawnMesh(chunkMesh(ch), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     flight.handles.push(h);
@@ -812,12 +814,19 @@ export default defineSystem<State>({
       f.chunks.forEach((ch, i) => {
         const arc = f.arcs[i]!;
         const t = Math.max(0, Math.min(1, (f.age - arc.delay) / arc.dur));
+        // After landing: one heavy bounce, a quarter of a second.
+        const after = f.age - arc.delay - arc.dur;
+        const bounce = after > 0 && after < 0.28 ? Math.sin((after / 0.28) * Math.PI) * 0.06 : 0;
+        if (t >= 1 && !f.landed[i]) {
+          f.landed[i] = true;
+          // Bigger pieces raise a bigger puff; a few of them, not every one, so the cloud stays one cloud.
+          if (i % 2 === 0) addDust(st, stage, ch.to[0], ch.to[1] - 0.1, ch.to[2], 1, 0.15, ch.key);
+        }
         let m: Mat4;
         if (ch.topple) {
           // Falling over: slow at first, fast at the end, a little bounce.
           const e = t * t;
-          const bounce = t >= 1 ? 0 : 0;
-          m = chunkMatrix(ch, ch.tip * e + bounce, 0, ch.to);
+          m = chunkMatrix(ch, ch.tip * e - Math.sign(ch.tip) * bounce * 0.6, 0, ch.to);
         } else {
           const at: [number, number, number] = [
             ch.from[0] + (ch.to[0] - ch.from[0]) * t,
@@ -827,7 +836,7 @@ export default defineSystem<State>({
           const ease = 1 - (1 - t) ** 2;
           m = chunkMatrix(ch, ch.tip * ease + arc.spin * ease, ch.yaw * ease, at);
           // The rest pose's tip and yaw are reached exactly at t = 1 (spin is whole turns).
-          if (t >= 1) m = chunkMatrix(ch, ch.tip, ch.yaw, ch.to);
+          if (t >= 1) m = chunkMatrix(ch, ch.tip, ch.yaw, [ch.to[0], ch.to[1] + bounce, ch.to[2]]);
         }
         f.handles[i]!.setMatrix(m);
         f.handles[i]!.setVisible(true);
