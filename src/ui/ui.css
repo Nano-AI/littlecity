@@ -307,6 +307,29 @@
   width: 28px;
   height: 28px;
 }
+/* The first-use note over the stepper: what scrolling (or − and +) does. */
+.lc-step-hint {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  padding: 5px 11px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: rotate(-0.6deg);
+}
+.lc-step-hint::after {
+  content: '';
+  position: absolute;
+  right: 26px;
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  background: var(--lc-card);
+  border-right: 1.6px solid var(--lc-ink);
+  border-bottom: 1.6px solid var(--lc-ink);
+  transform: rotate(45deg);
+}
 .lc-step .lc-btn-icon {
   width: 18px;
   height: 18px;
