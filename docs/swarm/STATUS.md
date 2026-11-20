@@ -1242,3 +1242,18 @@ view where rail and columns blur into a dark band (needs a renderer
 change). Gate: 2,186 passed, 10 skipped, clean.
 Running: nothing. Unmerged: big-islands (experiment); walk
 (superseded). Separate session: `capture/promo`.
+
+**Derek, 2026-11-20 late afternoon.** Asked what a wedding looks like
+(never seen one). Orchestrator rendered `L57.wedding`: it works (guests
+gather at the chapel door, the couple comes out, a procession to the
+square) but is small and short (about a minute, once a morning, 70 % of
+days; first one 25–45 s after a town opens) and the door is often hidden
+behind a building. 25 of 30 grown generator-2 towns have a wedding post
+(28 have a chapel). Pictures in the workspace's `.context/report/`
+(`wedding-*.png`). Nothing changed; a bigger, more visible wedding was
+suggested to Derek, not started.
+He dislikes the speech bubble and the fight cloud and wants the merged
+single outline of the nuke/storm cloud (orchestrator's reading of "new
+color") on them and on small round things (faces, fruit, the dog) →
+new agent `ab27513c35386a432` on `swarm/soft-ink` (Opus).
+Running: soft-ink.
