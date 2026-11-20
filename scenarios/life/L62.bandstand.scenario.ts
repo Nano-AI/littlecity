@@ -21,7 +21,7 @@ export default scenario({
   cameras: [
     { name: 'square', yaw: 35, pitch: 32, zoom: 3.4, target: [13, 1.5, 12] },
     // The band on the floor, facing out of the open bay (north, toward the path) at its listeners.
-    { name: 'band', yaw: 215, pitch: 24, zoom: 15, target: [13, 1.3, 11.6] },
+    { name: 'band', yaw: 225, pitch: 44, zoom: 9, target: [13, 1.2, 10.2] },
   ],
   expect(plan, dressing, check) {
     check.role(12, 3, 11, 'bandstand');
