@@ -20,6 +20,10 @@ import type { Edit } from '@/core/world';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { BLAST } from '@/style/damage';
 import { MEND_STEPS } from '@/world/damage';
+import { rand } from '@/core/rand';
+
+/** The town mending itself: seconds of quiet after a building was hurt, a spread on top, seconds a step, a crew's speed. */
+export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2 };
 
 /** A click of the Mend tool: a quarter of the way. */
 const MEND_CLICK = MEND_STEPS / 4;
@@ -197,6 +201,67 @@ export class Director {
       }
     }
     this.engine.step(dt, env);
+    this.mendClock += dt;
+    if (this.mendClock >= 0.5) {
+      this.mendTick(this.mendClock);
+      this.mendClock = 0;
+    }
+  }
+
+  /** Structures with a crew at work on them now (set by the rebuild chain): they mend faster. */
+  crewed: ReadonlySet<StructureId> = new Set();
+  private mendClock = 0;
+  /** Seconds of mending owed per structure. */
+  private mendOwed = new Map<StructureId, number>();
+
+  /**
+   * The town mends its own damage (design section 13b): every damaged building that is not burning starts
+   * mending a short while after it was last hurt (staggered by the building, so a bombed street does not
+   * tick in unison) and goes on a step at a time, faster with a crew on it. No undo step of its own.
+   */
+  private mendTick(dt: number): void {
+    const shape = this.shape;
+    if (!this.rebuild || !shape) return;
+    const burning = new Set<StructureId | undefined>(this.engine.burning().map((b) => b.structure));
+    const bySid = new Map<StructureId, CellKey[]>();
+    for (const [cell, b] of shape.world.blocks) {
+      if (!b.ruin) continue;
+      const sid = shape.structureAt.get(cell);
+      if (sid === undefined || burning.has(sid)) continue;
+      let l = bySid.get(sid);
+      if (!l) bySid.set(sid, (l = []));
+      l.push(cell);
+    }
+    for (const sid of [...this.mendOwed.keys()]) if (!bySid.has(sid)) this.mendOwed.delete(sid);
+    let any = false;
+    for (const [sid, cells] of [...bySid].sort((a, b) => a[0] - b[0])) {
+      const since = Math.min(...cells.map((c) => this.engine.sinceHit(c)));
+      const wait = MEND.quiet + rand(sid, 'mend-wait') * MEND.stagger;
+      if (since < wait) {
+        this.mendOwed.delete(sid);
+        continue;
+      }
+      const ruins = cells.map((c) => shape.world.blocks.get(c)!.ruin!);
+      if (ruins.some((r) => (r & 16) !== 0)) continue; // chunks still in the air
+      const owed = this.mendOwed.get(sid);
+      if (owed === undefined || !ruins.every((r) => (r & 8) !== 0)) {
+        // First: the scaffolding goes up.
+        for (const c of cells) any = this.engine.repair(c, 1) || any;
+        this.mendOwed.set(sid, rand(sid, 'mend-phase') * MEND.step);
+        continue;
+      }
+      let left = owed + dt * (this.crewed.has(sid) ? MEND.crew : 1);
+      while (left >= MEND.step) {
+        left -= MEND.step;
+        for (const c of cells) any = this.engine.repair(c, 1) || any;
+      }
+      this.mendOwed.set(sid, left);
+    }
+    if (!any) return;
+    const edits = this.engine.takeEdits();
+    if (edits.length === 0) return;
+    if (this.act) this.host?.apply(edits);
+    else this.host?.amend(edits);
   }
 
   /** The app, once a frame: hands the engine's edits to the game, and closes the act when all is quiet. */
@@ -228,6 +293,7 @@ export class Director {
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
     this.engine.cancel();
+    this.mendOwed.clear();
     this.bombs.length = 0;
     this.quietFrames = 0;
   }

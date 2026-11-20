@@ -6,7 +6,7 @@ import { key } from '@/core/grid';
 import type { World } from '@/core/world';
 import { Director } from '@/life/mischief/director';
 import { flatTerrain, TownBuilder } from '@/scenario';
-import { ruinStage } from '@/world/damage';
+import { ruinMending, ruinProgress, ruinStage } from '@/world/damage';
 import { encodeTown } from '@/world/save';
 import { emptyWorld } from '@/world/world';
 import { createGame } from './game';
@@ -48,6 +48,7 @@ describe('one act of mischief is one undo step', () => {
   test('a fire, after it has burnt out: one undo puts the town back', () => {
     const { game, d, run } = setup();
     const before = game.world;
+    d.rebuild = false; // (the town would mend it meanwhile; this is about undo)
     d.ignite(key(10, 1, 10));
     expect(d.active).toBe(true);
     run(150);
@@ -89,6 +90,24 @@ describe('one act of mischief is one undo step', () => {
     d.cancel();
     run(5);
     same(game.world, before);
+  });
+
+  test('a wrecked building starts mending on its own even while a fire burns elsewhere, and the switch stops it', () => {
+    const { game, d, run } = setup();
+    d.ignite(key(10, 1, 10));
+    d.knock(key(20, 1, 10));
+    d.knock(key(20, 1, 10));
+    run(20);
+    expect(d.engine.burning().length).toBeGreaterThan(0);
+    const r = game.world.blocks.get(key(20, 1, 10))!.ruin;
+    expect(ruinMending(r)).toBe(true);
+    const at = ruinProgress(r);
+    run(10);
+    expect(ruinProgress(game.world.blocks.get(key(20, 1, 10))!.ruin)).toBeGreaterThan(at);
+    d.rebuild = false;
+    const still = game.world.blocks.get(key(20, 1, 10))!.ruin;
+    run(10);
+    expect(game.world.blocks.get(key(20, 1, 10))!.ruin).toBe(still);
   });
 
   test('mending is a step of its own, and mending everything restores the town exactly', () => {

@@ -27,7 +27,7 @@
 // Pure of the clock: time comes from `step`, chance from rand(seed, …).
 
 import { CELL_H, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, type CellKey } from '@/core/grid';
-import { hash, rand } from '@/core/rand';
+import { rand } from '@/core/rand';
 import type { StructureId } from '@/resolve/plan';
 import { ruinMending } from '@/world/damage';
 import type { Person } from '../people/crowd';
@@ -55,10 +55,9 @@ export const RESPONSE = {
   clear: 2.4,
   /** Where they go to watch from. */
   watch: 4.5,
-  /** Seconds of quiet before the builders come. */
-  quiet: 8,
-  /** Seconds between steps of mending while a builder is at work. */
-  mendTick: 2.2,
+  /** Buildings with a crew at once, and hands to a crew. */
+  sites: 4,
+  crew: 2,
 } as const;
 
 export interface Brigade {
@@ -441,8 +440,8 @@ export function fireChain(given?: Director): FireChain {
 }
 
 export interface RebuildChain extends Chain {
-  /** The building being mended now, and its crew. */
-  readonly job: { structure: StructureId; crew: Person[] } | null;
+  /** The buildings with a crew sent to them, and who. */
+  readonly sites: ReadonlyMap<StructureId, Person[]>;
 }
 
 /** Walkable cells round a structure's ground storey, facing it (as the builders of L54 stand). */
@@ -465,43 +464,35 @@ function standsOf(board: Board, sid: StructureId): { cell: CellKey; face: number
   return out.sort((a, b) => a.cell - b.cell);
 }
 
+/**
+ * The town's builders (design section 13b, "The town rebuilds itself"). The mending itself belongs to the
+ * damage (the director moves every damaged building through its stages over time, ./director.ts); this
+ * chain is the life on top: by day, residents walk from their homes with a ladder, a hod and a cart to
+ * buildings that are being mended and work there, and a building with a crew on it goes faster. A few
+ * sites at once, two hands each; when a building is whole again, its crew goes home.
+ */
 export function rebuildChain(given?: Director): RebuildChain {
   const dir = directorOf(given);
-  let job: { structure: StructureId; crew: Person[]; tick: number } | null = null;
-  let quiet = 0;
-
-  const damaged = (board: Board): StructureId[] => {
-    const shape = board.shape;
-    if (!shape) return [];
-    const out = new Set<StructureId>();
-    for (const [cell, b] of shape.world.blocks) {
-      if (!b.ruin) continue;
-      const s = shape.structureAt.get(cell);
-      if (s !== undefined) out.add(s);
-    }
-    return [...out].sort((a, b) => a - b);
-  };
-
-  const finishJob = (board: Board): void => {
-    if (!job) return;
-    for (const p of job.crew) {
-      if (board.plans.get(p)?.chain !== chain && tagOf(p) !== 'rebuild:work') continue;
-      const home = board.homeStep(p, { tag: 'rebuild:home', load: p.load });
-      if (home) board.assign(p, { chain, at: 0, steps: [home] });
-      else board.drop(p);
-    }
-    job = null;
-  };
-
+  const sites = new Map<StructureId, Person[]>();
+  let look = 0;
   const LOADS: Load[] = ['ladder', 'hod', 'cart'];
+
+  const goHome = (board: Board, p: Person): void => {
+    if (board.plans.get(p)?.chain !== chain && tagOf(p) !== 'rebuild:work') return;
+    const home = board.homeStep(p, { tag: 'rebuild:home', load: p.load });
+    if (home) board.assign(p, { chain, at: 0, steps: [home] });
+    else board.drop(p);
+  };
 
   const chain: RebuildChain = {
     id: 'mischief.rebuild',
-    get job() {
-      return job ? { structure: job.structure, crew: job.crew } : null;
-    },
+    sites,
     sync(board) {
-      if (job && !board.shape?.structures.has(job.structure)) finishJob(board);
+      for (const [sid, crew] of sites) {
+        if (board.shape?.structures.has(sid)) continue;
+        for (const p of crew) goHome(board, p);
+        sites.delete(sid);
+      }
     },
     offer() {
       return null;
@@ -509,71 +500,65 @@ export function rebuildChain(given?: Director): RebuildChain {
     step(dt, time, board) {
       const d = dir(board);
       if (!d || !board.nav || !board.shape) return;
-      if (!d.rebuild) {
-        finishJob(board);
-        return;
-      }
-      quiet = d.busy || d.active ? 0 : quiet + dt;
-      if (job) {
-        // Done: no damage left on it.
-        const st = board.shape.structures.get(job.structure);
-        const left = st?.cells.some((c) => board.shape!.world.blocks.get(c)?.ruin) ?? false;
-        if (!left || d.busy) {
-          finishJob(board);
-          return;
+      const shape = board.shape;
+      // Which buildings are being mended now.
+      const mending = new Set<StructureId>();
+      if (d.rebuild) {
+        for (const [cell, b] of shape.world.blocks) {
+          if (!b.ruin || !ruinMending(b.ruin)) continue;
+          const sid = shape.structureAt.get(cell);
+          if (sid !== undefined) mending.add(sid);
         }
-        const working = job.crew.filter((p) => p.mode === 'linger' && tagOf(p) === 'rebuild:work');
-        if (working.length > 0) {
-          job.tick += dt * (0.6 + 0.4 * Math.min(3, working.length));
-          if (job.tick >= RESPONSE.mendTick * 1.6) {
-            job.tick = 0;
-            d.autoMend(st!.cells[0]!);
-          }
-        }
-        return;
       }
-      if (quiet < RESPONSE.quiet || time.isNight) return;
-      // The next building, and a crew from the nearest homes.
-      for (const sid of damaged(board)) {
+      // Crews of buildings that are whole again (or the switch is off) go home.
+      for (const [sid, crew] of sites) {
+        if (mending.has(sid)) continue;
+        for (const p of crew) goHome(board, p);
+        sites.delete(sid);
+      }
+      // Who is at work where: the director mends those faster.
+      const crewed = new Set<StructureId>();
+      for (const [sid, crew] of sites) if (crew.some((p) => p.mode === 'linger' && tagOf(p) === 'rebuild:work')) crewed.add(sid);
+      d.crewed = crewed;
+      look += dt;
+      if (look < 1 || time.isNight) return;
+      look = 0;
+      // New crews for mending buildings that have none, nearest homes first; a few sites at once.
+      for (const sid of [...mending].sort((a, b) => a - b)) {
+        if (sites.size >= RESPONSE.sites) break;
+        if (sites.has(sid)) continue;
         const stands = standsOf(board, sid);
         if (stands.length === 0) continue;
         const crew: Person[] = [];
         const pool = board.crowd.people
-          .filter((p) => canWork(p) && !p.scuffle && !board.plans.has(p) && board.claimedBy(p) === null && p.home !== sid)
+          .filter((p) => canWork(p) && !p.scuffle && !board.plans.has(p) && board.claimedBy(p) === null && p.home !== sid && !tagOf(p).startsWith('fire:') && !tagOf(p).startsWith('rebuild:'))
           .map((p) => ({ p, d: board.dist(p.cell, stands[0]!.cell) }))
           .sort((a, b) => a.d - b.d || (a.p.seed >>> 0) - (b.p.seed >>> 0));
         for (const { p } of pool) {
-          if (crew.length >= 3) break;
+          if (crew.length >= RESPONSE.crew) break;
           const at = stands[(crew.length * 2 + sid) % stands.length]!;
           if (!reaches(board, p, at.cell)) continue;
           crew.push(p);
           const c = board.centre(at.cell);
-          const load = LOADS[crew.length - 1]!;
+          const fetch = board.homeStep(p, { tag: 'rebuild:fetch', linger: 1.2 });
           board.assign(p, {
             chain,
             at: 0,
             steps: [
               // From home, with the tools of the trade.
-              ...(board.homeStep(p, { tag: 'rebuild:fetch' }) ? [board.homeStep(p, { tag: 'rebuild:fetch', linger: 1.2 })!] : []),
+              ...(fetch ? [fetch] : []),
               board.stepAt(at.cell, {
                 spot: { x: c.x + (rand(p.seed, 'mend-x', sid) - 0.5) * 0.3, z: c.z + (rand(p.seed, 'mend-z', sid) - 0.5) * 0.3 },
                 face: at.face,
                 pose: 'hammer',
                 linger: 1e6,
-                load,
+                load: LOADS[(crew.length - 1 + sid) % LOADS.length]!,
                 tag: 'rebuild:work',
               }),
             ],
           });
         }
-        if (crew.length > 0) {
-          job = { structure: sid, crew, tick: 0 };
-          // A building already in scaffolding is picked up where it was; one that is not gets it now.
-          const st = board.shape.structures.get(sid)!;
-          if (!st.cells.some((c) => ruinMending(board.shape!.world.blocks.get(c)?.ruin))) d.autoMend(st.cells[0]!);
-        }
-        void hash;
-        return;
+        if (crew.length > 0) sites.set(sid, crew);
       }
     },
   };

@@ -108,6 +108,8 @@ export interface MischiefEngine {
   cancel(): void;
   /** Simulation steps so far. */
   readonly tick: number;
+  /** Seconds since this block was last hurt (by fire or blast), Infinity if never in this session. */
+  sinceHit(cell: CellKey): number;
 }
 
 export function createMischiefEngine(seed: number): MischiefEngine {
@@ -145,7 +147,10 @@ export function createMischiefEngine(seed: number): MischiefEngine {
   };
 
   /** Raises a block's damage to at least `stage` (never lowers it); new damage takes down any scaffolding. */
+  /** The step each block was last hurt at. */
+  const hitAt = new Map<CellKey, number>();
   const worsen = (cell: CellKey, cause: DamageCause, stage: DamageStage, settle = false): boolean => {
+    hitAt.set(cell, tick);
     const now = ruinOf(cell);
     const cur = ruinStage(now);
     if (stage <= cur && !(ruinMending(now) && stage > 0)) return false;
@@ -442,7 +447,14 @@ export function createMischiefEngine(seed: number): MischiefEngine {
       }
       return out;
     },
+    sinceHit(cell) {
+      const at = hitAt.get(cell);
+      const f = fires.get(cell);
+      if (f?.burning) return 0;
+      return at === undefined ? Infinity : (tick - at) * STEP;
+    },
     cancel() {
+      hitAt.clear();
       fires.clear();
       pending.clear();
       settling.clear();
