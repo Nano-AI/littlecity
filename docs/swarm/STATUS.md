@@ -1056,3 +1056,18 @@ the harness a gate test.
 Running: short-links, fly, mischief (destruction), life-under-fire.
 Four agents at once on a 10-core machine: expect load timeouts; rerun
 failing files serially before believing a failure.
+
+**Short links merged** (`d676018`, Opus). Grown towns' share codes are
+about 40 % shorter (1894→1123, 1480→888, 1990→1207, 1124→687, 1804→1064
+characters). Step 1: dynamic Huffman and an optimal match search in
+`src/world/deflate.ts` (−23 to −25 %, no format change). Step 2: version
+5 (codes start `TEMF`): a range coder with adaptive predictors
+(`rangecoder.ts`, `codec5.ts`); a town is written in whichever form is
+shorter. Old links: a frozen copy of the old encoder
+(`legacy-codec.ts`), 17 pinned codes with world digests
+(`old-links.json`, never regenerate), old pinned strings kept as decode
+fixtures. Section bit 2 still free for big-islands, which must now add
+its section to `codec5.ts` as well. Orchestrator checked in a browser:
+six old links (versions 1–4) open with the right block counts; a link
+from the Share button (1148 characters with the address) reopens the
+identical town. Gate: 2,131 passed, 9 skipped, clean.
