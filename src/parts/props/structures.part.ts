@@ -103,6 +103,22 @@ export default definePart({
         b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'wisps' }, () => lump(b, -0.12, 0.01, 0.16, 0.08, 0.015, 0.05, 0.4));
         break;
       }
+      case 'crates': {
+        // R-H17: goods waiting by the loading door (the socket's threshold, +Z out): set to one side so the
+        // door stays clear, two crates stacked, a barrel and a sack.
+        b.at(translation(0.3, 0, -0.12), () => {
+          b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'crate-a' }, () => b.box([-0.1, 0, -0.1], [0.1, 0.18, 0.1], { skip: ['bottom'] }));
+          b.at(compose(translation(0.02, 0.18, 0.01), rotationY(0.35)), () =>
+            b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'crate-b' }, () => b.box([-0.075, 0, -0.075], [0.075, 0.14, 0.075], { skip: ['bottom'] })));
+          b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'crate-edges' }, () => {
+            for (const x of [-0.1, 0.1]) b.box([x - 0.012, 0, 0.1], [x + 0.012, 0.18, 0.112], { skip: ['bottom', 'n'] });
+          });
+        });
+        b.with({ color: PALETTE.trunk, pattern: PATTERN.planks, ink: 'barrel' }, () =>
+          b.at(translation(-0.33, 0, -0.1), () => b.lathe([[0.075, 0], [0.09, 0.1], [0.075, 0.2]], { segments: 10, capTop: true })));
+        b.with({ color: PALETTE.white, pattern: PATTERN.cloth, ink: 'sack' }, () => lump(b, 0.33, 0.06, 0.12, 0.09, 0.06, 0.07, 0.6));
+        break;
+      }
       case 'weir': {
         // R-H16: a timber weir across the stream: a row of stakes with a plank wall between them, its top
         // a little over the water, and a white line of foam where the water spills over on the far side.

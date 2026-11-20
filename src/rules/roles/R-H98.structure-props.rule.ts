@@ -6,6 +6,7 @@
 //                     stage, facing the seats; a brazier at each end of it
 //   barn (R-H18)      outside its big doors: hay bales, and on a farmstead
 //                     a hand cart too
+//   warehouse (R-H17) crates, a barrel and a sack beside its loading door
 //   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
 //                     timber weir across the stream beside it; flour sacks
 //                     at the land door
@@ -21,7 +22,7 @@ import type { Anchor, CellPos } from '@/resolve/plan';
 import { theatreOf } from './R-M09.theatre.rule';
 import { riverAt } from './river.lib';
 
-type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir';
+type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates';
 interface Data {
   variant: Variant | 'cart' | 'sacks' | 'wheel';
   at: Anchor;
@@ -34,7 +35,7 @@ export default defineRule<Data>({
   part: 'decoration',
   tier: 2,
   priority: 896,
-  about: 'Reads: the roles of discovery round 1 (theatre, barn, watermill), main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
+  about: 'Reads: the roles of discovery round 1 (theatre, barn, warehouse, watermill), main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
   find(ctx) {
     const { plan } = ctx;
     const out: Candidate<Data>[] = [];
@@ -58,7 +59,11 @@ export default defineRule<Data>({
       3: ['ne', 'se', 'nw', 'sw'],
     };
     for (const [id, { role }] of plan.roles) {
-      if (role === 'watermill') {
+      if (role === 'warehouse') {
+        const doors = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'loading-doors');
+        const at = doors ? (plan.socketsByOwner.get(doors.id) ?? []).find((k) => k.type === 'loading-door') : undefined;
+        if (at) add(at.cell, id, 'crates', 'crates', { socket: at.id }, slot.socket(at.id));
+      } else if (role === 'watermill') {
         const race = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'mill-race');
         const hub = race ? (plan.socketsByOwner.get(race.id) ?? []).find((k) => k.type === 'wheel-hub') : undefined;
         if (race && hub && race.cell !== undefined && race.dir !== undefined) {

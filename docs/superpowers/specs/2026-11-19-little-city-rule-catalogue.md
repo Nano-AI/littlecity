@@ -64,6 +64,17 @@ type and which later rules apply.
   the wheel across the stream to the far bank (up to 5 cells), flour sacks
   at the land door (R-H98). Not: the sea or a lagoon with no bank within 3
   across it; a stilt house. Priority 9955 (before the boathouse).
+- **R-H17 · 2 · Warehouse** (discovery 1, RC-02) — 6+ cells, 2+ storeys,
+  footprint ≥ 2; a ground-storey facade whose cell outside lies within 3 of
+  a dock and that looks toward it (water met within 4 straight out, or a
+  dock within 4 straight ahead); no ground-storey facade faces a plaza
+  within 1 → a column of loading doors up the middle of the wall nearest
+  the dock (one per storey, a sill under each upper one) with a hoist beam,
+  pulley and rope over them (J30; sockets 'loading-door' and 'hoist' for
+  porters, which this rule does not place); crates, a barrel and a sack by
+  the loading door (R-H98); no window in that column. Not: a house on the
+  harbour square (the inn or a shop), a house on an open coast with no
+  dock. Priority 9942 (after the town hall, before the inn).
 - **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and 1 storey,
   or a footprint of 2 or fewer and 2 storeys (FX-12); ground storey at `y ≤ 1` and a facade faces water within 1, or
   touches a dock → wide double doors on the water side, slipway, net on the

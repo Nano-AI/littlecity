@@ -5,23 +5,30 @@
 //                  door ('barn-doors' on the door's cell and side), and a
 //                  hayloft door with a hoist beam in the gable end farthest
 //                  from that door ('hayloft').
+//   warehouse      a column of loading doors up the middle of the wall
+//   (R-H17)        that faces the water, one per storey, with a hoist beam
+//                  over them ('loading-doors', owning the sockets
+//                  'loading-door' and 'hoist'); J09 leaves the column
+//                  without windows.
 //   watermill      the wheel's timber frame and bearing on the river side
 //   (R-H16)        ('mill-race', owning the 'wheel-hub' socket the water
 //                  wheel turns on); J09 leaves that wall cell without a window.
 //
 // Priority 930: after J06 (940) and J04 (960).
 
-import { keyX, keyZ, neighbor, type Dir4 } from '@/core/grid';
+import { above, keyX, keyZ, neighbor, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
 import type { Feature } from '@/resolve/plan';
 import { millSide } from '../roles/R-H16.watermill.rule';
+import { waterFacades } from '../roles/R-H17.warehouse.rule';
 import { houseStructures, roleOf, roofOf } from './houses.lib';
 
 interface Front {
-  type: 'barn-doors' | 'hayloft' | 'mill-race';
+  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors';
   cell: number;
   dir: Dir4;
+  storeys?: number;
 }
 
 export default defineRule<Front>({
@@ -29,18 +36,32 @@ export default defineRule<Front>({
   part: 'joinery',
   tier: 2,
   priority: 930,
-  about: 'Reads: house roles (barn, watermill), main doors, roofs, facades over river water. Emits: barn-doors and a hayloft on a barn; a mill-race (socket wheel-hub) on a watermill.',
+  about: 'Reads: house roles (barn, warehouse, watermill), main doors, roofs, facades over the water. Emits: barn-doors and a hayloft on a barn; loading-doors (sockets loading-door, hoist) on a warehouse; a mill-race (socket wheel-hub) on a watermill.',
   find(ctx) {
     const out = [];
     for (const s of houseStructures(ctx)) {
       const role = roleOf(ctx.plan, s.id);
+      const feats = ctx.plan.featuresByStructure.get(s.id) ?? [];
+      if (role === 'warehouse') {
+        const sides = waterFacades(ctx.facts, s.id);
+        if (sides.length === 0) continue;
+        // The middle of the run of ground-storey cells on the side nearest the water, clear of the main door.
+        const doorAt = feats.find((f) => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1);
+        const run = sides.filter((f) => f.dir === sides[0]!.dir && !(doorAt?.cell === f.cell && doorAt.dir === f.dir)).sort((a, b) => a.cell - b.cell);
+        if (run.length === 0) continue;
+        const at = run[Math.floor((run.length - 1) / 2)]!;
+        let storeys = 1;
+        const mine = new Set(s.cells);
+        for (let c = above(at.cell); mine.has(c); c = above(c)) storeys++;
+        out.push({ anchor: at.cell, structure: s.id, key: 'loading', data: { type: 'loading-doors' as const, cell: at.cell, dir: at.dir, storeys } });
+        continue;
+      }
       if (role === 'watermill') {
         const side = millSide(s, ctx.facts);
         if (side) out.push({ anchor: side.cell, structure: s.id, key: 'race', data: { type: 'mill-race' as const, cell: side.cell, dir: side.dir } });
         continue;
       }
       if (role !== 'barn') continue;
-      const feats = ctx.plan.featuresByStructure.get(s.id) ?? [];
       const door = feats.find((f): f is Feature & { cell: number; dir: number } => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1 && f.cell !== undefined && f.dir !== undefined);
       if (door) out.push({ anchor: door.cell, structure: s.id, key: 'doors', data: { type: 'barn-doors' as const, cell: door.cell, dir: door.dir as Dir4 } });
       // The hayloft: in the gable end of the main roof that lies farther from the door.
@@ -64,7 +85,12 @@ export default defineRule<Front>({
     return out;
   },
   apply(c, out) {
-    const f = out.feature({ type: c.data.type, structure: c.structure!, cell: c.data.cell, dir: c.data.dir });
+    const params = c.data.storeys !== undefined ? { params: { storeys: c.data.storeys } } : {};
+    const f = out.feature({ type: c.data.type, structure: c.structure!, cell: c.data.cell, dir: c.data.dir, ...params });
     if (c.data.type === 'mill-race') out.socket({ type: 'wheel-hub', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+    if (c.data.type === 'loading-doors') {
+      out.socket({ type: 'loading-door', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+      out.socket({ type: 'hoist', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+    }
   },
 });

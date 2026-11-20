@@ -145,6 +145,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         return gableFrame(h, f) ?? null;
       case 'barn-doors':
       case 'mill-race':
+      case 'loading-doors':
       case 'balcony':
       case 'portico':
       case 'vista':

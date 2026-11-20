@@ -7,6 +7,7 @@
 // which expects the piece centred half-way up a storey (y = CELL_H / 2).
 
 import { CELL_H } from '@/core/grid';
+import { translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
@@ -59,5 +60,37 @@ export const hayloft = definePart({
       b.box([-0.025, cy - 0.15, 0.285], [0.025, cy - 0.12, 0.315]);
     });
     return { mesh: b.build() };
+  },
+});
+
+export const loadingDoors = definePart({
+  feature: 'loading-doors',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const n = Math.max(1, Math.round(item.params?.storeys ?? 2));
+    // One door per storey, stacked: a wide boarded pair on the ground, loft doors above, each in a white frame.
+    for (let k = 0; k < n; k++) {
+      const y0 = k * CELL_H + (k === 0 ? 0.02 : 0.1), y1 = k * CELL_H + (k === 0 ? 0.6 : 0.62);
+      const hw = k === 0 ? 0.24 : 0.19;
+      b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: `frame${k}` }, () => b.box([-hw - 0.035, y0, 0], [hw + 0.035, y1 + 0.035, 0.022], { skip: ['n'] }));
+      b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: `door${k}` }, () => b.box([-hw, y0, 0.022], [hw, y1, 0.036], { skip: ['n'] }));
+      b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: `brace${k}` }, () => {
+        const z = 0.038;
+        b.quad([-0.01, y0, z], [0.01, y0, z], [0.01, y1, z], [-0.01, y1, z]); // the meeting stiles
+        b.quad([-hw + 0.02, y0 + 0.02, z], [-hw + 0.06, y0 + 0.02, z], [-0.03, y1 - 0.02, z], [-0.07, y1 - 0.02, z]);
+        b.quad([0.07, y1 - 0.02, z], [0.03, y1 - 0.02, z], [hw - 0.06, y0 + 0.02, z], [hw - 0.02, y0 + 0.02, z]);
+      });
+      // A little sill to land the loads on.
+      if (k > 0) b.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: `sill${k}` }, () => b.box([-hw - 0.05, y0 - 0.04, 0], [hw + 0.05, y0, 0.08], { skip: ['n'] }));
+    }
+    // The hoist: a beam out from the wall over the doors, a pulley at its end and the rope with its hook.
+    const top = (n - 1) * CELL_H + 0.69;
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.planks, ink: 'hoist' }, () => b.box([-0.035, top, 0], [0.035, top + 0.07, 0.4], { skip: ['n'] }));
+    b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'pulley' }, () => {
+      b.box([-0.014, top - 0.07, 0.33], [0.014, top, 0.37], { skip: ['top'] });
+      b.box([-0.004, top - 0.38, 0.346], [0.004, top - 0.07, 0.354], { skip: ['top'] });
+      b.box([-0.03, top - 0.42, 0.33], [0.03, top - 0.38, 0.37]);
+    });
+    return { mesh: b.build(), anchors: { 'loading-door': translation(0, 0, 0.3), hoist: translation(0, top - 0.42, 0.35) } };
   },
 });

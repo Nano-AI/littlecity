@@ -11,7 +11,7 @@
 // (p = 0.2); a townhouse's upper storeys on the door side may carry a
 // balcony (R-H10, p = 0.5). A free gable end gets a small round window
 // (p = HOUSE.gableWindow); the chapel's far gable gets its rose.
-import { below, keyY, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { above, below, keyY, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
@@ -61,6 +61,8 @@ export default defineRule<{ s: Structure }>({
     for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) {
       if (f.cell === undefined || f.dir === undefined) continue;
       if ((f.type === 'vista' && f.variant !== 'doorway') || f.type === 'mill-race') taken.add(f.cell * 4 + f.dir);
+      // R-H17: the loading doors fill their whole column of the wall.
+      if (f.type === 'loading-doors') for (let k = 0, c = f.cell; k < ((f.params as { storeys?: number } | undefined)?.storeys ?? 2); k++, c = above(c)) taken.add(c * 4 + f.dir);
       if (f.type === 'balcony') balconies.add(f.cell * 4 + f.dir);
     }
     // Columns (and sides) of this house that stand over an alley.
