@@ -470,7 +470,16 @@ docks", "needs a lighthouse", "piers 10 apart").
   shut into an enclosed pool stays there as a resident until a way opens.
 - **Arrivals are still events.** Big ships sail in under shortening sail,
   moor, unload, draw a crowd, stay the night with lanterns lit, and leave;
-  small boats give way to them; one big ship moves at a time.
+  small boats give way to them.
+- **More dock, more big ships, at the same time** (Derek, 2026-11-19: "I'm
+  building hella docks and there's still only one big boat"). Every stretch
+  of dock a big ship fits is a berth, and berths fill: a harbour with room
+  for four galleons has several moored at once, with others arriving and
+  leaving. A very long quay holds several ships end to end. The only limits
+  are physical (hulls must not overlap, and two ships must not be under way
+  in the same lane at once: the second waits offshore or holds at its berth)
+  and a generous cap for performance (about 8 big ships on desktop, 4 on a
+  phone), never a rule like "one at a time".
 
 Rule ids stay as they are for the code's sake: L17 moored rowboats, L18
 fishing boat, L19 sailboats, L20 rower, L38 galleon, L39 cog, L40 galley,
