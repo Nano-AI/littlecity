@@ -77,9 +77,11 @@ export function weddingChain(): WeddingChain {
     const free = board.crowd.people.filter((p) => canWork(p) && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && reaches(board, p, d.cell) && homeCell(board, p) !== null);
     const adults = free.filter((p) => !p.child).sort((a, b) => near(a) - near(b) || (a.id < b.id ? -1 : 1));
     if (adults.length < 2) return false;
-    // The couple: the two grown-ups nearest the chapel from different houses.
-    const bride = adults[0]!;
-    const groom = adults.find((p) => p !== bride && p.home !== bride.home) ?? adults[1]!;
+    // The couple: two of the grown-ups living nearest the chapel, from different houses (a new pair each time).
+    const pool = adults.slice(0, 6);
+    const bride = pool[Math.floor(rand(board.seed, 'bride', held) * pool.length)]!;
+    const rest = pool.filter((p) => p !== bride && p.home !== bride.home);
+    const groom = rest[Math.floor(rand(board.seed, 'groom', held) * rest.length)] ?? adults.find((p) => p !== bride)!;
     couple = [bride, groom];
     const others = board.crowd.people
       .filter((p) => !couple.includes(p) && !p.shutIn && !p.leaving && p.mode !== 'gone' && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && reaches(board, p, d.cell) && board.dist(homeCell(board, p) ?? p.cell, d.cell) <= WEDDING.reach)

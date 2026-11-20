@@ -647,8 +647,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   be walked to → posts outside the chapel door (`wedding|door`) and at the
   square cell nearest its middle within reach (`wedding|square`); the chapel
   nearest the heart if several. On the first day the town is seen (25–45 s
-  in) and then 70% of days (seeded, early in the day): the two grown-ups
-  living nearest the chapel from different houses walk there and go in; up
+  in) and then 70% of days (seeded, early in the day): two of the six
+  grown-ups living nearest the chapel, from different houses (seeded), walk
+  there and go in; up
   to 8 guests (children too) within 22 steps gather in a loose half-ring
   outside the door looking at it; 4 s after enough are there (or 40 s) the
   couple comes out, she in white with flowers, he in a dark coat and hat;

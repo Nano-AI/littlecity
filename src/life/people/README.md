@@ -134,3 +134,24 @@ Nobody is sent to linger in a cluttered cell, except to sit at its seats.
 - **A roof terrace with no door onto it** gets a hatch the graph derives
   (`door/hatch` is in the vocabulary but no rule emits one).
 - **Garden** costs 2 a cell and **stairs** 1.5 (the catalogue names neither).
+
+## The living town (L50–L57)
+
+- **The scuffle (L50)** is a run-time reaction in `scuffle.ts`: two walkers
+  who bump head on (or squeeze past) now and then vanish into a cartoon dust
+  cloud (`src/parts/people/scuffle-art.ts`, drawn by `people.system.ts`); a
+  ring watches; they sit dazed, dust off, and stomp off or go to the inn
+  together. `crowd.scuffles.provoke()` starts one at once (sequences).
+- **Errands** (`errand.ts`): the crowd can be sent on a few steps of visible
+  work, each with a load carried in the hands (`Person.load`, drawn from
+  `src/parts/people/loads.ts`) and something done on arrival. The crowd asks
+  `CrowdOptions.errands` first whenever somebody chooses what to do. A failed
+  step takes the load home; nobody keeps a load into a haunt.
+- **The town's chains** live in `src/life/town/`: `board.ts` runs plans and keeps the stores where things lie once
+  set down; `chains/` holds bread (L51), water (L52), the catch (L53),
+  builders (L54), the night watchman (L55), market day (L56) and the wedding
+  (L57). Their posts are `errand` sockets from `src/rules/life/L5*.rule.ts`.
+  `people.system.ts` runs a `LivingTown` (crowd + board);
+  `window.__lcTown` is it, for sequences.
+- **No extra people**: every chain takes its hands from the residents, so the
+  cap (60, 30 on a phone) holds.
