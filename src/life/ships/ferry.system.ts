@@ -15,7 +15,9 @@
 // there afloat, a resident, until a way opens. Only with no water left at
 // all does it go, in the removal puff (puff.ts).
 //
-// The behaviours tell this system where each boat is drawn (notePose).
+// The behaviours tell this system where each boat is drawn (notePose). And the
+// other way round: a small boat that comes to a town already shown (a dock
+// was just built) rows or sails in from the edge (townLive, entryRoute).
 
 import { columnIndex, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Mat4, Mat4Like } from '@/core/mat4';
@@ -226,6 +228,7 @@ export default defineSystem<State>({
     }
   },
   update(state, dt, signals, ctx) {
+    live.add(ctx.stage);
     for (const l of state.leavers) step(l, dt, signals, ctx.stage, state.water);
     for (let i = state.leavers.length - 1; i >= 0; i--) {
       const l = state.leavers[i]!;
@@ -243,6 +246,18 @@ export default defineSystem<State>({
     state.leavers = [];
   },
 });
+
+const live = new WeakSet<LifeStage>();
+/** True once the town has been shown: a boat created from now on comes in from the edge rather than being there. */
+export function townLive(stage: LifeStage): boolean {
+  return live.has(stage);
+}
+
+/** The way in for a new small boat: from beyond the nearest straight side of the map's edge to (x, z); null if none. */
+export function entryRoute(water: Uint8Array, x: number, z: number): Pt[] | null {
+  const r = wayOut(water, x, z);
+  return r ? r.reverse() : null;
+}
 
 const onStage = new WeakMap<LifeStage, State>();
 /** For tests: the small boats on their way out (and the residents) on a stage, where each is. */

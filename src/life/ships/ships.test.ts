@@ -349,4 +349,29 @@ describe('big ships (L38–L40)', () => {
     expect(hits).toBe(0);
     expect(bg.z).toBeLessThan(maxZ - 1);
   });
+
+  test('a dock built in a town already shown: its rowboat is rowed in from beyond the edge, not there at once', () => {
+    let firstSeen: [number, number] | null = null, reached = false, id = '';
+    run({
+      seconds: 200,
+      boats: true,
+      edits: [{ at: 5, make: () => [dock(14, 28), dock(14, 29), dock(14, 30)] }],
+      onStep(t, _ships, plan, rec) {
+        if (t < 5) return;
+        const boat = plan.dressing.actors.find((a) => a.type === 'rowboat' && a.home === plan.shape.structureAt.get(key(14, 0, 28)));
+        if (!boat) return;
+        id = boat.id;
+        const r = rec.of(boat.id);
+        if (r.moves === 0) return;
+        const [x, , z] = positionOf(r.matrix);
+        firstSeen ??= [x, z];
+        if (mapEdge(x, z) < 0 && Math.hypot(x - 14.5, z - 30) < 3) reached = true;
+      },
+    });
+    expect(id).not.toBe('');
+    expect(firstSeen).not.toBeNull();
+    // It was first drawn out beyond the edge of the map, and later lay at its new dock.
+    expect(mapEdge(firstSeen![0], firstSeen![1])).toBeGreaterThan(0);
+    expect(reached).toBe(true);
+  });
 });
