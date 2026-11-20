@@ -183,10 +183,14 @@ export function createMischiefEngine(seed: number): MischiefEngine {
     hitAt.set(cell, tick);
     const now = ruinOf(cell);
     const cur = ruinStage(now);
-    if (stage <= cur && !(ruinMending(now) && stage > 0)) return false;
+    // A fire in a building being mended does not undo the mending (it stays a building site, lifeless: no
+    // lights, cat or signs coming back while it burns); a blast does (it is a heap again).
+    const burnsSite = cause === 'fire' && ruinMending(now);
+    if (stage <= cur && !(ruinMending(now) && stage > 0 && !burnsSite)) return false;
     const s = Math.max(stage, cur) as DamageStage;
     const keepCause = stage <= cur ? ruinCause(now) : cause;
-    setRuin(cell, packRuin({ stage: s, cause: keepCause, settling: settle || ruinSettling(now), fall }));
+    const d = unpackRuin(now);
+    setRuin(cell, packRuin({ stage: s, cause: keepCause, settling: settle || ruinSettling(now), fall, mending: burnsSite, progress: burnsSite ? d.progress : 0 }));
     if (settle) settling.set(cell, tick + Math.round(BLAST.settle / STEP));
     return true;
   };
@@ -223,7 +227,8 @@ export function createMischiefEngine(seed: number): MischiefEngine {
     f.age = 0;
     // A block that was already scorched has less left in it.
     f.burnt = Math.max(f.burnt, ruinCause(ruin) === 'fire' ? [0, FIRE.scorchedAt, FIRE.halfAt, FIRE.outAt][ruinStage(ruin)]! : 0);
-    if (ruinMending(ruin)) setRuin(cell, packRuin({ stage: Math.max(1, ruinStage(ruin)) as DamageStage, cause: 'fire' }));
+    // A building site catching: still a site (mending kept, so it stays lifeless), now burnt as well.
+    if (ruinMending(ruin)) setRuin(cell, packRuin({ stage: Math.max(1, ruinStage(ruin)) as DamageStage, cause: 'fire', mending: true, progress: unpackRuin(ruin).progress }));
     return true;
   };
 

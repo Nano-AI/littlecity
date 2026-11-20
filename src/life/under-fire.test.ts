@@ -19,6 +19,8 @@
 
 import { describe, expect, test } from 'vitest';
 import { CELL_H, columnIndex } from '@/core/grid';
+import { ruinedStructures } from '@/resolve/ruins';
+import { ruinMending } from '@/world/damage';
 import { buildScenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { createTurmoil, type KindStats } from '../../tests/helpers/turmoil';
@@ -72,5 +74,27 @@ describe('a grown town nuked and mending', () => {
     none('garrison>mesh', 'created');
     for (const s of stats.values()) if (s.nonFinite > 0) problems.push(`${s.kind}: ${s.nonFinite} frames not finite`);
     expect(problems).toEqual([]);
+  }, FULL ? 300_000 : 60_000);
+
+  test('a fire reaching a house being mended: it stays lifeless (no lights, cat or signs coming back) while it burns', () => {
+    const built = buildScenario(findScenario('grown-town-1')!);
+    const t = createTurmoil({ world: built.world, terrain: built.terrain });
+    t.run(2);
+    // A house, cracked: it goes into scaffolding on its own a few seconds later.
+    const shape = t.game.shape;
+    const house = [...shape.structures.values()].find((s) => s.kind === 'house' && s.cells.length >= 2)!;
+    const cell = house.cells[0]!;
+    t.mischief.knock(cell);
+    for (let i = 0; i < 60 && !ruinMending(t.game.world.blocks.get(cell)?.ruin); i++) t.run(1);
+    expect(ruinMending(t.game.world.blocks.get(cell)?.ruin)).toBe(true);
+    expect(ruinedStructures(t.game.shape).has(house.id)).toBe(true);
+    // Fire reaches it.
+    expect(t.mischief.ignite(cell)).toBe(true);
+    let lived = 0;
+    for (let i = 0; i < 40; i++) {
+      t.run(0.5);
+      if (!ruinedStructures(t.game.shape).has(house.id)) lived++;
+    }
+    expect(lived).toBe(0);
   }, FULL ? 300_000 : 60_000);
 });
