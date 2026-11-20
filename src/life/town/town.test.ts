@@ -51,6 +51,7 @@ function run(seconds: number, part: 'day' | 'dawn' | 'night' = 'day', dressing: 
         if (before && !now) {
           if (p.mode === 'home') ledger.home++;
           else if (p.mode === 'visit' || p.mode === 'linger') add(ledger.setDown, `${before}@${tag}`);
+          else if (p.scuffle?.setDown.get(p) === before) add(ledger.setDown, `${before}@scuffle`); // set down to fight (L50), picked up after
           else if (ledger.lost.length < 10) ledger.lost.push(`${p.id} lost a ${before} while ${p.mode} (${tag})`);
         }
         if (now) add(ledger.pickedUp, `${now}@${tag}`);
