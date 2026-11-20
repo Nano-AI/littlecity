@@ -102,6 +102,9 @@ declare module '@/core/vocab' {
     // D37 market cross: at a plinth's 'statue-base' socket; anchor 'vend' on the ground in front.
     'market-cross': true;
     'market-cross.look': number;
+    // D38: a rope swing from a willow's bough out over a river (the swing prop's 'rope' variant).
+    'swing/rope': true;
+    'swing.drop': number; //           rope: how far below the tree's foot the water is (world units)
 
     // U21 castle bailey. A lean-to stable (edge slot against the curtain wall, +Z out); a practice
     // dummy and an archery butt (floor slots, +Z the face); hay bales (edge slot against a wall).

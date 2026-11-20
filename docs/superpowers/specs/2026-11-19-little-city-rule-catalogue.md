@@ -385,6 +385,11 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   3 and no fountain within 2 (the `marketCrosses` fact; D19 leaves these
   plinths alone) → a market cross: two octagonal steps, a tall shaft, a
   cross head with a gilt ball ('activity'/'vend' on the ground in front).
+- **D38 · 3 · Rope swing** (DC-06) — a willow on the ground with river water
+  beside it (open water with a bank across within 3), p = 0.4 → a rope swing
+  from a long bough out over the water, its seat just above the water (a
+  'seat' socket). Not by the sea; never a second swing on a tree (shares
+  D32's claim).
 
 ---
 
