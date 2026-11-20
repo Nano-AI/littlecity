@@ -98,6 +98,10 @@ const FOOTPRINTS: Readonly<Record<string, Footprint>> = {
   // Wide things: they fill a side, or the middle of a cell.
   bench: BULK, 'cafe-table': BULK, 'flower-bed': BULK, 'net-rack': BULK, trough: BULK, shed: BULK, woodpile: BULK, 'wall-fountain': BULK,
   'street-tree': BULK, 'goods-stack': BULK, cart: BULK, kiosk: BULK, grazer: BULK, 'veg-patch': BULK, 'role-prop/net': BULK,
+  // The fill builder's (disc1-fill): flat things underfoot, a gate in a hedge, and wide things.
+  sward: FLAT, paving: FLAT, 'bleaching-sheet': FLAT, 'hedge/wild': RUN, 'field-gate': WAY,
+  'wall-booth': BULK, 'store-door': BULK, 'niche-bench': BULK, stable: BULK, hay: BULK, compost: BULK, 'drying-line': BULK, pergola: BULK,
+  'market-cross': BULK, 'stepping-stones': BULK,
 };
 function footprintOf(type: string, variant: string | undefined): Footprint {
   return (variant !== undefined ? FOOTPRINTS[`${type}/${variant}`] : undefined) ?? FOOTPRINTS[type] ?? POST;

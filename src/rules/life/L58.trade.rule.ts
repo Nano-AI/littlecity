@@ -2,11 +2,12 @@
 // that take what the ships land: up to TRADE_DESTS shops, inns and market
 // stalls within TRADE_REACH steps of a quay that can be walked to from it,
 // nearest first. Posts `trade|to|door` outside a shop's or inn's door, and
-// `trade|to|stall` in front of a market stall. src/life/town/chains/trade.ts
+// `trade|to|stall` in front of a market stall; warehouses (R-H17) take them at
+// their loading door. src/life/town/chains/trade.ts
 // sends carters with handcarts from the goods piled on the quay (the
 // harbour's piles, L38–L40) to them.
 
-import { above, NO_CELL } from '@/core/grid';
+import { above, neighbor, NO_CELL, opposite, type Dir4 } from '@/core/grid';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import { navOf, steps } from './people.lib';
 import { byNearness, doorPlace, joined, stallPlace, type Place } from './town.lib';
@@ -38,6 +39,13 @@ export default defineRule<Place & { ref: string }>({
         at = stallPlace(ctx, nav, s.id);
         ref = 'stall';
       } else if (role === 'shop' || role === 'inn') at = doorPlace(nav, s.id);
+      else if (role === 'warehouse') {
+        // A warehouse (R-H17) takes goods at its loading door: the walkable cell outside it.
+        const ld = (ctx.plan.sockets as readonly { type: string; structure?: number; cell: number; dir?: Dir4 }[]).find((x) => x.type === 'loading-door' && x.structure === s.id && x.dir !== undefined);
+        const out = ld ? neighbor(ld.cell, ld.dir!) : NO_CELL;
+        if (ld && out !== NO_CELL && nav.nodeAt.has(out)) at = { cell: out, dir: opposite(ld.dir!), structure: s.id };
+        ref = 'door';
+      }
       if (!at) continue;
       const near = from.reduce((best, c) => Math.min(best, steps(c, at!.cell)), Infinity);
       if (near > TRADE_REACH || !joined(nav, at.cell, from[0]!)) continue;

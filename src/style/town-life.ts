@@ -193,3 +193,35 @@ export const LOADS = defineStyle(
   },
   { far: [1, 3, 0.05] },
 );
+
+/** L62 and the fill builder's places. */
+export const PLACES = defineStyle(
+  'places',
+  {
+    /** School: seconds from one lesson's start to the next, of the lesson, of play in the yard after; how far from home a child goes. */
+    schoolCycle: 150,
+    lesson: 70,
+    play: 14,
+    schoolReach: 30,
+    /** Smith: seconds at the anvil each spell. */
+    hammer: 9,
+    /** Shows: seconds from one show's start to the next at a place, of the show; the chance a resident goes, and how far. */
+    showCycle: 210,
+    show: 60,
+    audience: 0.35,
+    showReach: 24,
+    /** The chance a resident choosing what to do stops at a wall booth. */
+    browse: 0.1,
+    /** Orchard: seconds up the ladder picking. */
+    pick: 5,
+    /** Maypole: seconds from one dance to the next, of the dance; dancers at most. */
+    danceCycle: 180,
+    dance: 50,
+    dancers: 6,
+  },
+  {
+    schoolCycle: [30, 600, 5], lesson: [10, 300, 5], play: [2, 60, 1], schoolReach: [4, 48, 1], hammer: [1, 30, 0.5],
+    showCycle: [30, 900, 5], show: [10, 300, 5], audience: [0, 1, 0.01], showReach: [4, 48, 1], browse: [0, 1, 0.01],
+    pick: [1, 20, 0.5], danceCycle: [30, 900, 5], dance: [10, 300, 5], dancers: [2, 12, 1],
+  },
+);
