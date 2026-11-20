@@ -59,7 +59,7 @@ const ALLOWED: Record<string, number> = {
 
 const SCENARIOS = [
   'everything', 'grown-town-1', 'grown-town-2', 'grown-town-3', 'grown-town-4', 'grown-town-5', 'grown-town-6', 'grown-town-7',
-  'dressing-town', 'people-town', 'monuments-vertical', 'village-green-and-harbour', 'look-terrain2-river-town',
+  'dressing-town', 'people-town', 'monuments-vertical', 'village-green-and-harbour', 'look-terrain2-river-town', 'field-courts',
 ];
 
 const where = (p: CoplanarPair): string => `${p.a} / ${p.b} at ${p.at.map((v) => v.toFixed(2)).join(', ')} (shares ${p.shared.toFixed(4)})`;

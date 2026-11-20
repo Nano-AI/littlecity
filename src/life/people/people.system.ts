@@ -224,6 +224,10 @@ export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'hammer') return 'hammer';
   if (pose === 'mow') return 'scythe';
   if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
+  // The playing field: a racket or a mallet for the whole game (src/life/field).
+  const tag = p.mode === 'linger' ? p.goal?.errand?.tag : undefined;
+  if (tag === 'field:racket') return 'racket';
+  if (tag === 'field:mallet') return 'mallet';
   // An errand's load fills their hands (loads.ts draws it).
   if (p.load) return null;
   const job = p.work?.job;

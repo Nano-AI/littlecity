@@ -163,6 +163,7 @@ const BUILDS: Partial<Record<SpecimenKind, (b: TownBuilder) => void>> = {
   path: floors('path'),
   plaza: floors('plaza'),
   garden: floors('garden'),
+  field: floors('field'),
 };
 
 /** A few pieces of one kind, laid out the ways a player would build them. */
