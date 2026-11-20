@@ -6,6 +6,11 @@
 //                     stage, facing the seats; a brazier at each end of it
 //   barn (R-H18)      outside its big doors: hay bales, and on a farmstead
 //                     a hand cart too
+//   churchyard        rows of headstones facing east (two graves to a cell,
+//   (R-G02, or bare   every other column of cells left as a mown walk), a
+//   grass closed      stone cross in the middle, a dark yew in the corner
+//   round beside a    farthest from the chapel, and a lychgate over each
+//   chapel)           opening a path makes in its wall or fence (J20 gate)
 //   warehouse (R-H17) crates, a barrel and a sack beside its loading door
 //   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
 //                     timber weir across the stream beside it; flour sacks
@@ -15,19 +20,21 @@
 // it serves. Priority 896: just before R-H99, and before the general
 // doorstep dressing (D11), so these get their floor slots first.
 
-import { key, keyX, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
+import { edgeCells, key, keyX, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
 import { cellInfo } from '@/resolve/facts/cell.fact';
 import type { Anchor, CellPos } from '@/resolve/plan';
 import { theatreOf } from './R-M09.theatre.rule';
+import { chapels, grassYard, isChurchyard } from './churchyard.lib';
 import { riverAt } from './river.lib';
 
-type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates';
+type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates' | 'headstone' | 'cross' | 'yew' | 'lychgate';
 interface Data {
   variant: Variant | 'cart' | 'sacks' | 'wheel';
   at: Anchor;
   claim: string;
   span?: number;
+  edge?: number;
 }
 
 export default defineRule<Data>({
@@ -35,7 +42,7 @@ export default defineRule<Data>({
   part: 'decoration',
   tier: 2,
   priority: 896,
-  about: 'Reads: the roles of discovery round 1 (theatre, barn, warehouse, watermill), main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
+  about: 'Reads: the roles of discovery round 1 (theatre, barn, warehouse, watermill, churchyard; chapels for bare-grass yards), J20 gates, main doors, the mill race, river water. Emits: structure-prop props, role-prop carts and sacks, the water-wheel actor. Claims: the floor slots they stand on.',
   find(ctx) {
     const { plan } = ctx;
     const out: Candidate<Data>[] = [];
@@ -58,6 +65,62 @@ export default defineRule<Data>({
       2: ['nw', 'ne', 'sw', 'se'],
       3: ['ne', 'se', 'nw', 'sw'],
     };
+    // Churchyards: garden regions with the role, and bare grass closed round beside a chapel.
+    const yards: { id: number; cells: CellKey[] }[] = [];
+    for (const [id, { role }] of plan.roles) if (role === 'churchyard') yards.push({ id, cells: [...plan.structures.get(id)!.cells] });
+    for (const { chapel, steeple } of chapels(plan)) {
+      const church = new Set<number>(steeple === null ? [chapel] : [chapel, steeple]);
+      const seen = new Set<CellKey>(yards.flatMap((y) => y.cells));
+      for (const id of church) {
+        for (const c of plan.structures.get(id)!.cells) {
+          for (const d of [0, 1, 2, 3] as Dir4[]) {
+            const n = neighbor(c, d);
+            if (n === NO_CELL || seen.has(n)) continue;
+            const cells = grassYard(ctx.facts, n);
+            if (!cells) continue;
+            for (const k of cells) seen.add(k);
+            if (isChurchyard(ctx.facts, cells, church)) yards.push({ id: chapel, cells });
+          }
+        }
+      }
+    }
+    for (const yard of yards) {
+      const inYard = new Set(yard.cells);
+      const x0 = Math.min(...yard.cells.map(keyX));
+      const graves = yard.cells.filter((c) => !ctx.facts.kinds.has(c) && (keyX(c) - x0) % 2 === 0);
+      // The yew: in the cell farthest from the chapel's middle, the cross in the middle of the graves.
+      const church = plan.structures.get(yard.id)!;
+      const cx = church.cells.reduce((a, c) => a + keyX(c), 0) / church.cells.length, cz = church.cells.reduce((a, c) => a + keyZ(c), 0) / church.cells.length;
+      const far = [...yard.cells].filter((c) => !ctx.facts.kinds.has(c)).sort((a, b) => Math.hypot(keyX(b) - cx, keyZ(b) - cz) - Math.hypot(keyX(a) - cx, keyZ(a) - cz) || a - b)[0];
+      const crossAt = graves.length >= 3 ? graves[Math.floor(graves.length / 2)] : undefined;
+      for (const c of graves) {
+        if (c === far) continue;
+        if (c === crossAt) {
+          add(c, yard.id, `cross${c}`, 'cross', { cell: c, pos: 'c', face: 1 }, slot.floor(c, 'c'));
+          continue;
+        }
+        for (const pos of ['nw', 'sw'] as CellPos[]) add(c, yard.id, `stone${c}${pos}`, 'headstone', { cell: c, pos, face: 1 }, slot.floor(c, pos));
+      }
+      if (far !== undefined) add(far, yard.id, `yew${far}`, 'yew', { cell: far, pos: 'c' }, slot.floor(far, 'c'));
+      // Lychgates: over a gate (J20) in a wall or fence run that opens into the yard.
+      for (const f of plan.features) {
+        if (f.type !== 'gate') continue;
+        if (f.cell !== undefined) {
+          const inner = ([0, 1, 2, 3] as Dir4[]).find((d) => inYard.has(neighbor(f.cell!, d)));
+          if (inner === undefined) continue;
+          add(f.cell, yard.id, `lych${f.cell}`, 'lychgate', { cell: f.cell, pos: 'c', face: opposite(inner) as Dir4 }, slot.custom('lychgate', f.cell));
+        } else if (f.edge !== undefined) {
+          const [a, b] = edgeCells(f.edge);
+          // The side of the gate in the yard: a yard cell, or the path cell inside it that the gate opens onto.
+          const touches = (c: CellKey, not: CellKey): boolean => inYard.has(c) || ([0, 1, 2, 3] as Dir4[]).some((d) => neighbor(c, d) !== not && inYard.has(neighbor(c, d)));
+          const inside = touches(a, b) && !inYard.has(b) ? a : touches(b, a) ? b : NO_CELL;
+          if (inside === NO_CELL) continue;
+          const other = inside === a ? b : a;
+          const d = ([0, 1, 2, 3] as Dir4[]).find((k) => neighbor(inside, k) === other)!;
+          out.push({ anchor: inside, structure: yard.id, key: `lych-e${f.edge}`, data: { variant: 'lychgate', at: { cell: inside, pos: 'c', face: d }, claim: slot.custom('lychgate', inside, d), edge: 1 } });
+        }
+      }
+    }
     for (const [id, { role }] of plan.roles) {
       if (role === 'warehouse') {
         const doors = (plan.featuresByStructure.get(id) ?? []).find((f) => f.type === 'loading-doors');
@@ -112,6 +175,9 @@ export default defineRule<Data>({
     const v = c.data.variant;
     if (v === 'cart' || v === 'sacks') out.prop({ type: 'role-prop', variant: v, at: c.data.at });
     else if (v === 'wheel') out.actor({ type: 'water-wheel', at: c.data.at, home: c.structure });
-    else out.prop({ type: 'structure-prop', variant: v, at: c.data.at, ...(c.data.span !== undefined ? { params: { span: c.data.span } } : {}) });
+    else {
+      const params = { ...(c.data.span !== undefined ? { span: c.data.span } : {}), ...(c.data.edge !== undefined ? { edge: c.data.edge } : {}) };
+      out.prop({ type: 'structure-prop', variant: v, at: c.data.at, ...(Object.keys(params).length ? { params } : {}) });
+    }
   },
 });

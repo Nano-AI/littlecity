@@ -239,6 +239,21 @@ type and which later rules apply.
 - **R-S01 · 1 · Stall** (first match) — within 3 of a dock → fish stall; on
   garden → flower stall; otherwise market stall with a striped awning and
   goods chosen by seed.
+- **R-G02 · 2 · Churchyard** (discovery 1, RC-01 and FX-07) — a garden
+  region of 2–40 cells on the ground with a cell side by side with a chapel
+  (R-H01) or its steeple, whose outward sides other than onto the chapel
+  and steeple are at least 60% wall or fence (an edge piece on the side, or
+  a wall or fence piece beyond) → role churchyard: mown lawn in east–west
+  stripes, no herb beds. Bare grass closed round the same way beside a
+  chapel (the free ground cells a flood from beside it reaches without
+  crossing an edge piece, a block or a floor, 40 at most) gets the same
+  dressing with no role. R-H98 dresses both: two headstones facing east on
+  each cell of every other column (a seeded tilt, a grave mound), a stone
+  cross on the middle grave cell, a clipped dark yew in the cell farthest
+  from the chapel, and a lychgate (posts, tie beams, a steep shingled roof
+  along the wall, a bench) over each J20 gate that opens into the yard.
+  Not: within 2 of a windmill; ground touching another house on 2+ sides;
+  ground on a roof. Priority 3995 (before R-G01).
 - **R-G01 · 1 · Garden** (first match, per garden region) — within 2 of a
   windmill and ≥ 4 cells → wheat; in a courtyard → clipped herb beds; next to
   water → reeds and irises; ≥ 9 cells → park lawn with a hedge border; next

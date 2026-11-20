@@ -28,6 +28,68 @@ export default definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     switch (item.variant) {
+      case 'headstone': {
+        // R-G02: a small rounded headstone, a little askew, with the low mound of its grave in front (+Z).
+        b.at(compose(rotationY((ctx.rand('turn') - 0.5) * 0.25), rotationX((ctx.rand('lean') - 0.5) * 0.18)), () => {
+          b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'stone' }, () => {
+            const w = 0.065 + ctx.rand('w') * 0.025, h = 0.13 + ctx.rand('h') * 0.06;
+            b.box([-w, 0, -0.022], [w, h, 0.022], { skip: ['bottom'] });
+            b.box([-w * 0.7, h, -0.022], [w * 0.7, h + 0.03, 0.022], { skip: ['bottom'] });
+          });
+        });
+        b.with({ color: PALETTE.leafDark, pattern: PATTERN.grass, ink: 'mound' }, () => lump(b, 0, 0, 0.17, 0.08, 0.03, 0.14));
+        break;
+      }
+      case 'cross': {
+        // R-G02: a tall stone cross on a two-step base.
+        b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'base' }, () => {
+          b.box([-0.12, 0, -0.12], [0.12, 0.05, 0.12], { skip: ['bottom'] });
+          b.box([-0.08, 0.05, -0.08], [0.08, 0.1, 0.08], { skip: ['bottom'] });
+        });
+        b.with({ color: PALETTE.stone, pattern: PATTERN.stone, ink: 'cross' }, () => {
+          b.box([-0.025, 0.1, -0.025], [0.025, 0.5, 0.025], { skip: ['bottom'] });
+          b.box([-0.11, 0.36, -0.025], [-0.025, 0.41, 0.025], { skip: ['e'] });
+          b.box([0.025, 0.36, -0.025], [0.11, 0.41, 0.025], { skip: ['w'] });
+        });
+        break;
+      }
+      case 'yew': {
+        // R-G02: a churchyard yew: dark, dense and clipped, a short trunk under a tall rounded cone.
+        b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'trunk' }, () => b.lathe([[0.05, 0], [0.04, 0.14]], { segments: 7 }));
+        b.with({ color: PALETTE.leafDark, pattern: PATTERN.leaves, ink: 'crown', sway: 0.15 }, () => {
+          const r = 0.27 + ctx.rand('r') * 0.04, h = 0.8 + ctx.rand('h') * 0.2;
+          b.lathe([[0.001, 0.1], [r * 0.8, 0.16], [r, 0.3], [r * 0.9, h * 0.6], [r * 0.5, h * 0.88], [0, h]], { segments: 10, capBottom: true });
+        });
+        break;
+      }
+      case 'lychgate': {
+        // R-G02: a roofed gate over the opening in the churchyard wall: two posts each side, a tie beam, and a
+        // steep shingled gable roof along the wall line. +Z out of the yard; on an edge, the gate stands on it.
+        const at = item.params?.edge === 1 ? 0.5 : 0;
+        b.at(translation(0, 0, at), () => {
+          const hw = 0.42, hd = 0.2, eave = 0.62, peak = 0.92;
+          b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'posts' }, () => {
+            for (const x of [-hw, hw]) for (const z of [-hd, hd]) b.box([x - 0.025, 0, z - 0.025], [x + 0.025, eave, z + 0.025], { skip: ['bottom', 'top'] });
+            for (const z of [-hd, hd]) b.box([-hw - 0.04, eave - 0.05, z - 0.03], [hw + 0.04, eave, z + 0.03]);
+          });
+          // The roof: two slopes running along the wall (x), falling toward and away from the yard (z).
+          b.with({ color: PALETTE.redDark, pattern: PATTERN.shingles, ink: 'roof' }, () => {
+            const ox = hw + 0.1, oz = hd + 0.12;
+            b.quad([-ox, eave - 0.02, oz], [ox, eave - 0.02, oz], [ox, peak, 0], [-ox, peak, 0]);
+            b.quad([ox, eave - 0.02, -oz], [-ox, eave - 0.02, -oz], [-ox, peak, 0], [ox, peak, 0]);
+          });
+          b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'gables' }, () => {
+            for (const x of [-hw - 0.04, hw + 0.04]) {
+              const s = x < 0 ? -1 : 1;
+              const tri: [number, number, number][] = [[x, eave, -hd - 0.03], [x, eave, hd + 0.03], [x, peak - 0.04, 0]];
+              b.polygon(s > 0 ? tri : [tri[0]!, tri[2]!, tri[1]!]);
+            }
+          });
+          // A bench along one side, under the roof, for the bearers to rest the coffin.
+          b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'bench' }, () => b.box([-hw + 0.06, 0.18, -hd + 0.02], [hw - 0.06, 0.22, -hd + 0.12]));
+        });
+        break;
+      }
       case 'backdrop': {
         // R-M09: a theatre's painted backdrop: two posts, a cross beam, a painted cloth between them with an
         // arch painted on it, and the two masks (smiling gold, weeping white) on the beam. +Z faces the seats.

@@ -436,3 +436,17 @@ export function roundBed(b: MeshBuilder, x: number, y: number, z: number, seed: 
   }
   bloom(b, x, y, z, 0.1, 0.15, blooms[1]!, PALETTE.leafDark);
 }
+
+/** R-G02: a churchyard's mown grass: the lawn, with every other row of cells a shade lighter (no hedge). */
+export function churchyardLawn(c: GardenCtx, cell: CellKey): void {
+  const { b } = c;
+  ground(c, cell, PALETTE.garden, PATTERN.grass);
+  const x = keyX(cell), z = keyZ(cell), y = groundY(cell);
+  const here = inRegion(c, cell);
+  if (Math.floor(z) % 2 === 0) {
+    const a = DIRS.map((d) => (here(d) ? 0 : FLOOR.gardenRound + 0.02));
+    b.with({ color: mixColor(PALETTE.garden, PALETTE.white, 0.12), pattern: PATTERN.grass, ink: 'ground' }, () =>
+      b.quad([x + a[3]!, y + 0.002, z + 1 - a[2]!], [x + 1 - a[1]!, y + 0.002, z + 1 - a[2]!], [x + 1 - a[1]!, y + 0.002, z + a[0]!], [x + a[3]!, y + 0.002, z + a[0]!]),
+    );
+  }
+}

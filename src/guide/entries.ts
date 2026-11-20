@@ -839,6 +839,19 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
+    id: 'churchyard',
+    group: 'green',
+    name: 'Churchyard',
+    how: 'Wall or fence in some garden or grass beside a chapel: it fills with headstones and a yew, with a roofed lychgate where a path goes through the wall.',
+    proof: { role: 'churchyard' },
+    seed: 7607,
+    build(b) {
+      b.house(18, 18, { w: 3, color: 5 }).tower(21, 18, { floors: 4 });
+      b.garden(18, 19, 20, 21).fenceAround(18, 19, 20, 21, 'wall');
+    },
+    view: FRONT,
+  },
+  {
     id: 'herb-garden',
     group: 'green',
     name: 'Herb garden',

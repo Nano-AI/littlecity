@@ -10,6 +10,8 @@ declare module '@/core/vocab' {
     'warehouse': 'house'; //     R-H17: a big store on the waterfront: loading doors and a hoist
     'watermill': 'house'; //     R-H16: a house on a river bank, with a turning wheel and a weir
     'barn': 'house'; //          R-H18: a long low building by the fields
+    // garden regions (R-G02)
+    'churchyard': 'garden'; //   R-G02: a walled or fenced garden beside a chapel
     // marble (R-M08 …)
     'podium': 'marble'; //       R-M08: carries a temple, a stair or a forum: no battlements
     'theatre': 'marble'; //      R-M09: tiers of seats facing a stage
@@ -44,6 +46,11 @@ declare module '@/core/vocab' {
     'structure-prop/backdrop': true; //  theatre: a painted backdrop with two masks; +Z toward the seats
     'structure-prop/brazier': true; //   theatre: a fire in an iron bowl (glows at dusk and night)
     'structure-prop/hay': true; //       barn: a stack of hay bales by the big doors
+    'structure-prop/headstone': true; // churchyard: a small headstone (seeded tilt); +Z the way it faces (east)
+    'structure-prop/cross': true; //     churchyard: a taller stone cross on a stepped base
+    'structure-prop/yew': true; //       churchyard: a dark clipped yew
+    'structure-prop/lychgate': true; //  churchyard: a roofed gate over the opening in its wall; +Z out of the yard
+    'structure-prop.edge': number; //    lychgate: 1 when the opening is on the cell's edge (+Z side), 0 in the cell
     'structure-prop/crates': true; //    warehouse: crates and a barrel by the loading door
     'structure-prop/weir': true; //      watermill: a timber weir across the stream, from the bank (+Z) out
     'structure-prop.span': number; //    weir: how many water cells it crosses (default 2)
