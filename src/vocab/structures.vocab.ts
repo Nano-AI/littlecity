@@ -7,6 +7,7 @@ import '@/core/vocab';
 declare module '@/core/vocab' {
   interface RoleVocab {
     // houses (R-H16 …)
+    'bridge-shop': 'house'; //   R-H20: a house on a bridge or viaduct deck: a shop over the water
     'smithy': 'house'; //        R-H19: a one-storey house against a short tower: a forge
     'forge-chimney': 'tower'; // R-H19: the smithy's tower, a broad smoking chimney
     'warehouse': 'house'; //     R-H17: a big store on the waterfront: loading doors and a hoist
@@ -27,6 +28,7 @@ declare module '@/core/vocab' {
     'loading-doors': true; //    R-H17: a column of loading doors up the water side, a hoist beam over them
     'loading-doors.storeys': number; // how many storeys the column climbs (default 2)
     'cap/belvedere': true; //    R-L02: an open belvedere on a folly tower (no lantern, no beam)
+    'bridge-brackets': true; //  R-H20: timber struts under a bridge shop's wall where it overhangs the drop
     'forge-front': true; //      R-H19: an open forge front with a glowing hearth, on a ground-storey wall
     'mill-race': true; //        R-H16: the wheel's timber frame and bearing on the water side; owns 'wheel-hub'
   }

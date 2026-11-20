@@ -654,6 +654,24 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 60, pitch: 28 },
   },
   {
+    id: 'bridge-shop',
+    group: 'bridges',
+    name: 'Bridge shops',
+    how: 'Build houses on a bridge two or more wide whose deck is a street (a path on it or at its end), leaving room to pass: they become shops over the river.',
+    proof: { role: 'bridge-shop' },
+    seed: 7406,
+    ground(t) {
+      t.flat(1);
+      t.water(4, 19, 43, 21);
+    },
+    build(b) {
+      for (let z = 19; z <= 21; z++) b.block('arch', 19, 0, z).block('arch', 20, 0, z);
+      b.path(19, 17, 19, 23);
+      b.house(20, 19, { d: 2, floors: 2, color: 4 });
+    },
+    view: { yaw: 60, pitch: 28 },
+  },
+  {
     id: 'sky-bridge',
     group: 'bridges',
     name: 'Sky bridge',

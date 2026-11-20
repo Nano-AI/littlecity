@@ -95,6 +95,21 @@ export const loadingDoors = definePart({
   },
 });
 
+export const bridgeBrackets = definePart({
+  feature: 'bridge-brackets',
+  build(_item, ctx) {
+    const b = ctx.mesh();
+    // A sill beam along the foot of the wall and two raking struts down and back into the bridge below.
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.planks, ink: 'sill' }, () => b.box([-0.43, -0.06, 0], [0.43, 0.0, 0.05], { skip: ['n'] }));
+    b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'struts' }, () => {
+      for (const x of [-0.28, 0.28]) {
+        b.at(compose(translation(x, -0.06, 0.03), rotationX(0.6)), () => b.box([-0.025, -0.36, -0.025], [0.025, 0, 0.025], { skip: ['top'] }));
+      }
+    });
+    return { mesh: b.build() };
+  },
+});
+
 export const forgeFront = definePart({
   feature: 'forge-front',
   build(_item, ctx) {

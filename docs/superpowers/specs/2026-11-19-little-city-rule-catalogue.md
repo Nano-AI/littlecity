@@ -75,6 +75,16 @@ type and which later rules apply.
   the loading door (R-H98); no window in that column. Not: a house on the
   harbour square (the inn or a shop), a house on an open coast with no
   dock. Priority 9942 (after the town hall, before the inn).
+- **R-H20 · 2 · Bridge shop** (discovery 1, RC-05) — a house whose lowest
+  cells all stand on arch cells, where the bridge (any run of that arch
+  structure) carries a floor on its deck or meets one at an end, and some
+  deck cell is left free beside the house → a shop over the water: a shop
+  door and shopfront onto the deck (J06, J09; awning and sign by D07), a
+  seeded shop type, half-timbered cells over the arch (a jetty feature on
+  each lowest cell), and timber struts under each ground-storey wall that
+  overhangs the drop (J30 bridge-brackets). Not: a bridge with no street on
+  or to it; a house filling the whole deck. Priority 9965 (before the stilt
+  house).
 - **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and 1 storey,
   or a footprint of 2 or fewer and 2 storeys (FX-12); ground storey at `y ≤ 1` and a facade faces water within 1, or
   touches a dock → wide double doors on the water side, slipway, net on the

@@ -147,6 +147,7 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
       case 'mill-race':
       case 'loading-doors':
       case 'forge-front':
+      case 'bridge-brackets':
       case 'balcony':
       case 'portico':
       case 'vista':

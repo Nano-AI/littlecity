@@ -13,6 +13,8 @@
 //   smithy         an open forge front with a glowing hearth on a free
 //   (R-H19)        ground-storey wall that is not its door's, facing the
 //                  most open ground ('forge-front'); J09 leaves it windowless.
+//   bridge shop    timber struts under each ground-storey wall that looks
+//   (R-H20)        out over the drop beside the deck ('bridge-brackets').
 //   watermill      the wheel's timber frame and bearing on the river side
 //   (R-H16)        ('mill-race', owning the 'wheel-hub' socket the water
 //                  wheel turns on); J09 leaves that wall cell without a window.
@@ -29,7 +31,7 @@ import { facades } from '@/resolve/facts/facades.fact';
 import { doorScore, houseStructures, roleOf, roofOf } from './houses.lib';
 
 interface Front {
-  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors' | 'forge-front';
+  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors' | 'forge-front' | 'bridge-brackets';
   cell: number;
   dir: Dir4;
   storeys?: number;
@@ -58,6 +60,13 @@ export default defineRule<Front>({
         const mine = new Set(s.cells);
         for (let c = above(at.cell); mine.has(c); c = above(c)) storeys++;
         out.push({ anchor: at.cell, structure: s.id, key: 'loading', data: { type: 'loading-doors' as const, cell: at.cell, dir: at.dir, storeys } });
+        continue;
+      }
+      if (role === 'bridge-shop') {
+        for (const f of facades(ctx.facts).byStructure.get(s.id) ?? []) {
+          if (f.storey !== 1 || f.drop < 1 || f.touching) continue;
+          out.push({ anchor: f.cell, structure: s.id, key: `strut${f.cell}:${f.dir}`, data: { type: 'bridge-brackets' as const, cell: f.cell, dir: f.dir } });
+        }
         continue;
       }
       if (role === 'smithy') {
