@@ -134,7 +134,8 @@ const api = {
     const dressing: DressingPlan = {
       ...full,
       props: full.props.filter((p) => !p.rule.startsWith(SCATTER)),
-      actors: full.actors.filter((a) => !RESTLESS.has(a.type)),
+      // The events' pictures keep the town's people (L56, L57).
+      actors: full.actors.filter((a) => !RESTLESS.has(a.type) || (entry.life?.residents === true && a.type === 'resident')),
     };
 
     // One view for every picture: a fresh WebGL context per picture would draw its first
