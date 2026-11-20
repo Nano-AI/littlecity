@@ -26,8 +26,8 @@ prop's id; its frame comes from the prop part's anchor of the same name
 | `activity` / `fetch-water` | U-wall shops (wall fountain), D horse trough, U-bailey well | stand at the spout or trough, fill a pail, water a horse |
 | `activity` / `vend` | U-wall shops (arched booth), U market cross | a vendor stands behind the counter / sits on the steps |
 | `activity` / `browse` | U-wall shops (booth) | a customer stands in front of the booth |
-| `activity` / `hang-washing` | U-drying green (each line), U-burgage plot washing pole | peg out washing |
-| `line-anchor` (existing) | U-drying green | each end of a washing line |
+| `activity` / `hang-washing` | U17 drying green (each line), U14 burgage plot washing pole | peg out washing |
+| `activity` / `basket` | U17 drying green (washing basket), orchard (apple basket) | put washing or fruit in |
 | `activity` / `pick` | U-orchard (ladder foot) | a picker climbs or stands at the ladder |
 | `activity` / `basket` | U-orchard (basket) | drop fruit in the basket |
 | `activity` / `ford` | U-ford (each bank end) | the two ends of a stepping-stone crossing |

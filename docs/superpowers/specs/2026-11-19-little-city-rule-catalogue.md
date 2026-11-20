@@ -641,6 +641,12 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   fountain ('activity'/'fetch-water'), and the grass strip in front paved;
   facing ground, a storeroom door, a niche bench or two-storey ivy. Props
   against the wall (the generator cannot recess it).
+- **U17 · 2 · Drying green** (UF-12) — a leftover of more than 6 and up to 20
+  cells, unfenced, touching no street or square, shut in by the backs of 3+
+  houses (not a courtyard: D17 takes buildings-only patches up to 16 that
+  are 2+ across both ways) → 2–3 washing lines on posts, each two cells
+  long and a cell apart ('activity'/'hang-washing'), a basket of washing
+  ('activity'/'basket'), one or two sheets bleaching on the grass.
 
 ---
 

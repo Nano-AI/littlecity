@@ -20,6 +20,8 @@
 //                        and a tree or a well in the middle
 //   back yard (U04)      a leftover of up to 6 cells that touches houses and
 //                        no street or square
+//   drying green (U17)   a leftover of more than DRESSING.yardMax and up to 20
+//                        cells, unfenced, off every street, touching 3+ houses
 //   pocket park (U01)    a leftover of 2 to DRESSING.parkMax cells that
 //                        touches a street or a square
 //   village green (U15) open grass (after all the above) holding a 3 × 3,
@@ -99,6 +101,7 @@ export type LandUse =
   | { use: 'front-garden'; garden: FrontGarden }
   | { use: 'burgage'; burgage: Burgage }
   | { use: 'green'; green: Green }
+  | { use: 'drying-green'; patch: Patch }
   | { use: 'field'; field: Field }
   | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
@@ -114,6 +117,7 @@ export interface LandUses {
   backYards: readonly Patch[];
   pocketParks: readonly Patch[];
   greens: readonly Green[];
+  dryingGreens: readonly Patch[];
 }
 
 /** U15: how far a house looks across a green, and the green's size and ring of houses. */
@@ -121,6 +125,10 @@ const GREEN_REACH = 8;
 const GREEN_MIN = 9;
 const GREEN_MAX = 100;
 const GREEN_HOUSES = 4;
+
+/** U17: a drying green is shut in by this many houses or more, and is at most DRYING_MAX cells. */
+const DRYING_HOUSES = 3;
+const DRYING_MAX = 20;
 
 /** U14: the most cells a burgage patch may have (bigger fenced land is a field). */
 const BURGAGE_MAX = 80;
@@ -182,6 +190,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
   const fields: Field[] = [];
   const courtyards: Patch[] = [];
   const backYards: Patch[] = [];
+  const dryingGreens: Patch[] = [];
   const pocketParks: Patch[] = [];
   for (const l of leftovers(f).list) {
     const cells = l.cells.filter((c) => !byCell.has(c));
@@ -209,6 +218,12 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
       const patch: Patch = { cells, houses };
       backYards.push(patch);
       for (const c of cells) byCell.set(c, { use: 'back-yard', patch });
+    } else if (!l.streets.length && !l.plazas.length && !fenced && !open && houses.length >= DRYING_HOUSES && trees < DRESSING.parkTrees && cells.length <= DRYING_MAX && cells.length === l.cells.length) {
+      // U17: too big for a back yard, unfenced, shut in by the backs of three or more houses: the
+      // common green the washing is laid out on.
+      const patch: Patch = { cells, houses };
+      dryingGreens.push(patch);
+      for (const c of cells) byCell.set(c, { use: 'drying-green', patch });
     } else if ((l.streets.length || l.plazas.length) && cells.length >= DRESSING.parkMin && cells.length <= DRESSING.parkMax) {
       const patch: Patch = { cells, houses };
       pocketParks.push(patch);
@@ -300,7 +315,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     for (const c of cells) byCell.set(c, { use: 'green', green });
   }
 
-  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens };
+  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens, dryingGreens };
 
   /** The row of houses whose backs (no main door) face the land on one side, if two or more. */
   function burgageOf(cells: readonly CellKey[]): Burgage | null {

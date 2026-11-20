@@ -32,6 +32,18 @@ declare module '@/core/vocab' {
     'fruit-tree.look': number;
     'compost': true;
     'compost.look': number;
+    // U17 drying green. A drying line: at a floor slot, posts `span` cells apart along +X; anchors
+    // 'hang-washing', 'line-0', 'line-1'. A basket (washing or apples): a floor slot; anchor 'basket'.
+    // A bleaching sheet: at a cell's north-west corner slot facing south (the part re-centres).
+    'drying-line': true;
+    'drying-line.span': number;
+    'drying-line.look': number;
+    'basket': true;
+    'basket/washing': true;
+    'basket/apples': true;
+    'basket.look': number;
+    'bleaching-sheet': true;
+    'bleaching-sheet.look': number;
 
     // U15 village green. Sward: one cell of mown lawn at the centre slot, square to the world; `mask`
     // bit d set where the green runs on past side d; `stripe` 0 or 1 (the mown band). Maypole: at a
