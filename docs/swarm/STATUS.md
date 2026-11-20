@@ -619,3 +619,21 @@ repair scaffolding and crew assets. Served at http://127.0.0.1:5175/
 (`/?seed=4242&mischief`). It also uses codec version 4 → will conflict with
 landshaping's v4 on merge (move ruins to flag bit 1). Waiting on Derek.
 Running: disc1-structures, disc1-fill, living-town pass 2.
+
+**Living town pass 2 merged** (`91cb203`): loads 1.65× and carried high,
+growing with camera distance; faster bread; scuffles broken up by the
+watchman or a guard; L58 quay trade with handcarts; L59 harvest; L60
+laundry out and in (rain); L61 dogs; gulls over the catch. Timeouts in the
+full run passed serially.
+**Discovery 1 structures merged** (`122437b`): R-M08 podium (temples and
+stairs no longer keeps; garrison needs a real castle), inn and shop limits
+(grown towns: shops 31–58 → 3–26 per town; inns 1 each), chapel roofs,
+churchyard, warehouse, watermill, bridge-shop, smithy, theatre, obelisk,
+barn, stoa, bandstand, schoolhouse, folly-tower. Not reached: cathedral.
+**NOT PUBLISHED: 3 tests fail at the seam** (L51.bread fixture has nowhere
+to sell; a scuffle test; people-town overlaps 41 > 30). Sent to the
+living-town agent; publish when it reports green. Last published build:
+land shaping (`3fb3f2e`).
+Running: disc1-fill, living-town (integration, then the new buildings).
+Previews awaiting Derek: walk (`swarm/walk`), mischief (`swarm/mischief`,
+served at port 5175).
