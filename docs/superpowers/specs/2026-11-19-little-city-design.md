@@ -821,6 +821,87 @@ dust ring, neighbours wobbling when their shape changes, Auto morph sparkle,
 staggered pop-in for new decorations (a street's lamps pop up one after
 another), and synthesized sounds.
 
+## 13a. Seasons and weather (Derek's request, 2026-11-19)
+
+Two separate things that work together. Derek gave creative freedom here;
+the fixed points are his: snow falls and settles on the island and the
+roofs; in autumn the leaves turn; at Christmas the town puts up lights.
+
+**Seasons** change how the whole island is drawn, slowly.
+
+- Four seasons in a loop: spring, summer, autumn, winter. By default the
+  year turns on its own, one season every few day-night cycles (a tunable
+  number), with a gradual change over a day rather than a switch. A season
+  button beside the time-of-day button cycles: running → hold spring → hold
+  summer → hold autumn → hold winter, exactly as the sun button does for
+  the time of day. The season is a signal like time and wind; the town's
+  logic never reads the real calendar, and a town looks the same for the
+  same season, day and seed.
+- **Spring:** fresh light greens, blossom on fruit and street trees with
+  petals drifting, flowers thick in beds and boxes, lambs with the sheep,
+  birds busy, showers.
+- **Summer:** the game as it looks today, at its fullest: deep greens, wheat
+  turning gold through the season, long days.
+- **Autumn:** tree crowns turn yellow, orange, russet and brown, tree by
+  tree at different times, and leaves fall and gather in drifts along walls
+  and in corners; grass yellows; wheat is cut to stubble with stooks or hay
+  bales; pumpkins in vegetable plots; woodpiles grow; mist in the mornings;
+  shorter days; smoke from more chimneys.
+- **Winter:** bare branches on leaf trees (pines and cypress keep their
+  green and carry snow), frosted pale grass, shorter days and long blue
+  nights, every chimney smoking, residents in scarves and hats, breath
+  puffs, ice at the edges of sheltered water and on ponds and fountains,
+  boats fewer.
+- **Midwinter festival** (the last third of winter): the town puts up
+  lights. Strings of small coloured lights along eaves, round doors and
+  windows, across streets between facing houses and round the square;
+  wreaths on doors; a big decorated tree in the main square (or by the
+  town hall, or the largest plaza) with a star; candles in windows;
+  lanterns on the bridge parapets and the castle gate; the lights glow at
+  dusk and all night. They go up house by house over a day and come down
+  the same way.
+
+**Weather** comes and goes within a season, driven by the same seeded
+clock.
+
+- Kinds: clear, cloudy, rain (shower or steady), thunderstorm (rare,
+  summer), fog or mist (autumn and spring mornings, by the water), wind
+  (gusty days that send leaves and laundry flying), snow (winter, and late
+  autumn rarely).
+- **Rain:** pencilled streaks falling with the wind's slant, a darker wet
+  tone on ground and roofs, ripples on water and puddles gathering in low
+  paved spots, drips from eaves, the paper sky greyed; residents hurry,
+  some with umbrellas, market awnings matter, laundry is taken in; after
+  rain, surfaces dry gradually and, sometimes, a rainbow over the sea.
+- **Snow:** flakes drift down and **settle**. Snow builds up gradually on
+  everything that faces the sky: ground, roofs (sliding thicker toward the
+  eaves), wall tops, battlements, tree crowns and bare branches, lamp tops,
+  boat decks, stall awnings, the tops of hedges and fences, statues. It
+  stays off what is under cover (beneath arches, eaves, awnings, trees).
+  Paths and plazas show trodden tracks where people walk, and are cleared
+  along the middle on busy streets; footprints fade under fresh snow.
+  Roofs drop a slide of snow now and then. When it warms, snow melts back
+  from sunny faces first, with icicles on eaves on the way. Children throw
+  snowballs and build a snowman in the square or a park, which stays until
+  the thaw.
+- Weather changes every few minutes with gentle transitions, weighted by
+  season. A weather choice sits with the season button for holding one kind
+  (auto by default).
+- Sound follows: rain on roofs, wind, the hush of snow, distant thunder.
+
+**How it must be built.** Seasons and weather are drawn by the renderer and
+the life layer from two signals (`season`, `weather`), on top of the town
+as it is; they never change the saved town, the rules' decisions, or what
+is walkable. Snow cover and wetness are shading on existing surfaces by
+their facing and shelter, plus a few added pieces (drifts, icicles, a
+snowman, festival lights), not a rebuild of the town's geometry each time
+it snows. The festival lights and seasonal props are decoration rules that
+read the season signal in the dressing stage. Everything stays within the
+performance budgets on desktop and phone, with falling rain and snow capped
+and lighter on phones. The look stays ink and paper: snow is the paper
+showing through with a cool shadow tone and a soft inked edge, not a white
+3D layer.
+
 ## 14. Performance budgets
 
 Measured on an M-series MacBook at default zoom with the reference town

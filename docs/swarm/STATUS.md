@@ -475,3 +475,18 @@ Space up, Ctrl or C down; Alt or double-tap W to sprint); glide in comes
 from above along a checked clear line; near fade fixed. Full `npm run check`
 not re-run on that branch. Served at http://127.0.0.1:5174/. Waiting on
 Derek.
+
+**Doormats and overlap follow-up merged** (`efd2a21`): D11 mats placed on
+the surface outside the door (0.008 slab, 0.004 proud, sized to the door,
+clear of the leaf, none where there is no flat spot), props now in the
+coplanar scan, R-H04 ladder only on the lowest stilt house, picket scribble
+traced to a doubled garden corner post and fixed, temporary allowances
+removed. **People avoidance merged** (`6734299`): keep right, overtake,
+give way, walk round people standing; sustained overlaps over 7.5 minutes:
+people-town 121 → ~20, everything 162 → ~80, dense square 131 → ~27;
+remaining ones are squeezes at single-file spots. Generator timing tests
+loosened to 900 ms (shared machine). Full run: 1,636 of 1,637; the one
+failure (shots CLI) is a timeout at load 20 and passes alone. Published.
+**Seasons and weather requested** (design section 13a) → new Opus agent on
+`swarm/seasons`.
+Running: ships rework, seasons and weather. Walk preview awaiting Derek.
