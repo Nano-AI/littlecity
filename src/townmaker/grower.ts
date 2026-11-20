@@ -11,6 +11,7 @@
 // districts do not build over each other and the street router knows where
 // it may go.
 
+import { editsOf } from '@/terrain/land';
 import {
   below,
   columnIndex,
@@ -91,6 +92,9 @@ export class Grower {
   ) {
     const w = emptyWorld(terrain.seed);
     this.world = { ...w, blocks: new Map(), floors: new Map(), edges: new Map() };
+    // On a reshaped island (shaping the land) the world carries the reshaping, so every edit is tried on it.
+    const edits = editsOf(terrain);
+    if (edits) this.world = { ...this.world, terrainEdits: edits };
     this.sumH = sat((x, z) => this.h(x, z), Float64Array);
     this.sumH2 = sat((x, z) => this.h(x, z) ** 2, Float64Array);
   }

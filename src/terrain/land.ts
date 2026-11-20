@@ -74,6 +74,20 @@ export function islandOf(w: Pick<World, 'terrainEdits'>, t: Terrain): Terrain {
   return terrain;
 }
 
+/**
+ * The edits that make this island from the one it was derived from (none for a generated island). For
+ * code handed only an island (Grow a town) that builds a world of its own on it.
+ */
+export function editsOf(t: Terrain): TerrainEdits | undefined {
+  const base = bases.get(t);
+  if (!base) return undefined;
+  const out = new Map<number, number>();
+  for (let i = 0; i < N; i++) if (t.height[i] !== base.height[i]) out.set(i, t.height[i]!);
+  if (!out.size) return undefined;
+  derived.set(out, { base, terrain: t });
+  return out;
+}
+
 // ──────────────────────────────────────────────────────── derive ──
 
 const xOf = (i: number): number => i % SIZE_X;
