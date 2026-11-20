@@ -4,7 +4,9 @@
 import { CELL_H, columnIndex, inColumnBounds, key, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Kind } from '@/core/kinds';
 import { hash } from '@/core/rand';
-import type { ShapePlan } from '@/resolve/plan';
+import type { ShapePlan, StructureId } from '@/resolve/plan';
+import { ruinUninhabitable } from '@/world/damage';
+import { glide } from '../motion/ease';
 
 /** The column is open sea: no land and nothing built at sea level. */
 export function openWater(shape: ShapePlan, x: number, z: number): boolean {
@@ -102,4 +104,34 @@ export function topUnder(tops: Float32Array, x: number, z: number, r: number): n
     for (let i = Math.floor(x - r); i <= Math.floor(x + r); i++) if (inColumnBounds(i, j)) top = Math.max(top, tops[columnIndex(i, j)]!);
   }
   return top;
+}
+
+const RUINED = new WeakMap<ShapePlan, ReadonlySet<StructureId>>();
+/**
+ * The structures that are wrecked (half-destroyed or worse) or being mended, worked out once per town:
+ * nothing perches on them, circles their top or roosts in them until they stand whole again.
+ */
+export function wrecked(shape: ShapePlan): ReadonlySet<StructureId> {
+  let out = RUINED.get(shape);
+  if (out) return out;
+  const set = new Set<StructureId>();
+  for (const [cell, b] of shape.world.blocks) {
+    if (!ruinUninhabitable(b.ruin)) continue;
+    const sid = shape.structureAt.get(cell);
+    if (sid !== undefined) set.add(sid);
+  }
+  RUINED.set(shape, (out = set));
+  return out;
+}
+
+/**
+ * How fast a bird's idea of home (the middle and height of its circle, its tower's top) follows a change
+ * in the town, per second. A re-read town never moves a bird in one frame: its circle drifts across.
+ */
+export const HOME_GLIDE = 0.9;
+
+/** `cur` moved toward `want` for `dt` seconds of drifting (snaps when within a hair). */
+export function drift(cur: number, want: number, dt: number, rate = HOME_GLIDE): number {
+  const d = want - cur;
+  return Math.abs(d) < 1e-4 ? want : cur + d * glide(rate, dt);
 }

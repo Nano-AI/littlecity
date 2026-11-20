@@ -25,6 +25,9 @@ export default defineSystem<State>({
       ],
     };
   },
+  sync(state, next) {
+    if (next.dressing) state.table.towns++;
+  },
   update(state, _dt, signals) {
     state.table.expire(signals.time.seconds);
   },

@@ -4,8 +4,11 @@
 
 import type { Mat4, Mat4Like, Vec3 } from '@/core/mat4';
 import { shoulderOf, type Species } from '@/parts/actors/birds/kit';
+import { SIZE_X, SIZE_Z } from '@/core/grid';
 import type { InstanceHandle, LifeStage, SpawnSpec } from '../api';
-import { angleDelta, glide } from '../motion/ease';
+import { fxOf } from '../fx/fx';
+import { angleDelta, easeOut, glide } from '../motion/ease';
+import { fly } from '../motion/pose';
 
 const SPECS: Record<Species, readonly [SpawnSpec, SpawnSpec]> = {
   gull: [{ actor: 'bird-wing', variant: 'gull', params: { side: 1 } }, { actor: 'bird-wing', variant: 'gull', params: { side: -1 } }],
@@ -120,4 +123,91 @@ export function steer(a: Attitude, x: number, y: number, z: number, dt: number, 
   a.y = y;
   a.z = z;
   a.moving = true;
+}
+
+// ── leaving and coming back ─────────────────────────────────────────────
+//
+// A bird whose home goes (its tower wrecked, its tree blown down, the nest
+// gone with the roof) does not blink out: it takes off and flies away over
+// the edge of the island. One made later (its home stands again, or was just
+// built) flies in to it. Neither is ever drawn smaller.
+
+/** World units a second a leaving bird flies at, and how far past the island's edge it goes. */
+const LEAVE_SPEED = 3.4;
+const LEAVE_PAST = 6;
+/** Seconds an arriving bird takes, and how far out and how high it comes from. */
+export const ARRIVE = { time: 2.6, far: 7, up: 3 };
+
+const ISLAND_MIDDLE = SIZE_X / 2;
+
+/** How far from (x, z) along (dx, dz) the island's edge is (dx, dz a unit vector). */
+function toEdge(x: number, z: number, dx: number, dz: number): number {
+  let t = Infinity;
+  if (dx > 1e-6) t = Math.min(t, (SIZE_X - x) / dx);
+  if (dx < -1e-6) t = Math.min(t, -x / dx);
+  if (dz > 1e-6) t = Math.min(t, (SIZE_Z - z) / dz);
+  if (dz < -1e-6) t = Math.min(t, -z / dz);
+  return Number.isFinite(t) ? Math.max(0, t) : 0;
+}
+
+/** Eases in over the first fifth, then flies on at an even pace: 0 → 1. */
+function cruise(t: number): number {
+  return (t < 0.2 ? (t * t) / 0.4 : t - 0.1) / 0.9;
+}
+
+/**
+ * A bird (drawn by `spec`, a module constant) takes off from `from` and flies away off the island, away
+ * from (awayX, awayZ) if given and outward from the middle of the island. `beat` squashes it across on
+ * alternate drawings (the small birds' wing beat). Played as an effect, so it outlives the item.
+ */
+export function flyOff(stage: LifeStage, spec: SpawnSpec, from: Mat4Like, seed: number, away?: { x: number; z: number }, beat = true): void {
+  const x0 = from[12]!, y0 = from[13]!, z0 = from[14]!;
+  const out0 = Math.hypot(x0 - ISLAND_MIDDLE, z0 - ISLAND_MIDDLE) || 1;
+  let dx = (x0 - ISLAND_MIDDLE) / out0, dz = (z0 - ISLAND_MIDDLE) / out0;
+  if (away) {
+    const ax = x0 - away.x, az = z0 - away.z, d = Math.hypot(ax, az);
+    if (d > 1e-3) {
+      dx += (2 * ax) / d;
+      dz += (2 * az) / d;
+    }
+  }
+  const turn = (((seed >>> 0) % 1000) / 1000 - 0.5) * 0.8;
+  let len = Math.hypot(dx, dz);
+  if (len < 1e-3) {
+    dx = Math.cos(seed);
+    dz = Math.sin(seed);
+    len = 1;
+  }
+  const c = Math.cos(turn), s = Math.sin(turn);
+  const ux = (dx / len) * c - (dz / len) * s, uz = (dx / len) * s + (dz / len) * c;
+  const dist = toEdge(x0, z0, ux, uz) + LEAVE_PAST;
+  const yaw = Math.atan2(ux, uz);
+  const climb = Math.min(5, 1.5 + dist * 0.2);
+  fxOf(stage).play(
+    spec,
+    dist / LEAVE_SPEED,
+    (t, out) => {
+      const along = dist * cruise(t);
+      const up = climb * Math.min(1, t * 3) * (2 - Math.min(1, t * 3));
+      fly(x0 + ux * along, y0 + up, z0 + uz * along, yaw, t < 0.2 ? 0.35 : 0.05, 0, 1, out);
+      if (beat && Math.floor(t * dist * 3) % 2 === 1) {
+        out[0]! *= 0.45;
+        out[1]! *= 0.45;
+        out[2]! *= 0.45;
+      }
+    },
+    { smooth: true },
+  );
+}
+
+/**
+ * Where a bird arriving at (x, y, z) is, `u` (0 → 1) of the way in from the direction `from` (radians),
+ * into `out`: in from a few cells out and above, gliding down to settle. Returns its heading.
+ */
+export function arriving(u: number, x: number, y: number, z: number, from: number, out: { x: number; y: number; z: number }): number {
+  const k = 1 - easeOut(Math.min(1, u));
+  out.x = x + Math.cos(from) * ARRIVE.far * k;
+  out.z = z + Math.sin(from) * ARRIVE.far * k;
+  out.y = y + ARRIVE.up * k * k;
+  return Math.atan2(-Math.cos(from), -Math.sin(from));
 }
