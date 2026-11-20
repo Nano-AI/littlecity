@@ -262,7 +262,7 @@ export function buildColonnade(town: Town, n: number): boolean {
     for (let u = 0; u < len; u++) {
       if (!g.claimed(f.x(u, 0), f.z(u, 0), CLAIM.street)) return null;
     }
-    if (!fits(g, f, 0, 1, len - 1, 1, 0)) return null;
+    if (!rectFree(g, f, 0, 1, len - 1, 1, CLAIM.built | CLAIM.keep | CLAIM.street)) return null;
     const h = rectFlat(g, f, 0, 0, len - 1, 1);
     if (h < 0) return null;
     if (!rectFree(g, f, 0, 2, len - 1, 2, CLAIM.built | CLAIM.keep)) return null;
@@ -309,7 +309,8 @@ export function buildShrine(town: Town, n: number): boolean {
 export function buildMonument(town: Town, n: number): boolean {
   const { g } = town;
   const found = search(g, `monument${n}`, (f) => {
-    if (!fits(g, f, 0, 0, 2, 2)) return null;
+    // After the streets: open margins of other districts may take it, buildings and streets may not.
+    if (!rectFree(g, f, 0, 0, 2, 2, CLAIM.built | CLAIM.keep | CLAIM.street)) return null;
     const h = rectFlat(g, f, 0, 0, 2, 2);
     if (h < 0) return null;
     let street = false;
@@ -334,28 +335,32 @@ export function buildMonument(town: Town, n: number): boolean {
 /** A market place: a 4 × 4 plaza by a street with stalls and a market cross (D37). */
 export function buildMarketPlace(town: Town, n: number): boolean {
   const { g } = town;
-  const found = search(g, `market${n}`, (f) => {
-    if (!fits(g, f, 0, 0, 3, 3)) return null;
-    const h = rectFlat(g, f, 0, 0, 3, 3);
-    if (h < 0) return null;
-    let street = false;
-    for (let u = 0; u <= 3; u++) if (g.claimed(f.x(u, 4), f.z(u, 4), CLAIM.street)) street = true;
-    if (!street) return null;
-    const d = fromSquare(town, f.x(1, 1), f.z(1, 1));
-    if (d < 8) return null;
-    return { score: Math.abs(d - 10), data: h };
-  });
-  if (!found) return false;
-  const f = found.frame, h = found.data;
-  const M = new Local(g, f);
-  startDistrict(town, `market${n}`, f.x(1, 1), f.z(1, 1));
-  M.claim(0, 0, 3, 3, CLAIM.built);
-  for (let v = 0; v <= 3; v++) for (let u = 0; u <= 3; u++) M.floor('plaza', u, v, h);
-  M.put('marble', 1, h, 1, 3);
-  M.put('stall', 3, h, 1);
-  M.put('stall', 1, h, 3);
-  M.put('stall', 3, h, 3);
-  return true;
+  // A 4 × 4 market place where there is room, else a 3 × 3 one, as near the square as the streets allow.
+  for (const k of [4, 3]) {
+    const found = search(g, `market${n}-${k}`, (f) => {
+      if (!rectFree(g, f, 0, 0, k - 1, k - 1, CLAIM.built | CLAIM.keep | CLAIM.street)) return null;
+      const h = rectFlat(g, f, 0, 0, k - 1, k - 1);
+      if (h < 0) return null;
+      let street = false;
+      for (let u = 0; u < k; u++) if (g.claimed(f.x(u, k), f.z(u, k), CLAIM.street)) street = true;
+      if (!street) return null;
+      const d = fromSquare(town, f.x(1, 1), f.z(1, 1));
+      if (d < 6) return null;
+      return { score: Math.abs(d - 9), data: h };
+    });
+    if (!found) continue;
+    const f = found.frame, h = found.data;
+    const M = new Local(g, f);
+    startDistrict(town, `market${n}`, f.x(1, 1), f.z(1, 1));
+    M.claim(0, 0, k - 1, k - 1, CLAIM.built);
+    for (let v = 0; v < k; v++) for (let u = 0; u < k; u++) M.floor('plaza', u, v, h);
+    M.put('marble', 0, h, 0, 3);
+    M.put('stall', 2, h, 0);
+    M.put('stall', 0, h, 2);
+    if (k === 4) M.put('stall', 3, h, 3);
+    return true;
+  }
+  return false;
 }
 
 // ───────────────────────────────────────────────────────── farming ──
@@ -406,3 +411,38 @@ export function buildWheatFarm(town: Town, n: number): boolean {
   return true;
 }
 
+
+/**
+ * A wheat field: a windmill at the corner of a big fenced field of wheat
+ * (R-G01: garden within two of a windmill), a lane along it.
+ *   u: 0 1 2 3 4 5
+ *   v=0  W w w w w w
+ *   v=1  . w w w w w        W windmill, w wheat (fenced round)
+ *   …
+ *   v=4  . w w w w w
+ *   v=5  = = = = = =        the lane
+ */
+export function buildWheatField(town: Town, n: number): boolean {
+  const { g } = town;
+  const found = search(g, `wheat-field${n}`, (f) => {
+    if (!fits(g, f, 0, 0, 5, 5)) return null;
+    const h = rectFlat(g, f, 0, 0, 5, 5);
+    if (h < 0) return null;
+    if (town.site.waterDist[columnIndex(f.x(3, 2), f.z(3, 2))]! < 2) return null;
+    const d = fromSquare(town, f.x(3, 2), f.z(3, 2));
+    if (d < 10) return null;
+    return { score: Math.abs(d - 14), data: h };
+  });
+  if (!found) return false;
+  const f = found.frame, h = found.data;
+  const W = new Local(g, f);
+  const d = startDistrict(town, `wheat-field${n}`, f.x(3, 2), f.z(3, 2));
+  W.claim(0, 0, 5, 4, CLAIM.built);
+  for (let u = 0; u <= 5; u++) pave(g, f.x(u, 5), f.z(u, 5));
+  for (let v = 0; v <= 4; v++) for (let u = 1; u <= 5; u++) W.floor('garden', u, v, h);
+  for (let u = 1; u <= 5; u++) W.edge(u, h, 0, 0, 'fence');
+  for (let v = 0; v <= 4; v++) W.edge(5, h, v, 1, 'fence');
+  W.stack('windmill', 0, 0, 2, 0);
+  W.way(d, 0, 5);
+  return true;
+}

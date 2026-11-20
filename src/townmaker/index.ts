@@ -29,7 +29,7 @@ import { buildBarn, buildFields, buildFollyTower, buildOrchard, buildPark, build
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWalledLawn, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour, buildWaterfront } from './districts/harbour';
-import { buildColonnade, buildFishMarket, buildMarketPlace, buildMonument, buildQuayStretch, buildShrine, buildTownWall, buildTreeLines, buildWallTower, buildWheatFarm, buildWoods } from './districts/emphasis';
+import { buildColonnade, buildFishMarket, buildMarketPlace, buildMonument, buildQuayStretch, buildShrine, buildTownWall, buildTreeLines, buildWallTower, buildWheatFarm, buildWheatField, buildWoods } from './districts/emphasis';
 import { buildWatermill } from './districts/riverside';
 import { buildRiverside } from './districts/riverside';
 import { buildCourtyard, buildHousing } from './districts/housing';
@@ -124,6 +124,8 @@ const STEPS: Record<string, Step> = {
   monument: (t) => buildMonument(t, t.districts.length),
   marketPlace: (t) => buildMarketPlace(t, t.districts.length),
   wheatFarm: (t) => buildWheatFarm(t, t.districts.length),
+  wheatField: (t) => buildWheatField(t, t.districts.length),
+  smallSquare: (t) => buildSmallSquare(t) || buildSquare(t),
   watermill: buildWatermill,
   flowers: (t) => buildFlowerBed(t, t.districts.length),
 };
@@ -139,7 +141,7 @@ const PLANS: Record<Character, readonly string[]> = {
   castle: ['square', 'castle', 'smithy', 'chapel', 'wallTower', 'wallTower:1', 'hilltop', 'watchtower', 'housing:0:8', 'housing:1:11', 'walledGarden', 'walledLawn', 'wallTower:2', 'watchtower:1', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard', 'walledLawn:1', 'fields', 'orchard'],
   market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'housing:2:13', 'orchard', 'fields', 'greenhouse', 'willow', 'bridge', 'stairs'],
   river: ['square', 'riverside', 'inhabitedBridge', 'inhabitedBridge:1', 'watermill', 'watermill:1', 'mill', 'willow', 'bridge', 'bridge:1', 'bridge:2', 'housing:0:9', 'chapel', 'orchard', 'park', 'orchard:1', 'harbour', 'lighthouse', 'fields', 'greenhouse', 'boardwalk', 'courtyard', 'housing:1:12', 'walledGarden'],
-  farming: ['square', 'green', 'wheatFarm', 'wheatFarm:1', 'barn', 'orchard', 'orchard:1', 'wheatFarm:2', 'barn:1', 'paddock', 'greenhouse', 'greenhouse:1', 'mill', 'chapel', 'farmstead', 'orchard:2', 'paddock:1', 'barn:2', 'manor', 'smithy', 'fields', 'willow', 'harbour', 'lighthouse', 'walledLawn'],
+  farming: ['smallSquare', 'green', 'chapel', 'wheatFarm', 'wheatFarm:1', 'wheatField', 'barn', 'orchard', 'orchard:1', 'wheatField:1', 'paddock', 'greenhouse', 'greenhouse:1', 'wheatFarm:2', 'barn:1', 'paddock:1', 'orchard:2', 'wheatField:2', 'manor', 'smithy', 'willow', 'harbour', 'lighthouse', 'paddock:2', 'barn:2', 'walledLawn'],
   hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'cliff:2', 'wallTower', 'chapel', 'acropolis', 'stairs', 'stairs:1', 'folly', 'follyTower', 'viaduct', 'viaduct:1', 'cliff:3', 'watchtower', 'stairs:2', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower:1', 'bridge'],
   gardens: ['square', 'manor', 'park', 'park:1', 'walledGarden', 'walledLawn', 'greenhouse', 'orchard', 'fields', 'school', 'walledGarden:1', 'greenhouse:1', 'park:2', 'orchard:1', 'walledLawn:1', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
 };
@@ -149,7 +151,7 @@ const AFTER_STREETS: Record<Character, readonly string[]> = {
   harbour: [],
   marble: ['colonnade', 'colonnade:1', 'colonnade:2', 'monument', 'monument:1', 'monument:2'],
   castle: ['townWall'],
-  market: ['marketPlace', 'marketPlace:1', 'flowers'],
+  market: ['marketPlace', 'marketPlace:1', 'marketPlace:2', 'marketPlace:3', 'flowers'],
   river: [],
   farming: [],
   hill: [],
@@ -184,7 +186,7 @@ const FLAVOUR: Record<Character, readonly string[]> = {
 };
 
 /** How thickly cottages fill the streets, by character. */
-const INFILL: Record<Character, number> = { harbour: 1, marble: 1, castle: 1, market: 1.1, river: 1, farming: 0.45, hill: 0.9, gardens: 0.7 };
+const INFILL: Record<Character, number> = { harbour: 1, marble: 1, castle: 1, market: 1.1, river: 1, farming: 0.35, hill: 0.9, gardens: 0.7 };
 
 /** The plan for a primary and a secondary character. */
 export function planFor(primary: Character, secondary: Character): string[] {
