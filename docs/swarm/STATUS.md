@@ -857,3 +857,21 @@ passed, 1 timeout under load 24 (`tests/terrain2-town.test.ts`, the
 minute of life; 12.7 s and passing alone). Not covered by tests: open a
 town file, share link, grow on the same island (code only).
 Running: mischief (mending over water), grow-town pass 5.
+
+**Grow a town pass 5 merged** (`a7cd292`, Opus). Every character repeats
+its signature (`src/townmaker/districts/emphasis.ts`): farming up to
+three wheat farms, barns, orchards, paddocks, greenhouses; harbour up to
+four more quays, piers, a fish market; castle a town wall with gateways
+and corner towers, walled towers, watchtowers; marble shrines,
+colonnades, obelisks besides the forum; market more market places;
+river willows, watermills, bridges; hill cliff houses, stairs, viaducts;
+garden parks with bandstands, walled gardens, avenues. Woods on bare
+land, tree lines on outer streets, orchards in five characters (40–140
+trees a town). Survey prints a signature count per character. Gate:
+2,109 passed; 3 browser tests timed out on page load at load ~20
+(interface, land-slopes, welcome), all pass serially. Orchestrator's
+eye on the overviews: marble, harbour, castle, garden convincing;
+farming better but the scenario seed shows one wheat field and a big
+village core; river, hill, market weakest (agent agrees). Town wall has
+gaps where houses stand on its ring.
+Running: mischief (mending over water).
