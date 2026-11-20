@@ -62,7 +62,7 @@ export default defineRule<{ region: RoofRegion }>({
     const out = [];
     for (const s of houseStructures(ctx)) {
       const role = roleOf(ctx.plan, s.id);
-      if (role === 'chapel' || role === 'greenhouse' || role === 'stilt-house') continue;
+      if (role === 'chapel' || role === 'greenhouse' || role === 'stilt-house' || role === 'barn') continue;
       for (const region of regions.byStructure.get(s.id) ?? []) {
         if (region.cells.length < 2) continue;
         const roof = roofOf(ctx.plan, region);

@@ -126,8 +126,8 @@ describe('one building, not a row of strangers (design section 7)', () => {
     expect(role(10, 1, 10)).toBe('inn');
   });
 
-  test('a 5 × 2 footprint is one manor', () => {
-    const { ids, role } = structuresOf(play(5, rect(10, 10, 5, 2), 1));
+  test('a 5 × 2 footprint of two storeys is one manor', () => {
+    const { ids, role } = structuresOf(play(5, rect(10, 10, 5, 2), 2));
     expect(ids.size).toBe(1);
     expect(role(10, 1, 10)).toBe('manor');
   });

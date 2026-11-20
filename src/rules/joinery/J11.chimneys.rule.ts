@@ -20,7 +20,7 @@ const MINIMUM: Partial<Record<Role, readonly [number, number]>> = {
   inn: [2, 1],
 };
 /** Roles that never have one. */
-const NONE: ReadonlySet<Role> = new Set<Role>(['chapel', 'greenhouse']);
+const NONE: ReadonlySet<Role> = new Set<Role>(['chapel', 'greenhouse', 'barn']);
 
 export default defineRule<{ s: Structure }>({
   id: 'J11.chimneys',

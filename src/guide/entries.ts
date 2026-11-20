@@ -199,15 +199,29 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'manor',
     group: 'houses',
     name: 'Manor',
-    how: 'Build a house that covers ten or more squares of ground, or holds sixteen or more blocks in all.',
+    how: 'Build a house two or more storeys tall that covers ten or more squares of ground, or holds sixteen or more blocks in all.',
     proof: { role: 'manor' },
     seed: 7105,
     build(b) {
-      b.house(18, 19, { w: 4, d: 3, color: 0 });
+      b.house(18, 19, { w: 4, d: 3, floors: 2, color: 0 });
     },
     also: [
       { build: (b) => void b.house(18, 19, { w: 4, d: 2, floors: 2, color: 0 }) },
     ],
+    view: FRONT,
+  },
+  {
+    id: 'barn',
+    group: 'houses',
+    name: 'Barn',
+    how: 'Build a long one-storey house of six or more squares beside a garden or field of six or more, away from paths, plazas and squares; with a house beside it, it is a farmstead.',
+    proof: { role: 'barn' },
+    seed: 7115,
+    build(b) {
+      b.house(18, 19, { w: 4, d: 2, color: 3 });
+      b.house(18, 22, { w: 2, floors: 2, color: 1 });
+      b.garden(23, 18, 25, 21);
+    },
     view: FRONT,
   },
   {

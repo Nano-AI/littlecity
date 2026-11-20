@@ -4,7 +4,7 @@
 // hillside, all facing the path along z = 12:
 //
 //   a 3 × 2 house across one step (two columns low, one high);
-//   a 5 × 2 manor across two separate steps (2 low, 2 middle, 1 high);
+//   a 5 × 2 house across two separate steps (2 low, 2 middle, 1 high);
 //   a 4 × 2 house up a staircase of three one-level steps;
 //   two houses either side of a two-level step: two buildings;
 //   a house beside another building's roof: the block on that roof is not
@@ -53,9 +53,9 @@ export default scenario({
   expect(plan, _dressing, check) {
     // A: across one step, one building.
     check.sameStructure([8, 1, 10], [10, 2, 11]);
-    // B: across two steps, one building of ten footprint cells: a manor.
+    // B: across two steps, one building of ten footprint cells (one storey: a home, not a manor, since FX-06).
     check.sameStructure([16, 1, 10], [20, 3, 11]);
-    check.role(16, 1, 10, 'manor');
+    check.role(16, 1, 10, 'cottage');
     // C: up three steps, one building.
     check.sameStructure([26, 1, 10], [29, 4, 11]);
     // D: a two-level step parts them.

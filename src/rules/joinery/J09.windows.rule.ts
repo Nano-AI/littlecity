@@ -75,10 +75,13 @@ export default defineRule<{ s: Structure }>({
       // An alley side is the whole wall over the alley, not just its ground storey.
       const alley = f.alley || alleySides.has((f.cell & 4095) * 4 + f.dir);
       if (alley && ctx.rand('alley', f.cell, f.dir) >= 0.5) continue;
+      // R-H18: a barn has few windows, small and shuttered: one wall cell in three.
+      if (role === 'barn' && ctx.rand('barn', f.cell, f.dir) >= 0.34) continue;
 
       let variant: WindowVariant = persona.family;
       const top = info ? keyY(f.cell) === info.maxY : false;
       if (role === 'chapel') variant = 'pointed';
+      else if (role === 'barn') variant = 'shuttered';
       else if (role === 'shop') {
         if (f.storey === 1 && (f.street === 1 || f.plaza === 1) && f.drop === 0) variant = 'shopfront';
         else if (f.storey >= 2 && (f.street !== undefined || f.plaza !== undefined) && ctx.rand('bay', f.cell, f.dir) < 0.2) variant = 'bay';

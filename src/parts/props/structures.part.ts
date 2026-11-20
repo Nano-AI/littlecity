@@ -86,9 +86,24 @@ export default definePart({
         flame(b, 0.04, 0.36, -0.03, 0.04, 0.13, 'flame2');
         break;
       }
+      case 'hay': {
+        // R-H18: three square bales, two side by side and one on top, with a few loose wisps.
+        const bale = (x: number, y: number, z: number, turn: number, ink: string): void => {
+          b.at(compose(translation(x, y, z), rotationY(turn)), () => {
+            b.with({ color: PALETTE.yellow, pattern: PATTERN.thatch, ink }, () => b.box([-0.1, 0, -0.065], [0.1, 0.12, 0.065], { skip: ['bottom'] }));
+            b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: `${ink}-twine` }, () => {
+              for (const tx of [-0.045, 0.045]) b.box([tx - 0.008, 0.001, -0.067], [tx + 0.008, 0.122, 0.067], { skip: ['bottom'] });
+            });
+          });
+        };
+        bale(-0.08, 0, 0.02, 0.1, 'bale-a');
+        bale(0.13, 0, -0.04, -0.2 + ctx.rand('turn') * 0.3, 'bale-b');
+        bale(0.02, 0.12, -0.01, 0.5, 'bale-c');
+        b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'wisps' }, () => lump(b, -0.12, 0.01, 0.16, 0.08, 0.015, 0.05, 0.4));
+        break;
+      }
       default:
         void rotationX;
-        void lump;
         break;
     }
     return { mesh: b.build() };

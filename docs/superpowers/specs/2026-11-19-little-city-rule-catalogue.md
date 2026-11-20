@@ -79,8 +79,21 @@ type and which later rules apply.
   shop type is a seeded pick from {bakery, café, books, flowers, fish,
   tailor, cheese, toys}, with fish allowed only within 6 cells of a dock. A
   café with 2+ free floor cells in front also gets tables (D08).
-- **R-H09 · 2 · Manor** — footprint ≥ 10 cells or total ≥ 16 cells → hip
-  roof, dormers, two chimneys, portico with two small columns at the door.
+- **R-H18 · 2 · Barn** (discovery 1, RC-09 and FX-06) — a house of exactly 1
+  storey, footprint ≥ 6 with a side of 3+, no ground-storey facade facing a
+  street or plaza within 1, a garden region of 6+ cells within 4, and no
+  square (a plaza holding a 3 × 3) within 6 → timber weatherboard walls
+  (tag barn), a long gable roof with no chimney and no dormers, big boarded
+  doors swung open round its double main door and a hayloft door with a
+  hoist beam in its far gable (J30), one small shuttered window to every
+  three wall cells. Another house of footprint < 6 within 4 → tag
+  farmstead: hay bales and a hand cart outside the big doors (R-H98; hay
+  alone otherwise). Not: a house on a street or by a square, a two-storey
+  house. Priority 9915 (before the manor).
+- **R-H09 · 2 · Manor** — footprint ≥ 10 cells with 2+ storeys, or total ≥ 16
+  cells → hip roof, dormers, two chimneys, portico with two small columns
+  at the door. (A big one-storey house is a barn by the fields, else a
+  home: FX-06.)
 - **R-H10 · 1 · Townhouse** — footprint exactly 1 cell and 3+ storeys →
   stepped gable, balcony on each upper storey p=0.5.
 - **R-H11 · 1 · Row house** — footprint 1–2 cells, sharing side walls with
@@ -230,7 +243,10 @@ How pieces meet. Joinery decides geometry and produces sockets.
   separate walls and roofs; their ridge heights differ by a seeded offset so
   a row has rhythm.
 - **J04 · 1 · Roof type** (per roof region, first match) — the role names one
-  → use it; a path, plaza or stairs leads onto it → flat terrace; region is
+  → use it (townhouse stepped gable; manor, town hall hip; a rectangular,
+  unpierced chapel or a rectangular barn gable: a square chapel's ridge runs away from its steeple,
+  with a cross gable in the middle of each eave if it is 3+ a side, and a
+  chapel is never a terrace, whatever lies on it: FX-05); a path, plaza or stairs leads onto it → flat terrace; region is
   1 deep against a taller wall of the same structure → lean-to; ≤ 2 wide →
   gable with the ridge along the long axis; otherwise hip.
 - **J05 · 2 · Roof terrace** — a flat-eligible region of 2+ cells beside a
@@ -302,6 +318,11 @@ How pieces meet. Joinery decides geometry and produces sockets.
   half-timber patterning.
 - **J28 · 1 · Shoreline** — foam line where land meets water; a short plank
   ramp where a dock meets a beach.
+- **J30 · 2 · Trade fronts** (discovery 1) — once the main door and roofs
+  are known, what a working building's walls show of its trade: a barn
+  (R-H18) gets barn-doors (two boarded leaves swung open flat either side
+  of its main door, a beam over them) and a hayloft (a loft door and hoist
+  beam in the middle of the gable end farthest from that door).
 - **J29 · 2 · Vault door** (discovery 1, FX-09) — a terrace (R-M07) or podium
   (R-M08) 2+ storeys tall on 9+ columns with a 2 × 2 among them and no door → one
   stone-framed door into its vaults, in the middle of its longest
