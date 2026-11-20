@@ -30,13 +30,15 @@ import { Sails } from '../boats/sails';
 import { swellAt, wakeRing, type Swell } from '../boats/afloat';
 import { angleDelta, easeInOut, glide } from '../motion/ease';
 import { fly, yawOf } from '../motion/pose';
+import { noteFloat, standAside } from './news';
 import { removalPuff } from './puff';
 
 const TYPES = new Set(['rowboat', 'sailboat', 'fishing-boat', 'rower']);
 const poses = new WeakMap<LifeStage, Map<string, Mat4>>();
 
 /** A small boat's behaviour says where it drew the boat (so a stand-in can take its place if it goes). */
-export function notePose(stage: LifeStage, id: string, m: Mat4Like): void {
+export function notePose(stage: LifeStage, id: string, m: Mat4Like, type = 'rowboat', speed = 0): void {
+  noteFloat(stage, id, type, m[12]!, m[14]!, Math.atan2(m[8]!, m[10]!), speed);
   let map = poses.get(stage);
   if (!map) poses.set(stage, (map = new Map()));
   let at = map.get(id);
@@ -45,6 +47,7 @@ export function notePose(stage: LifeStage, id: string, m: Mat4Like): void {
 }
 
 interface Leaver {
+  id: string;
   type: string;
   hull: InstanceHandle;
   sails: Sails | null;
@@ -120,7 +123,7 @@ function spawnLeaver(stage: LifeStage, actor: Actor, m: Mat4, water: Uint8Array,
   const hull = stage.spawn({ actor: type as 'rower', params: { look } }, m);
   const sails = actor.type === 'sailboat' ? new Sails(stage, look, m) : null;
   const l: Leaver = {
-    type, hull, sails, mode: 'away', route: [], len: 0, s: 0, speed: 0, x, z, yaw: yawOf(m), from: [x, z], to: [x, z], t: 0,
+    id: `leaving:${actor.id}`, type, hull, sails, mode: 'away', route: [], len: 0, s: 0, speed: 0, x, z, yaw: yawOf(m), from: [x, z], to: [x, z], t: 0,
     swell: { heave: 0, roll: 0, pitch: 0 }, phase: (look * 0.29) % 1, wake: 0, gone: false, m: Array.from(m),
   };
   if (!free(water, x, z)) {
@@ -176,7 +179,11 @@ function step(l: Leaver, dt: number, signals: Signals, stage: LifeStage, water: 
   }
   const wind = signals.wind(l.x, l.z);
   swellAt(signals.time.seconds, l.phase, 0.8, wind.strength, l.swell);
-  fly(l.x, SEA_Y + l.swell.heave, l.z, l.yaw, l.swell.pitch, l.swell.roll, 1, l.m);
+  // Keeping clear of other boats on its way out.
+  const kept = standAside(stage, l, l.x, l.z, l.yaw, dt, l.id);
+  if (l.mode === 'away') l.s = Math.max(0, l.s - l.speed * dt * (1 - kept.slow));
+  fly(kept.x, SEA_Y + l.swell.heave, kept.z, l.yaw, l.swell.pitch, l.swell.roll, 1, l.m);
+  noteFloat(stage, l.id, l.type, kept.x, kept.z, l.yaw, l.speed);
   l.hull.setMatrix(l.m);
   // Cut off at the edge of the map as it goes out through it (its open hull's inside filled).
   const near = mapEdge(l.x + Math.sin(l.yaw) * 0.8, l.z + Math.cos(l.yaw) * 0.8) > -1.5;

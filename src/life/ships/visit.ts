@@ -61,7 +61,7 @@ import { Barge } from './barge';
 import { ShipBody, type ShipWind } from './body';
 import { Crew, type Gangway, type Pile, type Spot } from './crew';
 import { Escort } from './escort';
-import { clearAhead, newsOf } from './news';
+import { clearAhead, floatPoints, newsOf } from './news';
 import { removalPuff } from './puff';
 
 export interface CallInfo {
@@ -808,7 +808,10 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     }
     const [x0, z0] = p.from, [x1, z1] = p.to;
     const len = Math.hypot(x1 - x0, z1 - z0);
-    p.s = Math.min(len, p.s + SHIPS.passSpeed * dt);
+    // It slows for a small boat under its bow (the boat stands aside: news.ts giveWay).
+    const hx = (x1 - x0) / len, hz = (z1 - z0) / len;
+    const ahead = clearAhead({ x: x0 + hx * p.s, z: z0 + hz * p.s, yaw: Math.atan2(hx, hz), stern: -2.85, bow: 3.55, halfBeam: 0.75, speed: SHIPS.passSpeed }, small);
+    p.s = Math.min(len, p.s + SHIPS.passSpeed * dt * ahead);
     const x = x0 + ((x1 - x0) * p.s) / len, z = z0 + ((z1 - z0) * p.s) / len, yaw = Math.atan2(x1 - x0, z1 - z0);
     if (p.s >= len) {
       // Out through the far side of the map: all of it is beyond the edge now.
@@ -1007,8 +1010,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       }
     },
     update(dt, signals) {
-      small = news.small;
-      news.small = [];
+      news.tick++;
+      small = floatPoints(stage);
       daylight = signals.time.isNight || signals.time.isDusk ? 0 : daylight + dt;
       news.ships.length = 0;
       news.zones.length = 0;
@@ -1053,7 +1056,9 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         if (ship.body && ship.phase !== 'idle') {
           news.ships.push({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.phase === 'arriving' || ship.phase === 'leaving' ? ship.speed : 0 });
           // The stretch of quay it takes: small boats moored there row aside (rowboat.behaviour.ts).
-          if (ship.phase !== 'leaving' && ship.phase !== 'stranded' && ship.phase !== 'nudging' && !(ship.phase === 'arriving' && ship.voyage!.path.length - ship.s > 14)) {
+          // From well before it comes in (they have time to row clear) until it has sailed clear of the quay.
+          const near = Math.hypot(ship.pose.x - ship.mooring.x, ship.pose.z - ship.mooring.z) < ship.hull.bow - ship.hull.stern + 2;
+          if (ship.phase !== 'stranded' && ship.phase !== 'nudging' && !(ship.phase === 'arriving' && ship.voyage!.path.length - ship.s > 30 && !near) && !(ship.phase === 'leaving' && !near)) {
             news.zones.push({ x: ship.mooring.x, z: ship.mooring.z, yaw: ship.mooring.yaw, stern: ship.hull.stern - 0.6, bow: ship.hull.bow + 0.6, halfBeam: ship.hull.halfBeam + SHIPS.warpGap + 0.5, speed: 0 });
           }
         }

@@ -33,6 +33,9 @@ declare module '@/core/vocab' {
 
     // L17: the order a rowboat was chosen in town-wide (a phone shows only the first few).
     'rowboat.rank': number;
+    // L17: where it waits out of a big ship's way (world x, z), if its mooring lies where a big ship berths.
+    'rowboat.asideX': number;
+    'rowboat.asideZ': number;
     // L42: a lighthouse makes tall ships pass a little more often.
     'ship-call.often': number;
 

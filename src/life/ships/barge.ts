@@ -31,7 +31,7 @@ import { angleDelta, approach, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { ShipBody } from './body';
-import type { BigShipNews } from './news';
+import { clearAhead, floatPoints, type BigShipNews } from './news';
 import { removalPuff } from './puff';
 import { nearestFree } from './visit';
 
@@ -184,7 +184,9 @@ export class Barge {
     let moving = false;
     const pole = (path: Path, target: number): boolean => {
       const left = Math.abs(target - this.s);
-      const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + this.t / 3);
+      // It slows for a small boat in its way (going stern first, "ahead" is astern).
+      const me = { x: this.x, z: this.z, yaw: this.yaw + (target < this.s ? Math.PI : 0), stern: HULL.stern, bow: HULL.bow, halfBeam: HULL.halfBeam, speed: this.speed };
+      const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + this.t / 3) * clearAhead(me, floatPoints(this.stage));
       this.speed += (want - this.speed) * glide(1.2, dt);
       this.s = target > this.s ? Math.min(target, this.s + this.speed * dt) : Math.max(target, this.s - this.speed * dt);
       const p = pathAt(path, this.s);

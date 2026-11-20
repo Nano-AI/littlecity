@@ -1,5 +1,5 @@
-// L41: islands have no rivers yet, so this one is dug by hand: a channel
-// four columns wide from the north into the sea in the south, a dock on the
+// L41: a river dug by hand (a channel three columns wide is a river; see the
+// rule), from the north into the sea in the south, a dock on the
 // west bank upstream and another on the east bank downstream, sixteen cells
 // apart by water. A barge is poled between them.
 //
@@ -16,12 +16,12 @@ export default scenario({
   terrain(t) {
     t.flat(1);
     t.water(4, 36, 43, 43);
-    t.water(21, 4, 24, 35);
+    t.water(21, 4, 23, 35);
   },
   build(b) {
     for (let z = 9; z <= 10; z++) b.block('dock', 21, 0, z);
-    for (let z = 26; z <= 27; z++) b.block('dock', 24, 0, z);
-    b.path(18, 9, 20, 9).path(25, 27, 27, 27);
+    for (let z = 26; z <= 27; z++) b.block('dock', 23, 0, z);
+    b.path(18, 9, 20, 9).path(24, 27, 27, 27);
     b.house(17, 7, { w: 2, floors: 2, color: 3 }).house(27, 25, { w: 2, color: 6 });
     for (let x = 10; x <= 12; x++) b.block('dock', x, 0, 37);
   },

@@ -49,6 +49,8 @@ interface State {
   swell: Swell;
   drawn: number;
   m: Mat4;
+  /** How much it eased up last frame for a boat in its way (1 not at all). */
+  slow: number;
 }
 
 const endsOf = (p: { ax?: number; az?: number; bx?: number; bz?: number }): [Pt, Pt] => [
@@ -67,7 +69,7 @@ export default defineBehaviour({
       waitLeft: 6 + ctx.rand('first') * 20, waits: 0,
       route: [a], leg: 0, legLen: 1, stroke: 0,
       x: a[0], z: a[1], yaw: Math.atan2(b[0] - a[0], b[1] - a[1]), wake: 0,
-      phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, drawn: NaN, m: new Array<number>(16).fill(0),
+      phase: ctx.rand('swell'), swell: { heave: 0, roll: 0, pitch: 0 }, drawn: NaN, m: new Array<number>(16).fill(0), slow: 1,
     };
   },
   changed(state, ctx) {
@@ -113,7 +115,7 @@ export default defineBehaviour({
       state.stroke += STROKES * dt;
       const pull = Math.max(0, Math.sin(state.stroke * Math.PI * 2));
       surge = pull;
-      state.leg = Math.min(state.legLen, state.leg + ROW_SPEED * (0.45 + 1.1 * pull) * dt);
+      state.leg = Math.min(state.legLen, state.leg + ROW_SPEED * (0.45 + 1.1 * pull) * dt * state.slow);
       const p = alongRoute(state.route, state.leg);
       state.x = p.x;
       state.z = p.z;
@@ -136,9 +138,10 @@ export default defineBehaviour({
     }
     // The bow lifts a little on each pull.
     // Big ships (L38–L42) have the way: it stands aside out of one's way.
-    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt);
+    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt, ctx.item.id);
+    state.slow = aside.slow;
     fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch - surge * 0.035, state.swell.roll, 1, state.m);
     ctx.instance.setMatrix(state.m);
-    notePose(ctx.stage, ctx.item.id, state.m);
+    notePose(ctx.stage, ctx.item.id, state.m, 'rower');
   },
 });

@@ -12,16 +12,20 @@
 // where "see" means a boat of half-width `clear` swept along the straight
 // line touches only open water.
 
-import { columnIndex, SIZE_X, SIZE_Z } from '@/core/grid';
+import { columnIndex, key, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { DockBase } from '../roles/dock-shape';
 import { freeWater } from '../roles/dock-shape';
 
 export type Pt = readonly [number, number];
 
-/** Open-water columns, one byte each (1 = water), for a town. */
+/**
+ * Open-water columns, one byte each (1 = water), for a town. Something built one storey up over the water
+ * (a bridge deck, the lowest arch of a viaduct) leaves no room for a boat under it: not water. (An arch at
+ * sea level is a block at y = 0, so it is not water either: its opening is a hand's breadth high.)
+ */
 export function waterMask(f: DockBase): Uint8Array {
   const m = new Uint8Array(SIZE_X * SIZE_Z);
-  for (let z = 0; z < SIZE_Z; z++) for (let x = 0; x < SIZE_X; x++) if (freeWater(f, x, z)) m[columnIndex(x, z)] = 1;
+  for (let z = 0; z < SIZE_Z; z++) for (let x = 0; x < SIZE_X; x++) if (freeWater(f, x, z) && !f.kinds.has(key(x, 1, z))) m[columnIndex(x, z)] = 1;
   return m;
 }
 
