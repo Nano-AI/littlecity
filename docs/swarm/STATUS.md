@@ -947,3 +947,15 @@ gardens 112/98, castle 70/41, harbour 59/40, marble 59/54, hill 62/46.
 Gate: 2,119 passed, 8 skipped, clean.
 Running: nothing. Unmerged experiments: walk, big-islands. Separate
 session: `capture/promo` in the workspace folder.
+
+**Grow a town chooser (orchestrator, 2026-11-20).** Derek found the dice
+beside "Grow a town" confusing. The entry now opens a second screen that
+asks where: "On this island" (`grow-here`) or "On a new island"
+(`grow-new`), each with a line on what happens to the town there is now,
+and Back (`grow-back`). No dice button, no further confirmation. Gate:
+2,120 passed; 1 timeout at load ~20 (`tests/terrain2-town.test.ts`, the
+minute of life; 6.8 s and passing alone).
+Derek, same morning: the torch should become a lightning bolt (a small
+storm cloud, a strike, the fire) → mischief agent. A dark flickering
+X-shaped patch on the sea west of a castle town (screenshot
+`/tmp/lc-black-patch.png`) → a new agent to find the cause.
