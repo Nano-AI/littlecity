@@ -258,6 +258,8 @@ export interface Crowd {
   readonly scuffles: Scuffles;
   /** Makes somebody choose what to do now (an errand has come up for them), as soon as they can. */
   rethink(p: Person): void;
+  /** Something stands in a cell for a while (L56: a market stall): walkers route round it (0 lifts it). */
+  setCrowded(cell: CellKey, extra: number): void;
 }
 
 const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
@@ -305,6 +307,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   let duskClock = 0;
   let planCursor = 0;
   const doors = createDoors();
+  /** Cells with something standing in them a while, and how much dearer they are to cross (setCrowded). */
+  const crowdedCells = new Map<CellKey, number>();
   /** Shop doors (they stand open by day). */
   let shopDoors: string[] = [];
 
@@ -1214,7 +1218,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           const along = Math.sin(q.heading) * fx + Math.cos(q.heading) * fz;
           const right = lat + AVOID.clear, left = -(AVOID.clear - lat);
           const away = (): number => {
-            const goRight = Math.abs(lat) < 0.02 ? p.id < q.id : lat < 0;
+            // Already stepping one way round somebody close ahead: keep to it (no dithering left and right as
+            // the step aside itself moves them across their line).
+            const goRight = Math.abs(lat) < AVOID.clear * 0.5 && Math.abs(p.dodgeTo) > 0.01 ? p.dodgeTo > 0 : Math.abs(lat) < 0.02 ? p.id < q.id : lat < 0;
             let s = goRight ? right : left;
             if (Math.abs(p.dodge + s) > room) s = goRight ? left : right; // no room that side: the other
             return s;
@@ -1605,6 +1611,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
       nav = dressing.nav;
       router = createRouter(nav);
+      for (const [cell, extra] of crowdedCells) {
+        const node = nav.nodeAt.get(cell);
+        if (node !== undefined) router.setExtra(node, extra);
+      }
       runCount = new Int16Array(nav.runs.length);
       runSense = new Int8Array(nav.runs.length);
       readHaunts(dressing);
@@ -1933,6 +1943,12 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
 
     get scuffles() {
       return scuffles;
+    },
+    setCrowded(cell, extra) {
+      if (extra > 0) crowdedCells.set(cell, extra);
+      else crowdedCells.delete(cell);
+      const node = nav?.nodeAt.get(cell);
+      if (router && node !== undefined) router.setExtra(node, extra);
     },
     rethink(p) {
       if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit' || p.mode === 'wait') p.timer = Math.min(p.timer, 0);

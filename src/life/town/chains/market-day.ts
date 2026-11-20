@@ -47,6 +47,9 @@ interface Pitch {
   idle: number;
 }
 
+/** How much dearer a cell with a market stall in it is to walk through (a street tree's clutter is 20). */
+const NAV_STALL = 30;
+
 export interface MarketChain extends Chain {
   /** Whether the market is on now, and today's number (0 = the first day seen). */
   readonly open: boolean;
@@ -85,6 +88,8 @@ export function marketChain(): MarketChain {
     p.up = true;
     p.folding = false;
     p.t = 0;
+    // Walkers go round it while it stands.
+    board.crowd.setCrowded(p.post.cell, NAV_STALL);
     if (!board.stage) return;
     const b = new MeshBuilder({ ink: `market-${p.post.id}` });
     drawStall(b, { role: 'market-stall', goods: (p.post.ref || 'fruit') as Goods, front: p.post.dir ?? 2, seed: rand(seed, 'market-stall', p.post.cell) * 1e9 >>> 0 });
@@ -92,6 +97,7 @@ export function marketChain(): MarketChain {
   };
   const fold = (board: Board, p: Pitch, now: boolean): void => {
     if (!p.up) return;
+    board.crowd.setCrowded(p.post.cell, 0);
     // What lies on the counter goes into the crate (the trader takes it) or, if nobody packs, with the puff.
     while (board.take(p.outlet.store)) void 0;
     if (now || !board.stage) {

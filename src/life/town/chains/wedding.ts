@@ -15,7 +15,7 @@
 // erased, or the couple unable to get there: it is called off and everybody
 // goes about their day.
 
-import { DIR4 } from '@/core/grid';
+import { DIR4, key, keyX, keyY, keyZ } from '@/core/grid';
 import { rand } from '@/core/rand';
 import { WEDDING } from '@/style/town-life';
 import { fxOf } from '../../fx/fx';
@@ -235,15 +235,26 @@ export function weddingChain(): WeddingChain {
       if (guests.includes(p) && (phase === 'gather' || phase === 'vows')) {
         const c = board.centre(d.cell);
         const [dx, dz] = DIR4[d.dir ?? 0]!;
-        // A loose half-ring a step back from the door, looking at it.
+        // A loose half-ring round the doorstep, looking at the door: two to a cell, over the doorstep's
+        // neighbours and the cells in front of it, so nobody is crowded into one.
         const k = guests.indexOf(p);
-        const side = ((k % 5) - 2) * 0.17;
-        const back = -0.15 - Math.floor(k / 5) * 0.2;
+        const nav = board.nav!;
+        const ring: { cell: number; back: number; side: number }[] = [];
+        for (const [back, side] of [[0, -1], [0, 1], [-1, 0], [-1, -1], [-1, 1], [0, 0], [-2, 0]] as const) {
+          const cell = key(keyX(d.cell) + dx * back - dz * side, keyY(d.cell), keyZ(d.cell) + dz * back + dx * side);
+          if (nav.nodeAt.has(cell)) ring.push({ cell, back, side });
+        }
+        const at = ring[Math.floor(k / 2) % Math.max(1, ring.length)] ?? { cell: d.cell, back: 0, side: 0 };
+        const ac = board.centre(at.cell);
+        const off = (k % 2 === 0 ? -1 : 1) * 0.2;
+        // Facing the door from wherever they stand.
+        const doorX = c.x + dx * 0.5, doorZ = c.z + dz * 0.5;
+        const spot = { x: ac.x - dz * off, z: ac.z + dx * off };
         return {
           chain,
           at: 0,
           steps: [
-            board.stepAt(d.cell, { spot: { x: c.x + dx * back - dz * side, z: c.z + dz * back + dx * side }, face: DIR_HEADING[d.dir ?? 0], pose: 'look', linger: 1e6, tag: 'wedding:wait' }),
+            board.stepAt(at.cell, { spot, face: Math.atan2(doorX - spot.x, doorZ - spot.z), pose: 'look', linger: 1e6, tag: 'wedding:wait' }),
             atSquare(p, p.child || rand(p.seed, 'wed-cheer', held) < 0.5 ? 'cheer' : 'chat', WEDDING.square * (0.6 + rand(p.seed, 'wed-stay', held) * 0.5), 'wedding:follow'),
           ],
         };

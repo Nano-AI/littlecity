@@ -646,8 +646,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   (p=0.12), some cheering. At closing the traders pack the goods into the
   crate, the stall folds away with a puff, and they carry the crate home; a
   stall nobody packs folds by itself 20 s after closing. A pitch built over
-  folds its stall at once. **Must not:** put a pitch where people must pass
-  single file, on a doorstep, or beside a stall.
+  folds its stall at once. While a stall stands its cell costs 30 more to
+  cross, so walkers go round it. **Must not:** put a pitch where people must
+  pass single file, on a doorstep, or beside a stall.
 - **L57 · 2 · A wedding** (LF-01) — a chapel (R-H01) whose door opens onto
   the walking graph, with a square (else a street) within 12 steps that can
   be walked to → posts outside the chapel door (`wedding|door`) and at the
@@ -657,7 +658,8 @@ its carrier. Nothing is ever left floating or vanishes in view.
   grown-ups living nearest the chapel, from different houses (seeded), walk
   there and go in; up
   to 8 guests (children too) within 22 steps gather in a loose half-ring
-  outside the door looking at it; 4 s after enough are there (or 40 s) the
+  round the doorstep, two to a cell over its neighbours and the cells in
+  front of it, looking at the door; 4 s after enough are there (or 40 s) the
   couple comes out, she in white with flowers, he in a dark coat and hat;
   every bell in the town peals (L29) and petals burst over the doorstep;
   they walk to the square, the guests following, children running ahead,
