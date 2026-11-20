@@ -466,3 +466,12 @@ cut off cross-section-wise. Catalogue section "Boats and ships" rewritten
 entries, and add edge clipping in the renderer.
 Running: ships rework, coplanar follow-up (doormats first), walk (preview
 fixes), animation-polish (people avoidance).
+
+**Walk preview, second version** (`swarm/walk` at `368a554`, still NOT
+merged): free look (pitch was capped at 70°, drag stopped at the screen
+edge, two handlers fought); collision against solids only (trees are a slim
+trunk; one-level hop up); Minecraft-style flying (double-tap Space; Shift or
+Space up, Ctrl or C down; Alt or double-tap W to sprint); glide in comes
+from above along a checked clear line; near fade fixed. Full `npm run check`
+not re-run on that branch. Served at http://127.0.0.1:5174/. Waiting on
+Derek.
