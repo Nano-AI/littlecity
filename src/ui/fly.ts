@@ -23,6 +23,7 @@ import { eyeMatchingOrbit } from '@/render/eyecam';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { changeSpeed, clearAt, startFlight, stepFlight, type FlightState } from '@/fly/flight';
 import { along, clearPath, planPath, type Vec3 } from '@/fly/glide';
+import { addLook, applyLook, newLook } from '@/fly/look';
 import { createSolidMap, type SolidMap } from '@/fly/solid';
 import { el, iconButton, isCoarsePointer } from './dom';
 
@@ -33,8 +34,6 @@ const FLAT_FOV = 0.5;
 /** Seconds: the way in, and the way out (gliding back and the dolly zoom together). */
 const IN_SECONDS = 0.7;
 const OUT_SECONDS = 0.9;
-/** Degrees of turn per CSS pixel of mouse movement. */
-const LOOK_RATE = 0.16;
 
 export interface FlyHost {
   view: TownView;
@@ -206,10 +205,11 @@ export function createFly(host: FlyHost): FlyMode {
   document.addEventListener('pointerlockchange', onLockChange);
 
   // ── input ──────────────────────────────────────────────────────────────
+  /** Mouse movement since the last frame: added up here, applied once at the start of the next frame. */
+  const lookSum = newLook();
   const look = (dx: number, dy: number): void => {
     if (!flight || phase !== 'flying') return;
-    flight.yaw = wrap(flight.yaw - dx * LOOK_RATE);
-    flight.pitch = Math.max(-89, Math.min(89, flight.pitch - dy * LOOK_RATE));
+    addLook(lookSum, dx, dy);
   };
   layer.addEventListener('mousemove', (e) => {
     // With the cursor captured every movement counts; without it, only while it is over the town.
@@ -363,6 +363,9 @@ export function createFly(host: FlyHost): FlyMode {
         return;
       }
       if (phase === 'flying' && flight) {
+        // One camera update a frame, in this order: the look (all the mouse moved since the last
+        // frame, unsmoothed), then the flight and its collisions over this frame's time, then the eye.
+        applyLook(flight, lookSum);
         stepFlight(solid(), flight, input(), dt);
         show({ eye: flight.eye, yaw: flight.yaw, pitch: flight.pitch, fov });
         return;
@@ -381,6 +384,7 @@ export function createFly(host: FlyHost): FlyMode {
     testLook: (dx, dy) => look(dx, dy),
     testPlace(eye, yaw, pitch) {
       if (phase !== 'flying') return;
+      lookSum.dx = lookSum.dy = 0;
       flight = startFlight(solid(), eye, yaw, pitch, flight?.scale ?? 1);
       show({ eye: flight.eye, yaw, pitch, fov });
     },
@@ -416,5 +420,13 @@ export function createFly(host: FlyHost): FlyMode {
     },
   };
   button?.addEventListener('click', () => api.enter());
+  // The eye's shaders and target are made while the page is idle, not on the first take-off (a frame
+  // of about 65 ms at a pixel ratio of 2 otherwise: a visible stall as the glide begins).
+  if (available && view.prepareEye) {
+    const prepare = (): void => view.prepareEye?.();
+    const idle = (globalThis as { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (idle) idle(prepare, { timeout: 4000 });
+    else setTimeout(prepare, 1500);
+  }
   return api;
 }

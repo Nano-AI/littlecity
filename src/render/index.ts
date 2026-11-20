@@ -599,6 +599,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return persp;
   };
   let eyePose: EyePose | null = null;
+  let eyePrepared = false;
   let lens: EyeFrame | null = null;
   /** Which set of materials the meshes wear now. */
   let wearing: 'orbit' | 'fly' = 'orbit';
@@ -1243,6 +1244,32 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       eyePose = pose ? { eye: [pose.eye[0], pose.eye[1], pose.eye[2]], yaw: pose.yaw, pitch: pose.pitch, fov: pose.fov } : null;
       applyEyeCamera();
     },
+    prepareEye() {
+      if (eyePrepared || lens) return;
+      eyePrepared = true;
+      // Dressed for a moment in the fly-mode twins, every scene is compiled as it will be drawn (the
+      // town into a two-target buffer like the eye's own; the rest to the screen), then dressed back.
+      eyeTarget();
+      wearing = 'fly';
+      dress();
+      const was = renderer.getRenderTarget();
+      renderer.setRenderTarget(eyeTarget());
+      void renderer.compileAsync(scene, perspCamera).catch(() => undefined);
+      renderer.setRenderTarget(null);
+      void renderer.compileAsync(postScene, postCamera).catch(() => undefined);
+      void renderer.compileAsync(overlayScene, perspCamera).catch(() => undefined);
+      if (inkScene) {
+        renderer.setRenderTarget(inkRT);
+        void renderer.compileAsync(inkScene, postCamera).catch(() => undefined);
+      }
+      renderer.setRenderTarget(was);
+      wearing = 'orbit';
+      dress();
+      // The target's storage is made by drawing into it once (a clear).
+      renderer.setRenderTarget(eyeTarget());
+      renderer.clear(true, true, false);
+      renderer.setRenderTarget(was);
+    },
     getEyeCamera() {
       return eyePose ? { ...eyePose, eye: [eyePose.eye[0], eyePose.eye[1], eyePose.eye[2]] } : null;
     },
@@ -1449,6 +1476,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uCast.value = grade.cast;
 
       renderer.info.reset();
+      mark(null);
       // Grounding: redraw the height picture when geometry changed; at most every other frame while a
       // lifted structure bounces; every GROUND_ITEMS frames while props and actors move (a bobbing
       // boat's shade at 15 Hz is indistinguishable, and it is the most expensive pass in the frame).
@@ -1476,6 +1504,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         movers.mesh.visible = moversShown;
         renderer.setRenderTarget(shadeRT);
         renderer.render(shadeScene, postCamera);
+        mark('ground');
       }
       moverCaps.visible = movers.mesh.visible && capSlots.size > 0;
       surfaceUniforms.uSlab.value = TERRAIN.slabRadius;
@@ -1487,12 +1516,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       renderer.clear(true, true, false);
       renderer.render(scene, eyeCamera);
       if (reversed) depthBuffer.setReversed(false);
+      mark('town');
       if (inkRT && inkScene) {
         renderer.setRenderTarget(inkRT);
         renderer.render(inkScene, postCamera);
+        mark('ink');
       }
       renderer.setRenderTarget(null);
       renderer.render(postScene, postCamera);
+      mark('composite');
       const weather = weatherOf(signals);
       if (weather.rain > 0.01 || weather.snow > 0.01) {
         const at = lens ? lens.eye : frame.target;
@@ -1502,6 +1534,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
           if (reversed) depthBuffer.setReversed(true);
           renderer.render(precip.scene, eyeCamera);
           if (reversed) depthBuffer.setReversed(false);
+          mark('precip');
         }
       }
       if (overlay) {
@@ -1509,6 +1542,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         renderer.clear(false, true, false);
         renderer.render(overlayScene, eyeCamera);
         if (reversed) depthBuffer.setReversed(false);
+        mark('overlay');
       }
       if (ghostKeys.length > 0 && !lens) {
         renderer.setRenderTarget(ghostTarget());
@@ -1550,6 +1584,28 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       for (const m of [surfaceMaterial, bareMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       if (persp) for (const m of Object.values(persp)) m?.dispose();      renderer.dispose();
     },
+  };
+  // ── a profiler for the measuring tools (src/fly/testing/judder.mjs) ─────────────────────────────
+  // While on, each render pass is waited for (a one-pixel read) and timed: the split of a frame's GPU
+  // time between the passes. The frame itself is then slower than real, so read it for the split.
+  let profile: Record<string, number> | null = null;
+  let profileAt = 0;
+  const px = new Uint8Array(4);
+  function mark(name: string | null): void {
+    if (!profile) return;
+    const gl = renderer.getContext();
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const now = performance.now();
+    if (name) profile[name] = (profile[name] ?? 0) + (now - profileAt);
+    profileAt = now;
+  }
+  (view as TownView & { profilePasses(frames: number, signals: Signals): Record<string, number> }).profilePasses = (frames, signals) => {
+    profile = {};
+    for (let i = 0; i < frames; i++) view.render(signals);
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(profile)) out[k] = +(v / frames).toFixed(2);
+    profile = null;
+    return out;
   };
   return view;
 }

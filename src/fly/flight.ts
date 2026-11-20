@@ -25,8 +25,10 @@ export const FLIGHT = {
   /** How far past the map's edge one can fly, and how high over the tallest thing. */
   margin: 8,
   headroom: 10,
-  /** The fixed step, seconds. */
+  /** The longest step, seconds: a frame is cut into equal steps no longer than this. */
   step: 1 / 120,
+  /** A frame longer than this (a hitch, a tab coming back) moves the eye this much and no more. */
+  maxFrame: 0.1,
 } as const;
 
 export interface FlightState {
@@ -39,8 +41,6 @@ export interface FlightState {
   scale: number;
   /** The box the eye may move in (it widens to take in where flight began, and narrows as the eye comes in). */
   box: { lo: [number, number, number]; hi: [number, number, number] };
-  /** Seconds of simulation not yet stepped. */
-  carry: number;
 }
 
 export interface FlightInput {
@@ -63,7 +63,7 @@ export function startFlight(map: SolidMap, eye: readonly [number, number, number
     box.lo[a] = Math.min(box.lo[a]!, eye[a]!);
     box.hi[a] = Math.max(box.hi[a]!, eye[a]!);
   }
-  return { eye: [eye[0], eye[1], eye[2]], vel: [0, 0, 0], yaw, pitch, scale, box, carry: 0 };
+  return { eye: [eye[0], eye[1], eye[2]], vel: [0, 0, 0], yaw, pitch, scale, box };
 }
 
 /** The wheel: one notch up or down multiplies the speed by this, within FLIGHT's range. */
@@ -85,13 +85,18 @@ export function axesOf(yaw: number, pitch: number): { forward: [number, number, 
   return { forward: [-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)], right: [Math.cos(y), 0, -Math.sin(y)] };
 }
 
-/** Advances the flight by dt seconds, in fixed steps. */
+/**
+ * Advances the flight by exactly dt seconds, in equal steps no longer than FLIGHT.step. Not a fixed
+ * step with the remainder carried: the frame is drawn straight after, so the eye must have moved by
+ * this frame's time and no other. (A fixed 1/120 s step under a 60 Hz frame took one step in one
+ * frame and three in the next whenever the frame's length wobbled round 1/60 s: the eye moved in
+ * uneven jerks at a perfectly steady frame rate, and worse on a 120 Hz screen.)
+ */
 export function stepFlight(map: SolidMap, f: FlightState, input: FlightInput, dt: number): void {
-  f.carry = Math.min(f.carry + Math.max(0, dt), 0.25);
-  while (f.carry >= FLIGHT.step) {
-    f.carry -= FLIGHT.step;
-    tick(map, f, input, FLIGHT.step);
-  }
+  const t = Math.min(FLIGHT.maxFrame, Math.max(0, dt));
+  if (t <= 0) return;
+  const n = Math.ceil(t / FLIGHT.step - 1e-9);
+  for (let i = 0; i < n; i++) tick(map, f, input, t / n);
 }
 
 function tick(map: SolidMap, f: FlightState, input: FlightInput, dt: number): void {

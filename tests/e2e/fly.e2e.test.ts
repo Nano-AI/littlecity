@@ -13,6 +13,7 @@
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { FULL } from '../helpers/tier';
 
 let app: App;
 beforeAll(async () => {
@@ -249,4 +250,107 @@ describe('fly mode', () => {
     expect(await page.evaluate('window.__lc.view.getEyeCamera()')).toBeNull();
     expect(errors).toEqual([]);
   });
+});
+
+describe('fly mode is smooth', () => {
+  /**
+   * Watches fly mode's frames: how often the eye is set inside each (and outside any), the mouse
+   * movement sent before it began, and the yaw it ends with; while a stream of small, uneven mouse
+   * movements turns the eye (a timer every 3 ms, so several land between two frames). Installed in the page.
+   */
+  const watchFrames = (page: Page): Promise<unknown> =>
+    page.evaluate(() => {
+      type F = { sets: number; sent: number; yaw: number };
+      type W = { frames: F[]; outside: number; sent: number; inFrame: boolean; timer: number };
+      type Fly = { frame(dt: number): void; testLook(dx: number, dy: number): void; debug(): { yaw: number } };
+      const lc = (window as unknown as { __lc: { view: { setEyeCamera(p: unknown): void }; ui: { fly: Fly } } }).__lc;
+      const w: W = { frames: [], outside: 0, sent: 0, inFrame: false, timer: 0 };
+      (window as unknown as { __watch: W }).__watch = w;
+      const set = lc.view.setEyeCamera.bind(lc.view);
+      lc.view.setEyeCamera = (p) => {
+        if (w.inFrame) w.frames.at(-1)!.sets++;
+        else w.outside++;
+        set(p);
+      };
+      const fly = lc.ui.fly;
+      const frame = fly.frame.bind(fly);
+      fly.frame = (dt) => {
+        w.frames.push({ sets: 0, sent: w.sent, yaw: Number.NaN });
+        w.inFrame = true;
+        frame(dt);
+        w.inFrame = false;
+        w.frames.at(-1)!.yaw = fly.debug().yaw;
+        if (w.frames.length >= 40) clearInterval(w.timer);
+      };
+      let k = 0;
+      w.timer = setInterval(() => {
+        const d = 0.3 + (k++ % 5) * 0.35;
+        w.sent += d;
+        fly.testLook(d, 0);
+      }, 3) as unknown as number;
+    });
+
+  test('one camera update a frame; the look follows the mouse at once and by exactly as much; every movement counts', async () => {
+    const { page, errors } = await open();
+    await page.evaluate('window.__lc.ui.fly.testHold(1)');
+    await page.keyboard.press('f');
+    await waitPhase(page, 'flying');
+    await page.evaluate('window.__lc.ui.fly.testHold(null)');
+    const yaw0 = (await debug(page)).yaw;
+    await watchFrames(page);
+    await page.waitForFunction('window.__watch.frames.length >= 40');
+    const w = (await page.evaluate('window.__watch')) as { frames: { sets: number; sent: number; yaw: number }[]; outside: number };
+    expect(w.outside).toBe(0);
+    for (const f of w.frames) expect(f.sets).toBe(1);
+    // Several movements between frames, and each frame shows all of them, turned by exactly the rate
+    // (0.16° a pixel): nothing eased, nothing held back, nothing lost.
+    expect(w.frames.at(-1)!.sent / w.frames.length).toBeGreaterThan(1);
+    for (const f of w.frames) {
+      const turned = (((yaw0 - f.yaw) % 360) + 360) % 360;
+      expect(turned).toBeCloseTo((f.sent * 0.16) % 360, 6);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test.runIf(FULL)('frame pacing in a 20 s flight through a grown town at a pixel ratio of 2 (recorded, not a gate)', async () => {
+    const { page, errors } = await app.open('/?seed=3&gen=1', { width: 1500, height: 950, scale: 2 });
+    await page.waitForFunction('window.__lc?.ui?.fly !== undefined');
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-here"]');
+    await page.waitForFunction('window.__lc.ui.growth.active');
+    await page.keyboard.press('x');
+    await page.waitForFunction('!window.__lc.ui.growth.active');
+    await page.evaluate('window.__lc.ui.fly.testHold(1)');
+    await page.keyboard.press('f');
+    await waitPhase(page, 'flying');
+    await page.evaluate('window.__lc.ui.fly.testHold(null)');
+    const gaps = (await page.evaluate(async () => {
+      const lc = (window as unknown as { __lc: { ui: { fly: { testLook(dx: number, dy: number): void; testKey(c: string, d: boolean): void; testPlace(e: number[], y: number, p: number): void } } } }).__lc;
+      lc.ui.fly.testPlace([24, 3.5, 30], 0, -8);
+      const out: number[] = [];
+      let last = -1;
+      let n = 0;
+      const timer = setInterval(() => lc.ui.fly.testLook(Math.sin(++n / 200) * 2 + 0.3, Math.sin(n / 90) * 0.1), 2);
+      const keys = ['KeyW', 'KeyA', 'KeyW', 'KeyD'];
+      for (let s = 0; s < 20; s++) {
+        const k = keys[s % 4]!;
+        lc.ui.fly.testKey(k, true);
+        const t0 = performance.now();
+        while (performance.now() - t0 < 1000) {
+          const ts = await new Promise<number>((r) => requestAnimationFrame(r));
+          if (last >= 0) out.push(ts - last);
+          last = ts;
+        }
+        lc.ui.fly.testKey(k, false);
+      }
+      clearInterval(timer);
+      return out;
+    })) as number[];
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const q = (p: number): number => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))]!;
+    console.log(`fly pacing at 2x: ${gaps.length} frames, median ${q(0.5).toFixed(1)} ms, p95 ${q(0.95).toFixed(1)}, p99 ${q(0.99).toFixed(1)}, worst ${sorted.at(-1)!.toFixed(1)}, over 33 ms ${gaps.filter((g) => g > 33.4).length}`);
+    expect(gaps.length).toBeGreaterThan(100);
+    expect(errors).toEqual([]);
+  }, 120_000);
 });

@@ -122,6 +122,11 @@ export interface TownView {
   setEyeCamera(pose: EyePose | null): void;
   /** The perspective eye drawn from now, or null while the orbit camera draws. */
   getEyeCamera(): EyePose | null;
+  /**
+   * Added by Fly. Gets the perspective eye ready ahead of time (its shaders compiled, its target
+   * made), so the first take-off does not stall a frame. Call when the page is idle; harmless twice.
+   */
+  prepareEye?(): void;
 
   /** Match the canvas's CSS size. Call on window resize. */
   resize(width: number, height: number): void;
