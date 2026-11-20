@@ -710,7 +710,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     seed: 7502,
     ground: seaSouth,
     build(b) {
-      for (let x = 19; x <= 20; x++) b.block('dock', x, 0, 21);
+      for (let x = 17; x <= 22; x++) b.block('dock', x, 0, 21);
       b.path(17, 20, 22, 20);
     },
     view: FRONT,
