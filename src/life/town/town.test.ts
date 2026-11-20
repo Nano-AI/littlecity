@@ -233,7 +233,9 @@ describe('L51 bread and L52 water', () => {
     expect(left).toBeLessThanOrEqual(3);
     expect(released).toBe(6 - left);
     const delivered = [...t.board.stores.values()].filter((s) => s.key.startsWith('trade:to:')).reduce((n, s) => n + t.board.count(s), 0);
-    expect(delivered).toBe(6 - left);
+    // Set down in town (some already taken in by those who live there).
+    expect(delivered).toBeGreaterThanOrEqual(1);
+    expect(delivered).toBeLessThanOrEqual(6 - left);
     expect(carts).toBeGreaterThan(10);
     // The carts are back by their doors or out with a carter.
     const parked = [...t.board.stores.values()].filter((s) => s.key.startsWith('trade:cart:')).reduce((n, s) => n + t.board.count(s), 0);

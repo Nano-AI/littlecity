@@ -78,6 +78,29 @@ export function tradeChain(piles: PileSource = (board) => (board.stage ? (harbou
     return board.store(`trade:cart:${p.id}`, heapSpots(cell, door.dir!, board.centre(cell).y, -1, 0.3).slice(1, 2));
   };
 
+  /** Somebody who lives or works where goods have been left takes one in (so the heap goes down and there is room for more). */
+  const takeIn = (board: Board, p: Person): Plan | null => {
+    if (p.child || board.claimedBy(p) || p.load) return null;
+    const d = dests.find((x) => x.post.structure !== undefined && (p.home === x.post.structure || p.work?.structure === x.post.structure) && board.count(x.store) >= 2);
+    if (!d || !reaches(board, p, d.post.cell)) return null;
+    const inside = board.stepIn(d.post.structure!, { cell: d.post.cell, linger: 2, tag: 'trade:in', done: (q) => void (q.load = null) });
+    if (!inside) return null;
+    const lift = board.stepAt(d.post.cell, {
+      // Beside the heap, off the doorstep's middle.
+      ...standAt(board, d.post, -0.05, -0.3),
+      pose: 'tend',
+      linger: 0.9,
+      tag: 'trade:take',
+      done: (q) => {
+        const it = board.take(d.store);
+        if (!it) return false;
+        q.load = it;
+        inside.load = it;
+      },
+    });
+    return { chain, at: 0, steps: [lift, inside] };
+  };
+
   const chain: TradeChain = {
     id: 'trade',
     get carters() {
@@ -107,7 +130,8 @@ export function tradeChain(piles: PileSource = (board) => (board.stage ? (harbou
     },
     offer(p, time, board) {
       const i = carters.indexOf(p);
-      if (i < 0 || !(time.isDay || time.isDawn) || board.now < (next.get(p) ?? 0)) return null;
+      if (i < 0) return takeIn(board, p);
+      if (!(time.isDay || time.isDawn) || board.now < (next.get(p) ?? 0)) return null;
       const all = piles(board);
       if (!all) return null;
       // Goods lying on a quay that nobody is coming for.
