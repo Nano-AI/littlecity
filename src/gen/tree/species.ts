@@ -11,8 +11,12 @@
 // scribbled shadow, the way the reference illustrations draw them, and not
 // as a pile of shaded balls. All lumps must be emitted in world axes
 // (translation and uniform scale only): the tones are world directions.
+//
+// Seasons: every leafy part carries a FOLIAGE code in `edge` (src/gen/foliage.ts), and a broadleaf
+// has a few branches drawn inside its crown, hidden until its leaves fall in autumn.
 
 import type { Vec3 } from '@/core/mat4';
+import { FOLIAGE } from '@/gen/foliage';
 import { PATTERN, type MeshBuilder, type SwayInput } from '@/gen/mesh';
 import { dab, lump, mixColor, mound, SHADE_SIDE, SUN, TONE, toneAt, tube, tuft, vary, type Rgb, type Rng } from '@/parts/ground/kit';
 import { TREE } from '@/style/ground';
@@ -47,6 +51,8 @@ interface CloudOptions {
   /** Larger lumps on top (the cloud shape). Default one or two, by seed. */
   tops?: number;
   ink?: string;
+  /** The FOLIAGE code (default: a broadleaf's crown). */
+  foliage?: number;
 }
 
 /**
@@ -62,8 +68,9 @@ function cloud(b: MeshBuilder, r: Rng, o: CloudOptions): void {
   const { x, y, z, R } = o;
   const ry = R * o.squash;
   const ink = o.ink ?? 'crown';
-  const lit = { color: o.color, pattern: PATTERN.none, ink, sway: o.sway };
-  const dark = { color: mixColor(o.color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway: o.sway };
+  const edge = o.foliage ?? FOLIAGE.crown;
+  const lit = { color: o.color, pattern: PATTERN.none, ink, sway: o.sway, edge };
+  const dark = { color: mixColor(o.color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway: o.sway, edge };
   b.with(lit, () => lump(b, x, y, z, R, ry, R, { seg: 16, rings: 6, normal: TONE.lit, twist: r('tw') * 6 }));
   b.with(dark, () =>
     lump(b, x + SHADE_SIDE[0] * R * 0.2, y - ry * 0.36, z + SHADE_SIDE[1] * R * 0.2, R * 0.93, ry * 0.74, R * 0.93, { seg: 12, rings: 5, normal: TONE.shade, twist: 0.3, facing: [0, -1, 0], cut: -0.35 }),
@@ -97,13 +104,40 @@ function cloud(b: MeshBuilder, r: Rng, o: CloudOptions): void {
 
 /** Fruit, blossom or flowers scattered on the sunny side of a crown: dabs of colour with no outline. */
 function speckle(b: MeshBuilder, r: Rng, x: number, y: number, z: number, R: number, ry: number, color: Rgb | string, count: number, size: number, sway: SwayInput, ink = 'crown'): void {
-  b.with({ color, pattern: PATTERN.none, ink, sway }, () => {
+  b.with({ color, pattern: PATTERN.none, ink, sway, edge: FOLIAGE.fruit }, () => {
     for (let i = 0; i < count; i++) {
       // A point on the crown's lit half, pushed just proud of the surface.
       const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.4;
       const up = -0.25 + r('fu', i) * 1.05;
       const s = Math.sqrt(Math.max(0, 1 - up * up));
       lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 5, rings: 2, normal: TONE.lit });
+    }
+  });
+}
+
+/**
+ * A broadleaf's branches: a few limbs from the top of the trunk out into the crown, each forking into
+ * two twigs, all well inside the crown's core so that in leaf they cannot be seen (nor do they reach
+ * the ground's shade picture). When the leaves fall (src/render/shaders/season.ts) they are the tree.
+ * `R` and `ry` are the crown core's radius and half-height round (cx, cy, cz).
+ */
+function branches(b: MeshBuilder, r: Rng, from: Vec3, cx: number, cy: number, cz: number, R: number, ry: number, sway: SwayInput, color: Rgb): void {
+  const n = 4 + (r('limbs') < 0.5 ? 1 : 0);
+  const a0 = r('limb0') * 6.28;
+  b.with({ color, pattern: PATTERN.bark, ink: 'trunk', sway, edge: FOLIAGE.branch }, () => {
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i * 6.28) / n + (r('la', i) - 0.5) * 0.7;
+      const dx = Math.cos(a), dz = Math.sin(a);
+      const reach = R * (0.48 + r('lr', i) * 0.12), rise = ry * (-0.1 + r('ly', i) * 0.4);
+      const end: Vec3 = [cx + dx * reach, cy + rise, cz + dz * reach];
+      const mid: Vec3 = [from[0] + (end[0] - from[0]) * 0.45, from[1] + (end[1] - from[1]) * 0.7, from[2] + (end[2] - from[2]) * 0.45];
+      tube(b, [from, mid, end], [0.022, 0.014, 0.008], { seg: 4 });
+      for (let j = 0; j < 2; j++) {
+        const t = a + (j === 0 ? -0.55 : 0.5) + (r('ta', i, j) - 0.5) * 0.3;
+        const len = R * (0.18 + r('tl', i, j) * 0.08);
+        const tip: Vec3 = [end[0] + Math.cos(t) * len, end[1] + len * (0.5 + r('tu', i, j) * 0.6) * (ry / R), end[2] + Math.sin(t) * len];
+        tube(b, [end, tip], [0.008, 0.003], { seg: 3 });
+      }
     }
   });
 }
@@ -129,8 +163,10 @@ export function roundTree(b: MeshBuilder, r: Rng, o: RoundOptions = {}): number 
   const cy = th + R * squash * 0.72;
   const top = cy + R * squash;
   const sway = swayTo(top);
-  trunk(b, r, [[0, 0, 0], [tx * 0.35, th * 0.55, tz * 0.5], [tx, th + R * 0.25, tz]], 0.05 + r('tr') * 0.016, sway);
+  const bark = vary(PALETTE.trunk, r('trunk'), 0.6);
+  trunk(b, r, [[0, 0, 0], [tx * 0.35, th * 0.55, tz * 0.5], [tx, th + R * 0.25, tz]], 0.05 + r('tr') * 0.016, sway, bark);
   const color = o.color ?? vary(PALETTE.leaf, r('leaf'));
+  branches(b, (...p) => r('branch', ...p), [tx, th + R * 0.2, tz], tx, cy, tz, R, R * squash, sway, bark);
   cloud(b, r, { x: tx, y: cy, z: tz, R, squash, color, sway });
   if (o.fruit) speckle(b, r, tx, cy, tz, R, R * squash, o.fruit, o.fruitCount ?? 6, 0.04, sway);
   return top;
@@ -145,7 +181,7 @@ export function cypress(b: MeshBuilder, r: Rng): number {
   trunk(b, r, [[0, 0, 0], [0, 0.22, 0]], 0.045, sway);
   const color = vary(PALETTE.leafDark, r('leaf'));
   const twist = r('tw') * 6;
-  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
+  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway, edge: FOLIAGE.evergreen }, () => {
     lump(b, 0, y0 + h * 0.46, 0, rad, h * 0.46, rad, { seg: 12, rings: 7, normal: TONE.lit, twist });
     // The tip, a little off the axis, and a shoulder or two so the outline is not an ellipse.
     lump(b, (r('tx') - 0.5) * 0.05, y0 + h * 0.82, (r('tz') - 0.5) * 0.05, rad * 0.6, h * 0.2, rad * 0.6, { seg: 8, rings: 5, normal: TONE.lit, facing: [0, 1, 0], cut: -0.2 });
@@ -154,7 +190,7 @@ export function cypress(b: MeshBuilder, r: Rng): number {
       lump(b, Math.cos(a) * rad * 0.42, y0 + h * (0.22 + r('by', j) * 0.3), Math.sin(a) * rad * 0.42, rad * 0.78, h * 0.2, rad * 0.78, { seg: 8, rings: 5, normal: TONE.lit, facing: [Math.cos(a), 0, Math.sin(a)], cut: -0.2 });
     }
   });
-  b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
+  b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway, edge: FOLIAGE.evergreen }, () =>
     lump(b, SHADE_SIDE[0] * rad * 0.4, y0 + h * 0.42, SHADE_SIDE[1] * rad * 0.4, rad * 0.96, h * 0.42, rad * 0.96, { seg: 12, rings: 7, normal: TONE.shade, twist, facing: [SHADE_SIDE[0], 0, SHADE_SIDE[1]], cut: -0.1 }),
   );
   return top;
@@ -169,10 +205,10 @@ export function bush(b: MeshBuilder, r: Rng, size = 1, x = 0, z = 0, ink = 'bush
   const fine = size > 1.2;
   // A bush is rooted along its whole foot: it only stirs toward the top.
   const sway: SwayInput = (_x, y) => Math.max(0, Math.min(1, y / (R * 1.8))) * TREE.sway * 0.3;
-  b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway }, () =>
+  b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink, sway, edge: FOLIAGE.shrub }, () =>
     mound(b, x + SHADE_SIDE[0] * R * 0.3, 0, z + SHADE_SIDE[1] * R * 0.3, R * 1.25, R * 0.95, R * 1.25, { seg: fine ? 12 : 8, rings: fine ? 3 : 2, normal: TONE.shade }),
   );
-  b.with({ color, pattern: PATTERN.none, ink, sway }, () => {
+  b.with({ color, pattern: PATTERN.none, ink, sway, edge: FOLIAGE.shrub }, () => {
     lump(b, x, R * 0.75, z, R, R * 0.85, R, { seg: fine ? 12 : 9, rings: fine ? 5 : 4, normal: TONE.lit, twist: r('bt') * 6, facing: [0, 1, 0], cut: -0.7 });
     const n = fine ? 2 + Math.floor(r('bn') * 2) : 2;
     const a0 = r('ba') * 6.28;
@@ -183,7 +219,7 @@ export function bush(b: MeshBuilder, r: Rng, size = 1, x = 0, z = 0, ink = 'bush
   });
   if (flowers) {
     const fc = typeof flowers === 'string' ? flowers : FLOWERS[Math.floor(r('fc') * FLOWERS.length)]!;
-    b.with({ color: fc, pattern: PATTERN.none, ink, sway }, () => {
+    b.with({ color: fc, pattern: PATTERN.none, ink, sway, edge: FOLIAGE.shrub }, () => {
       for (let i = 0; i < 4; i++) {
         const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.6, up = 0.15 + r('fu', i) * 0.7;
         const s = Math.sqrt(1 - up * up);
@@ -220,7 +256,7 @@ export function palm(b: MeshBuilder, r: Rng): number {
   const color = vary(PALETTE.leafDark, r('leaf'), 0.7);
   const fronds = 7;
   const a0 = r('fa') * 6.28;
-  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
+  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway, edge: FOLIAGE.evergreen }, () => {
     for (let f = 0; f < fronds; f++) {
       const fa = a0 + (f / fronds) * 6.28 + (r('fj', f) - 0.5) * 0.35;
       const len = 0.4 + r('fl', f) * 0.12, rise = 0.1 + r('fr', f) * 0.1, droop = 0.34 + r('fd', f) * 0.14;
@@ -270,15 +306,17 @@ export function willow(b: MeshBuilder, r: Rng): number {
   const cx = Math.cos(la) * lean, cz = Math.sin(la) * lean;
   const cy = th + R * squash * 0.55, top = cy + R * squash * 1.3;
   const sway = swayTo(top);
-  trunk(b, r, [[0, 0, 0], [cx * 0.25, th * 0.5, cz * 0.25], [cx, cy, cz]], 0.07, sway);
+  const bark = vary(PALETTE.trunk, r('trunk'), 0.6);
+  trunk(b, r, [[0, 0, 0], [cx * 0.25, th * 0.5, cz * 0.25], [cx, cy, cz]], 0.07, sway, bark);
+  branches(b, (...p) => r('branch', ...p), [cx, cy - R * squash * 0.4, cz], cx, cy, cz, R, R * squash, sway, bark);
   const color = vary(mixColor(PALETTE.leaf, PALETTE.yellow, 0.14), r('leaf'), 0.7);
   const shade = mixColor(color, PALETTE.leafDark, TREE.shadeMix + 0.08);
-  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => {
+  b.with({ color, pattern: PATTERN.none, ink: 'crown', sway, edge: FOLIAGE.crown }, () => {
     lump(b, cx, cy, cz, R, R * squash, R, { seg: 16, rings: 6, normal: TONE.lit, twist: r('tw') * 6 });
     const a = r('ta') * 6.28;
     lump(b, cx + Math.cos(a) * R * 0.3, cy + R * squash * 0.45, cz + Math.sin(a) * R * 0.3, R * 0.5, R * 0.4, R * 0.5, { seg: 10, rings: 5, normal: TONE.lit, facing: [0, 1, 0], cut: -0.1 });
   });
-  b.with({ color: shade, pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
+  b.with({ color: shade, pattern: PATTERN.leaves, ink: 'crown', sway, edge: FOLIAGE.crown }, () =>
     lump(b, cx + SHADE_SIDE[0] * R * 0.16, cy - R * squash * 0.3, cz + SHADE_SIDE[1] * R * 0.16, R * 0.92, R * squash * 0.8, R * 0.92, { seg: 12, rings: 5, normal: TONE.shade, facing: [0, -1, 0], cut: -0.3 }),
   );
   const strands = 9 + Math.floor(r('strands') * 4);
@@ -298,7 +336,7 @@ export function willow(b: MeshBuilder, r: Rng): number {
     ];
     const hang: SwayInput = (_x, y) => Math.min(1, TREE.sway * (0.35 + 0.75 * Math.max(0, Math.min(1, (y0 - y) / len))));
     // One flat tone to a strand, so each reads as a single stroke of leaf.
-    b.with({ color: shady ? shade : color, pattern: PATTERN.none, ink: 'crown', sway: hang }, () => tube(b, pts, [w * 0.85, w, 0.008], { seg: 4, normal: shady ? TONE.shade : k % 3 === 1 ? TONE.mid : TONE.lit }));
+    b.with({ color: shady ? shade : color, pattern: PATTERN.none, ink: 'crown', sway: hang, edge: FOLIAGE.strand }, () => tube(b, pts, [w * 0.85, w, 0.008], { seg: 4, normal: shady ? TONE.shade : k % 3 === 1 ? TONE.mid : TONE.lit }));
   }
   return top;
 }
@@ -352,7 +390,7 @@ export function pine(b: MeshBuilder, r: Rng): number {
     }
     const [tx, tz] = axis(yb + H);
     const apex: Vec3 = [tx, yb + H, tz];
-    b.with({ color, pattern: PATTERN.leaves, ink: `skirt${k}`, sway }, () => {
+    b.with({ color, pattern: PATTERN.leaves, ink: `skirt${k}`, sway, edge: FOLIAGE.evergreen }, () => {
       for (let i = 0; i < N; i++) {
         const j = (i + 1) % N;
         b.tri(apex, mid[j]!, mid[i]!, { normals: [nor[i]!, nor[j]!, nor[i]!] });
@@ -362,7 +400,7 @@ export function pine(b: MeshBuilder, r: Rng): number {
     // Underneath: in shade, and closed, so no skirt is hollow from a low view.
     const [ux, uz] = axis(yb + 0.1);
     const hub: Vec3 = [ux, yb + 0.1, uz];
-    b.with({ color: under, pattern: PATTERN.none, ink: `skirt${k}`, sway }, () => {
+    b.with({ color: under, pattern: PATTERN.none, ink: `skirt${k}`, sway, edge: FOLIAGE.evergreen }, () => {
       for (let i = 0; i < N; i++) b.tri(hub, rim[i]!, rim[(i + 1) % N]!, { normals: [TONE.shade, TONE.shade, TONE.shade] });
     });
     yb += (H * 2) / 3;
@@ -388,8 +426,8 @@ export function planterTree(b: MeshBuilder, r: Rng): number {
   trunk(b, r, [[0, bh, 0], [0, cy, 0]], 0.04, sway);
   const color = vary(PALETTE.leafDark, r('leaf'), 0.6);
   const ball = (y: number, rad: number): void => {
-    b.with({ color, pattern: PATTERN.none, ink: 'crown', sway }, () => lump(b, 0, y, 0, rad, rad * 0.94, rad, { seg: rad > 0.2 ? 16 : 12, rings: rad > 0.2 ? 8 : 6, normal: TONE.lit, facing: [0, 1, 0], cut: -0.8 }));
-    b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway }, () =>
+    b.with({ color, pattern: PATTERN.none, ink: 'crown', sway, edge: FOLIAGE.evergreen }, () => lump(b, 0, y, 0, rad, rad * 0.94, rad, { seg: rad > 0.2 ? 16 : 12, rings: rad > 0.2 ? 8 : 6, normal: TONE.lit, facing: [0, 1, 0], cut: -0.8 }));
+    b.with({ color: mixColor(color, PALETTE.leafDark, TREE.shadeMix), pattern: PATTERN.leaves, ink: 'crown', sway, edge: FOLIAGE.evergreen }, () =>
       lump(b, SHADE_SIDE[0] * rad * 0.14, y - rad * 0.48, SHADE_SIDE[1] * rad * 0.14, rad * 0.88, rad * 0.64, rad * 0.88, { seg: 14, rings: 6, normal: TONE.shade, facing: [0, -1, 0], cut: -0.25 }),
     );
   };

@@ -10,9 +10,10 @@ import { CELL_H, keyX, keyY, keyZ, unedge } from '@/core/grid';
 import { hash } from '@/core/rand';
 import type { World } from '@/core/world';
 import { ENTRIES, guideScenario, type GuideEntry } from '@/guide/entries';
-import type { LifeRuntime, SignalsDriver } from '@/life/api';
+import type { LifeRuntime } from '@/life/api';
 import { createLife } from '@/life/runtime';
-import { createSignals } from '@/life/signals';
+import { createSignals, type TownSignals } from '@/life/signals';
+import { applyCalendar } from '@/life/season';
 import type { CameraPose, TownView } from '@/render/api';
 import { frameOf, panPose, project, zoomPose } from '@/render/camera';
 import { createTownView } from '@/render/index';
@@ -32,7 +33,7 @@ const SCATTER = 'D24.';
 const canvas = document.getElementById('town') as HTMLCanvasElement;
 let view: TownView | null = null;
 let life: LifeRuntime | null = null;
-let signals: SignalsDriver | null = null;
+let signals: TownSignals | null = null;
 
 const nextFrame = (): Promise<number> => new Promise((r) => requestAnimationFrame(r));
 
@@ -146,6 +147,8 @@ const api = {
     view ??= createTownView(canvas, { preserveDrawingBuffer: true, pixelRatio: window.devicePixelRatio });
     view.resize(width, height);
     signals = createSignals(scn.seed);
+    // Summer and a clear sky, held (seasons, design section 13a): pictures as they always were.
+    applyCalendar(signals, 'summer', 'clear', true);
     signals.hold('day');
     life = createLife(view.stage, signals);
     view.setTown(shape, dressing);

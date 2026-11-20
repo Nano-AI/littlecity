@@ -10,8 +10,9 @@
 import { translation } from '@/core/mat4';
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import { MeshBuilder } from '@/gen/mesh';
-import type { DayPart, InstanceHandle, SignalsDriver } from '@/life/api';
-import { createSignals } from '@/life/signals';
+import type { DayPart, InstanceHandle } from '@/life/api';
+import { createSignals, type TownSignals } from '@/life/signals';
+import { applyCalendar } from '@/life/season';
 import type { Edit } from '@/core/world';
 import type { ResolveOptions } from '@/resolve/engine/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
@@ -44,7 +45,7 @@ export interface FrameSummary {
 const COLS = 32, ROWS = 20;
 
 let view: TownView | null = null;
-let signals: SignalsDriver | null = null;
+let signals: TownSignals | null = null;
 let canvas: HTMLCanvasElement | null = null;
 let shape: ShapePlan | null = null;
 let options: ResolveOptions | null = null;
@@ -118,6 +119,8 @@ const api = {
     view = createTownView(canvas, { pixelRatio: 1, ...opts, preserveDrawingBuffer: true });
     view.resize(width, height);
     signals = createSignals(scn.seed);
+    // Summer and a clear sky, held: the view's tests measure the town as it always looked.
+    applyCalendar(signals, 'summer', 'clear', true);
     const built = buildScenario(scn);
     options = scenarioResolveOptions(scn);
     shape = resolveShape(built.world, built.terrain, options);
@@ -228,6 +231,10 @@ const api = {
   },
   time(part: DayPart): void {
     signals!.hold(part);
+  },
+  /** Seasons: holds a season and weather and brings it in at once (design section 13a). */
+  season(season: string | number, weather = 'clear'): void {
+    applyCalendar(signals!, season, weather, true);
   },
   camera(pose: Partial<CameraPose>): void {
     view!.setCamera(pose);

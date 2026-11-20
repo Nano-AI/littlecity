@@ -26,13 +26,27 @@ export interface App {
   close(): Promise<void>;
 }
 
+/**
+ * The app's pages open in summer under a clear sky, held (seasons, design section 13a), so a test
+ * sees the town it was written against however long it runs. A path that names a season keeps it.
+ */
+export function pinCalendar(path: string): string {
+  const [head, hash = ''] = path.split('#') as [string, string?];
+  const [route, query = ''] = head.split('?') as [string, string?];
+  if (route !== '/' && route !== '/index.html') return path;
+  const params = new URLSearchParams(query);
+  if (!params.has('season')) params.set('season', 'summer');
+  if (!params.has('weather')) params.set('weather', 'clear');
+  return `${route}?${params}${hash ? `#${hash}` : ''}`;
+}
+
 export async function startApp(): Promise<App> {
   const server = await startServer();
   const browser: Browser = await launchBrowser();
   return {
     url: server.url,
     browser,
-    open: (path = '/', opts = {}) => openPage(browser, server.url + path, opts) as Promise<{ page: Page; errors: string[] }>,
+    open: (path = '/', opts = {}) => openPage(browser, server.url + pinCalendar(path), opts) as Promise<{ page: Page; errors: string[] }>,
     async close() {
       await browser.close();
       await server.close();

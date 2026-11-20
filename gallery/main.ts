@@ -14,10 +14,11 @@
 import { ALL_KINDS, FLOOR_KINDS } from '@/core/kinds';
 import { allStyles } from '@/core/style';
 import { allGenerators, allParts } from '@/gen/discover';
-import type { LifeRuntime, SignalsDriver, TimeHold } from '@/life/api';
+import type { LifeRuntime, TimeHold } from '@/life/api';
 import { allBehaviours, allSystems } from '@/life/discover';
 import { createLife } from '@/life/runtime';
-import { createSignals } from '@/life/signals';
+import { createSignals, type TownSignals } from '@/life/signals';
+import { applyCalendar } from '@/life/season';
 import type { CameraPose, TownView } from '@/render/api';
 import { createTownView } from '@/render/index';
 import { allFacts, allRules } from '@/resolve/engine/discover';
@@ -100,7 +101,7 @@ const stage = el('div', { class: 'g-stage' }, [canvas, iconSheet, el('div', { cl
 
 let view: TownView | null = null;
 let life: LifeRuntime | null = null;
-let signals: SignalsDriver | null = null;
+let signals: TownSignals | null = null;
 let built: BuiltScenario | null = null;
 let current: Entry | null = null;
 let hold: TimeHold = 'day';
@@ -118,6 +119,8 @@ function draw(camera?: CameraPose): void {
   view = createTownView(canvas);
   sizeView();
   signals = createSignals(built.scenario.seed);
+  // Summer and a clear sky, held (seasons, design section 13a): pictures as they always were.
+  applyCalendar(signals, 'summer', 'clear', true);
   signals.hold(hold);
   life = createLife(view.stage, signals);
   const opts = scenarioResolveOptions(built.scenario);

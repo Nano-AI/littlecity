@@ -14,13 +14,18 @@
 // measuring, ?ink=full|half and ?density=1|2|3 (the highest rule tier that
 // dresses the town) override them.
 //
+// Seasons and weather (design section 13a) run by themselves; ?season=spring|summer|autumn|winter|
+// festival|<year 0..1> and ?weather=auto|clear|cloudy|rain|storm|fog|wind|snow hold them (a scenario
+// can name them too), and &settle=1 brings the weather in at once (settled snow included).
+//
 // window.__lc is the debug handle browser tests and the console use.
 
 import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
-import type { LifeRuntime, SignalsDriver } from '@/life/api';
+import type { LifeRuntime } from '@/life/api';
 import { createLife } from '@/life/runtime';
-import { createSignals } from '@/life/signals';
+import { applyCalendar } from '@/life/season';
+import { createSignals, type TownSignals } from '@/life/signals';
 import { createTownView } from '@/render/index';
 import type { ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario } from '@/scenario';
@@ -87,7 +92,8 @@ const tiered = (s: GameStart): GameStart => (density === undefined ? s : { ...s,
 // ── the parts ────────────────────────────────────────────────────────────
 const canvas = document.getElementById('town') as HTMLCanvasElement;
 const view = createTownView(canvas, { ink: inkParam === 'full' || inkParam === 'half' ? inkParam : 'auto' });
-let signals: SignalsDriver = createSignals(start.world.seed);
+let signals: TownSignals = createSignals(start.world.seed);
+applyCalendar(signals, params.get('season') ?? scn?.season, params.get('weather') ?? scn?.weather, params.get('settle') === '1' || (scn !== undefined && (scn.season !== undefined || scn.weather !== undefined)));
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
 
@@ -115,9 +121,12 @@ const game = createGame(tiered(start), {
 /** A different town: life and the signals start over with its seed; the held time of day carries across. */
 function open(next: GameStart): void {
   const holding = signals.holding;
+  const { seasonHolding, weatherHolding } = signals;
   life.dispose();
   signals = createSignals(next.world.seed);
   signals.hold(holding);
+  if (seasonHolding !== 'run') signals.holdSeason(seasonHolding);
+  if (weatherHolding !== 'auto') signals.holdWeather(weatherHolding);
   life = createLife(view.stage, signals);
   game.restart(tiered(next));
 }

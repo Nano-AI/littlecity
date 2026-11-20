@@ -13,9 +13,14 @@
 // With OVERLAY defined it is the translucent pass drawn over the finished
 // page: light beams and the ghost preview (see index.ts).
 //
+// Seasons and weather (./season.ts) hook in at five places marked "Seasons", all behind uSeasonOn
+// (and the BARE define for falling leaves), so summer under a clear sky draws exactly as before.
+//
 // Adding a pattern: give it an id in PATTERN (src/gen/mesh.ts), add a branch
 // in `pattern()` below, add a swatch to scenarios/look/look-swatches and a
 // line to docs/swarm/ART.md.
+
+import { SEASON_FRAGMENT, SEASON_VERTEX } from './season';
 
 export const NOISE = /* glsl */ `
 float h1(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -58,7 +63,7 @@ flat out vec4 vParams;
 flat out float vPat;
 flat out vec2 vId;
 flat out vec3 vOrigin;   // the slot's origin in the world (a glow centre)
-
+${SEASON_VERTEX}
 ${COLOR}
 
 void main(){
@@ -94,6 +99,9 @@ void main(){
   float len = length(n);
   n = len > 0.0 ? n / len : vec3(0.0, 1.0, 0.0);
 
+#ifdef BARE
+  vRest = p;   // Seasons: where the point is at rest, for the falling leaves' dissolve
+#endif
   // Wind: the same field every behaviour samples, so a gust crosses baked trees and moving flags together.
   float sway = max(normal.w, 0.0);
   if (sway > 0.0) {
@@ -320,6 +328,7 @@ vec3 shade(vec3 c, float s){
   // Shadows drift slightly cool and violet rather than just darker: it reads as paint, not plastic.
   return c * s * mix(vec3(1.0), vec3(0.93, 0.92, 1.06), (1.0 - s) * 3.0);
 }
+${SEASON_FRAGMENT}
 
 void main(){
   vec3 n = normalize(vN);
@@ -402,6 +411,9 @@ void main(){
   oColor = fill;
   oId = vec4(normalize(vVN).xy * 0.5 + 0.5, vId);
 #else
+#ifdef BARE
+  if (bareCut()) discard;   // Seasons: a broadleaf losing its leaves
+#endif
 
   if ((pat == 11 || pat == 40) && top) {
     // ── water: flat colour, deeper patches, a pale shallow band, little wave marks, foam at the shore.
@@ -461,6 +473,8 @@ void main(){
     float ring1 = band(sd - 0.1 - 0.035 * sin(uTime * 1.1), rw);
     float ring2 = band(sd - 0.34 - 0.06 * sin(uTime * 1.1 + 1.4), 0.014) * step(0.42, n2(vW.xz * 2.5 + uTime * 0.2)) * fade(0.12) * (1.0 - inRiver);
     c = mix(c, uFoam, clamp(ring1 * 0.95 + ring2 * 0.7, 0.0, 1.0));
+    // Seasons: winter's grey sea, ice, rain rings.
+    if (uSeasonOn > 0.5) c = seasonWater(c, sd, riv, pat == 11 && vW.y > uSeaY + 0.05, pen);
     // Things standing in the water (a dock, a hull) darken it a little where they meet it.
     c *= mix(vec3(1.0), vec3(0.8, 0.84, 0.93), grounding(n) * uGround * smoothstep(0.15, 0.4, sd));
     col = c;
@@ -498,6 +512,7 @@ void main(){
         vec2 d1 = normalize(vec2(0.55, -1.0)), d2 = normalize(vec2(1.0, -0.4));
         float tuft = max(lineAA(length(f2 - d1 * clamp(dot(f2, d1), 0.0, 0.1)), 0.016), lineAA(length(f2 - d2 * clamp(dot(f2, d2), 0.0, 0.085)), 0.016)) * step(0.5, r2);
         grass = mix(grass, grass * vec3(0.54, 0.73, 0.5), max(m * fade(0.28), tuft * fade(0.5)));
+        if (uSeasonOn > 0.5) grass = seasonGrass(grass);   // Seasons
         // flowers: rare specks of palette colour
         vec2 p3 = vW.xz * 2.3 + 1.7; vec2 c3 = floor(p3); vec2 f3 = fract(p3) - 0.5;
         float r3 = h1(c3 + 4.0);
@@ -748,6 +763,10 @@ void main(){
       float x = along * 9.0 + sin(vW.y * 6.0 - uTime * 3.0) * 0.25;
       col = mix(col, shade(uFoam, s), lineAA(abs(fract(x) - 0.5), 0.08) * step(0.5, h1(vec2(floor(x), 0.0))) * 0.5 * fade(0.11));
     }
+
+    // Seasons: autumn leaves, wet ground, settled snow.
+    float snowAmt = 0.0;
+    if (uSeasonOn > 0.5) col = seasonSurface(col, n, s, pat, top, pen, hatchable, snowAmt);
 
     // ── pencil hatching in the shade, laid on the surface itself (see hatchLayer): it stays put when
     //    the view pans, orbits or zooms.
