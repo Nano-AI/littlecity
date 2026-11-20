@@ -17,20 +17,24 @@ export interface Owned {
   readonly live: number;
   /** Releases every handle still out. */
   releaseAll(): void;
+  /** Marks a handle as part of the town (the pump cart at home), not of any mischief: not counted as drawn. */
+  fixture(h: InstanceHandle): InstanceHandle;
 }
 
 /** Per real stage, every owned set still holding handles (for the debug handle and tests: what mischief has drawn). */
-const byStage = new WeakMap<LifeStage, Set<Set<InstanceHandle>>>();
+const byStage = new WeakMap<LifeStage, Set<Map<InstanceHandle, boolean>>>();
+const fixtures = new WeakSet<InstanceHandle>();
 
-/** How many handles the mischief systems on this stage have drawn and not given back. */
+/** How many things the mischief systems on this stage have out and not hidden (put away in a pool is hidden). */
 export function mischiefDrawn(stage: LifeStage): number {
   let n = 0;
-  for (const s of byStage.get(stage) ?? []) n += s.size;
+  for (const s of byStage.get(stage) ?? []) for (const [h, shown] of s) if (shown && !fixtures.has(h)) n++;
   return n;
 }
 
 export function ownStage(real: LifeStage): Owned {
-  const live = new Set<InstanceHandle>();
+  /** Each handle out, and whether it was last shown. */
+  const live = new Map<InstanceHandle, boolean>();
   let sets = byStage.get(real);
   if (!sets) byStage.set(real, (sets = new Set()));
   sets.add(live);
@@ -40,14 +44,17 @@ export function ownStage(real: LifeStage): Owned {
         return h.base;
       },
       setMatrix: (m) => h.setMatrix(m),
-      setVisible: (v) => h.setVisible(v),
+      setVisible: (v) => {
+        if (live.has(w)) live.set(w, v);
+        h.setVisible(v);
+      },
       setParams: (a, b, c, d) => h.setParams(a, b, c, d),
       release: () => {
         if (!live.delete(w)) return;
         h.release();
       },
     };
-    live.add(w);
+    live.set(w, true);
     return w;
   };
   const stage: LifeStage = {
@@ -66,8 +73,12 @@ export function ownStage(real: LifeStage): Owned {
       return live.size;
     },
     releaseAll() {
-      for (const h of [...live]) h.release();
+      for (const h of [...live.keys()]) h.release();
       sets.delete(live);
+    },
+    fixture(h) {
+      fixtures.add(h);
+      return h;
     },
   };
 }

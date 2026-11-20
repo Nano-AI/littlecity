@@ -2,12 +2,15 @@
 // steps with the living town and the mischief director, no drawing.
 
 import { describe, expect, test } from 'vitest';
-import { key, keyX, keyY, keyZ, type CellKey } from '@/core/grid';
+import { columnIndex, key, keyX, keyY, keyZ, type CellKey } from '@/core/grid';
+import type { StructureId } from '@/resolve/plan';
+import { findScenario } from '@/scenario/discover';
+import { packRuin } from '@/world/damage';
 import streetTown from '../../../scenarios/mischief/street.scenario';
-import { clock, scenarioTown, townOf, type TestTown } from '../people/testing';
+import { clock, resolved, scenarioTown, townOf, type TestTown } from '../people/testing';
 import { allChains, createLivingTown } from '../town';
 import { Director } from './director';
-import { fireChain, rebuildChain, type FireChain } from './response';
+import { fireChain, rebuildChain, standsOf, type FireChain } from './response';
 
 const ENV = { wind: () => ({ dirX: 1, dirZ: 0, strength: 0.3 }) };
 
@@ -130,4 +133,29 @@ describe('the town fights a fire', () => {
     const still = town.crowd.people.filter((p) => town.board.plans.get(p)?.chain.id === 'mischief.fire' && town.board.plans.get(p)!.steps[0]!.tag !== 'mischief:home' && !town.board.plans.get(p)!.steps.some((x) => x.tag === 'fire:park')); // (wheeling the cart home is the last job)
     expect(still.map((p) => `${p.id} ${town.board.plans.get(p)!.steps.map((s) => s.tag).join(',')} busy=${r.d.engine.busy}`)).toEqual([]);
   }, 240_000);
+});
+
+describe('the town rebuilds', () => {
+  test('out over the water too: a crew can stand on the deck or the nearest shore, or it mends at their pace anyway', () => {
+    const base = scenarioTown(findScenario('grown-harbour')!);
+    const wet = (c: CellKey): boolean => base.terrain.height[columnIndex(keyX(c), keyZ(c))] === 0;
+    const blocks = new Map(base.world.blocks);
+    for (const [c, b] of blocks) if (wet(c)) blocks.set(c, { ...b, ruin: packRuin({ stage: 2, cause: 'blast', mending: true, progress: 1 }) });
+    const where = resolved({ ...base.world, blocks }, base.terrain);
+    const d = new Director(5);
+    d.sync(where.shape);
+    const rebuild = rebuildChain(d);
+    const c = clock(where.world.seed, 'day');
+    const town = createLivingTown({ seed: where.world.seed, chains: [rebuild, ...allChains()] });
+    town.sync(where.shape, where.dressing, c.time);
+    for (let i = 0; i < 30 * 3; i++) town.step(c.tick(1 / 30), c.time);
+    const mending = new Map<StructureId, string>();
+    for (const cell of blocks.keys()) if (wet(cell)) mending.set(where.shape.structureAt.get(cell)!, blocks.get(cell)!.kind);
+    // Every one has somewhere for a crew to stand, or is mended at a crew's pace with nobody there.
+    for (const [sid, kind] of mending) expect(`${kind}#${sid} ${standsOf(town.board, sid).length > 0 || d.remote.has(sid)}`).toBe(`${kind}#${sid} true`);
+    // Docks, out on the water, get crews too: on the deck, or from the shore.
+    expect([...mending].filter(([sid, kind]) => kind === 'dock' && standsOf(town.board, sid).length > 0).length).toBeGreaterThan(0);
+    // And crews go out to them.
+    expect([...rebuild.sites.keys()].some((sid) => mending.has(sid))).toBe(true);
+  });
 });

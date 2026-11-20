@@ -24,7 +24,7 @@
 // column; where a broken column meets a sound one, a partition closes the
 // sound part up to its own roof line. Stone kinds never burn past soot.
 
-import { CELL_H, DIR4, keyX, keyY, keyZ, type Dir4 } from '@/core/grid';
+import { CELL_H, columnIndex, DIR4, inColumnBounds, keyX, keyY, keyZ, type Dir4 } from '@/core/grid';
 import { hash, rand } from '@/core/rand';
 import type { GenOutput, GeneratorRegistry } from '@/gen/api';
 import { mergeMeshes, MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
@@ -32,10 +32,14 @@ import type { ShapePlan, Structure } from '@/resolve/plan';
 import { DAMAGE_COLORS, RUIN, rgb } from '@/style/damage';
 import { PALETTE } from '@/style/palette';
 import { debrisOf, restMatrix, type Chunk } from './debris';
-import { ashFloor, beam, crackShape, fallenBeams, heap, raftersOn, scorchRing, sootShape, studsOn } from './extras';
+import { ashFloor, beam, crackShape, fallenBeams, groundColour, heap, raftersOn, scorchRing, sootShape, studsOn } from './extras';
 import { cutField, profileOf, STONE_KINDS, type Column, type Plane, type Profile } from './field';
 import { area, backOf, bounds, centroid, clip, clonePoly, normalOf, polysOf as polysOfMesh, Soup, tint, transformPoly, vert, type Poly, type Vert } from './poly';
 import { scaffold } from './scaffold';
+
+/** The colour of the open ground under a column (what its scorch mark recovers to). */
+const groundUnder = (prof: Profile, x: number, z: number): [number, number, number] =>
+  groundColour(inColumnBounds(x, z) ? prof.plan.terrain.material[columnIndex(x, z)]! : 2);
 
 type Field = (ix: number, iz: number) => Plane | null;
 
@@ -524,8 +528,20 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
       raftersOn(extras, p, 0.22, 0.04);
     }
   }
+  /** Scorched ground round the foot of a destroyed column, on open ground only; fading back as it is mended. */
+  const scorched = (col: Column): void => {
+    if (col.stage !== 3 || s.kind === 'dock') return;
+    let ground: number | null = null;
+    for (const [dx, dz] of [[1, 0], [0, 1], [-1, 0], [0, -1]] as const) {
+      if (prof.columns.has(prof.colKey(col.x + dx, col.z + dz))) continue;
+      const og = prof.openGround(col.x + dx, col.z + dz, col.base);
+      if (og !== null && Math.abs(og - col.base) < 1e-6) ground = og;
+    }
+    if (ground !== null && col.base === col.wreckBase) scorchRing(extras, col, ground, hash(seed, 'scorch', col.x, col.z), C.scorch, col.mending ? col.progress : 0, groundUnder(prof, col.x, col.z));
+  };
   for (const col of prof.columns.values()) {
     if (col.mending) {
+      scorched(col);
       const ph = col.phases;
       if (col.stage === 3 && col.cause === 'blast' && ph.clear < 1 && s.kind !== 'dock') {
         // Rubble being cleared: the heap goes down.
@@ -548,16 +564,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     if (col.stage === 3 && col.cause === 'blast' && !settling && s.kind !== 'dock') {
       heap(extras, col, hash(seed, col.x, col.z), mix3(wallColor, C.rubble, 0.55));
     }
-    if (col.stage === 3 && s.kind !== 'dock') {
-      // Scorched ground round the foot of a destroyed column, on open ground only.
-      let ground: number | null = null;
-      for (const [dx, dz] of [[1, 0], [0, 1], [-1, 0], [0, -1]] as const) {
-        if (prof.columns.has(prof.colKey(col.x + dx, col.z + dz))) continue;
-        const og = prof.openGround(col.x + dx, col.z + dz, col.base);
-        if (og !== null && Math.abs(og - col.base) < 1e-6) ground = og;
-      }
-      if (ground !== null && col.base === col.wreckBase) scorchRing(extras, col, ground, hash(seed, 'scorch', col.x, col.z), C.scorch);
-    }
+    scorched(col);
   }
 
   // ── soot over openings, cracks ──────────────────────────────────────────
@@ -702,7 +709,7 @@ function treeDamage(intact: MeshData, prof: Profile): MeshData {
       } else {
         stump(0.2);
         const g = prof.openGround(col.x, col.z, col.base);
-        if (g !== null) scorchRing(extras, col, col.base, hash(seed, 'scorch'), C.scorch);
+        if (g !== null) scorchRing(extras, col, col.base, hash(seed, 'scorch'), C.scorch, col.mending ? col.progress : 0, groundUnder(prof, col.x, col.z));
       }
     }
   } else {

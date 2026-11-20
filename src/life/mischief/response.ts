@@ -670,23 +670,43 @@ export interface RebuildChain extends Chain {
 }
 
 /** Walkable cells round a structure's ground storey, facing it (as the builders of L54 stand). */
-function standsOf(board: Board, sid: StructureId): { cell: CellKey; face: number }[] {
+/** How far (cells) from the shore a crew will work on something out over the water. */
+const SHORE_REACH = 4;
+
+export function standsOf(board: Board, sid: StructureId): { cell: CellKey; face: number }[] {
   const st = board.shape?.structures.get(sid);
   const nav = board.nav;
   if (!st || !nav) return [];
   const low = Math.min(...st.cells.map((c) => keyY(c)));
   const out: { cell: CellKey; face: number }[] = [];
   const heading = [Math.PI, Math.PI / 2, 0, -Math.PI / 2];
-  for (const c of st.cells) {
-    if (keyY(c) !== low) continue;
-    for (let d = 0; d < 4; d++) {
-      const [dx, dz] = DIR4[d]!;
-      const at = key(keyX(c) + dx, low, keyZ(c) + dz);
-      if (!nav.nodeAt.has(at) || st.cells.includes(at) || out.some((o) => o.cell === at)) continue;
-      out.push({ cell: at, face: heading[(d + 2) % 4]! });
+  const cells = new Set(st.cells);
+  // Beside it on the ground, or (a dock, a jetty, a bridge over the water) beside it or on it, a level up.
+  for (const y of [low, low + 1]) {
+    for (const c of st.cells) {
+      if (keyY(c) !== low) continue;
+      for (let d = 0; d < 5; d++) {
+        if (d === 4 && y === low) continue;
+        const [dx, dz] = d < 4 ? DIR4[d]! : [0, 0];
+        const at = key(keyX(c) + dx, y, keyZ(c) + dz);
+        if (!nav.nodeAt.has(at) || cells.has(at) || out.some((o) => o.cell === at)) continue;
+        out.push({ cell: at, face: d < 4 ? heading[(d + 2) % 4]! : heading[(c + st.id) % 4]! });
+      }
     }
+    if (out.length > 0) return out.sort((a, b) => a.cell - b.cell);
   }
-  return out.sort((a, b) => a.cell - b.cell);
+  // Out over the water with nowhere to stand: the nearest place on the shore within a few cells, facing it.
+  const cx = st.cells.reduce((s, c) => s + keyX(c), 0) / st.cells.length + 0.5;
+  const cz = st.cells.reduce((s, c) => s + keyZ(c), 0) / st.cells.length + 0.5;
+  const near: { cell: CellKey; d: number; face: number }[] = [];
+  for (const n of nav.nodeAt.keys()) {
+    const dx = cx - (keyX(n) + 0.5), dz = cz - (keyZ(n) + 0.5);
+    const d = Math.min(...st.cells.map((c) => Math.max(Math.abs(keyX(c) - keyX(n)), Math.abs(keyZ(c) - keyZ(n)))));
+    if (d > SHORE_REACH || Math.abs(keyY(n) - low) > 2) continue;
+    near.push({ cell: n, d: d * 100 + Math.hypot(dx, dz), face: Math.atan2(dx, dz) });
+  }
+  near.sort((a, b) => a.d - b.d || a.cell - b.cell);
+  return near.slice(0, 4).map(({ cell, face }) => ({ cell, face }));
 }
 
 /**
@@ -745,9 +765,15 @@ export function rebuildChain(given?: Director): RebuildChain {
       const crewed = new Set<StructureId>();
       for (const [sid, crew] of sites) if (crew.some((p) => p.mode === 'linger' && tagOf(p) === 'rebuild:work')) crewed.add(sid);
       d.crewed = crewed;
+      // Mending with nowhere a crew could stand near it (out over the water, a rock offshore): the town mends
+      // it at a crew's pace all the same (by boat, say), so nothing is left behind for want of a footing.
       look += dt;
-      if (look < 1 || time.isNight) return;
+      if (look < 1) return;
       look = 0;
+      const remote = new Set<StructureId>();
+      for (const sid of mending) if (standsOf(board, sid).length === 0) remote.add(sid);
+      d.remote = remote;
+      if (time.isNight) return;
       // New crews for mending buildings that have none, nearest homes first; a few sites at once.
       for (const sid of [...mending].sort((a, b) => a - b)) {
         if (sites.size >= RESPONSE.sites) break;
