@@ -35,7 +35,8 @@ type Festive =
   | { kind: 'wreath'; socket: string; steps: number }
   | { kind: 'street'; from: CellKey; to: CellKey; dir: Dir4; claim: Slot }
   | { kind: 'square'; a: string; b: string }
-  | { kind: 'tree'; cell: CellKey };
+  | { kind: 'tree'; cell: CellKey }
+  | { kind: 'snowman'; cell: CellKey };
 
 export default defineRule<Festive>({
   id: RULE,
@@ -128,6 +129,18 @@ export default defineRule<Festive>({
         }
       }
       if (best !== NO_CELL) out.push({ anchor: best, key: 'tree', data: { kind: 'tree', cell: best } });
+      // The children's snowman (shown only while deep snow lies): a free cell of the square, a few steps
+      // from the tree.
+      let snow: CellKey = NO_CELL, snowD = Infinity;
+      for (const c of main.cells) {
+        if (occ.kind[c] || taken.has(c) || best === NO_CELL) continue;
+        const d = Math.hypot(keyX(c) - keyX(best), keyZ(c) - keyZ(best));
+        if (d >= 2.5 && d < snowD) {
+          snowD = d;
+          snow = c;
+        }
+      }
+      if (snow !== NO_CELL) out.push({ anchor: snow, key: 'snowman', data: { kind: 'snowman', cell: snow } });
     }
     return out;
   },
@@ -152,6 +165,9 @@ export default defineRule<Festive>({
       out.prop({ type: 'festival-lights', variant: 'street', at: { from, to }, params: { look, drop: -0.22 } });
     } else if (d.kind === 'square') {
       out.prop({ type: 'festival-lights', variant: 'square', at: { from: d.a, to: d.b }, params: { look, drop: 0.06 } });
+    } else if (d.kind === 'snowman') {
+      const top = out.socket({ type: 'festival-anchor', cell: d.cell });
+      out.prop({ type: 'snowman', at: { socket: top }, params: { look } });
     } else {
       // From a socket, not a floor slot: nothing that finds its way by the props on the ground (people,
       // pigeons) changes its mind in summer because of a tree that is not up.

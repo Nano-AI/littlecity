@@ -53,6 +53,7 @@ uniform float uSway;
 uniform float uZStep;     // the coplanar tie-break: one level, in clip-space depth
 uniform vec3 uZOrigin;    // depth, worked out near the numbers it works on: the camera's target ...
 uniform vec3 uZAxis;      // ... and the way it looks, over half the depth range
+uniform float uBulbCss;   // Seasons: CSS pixels per world unit, for the bulbs' least size
 
 out vec3 vW;
 out vec3 vN;
@@ -112,6 +113,8 @@ void main(){
 #ifdef BARE
   vRest = p;   // Seasons: where the point is at rest, for the falling leaves' dissolve
 #endif
+  // Seasons: a festival bulb (edge 207, src/gen/foliage.ts) never draws smaller than a couple of pixels.
+  if (abs(ink.y / 256.0 - 207.0) < 0.5) p += n * max(0.0, 2.2 / max(uBulbCss, 1.0) - 0.04);
   // Wind: the same field every behaviour samples, so a gust crosses baked trees and moving flags together.
   float sway = max(normal.w, 0.0);
   if (sway > 0.0) {

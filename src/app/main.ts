@@ -161,12 +161,22 @@ ui = createInterface({
       return signals.holding;
     },
     hold: (mode) => signals.hold(mode),
+    get phase() {
+      return signals.time.phase;
+    },
+    glide: (mode) => signals.glideTime(mode),
+    scrub: (phase) => signals.scrubTime(phase),
   },
   seasons: {
     get seasonHolding() {
       return signals.seasonHolding;
     },
     holdSeason: (mode) => signals.holdSeason(mode),
+    get year() {
+      return signals.season.year;
+    },
+    glideSeason: (mode) => signals.glideSeason(mode),
+    scrubYear: (year) => signals.scrubYear(year),
     get weatherHolding() {
       return signals.weatherHolding;
     },

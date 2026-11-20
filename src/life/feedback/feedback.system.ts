@@ -525,7 +525,8 @@ function dressingChanged(state: State, ctx: SystemContext, next: DressingPlan): 
     const h = stage.instance(p.id);
     if (!h) continue;
     const pos = positionOf(h.base);
-    if (prev && at && !state.where.has(p.id)) fresh.push({ id: p.id, dist: Math.hypot(pos[0] - at[0], pos[2] - at[2]) });
+    // Seasonal things (the festival's lights) are shown by their own system, never popped in here.
+    if (prev && at && !state.where.has(p.id) && !SEASONAL.has(p.type)) fresh.push({ id: p.id, dist: Math.hypot(pos[0] - at[0], pos[2] - at[2]) });
     state.where.set(p.id, pos);
   }
   // F04: props that lost their slot pop, nearest the edit first.
@@ -564,6 +565,9 @@ function dressingChanged(state: State, ctx: SystemContext, next: DressingPlan): 
     for (const h of a.carried) h.setMatrix(mulInto(state.scratch, a.m, h.base));
   }
 }
+
+/** Props whose showing belongs to the seasons (src/life/seasons/festival.system.ts). */
+const SEASONAL: ReadonlySet<string> = new Set(['festival-lights', 'wreath', 'festival-tree', 'snowman']);
 
 export default defineSystem<State>({
   id: 'feedback',

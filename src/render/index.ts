@@ -270,6 +270,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uCast: { value: 0.5 },
     // Seasons and weather (shaders/season.ts, ./season.ts)
     uSeasonOn: { value: 0 },
+    uBulbCss: { value: 1 },
     uSeason: { value: new THREE.Vector4(0, 1, 0, 0) },
     uTrees: { value: new THREE.Vector4() },
     uSnow: { value: new THREE.Vector4() },
@@ -1145,6 +1146,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       su.uLift.value.set(...grade.lift);
 
       su.uSeasonOn.value = sf.on ? 1 : 0;
+      su.uBulbCss.value = css;
       su.uSeason.value.set(...sf.season);
       su.uTrees.value.set(...sf.trees);
       su.uSnow.value.set(...sf.snow);
@@ -1216,7 +1218,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       cu.uStars.value = grade.stars;
       // Snow on the ground catches the windows' and lamps' light: warmer, wider pools.
       const festive = seasonOf(signals).festival;
-      cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0] + 0.6 * festive);
+      // Far out, a string of bulbs is a few pixels: its glow carries it (the halo grows as the view pulls back).
+      cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0] + festive * (0.6 + 1.6 * (1 - closeness)));
       cu.uFestive.value = festive;
       cu.uFog.value = sf.fog;
       if (sf.fog > 0) {
