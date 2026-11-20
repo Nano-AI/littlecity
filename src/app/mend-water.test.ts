@@ -4,11 +4,14 @@
 // bridges, rocks, in a grown harbour, broken and left alone.
 
 import { expect, test } from 'vitest';
-import { columnIndex, keyX, keyZ } from '@/core/grid';
+import { columnIndex, key, keyX, keyZ } from '@/core/grid';
+import { afloat, blastChunks } from '@/gen/damage/damage';
+import { profileOf } from '@/gen/damage/field';
+import { allGenerators, allParts } from '@/gen/discover';
 import { Director } from '@/life/mischief/director';
 import { buildScenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
-import { packRuin } from '@/world/damage';
+import { packRuin, ruinFall, ruinStage } from '@/world/damage';
 import { createGame } from './game';
 
 test('every structure over the water in a grown harbour, wrecked, mends with no help', () => {
@@ -26,3 +29,38 @@ test('every structure over the water in a grown harbour, wrecked, mends with no 
   }
   expect([...game.world.blocks.values()].filter((b) => b.ruin)).toEqual([]);
 });
+
+test('a house on stilts over the water, bombed, goes over away from the blast in one piece, and is mended upright', () => {
+  const { world, terrain } = buildScenario(findScenario('grown-harbour')!);
+  const d = new Director(7);
+  const game = createGame({ world, terrain }, { show: (shape) => d.sync(shape) });
+  d.connect({ begin: () => game.begin(), apply: (e) => void game.editAll(e), end: () => game.end(), abort: () => void game.abort(), edit: (e) => void game.editAll(e), amend: (e) => void game.amend(e) });
+  // The little house on the pier at (39, 12), standing on a dock.
+  const cell = key(39, 1, 12);
+  expect(game.world.blocks.get(cell)?.kind).toBe('house');
+  expect(game.world.blocks.get(key(39, 0, 12))?.kind).toBe('dock');
+  d.dropBomb([39.3, 1.6, 12.5]);
+  const run = (s: number): void => {
+    for (let t = 0; t < s; t += 0.1) {
+      d.update(0.1, { wind: () => ({ dirX: 1, dirZ: 0, strength: 0 }) });
+      d.flush();
+    }
+  };
+  for (let i = 0; i < 100 && d.bombs.length > 0; i++) run(0.1);
+  run(0.2);
+  const ruin = game.world.blocks.get(cell)!.ruin;
+  expect(ruinStage(ruin)).toBe(3);
+  // Away from the blast (it went off on the west side of the house): it falls east.
+  expect(ruinFall(ruin)).toBe(1);
+  // Drawn as one piece going over, not a heap.
+  const shape = game.shape;
+  const s = shape.structures.get(shape.structureAt.get(cell)!)!;
+  expect(afloat(profileOf(s, shape))).toBe(true);
+  const reg = allGenerators() as ReturnType<typeof allGenerators> & { intact?: ReturnType<typeof allGenerators> };
+  const chunks = blastChunks((reg.intact ?? reg).build(s, shape, allParts()).mesh, s, shape);
+  expect(chunks.length).toBe(1);
+  expect(chunks[0]!.topple?.drop).toBeGreaterThan(0);
+  // And left alone, it is mended upright.
+  run(200);
+  expect(game.world.blocks.get(cell)!.ruin ?? 0).toBe(0);
+}, 120_000);

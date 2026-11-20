@@ -255,6 +255,18 @@ function chunkMesh(ch: Chunk): MeshData {
   return soup.build();
 }
 
+/** The middle of a chunk where it was (its polygons' mean). */
+function centreOf(ch: Chunk): [number, number, number] {
+  let x = 0, y = 0, z = 0, n = 0;
+  for (const p of ch.polys) for (const v of p.v) {
+    x += v[0]!;
+    y += v[1]!;
+    z += v[2]!;
+    n++;
+  }
+  return n ? [x / n, y / n, z / n] : ch.from;
+}
+
 function startFlight(st: State, stage: LifeStage, id: StructureId): void {
   const shape = st.shape;
   const s = shape?.structures.get(id);
@@ -910,7 +922,13 @@ export default defineSystem<State>({
         if (t >= 1 && !f.landed[i]) {
           f.landed[i] = true;
           // Bigger pieces raise a bigger puff; a few of them, not every one, so the cloud stays one cloud.
-          if (i % 2 === 0) addDust(st, stage, ch.to[0], ch.to[1] - 0.1, ch.to[2], 1, 0.15, ch.key);
+          if (ch.topple?.drop) {
+            // Over into the water: a splash where it comes down (half way along it, past its foot).
+            const m = chunkMatrix(ch, ch.tip, 0, ch.to);
+            const [cx, cy, cz] = centreOf(ch);
+            const x = m[0]! * cx + m[4]! * cy + m[8]! * cz + m[12]!, z = m[2]! * cx + m[6]! * cy + m[10]! * cz + m[14]!;
+            st.spouts.push({ h: st.own.stage.spawnMesh(spoutMesh(), HIDDEN), age: 0, x, z });
+          } else if (i % 2 === 0) addDust(st, stage, ch.to[0], ch.to[1] - 0.1, ch.to[2], 1, 0.15, ch.key);
         }
         let m: Mat4;
         if (ch.topple) {

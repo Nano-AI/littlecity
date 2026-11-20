@@ -31,7 +31,7 @@ export interface Chunk {
   /** A stable number for the animation's own chance (spin, delay). */
   key: number;
   /** Falls over in one piece about a pivot (a tree, a pillar) instead of flying. */
-  topple?: { pivot: [number, number, number] };
+  topple?: { pivot: [number, number, number]; drop?: number };
 }
 
 /** Rotation about a unit level axis (ax, 0, az) by `a`, then about +y by `yaw`; as a column-major 3×3 in a Mat4. */
@@ -71,6 +71,8 @@ export function chunkMatrix(ch: Chunk, tip: number, yaw: number, at: readonly [n
     m[12] = px - (m[0]! * px + m[4]! * py + m[8]! * pz);
     m[13] = py - (m[1]! * px + m[5]! * py + m[9]! * pz);
     m[14] = pz - (m[2]! * px + m[6]! * py + m[10]! * pz);
+    // Into the water as it goes over: sinking by as much as it has turned.
+    if (ch.topple.drop && ch.tip !== 0) m[13] -= ch.topple.drop * Math.max(0, Math.min(1.2, tip / ch.tip));
     return m;
   }
   // x' = R (x − from) + at
@@ -386,3 +388,42 @@ function toppleOf(removed: readonly Poly[], col: Column, prof: Profile): Chunk {
     topple: { pivot },
   };
 }
+
+/**
+ * A building on stilts (on a dock or a pier), or a pier's deck itself, knocked over by a blast (the owner:
+ * "if a house is on stilts it should be able to maybe knock it over. The whole structure could fall
+ * over"): the whole of it in one piece, over its foot on the side away from the blast (the way the ruin
+ * keeps), into the water, where it comes to rest half sunk. `tip` how far it goes over (radians), `drop`
+ * how far it sinks as it does.
+ */
+export function afloatTopple(polys: readonly Poly[], prof: Profile, tip: number, drop: number): Chunk {
+  const seed = prof.s.seed;
+  const fell = ruinFall(prof.plan.world.blocks.get(prof.s.cells[0]!)?.ruin);
+  const dir = DIR4[fell >= 0 ? fell : Math.floor(rand(seed, 'afloat-fall') * 4)]!;
+  let lo = Infinity, x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const p of polys) for (const v of p.v) {
+    lo = Math.min(lo, v[1]!);
+    x0 = Math.min(x0, v[0]!);
+    x1 = Math.max(x1, v[0]!);
+    z0 = Math.min(z0, v[2]!);
+    z1 = Math.max(z1, v[2]!);
+  }
+  // The edge of its footprint on the falling side, at its foot.
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const pivot: [number, number, number] = [dir[0] > 0 ? x1 : dir[0] < 0 ? x0 : cx, lo, dir[1] > 0 ? z1 : dir[1] < 0 ? z0 : cz];
+  const dark = polys.length ? [polys[0]!.v[0]![6]! * 0.8, polys[0]!.v[0]![7]! * 0.8, polys[0]!.v[0]![8]! * 0.8] : null;
+  return {
+    polys: [...polys, ...polys.map((p) => backOf(p, 0.012, dark))],
+    from: pivot,
+    to: pivot,
+    axisX: -dir[1],
+    axisZ: dir[0],
+    tip: -tip,
+    yaw: 0,
+    key: hash(seed, 'afloat-topple'),
+    topple: { pivot, drop },
+  };
+}
+
+/** The water a fallen wreck lies in (for its drop). */
+export const WATER_Y = SEA_Y;

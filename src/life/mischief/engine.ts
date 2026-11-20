@@ -166,6 +166,11 @@ export function createMischiefEngine(seed: number): MischiefEngine {
     }
     return CATCH[k] ?? 0;
   };
+  /** Standing on stilts over the water: a dock's deck, or something built on one (it goes over in a blast). */
+  const afloatAt = (cell: CellKey): boolean => kindOf(cell) === 'dock' || (keyY(cell) > 0 && kindOf(cell - 4096) === 'dock');
+  /** The way a thing a blast knocks over falls, away from the blast (1–4 = N, E, S, W + 1), or 0. */
+  const fallFrom = (cell: CellKey, ox: number, oz: number): number =>
+    kindOf(cell) === 'tree' || afloatAt(cell) ? (Math.abs(ox) > Math.abs(oz) ? (ox > 0 ? 2 : 4) : oz > 0 ? 3 : 1) : 0;
   const stoneAt = (cell: CellKey): boolean => {
     const k = kindOf(cell);
     return k !== undefined && STONE.has(k);
@@ -376,15 +381,19 @@ export function createMischiefEngine(seed: number): MischiefEngine {
       }
       cells.sort((a, b) => a.cell - b.cell);
       if (ev.water) {
-        // A spout: everything near gets soaked, nothing breaks.
+        // A spout: everything near gets soaked (fires out); what stands in the water beside it (a pier, a
+        // boathouse on piles) takes the blast all the same, at a little less.
         for (const { cell } of cells) engine.douse(cell, 1);
-        return ev;
       }
       for (const { cell, d } of cells) {
         const k = stoneAt(cell) ? BLAST.stone : 1;
-        const stage: DamageStage = d <= BLAST.rubble * power * k ? 3 : d <= BLAST.wreck * power * k ? 2 : 1;
-        const fly = stage >= 2 && d <= (opts.fly ?? Infinity);
-        if (worsen(cell, 'blast', stage, fly)) {
+        const w = ev.water ? 0.8 : 1;
+        if (ev.water && !afloatAt(cell)) continue;
+        const stage: DamageStage = d <= BLAST.rubble * power * k * w ? 3 : d <= BLAST.wreck * power * k * w ? 2 : 1;
+        // Something on stilts that goes over always falls in the open (it is one piece, drawn going over).
+        const fly = stage >= 2 && (d <= (opts.fly ?? Infinity) || afloatAt(cell));
+        const ox = keyX(cell) + 0.5 - point[0], oz = keyZ(cell) + 0.5 - point[2];
+        if (worsen(cell, 'blast', stage, fly, fallFrom(cell, ox, oz))) {
           ev.hit.push({ cell, stage });
           if (stage === 3) collapse(cell, 'blast', fly);
         }
@@ -425,10 +434,10 @@ export function createMischiefEngine(seed: number): MischiefEngine {
           if (d > shake) continue;
           const k = stoneAt(cell) ? BLAST.stone : 1;
           const stage: DamageStage = d <= BLAST.rubble * power * k ? 3 : d <= BLAST.wreck * power * k ? 2 : 1;
-          const fall = kindOf(cell) === 'tree' ? (Math.abs(ox) > Math.abs(oz) ? (ox > 0 ? 2 : 4) : oz > 0 ? 3 : 1) : 0;
+          const fall = fallFrom(cell, ox, oz);
           const inRim = opts.rim ? d >= BLAST.rubble * power && d <= BLAST.wreck * power * 1.15 : d <= BLAST.ignite * power;
           const light = inRim && catchOf(cell) >= 0.5 && stage < 3 && rand(seed, 'blast-fire', cell, tick) < BLAST.igniteChance;
-          out.hits.push({ cell, d, stage, fly: stage >= 2 && d <= (opts.fly ?? Infinity), fall, light });
+          out.hits.push({ cell, d, stage, fly: stage >= 2 && (d <= (opts.fly ?? Infinity) || afloatAt(cell)), fall, light });
         }
       }
       out.hits.sort((a, b) => a.d - b.d || a.cell - b.cell);
