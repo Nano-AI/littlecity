@@ -381,6 +381,10 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   on a free corner of the junction cell, a stone calvary on three stepped
   stones or a roofed niche on a post (seeded), with fresh flowers, on a
   corner D26's fingerpost left free (both stand at one crossroads).
+- **D37 · 3 · Market cross** (RC-12) — a plinth (R-M06) with 2+ stalls within
+  3 and no fountain within 2 (the `marketCrosses` fact; D19 leaves these
+  plinths alone) → a market cross: two octagonal steps, a tall shaft, a
+  cross head with a gilt ball ('activity'/'vend' on the ground in front).
 
 ---
 

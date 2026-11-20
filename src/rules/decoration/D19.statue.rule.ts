@@ -3,6 +3,8 @@
 // raised arm, a sundial, or an urn of flowers, by seed. A figure is the most
 // likely (two in four), and the figure turns to a seeded quarter.
 //
+// A plinth among a market's stalls (the marketCrosses fact) is left to D37.
+//
 // Stability: the pick is seeded by the plinth's own cell.
 //
 // Reads: statue-base sockets. Claims: the socket.
@@ -10,6 +12,7 @@
 import { hash } from '@/core/rand';
 import { defineRule, slot } from '@/resolve/engine/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
+import { marketCrosses } from './market-cross.fact';
 
 const RULE = 'D19.statue';
 const KINDS = ['figure', 'figure', 'sundial', 'urn'] as const;
@@ -19,8 +22,14 @@ export default defineRule<{ socket: string }>({
   part: 'decoration',
   tier: 3,
   priority: 810,
-  about: 'Reads: statue-base sockets (R-M06 plinths). Claims: the socket. Emits: a statue (figure, sundial or urn).',
-  find: ({ facts }) => socketsOfType(facts, 'statue-base').map((s) => ({ anchor: s.cell, structure: s.structure, key: s.id, data: { socket: s.id } })),
+  about: 'Reads: statue-base sockets (R-M06 plinths), marketCrosses. Claims: the socket. Emits: a statue (figure, sundial or urn).',
+  find: ({ facts }) => {
+    // A plinth among the stalls of a market is its market cross (D37), not a statue's.
+    const crosses = marketCrosses(facts);
+    return socketsOfType(facts, 'statue-base')
+      .filter((s) => !crosses.has(s.id))
+      .map((s) => ({ anchor: s.cell, structure: s.structure, key: s.id, data: { socket: s.id } }));
+  },
   claims: (c) => [slot.socket(c.data.socket)],
   apply(c, out, ctx) {
     const variant = KINDS[hash(ctx.seed, RULE, c.anchor) % KINDS.length]!;

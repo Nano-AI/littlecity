@@ -1,5 +1,5 @@
 // Guardian (D35): a stone lion or a great urn on a plinth, one of a pair at
-// the head of a grand stair.
+// the head of a grand stair; and the market cross (D37) on a plinth.
 
 import { translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
@@ -51,5 +51,35 @@ export const guardian = definePart({
       });
     }
     return { mesh: b.build() };
+  },
+});
+
+/**
+ * Market cross (D37): on a plinth among the stalls, two octagonal steps, a
+ * tall faceted shaft with a moulded capital, and a cross head with a gilt
+ * ball. Frame: the plinth's 'statue-base' socket (the top centre of the
+ * plinth). Anchor 'vend': on the ground in front of the plinth, where a
+ * vendor sits on its step with a basket.
+ */
+export const marketCross = definePart({
+  prop: 'market-cross',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 769));
+    const stone = mixColor(PALETTE.stone, PALETTE.stoneShade, 0.25);
+    b.rotateY(Math.PI / 8 + (r('turn') - 0.5) * 0.1);
+    b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'steps' }, () => {
+      b.lathe([[0.3, 0], [0.3, 0.07], [0.22, 0.07], [0.22, 0.14], [0.15, 0.14]], { segments: 8, smooth: false, capTop: true });
+    });
+    b.with({ color: stone, pattern: PATTERN.stone, ink: 'shaft' }, () => {
+      b.lathe([[0.075, 0.14], [0.055, 0.95], [0.08, 0.98], [0.08, 1.02], [0.05, 1.02]], { segments: 8, smooth: false, capTop: true });
+    });
+    b.with({ color: stone, pattern: PATTERN.stone, ink: 'head' }, () => {
+      b.box([-0.025, 1.02, -0.025], [0.025, 1.3, 0.025], { skip: ['bottom'] });
+      b.box([-0.11, 1.17, -0.022], [-0.025, 1.22, 0.022], { skip: ['e'] });
+      b.box([0.025, 1.17, -0.022], [0.11, 1.22, 0.022], { skip: ['w'] });
+    });
+    b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'ball' }, () => lump(b, 0, 1.33, 0, 0.032, 0.032, 0.032, { seg: 6, rings: 4 }));
+    return { mesh: b.build(), anchors: { vend: translation(0, -0.8, 0.62) } };
   },
 });
