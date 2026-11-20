@@ -369,6 +369,14 @@ when two rules want the same slot, unless a rule says otherwise.
 - **D34 · 3 · Lost kite** — one kite snagged in the tallest tree, p=0.1 per
   town (town-wide).
 
+Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
+
+- **D35 · 3 · Guardians at the head of the stair** (DC-03) — a flight of grand
+  steps 3+ wide → a pair of stone lions or urns (seeded per flight) on the
+  landing above its two outer top steps, looking down it; a pair of tall
+  lamps on the ground before its two outer bottom steps. Outer corner slots
+  only (the stair's walking line stays clear); none for narrower flights.
+
 ---
 
 ## L — Life
@@ -655,6 +663,11 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   four ('activity'/'basket'), two beehives on the south edge. Not a grove,
   a single row, or planter trees. The trees become fruit trees once R-P01
   reads the fact.
+- **U19 · 2 · Forecourt at the foot of grand steps** (UF-10) — the cells a
+  flight of grand steps descends onto, its full width and 2 deep, where bare
+  ground (no water, block, floor or other use, at the stair's foot level) →
+  stone paving; where a path or plaza lies straight ahead within 4, the
+  paving runs on to meet it.
 
 ---
 

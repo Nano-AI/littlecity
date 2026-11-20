@@ -84,5 +84,13 @@ declare module '@/core/vocab' {
     'paving/slabs': true;
     'paving/cobbles': true;
     'paving.mask': number;
+
+    // D35 guardians at the head of a grand stair: a stone lion or an urn on a plinth, at a floor slot,
+    // +Z the way it looks (down the stair); `mirror` 1 for the second of a pair.
+    'guardian': true;
+    'guardian/lion': true;
+    'guardian/urn': true;
+    'guardian.mirror': 0 | 1;
+    'guardian.look': number;
   }
 }
