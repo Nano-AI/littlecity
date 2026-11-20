@@ -89,18 +89,20 @@ void main(){
   vec2 px = 2.0 * uPR / uView;     // one CSS pixel in clip space
   vec2 off;
   if (uSnow > 0.5) {
-    float size = 1.5 + 1.9 * r.x * r.x;
+    float size = 1.2 + 1.8 * r.x * r.x * r.x;
     off = corner * px * size;
     gl_Position = vec4(head.xy + off, z, 1.0);
   } else {
     vec3 vel = vec3(uDrift.x, -speed, uDrift.y);
     vec3 q = p - normalize(vel) * uLen * (0.7 + 0.6 * r.x);
     vec4 tail = projectionMatrix * viewMatrix * vec4(q, 1.0);
-    vec2 d = (head.xy - tail.xy) / px;
-    float len = max(length(d), 1.0);
-    vec2 along = d / len, across = vec2(-along.y, along.x);
-    vec2 base = mix(tail.xy, head.xy, corner.y * 0.5 + 0.5);
-    gl_Position = vec4(base + across * corner.x * px * 0.75, mix(dot(q - uZOrigin, uZAxis), z, corner.y * 0.5 + 0.5), 1.0);
+    // Across the stroke on the page: the fall's direction seen by the camera (orthographic, so the
+    // view's x and y are the page's), turned a quarter.
+    vec3 seen = mat3(viewMatrix) * vel;
+    vec2 dir = normalize(seen.xy + vec2(1e-5, 0.0));
+    vec2 side = vec2(-dir.y, dir.x) * px;
+    vec2 mid = mix(tail.xy, head.xy, corner.y * 0.5 + 0.5);
+    gl_Position = vec4(mid + side * corner.x * 0.75, mix(dot(q - uZOrigin, uZAxis), z, corner.y * 0.5 + 0.5), 1.0);
   }
   vA = 0.55 + 0.45 * r.y;
 }

@@ -99,6 +99,8 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
       fragmentShader: precipFragment,
       uniforms: u,
       transparent: true,
+      // A rain stroke's corners wind either way, as it falls down the page.
+      side: THREE.DoubleSide,
       depthTest: false,
       depthWrite: false,
       blending: THREE.CustomBlending,

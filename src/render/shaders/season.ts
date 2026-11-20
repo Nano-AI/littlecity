@@ -194,6 +194,8 @@ vec3 seasonSurface(vec3 col, vec3 n, float s, int pat, bool top, inout float pen
   if (uSnow.x > 0.0) {
     // Settled snow. Crowns are lit by tone, not by their true slope: their lit lumps carry it.
     float face = leafy ? smoothstep(0.12, 0.26, n.y) : smoothstep(0.3, 0.72, n.y);
+    // Evergreens hold it in clumps on their sunny boughs, green showing between.
+    if (fol > 1.5 && fol < 2.5) face *= 0.6;
     if (face > 0.0 && open > 0.0) {
       float corner = smoothstep(0.1, 0.5, texture(tShade, (vW.xz + jit - uMap.xy) * uMap.z).r);
       float eave = 0.0;

@@ -96,8 +96,8 @@ export const SEASON_LOOK = defineStyle('season-look', {
   springGreen: '#c4e88e',
   springMix: 0.35,
   /** Autumn grass: yellowed toward this, by this much, in wandering patches. */
-  autumnGrass: '#d8cf86',
-  autumnGrassMix: 0.5,
+  autumnGrass: '#d9c579',
+  autumnGrassMix: 0.8,
   /** Autumn crowns: the four colours a tree may turn (each tree picks one, and turns at its own time). */
   leafYellow: '#f1c94f',
   leafOrange: '#ec9a43',
