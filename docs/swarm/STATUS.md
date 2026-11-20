@@ -1148,3 +1148,24 @@ house mid-mend makes its lights, cat and signs pop on for about 10 s
 (belongs to mischief/world: `ruinUninhabitable`); residents' heading
 twitches about 58 times a minute with or without a nuke; a cat or dog
 with no door in reach runs 6 cells and disappears.
+
+**Destruction round 3 merged** (`fbe7e36`, Opus). (1) Lights, cat and
+signs popping on a house that catches fire mid-mend: the fire code
+cleared the mending flag, so a stage 1 house counted as lived-in until
+it burnt to stage 2; now a fire does not cancel mending (`engine.ts`;
+not `ruinUninhabitable`, burning is not saved). New case in
+`src/life/under-fire.test.ts`. (2) Small boats (hook in the four boat
+files of `src/life/boats`, `src/life/mischief/boatwreck.ts`): burning
+at the edge, swamped and drifting, capsized hull-up for about 30 s then
+under; whoever is aboard swims. (3) Swimmers with a quay, beach or dock
+within 7 cells come ashore (`crowd.ashore` makes an ordinary person
+there in the same frame), walk into town and in at a door; a pale ring
+on the water round each swimmer. (4) Lightning on the water near a
+vessel strikes it. (6) A toppled stilt house's windows go dark. Gate:
+2,165 passed, 9 skipped, clean. Orchestrator's sequence of a galleon
+sunk at its quay: the crew are on the quay within seconds and walk off;
+no swimmer clearly seen in the water in that run. Not done: hull chunks
+cut from the hull, dangling stays, a scorch mark or torn sail on small
+boats, boats steering round wreckage.
+Running: nothing. Unmerged: big-islands (experiment), walk (superseded
+by fly). Separate session: `capture/promo`.
