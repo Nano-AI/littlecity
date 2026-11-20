@@ -1002,3 +1002,17 @@ hiding another are still in the code, unused. The grow chooser's two
 choices are bare labels, no subtitles. Gate: 2,123 passed, 8 skipped,
 clean. Repair crew standing in place shrinking and growing (screenshot
 `/tmp/lc-crew-pulse.png`) → mischief agent, running.
+
+**Derek, 2026-11-20 about 11:15 (orchestrator).** The dev tuning panel is
+out of the game's menu (it stays in the gallery). Postcard stays (asked
+to remove, then took it back). Share links: grown towns are 1,100–2,000
+characters; zlib level 9 on the same payload would be about 18 % shorter
+→ new agent `ad6488e93eb5b1c7d` on `swarm/short-links` (dynamic Huffman,
+a version 5 layout if it pays; old links must still open; section bit 2
+kept free for big-islands). Gate on the tuning removal: 2,123 passed, 8
+skipped, clean.
+Walk mode: Derek no longer wants street view; wants a fly mode entered
+from the current view, Escape back to the main view, and Escape in
+general returning to the main view. He asked to brainstorm it: questions
+sent, nothing built yet. `swarm/walk` has the flying code to reuse.
+Running: mischief (crew pulsing), short-links.
