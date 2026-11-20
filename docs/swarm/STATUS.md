@@ -559,3 +559,23 @@ Running: seasons, disc1-structures, disc1-fill, living-town, mischief.
 (same treatment as `swarm/walk`). Serve its worktree on a local port when
 the agent reports. The design section 13b is on the main branch as a spec
 only.
+
+**Seasons and weather merged** (`6885a22`, Opus): the year turns (24 min a
+season), autumn trees, bare winter trees, snow falling and settling as
+shading, ice, rain, mist, storms, festival lights and a tree in the square,
+season and weather buttons. Conflict with the ships' edge cut in
+`src/render/index.ts` and `shaders/surface.ts` resolved by hand (both
+kept; the bare-tree material swap now skips the movers pool, which would
+otherwise have lost its edge cut). Full run: 1,696 of 1,697; the one
+failure (shots CLI) is a load timeout and passes alone. Published.
+Not done by the seasons agent: people in winter clothes and umbrellas,
+seasonal props (stooks, pumpkins, snowman, icicles, leaf drifts), candles,
+rainbow, tracks in snow, weather sounds; spring is weak; full snow by day
+is flat white; festival bulbs tiny at overview. Follow-up NOT yet sent
+(machine is saturated; send when an agent slot frees).
+**Derek: terrain must be editable** ("pretty important") → design section 6
+"Shaping the land"; new Opus agent on `swarm/landshaping`.
+**Derek: boats overlap each other and the river barge passes through
+bridges** → ships agent resumed.
+Running: disc1-structures, disc1-fill, living-town, mischief (preview),
+landshaping, ships fixes.
