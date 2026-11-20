@@ -139,7 +139,7 @@ const WEATHER_LABEL: Record<WeatherHold, string> = {
 const SOUND_KEY = 'little-city.sound';
 const LAND_HINT_KEY = 'little-city.land-hint';
 /** Told once, the first time Raise, Dig or Level is picked. */
-export const LAND_HINT = 'Drag across the land to shape it; drag on the sea to turn the view. Shift-drag paints from anywhere; scroll or − + for a wider brush.';
+export const LAND_HINT = 'Drag the land to shape it. Drag the sea to turn the view.';
 
 function readSound(): boolean {
   try {
