@@ -40,6 +40,7 @@ export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, char
   ];
   const close: [string, string, number, number][] = [
     ['square', 'square', 45, 4],
+    ['square', 'square-back', 225, 3.2],
     ['harbour', 'harbour', 45, 3.6],
     ['castle', 'castle', 45, 3.4],
     ['acropolis', 'acropolis', 135, 3.6],

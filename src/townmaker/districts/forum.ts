@@ -61,7 +61,7 @@ export function buildForum(town: Town): boolean {
       if (rectFree(g, f, fw, f0, fw + 2, f1) && rectFlat(g, f, fw, f0, fw + 2, f1) === h) extras += 5;
       if (rectFree(g, f, 0, f1 + 1, fw - 1, f1 + 3)) extras += 4;
       // Facing the default camera (from the south-east): the stair and the forum toward it.
-      const facing = f.r === 0 || f.r === 3 ? -4 : 0;
+      const facing = f.r === 0 || f.r === 3 ? -12 : 0;
       return { score: d * 0.6 - extras + (h > 2 ? 3 : 0) - pw + facing, data: h };
     });
     if (!found) continue;
