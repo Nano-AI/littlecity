@@ -30,9 +30,13 @@ export default scenario({
   expect(_plan, dressing, check) {
     const rule = 'U17.drying-green';
     const xz = (p: (typeof dressing.props)[number]): [number, number] => ('cell' in p.at ? [p.at.cell & 63, (p.at.cell >> 6) & 63] : [-1, -1]);
-    const lines = check.hasProp({ rule, type: 'drying-line' }, 2);
+    const lines = check.hasProp({ rule, type: 'drying-line' }, 4).filter((p) => p.variant !== 'posts');
+    check.ok(lines.length >= 2, 'two lines of washing or more, each with its posts');
     check.ok(lines.every((p) => xz(p)[0] >= 9 && xz(p)[0] <= 14), 'on the first green only');
-    for (const l of lines) check.ok(dressing.sockets.some((s) => s.owner === l.id && s.type === 'activity' && s.name === 'hang-washing'), 'a place to hang the washing');
+    for (const l of lines) {
+      check.ok(dressing.sockets.some((s) => s.owner === l.id && s.type === 'activity' && s.name === 'hang-washing'), 'a place to hang the washing');
+      check.ok(dressing.sockets.some((s) => s.type === 'errand' && s.name === `laundry|line|${l.id}` && s.structure !== undefined), 'washing day (L60) knows the line and whose it is');
+    }
     check.hasProp({ rule, type: 'basket' });
     check.hasProp({ rule, type: 'bleaching-sheet' });
     check.ok(!check.props({ rule }).some((p) => xz(p)[0] >= 22), 'the fenced one is not a drying green');

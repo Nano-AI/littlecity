@@ -9,9 +9,11 @@
 // cobbles), a park (3+ trees), any patch touching a street.
 //
 // Two or three washing lines on posts, each two cells long, stand across it
-// ('activity'/'hang-washing' at each, 'line-anchor' at each post top), a
-// basket of washing by the first, and a sheet or two spread out on the grass
-// to bleach.
+// ('activity'/'hang-washing' at each), a basket of washing by the first, and
+// a sheet or two spread out on the grass to bleach. Each line's wash is its
+// own prop with an L60 errand socket ('errand', `laundry|line|<prop id>`,
+// owned by the nearest house), so the living town's washing day carries it
+// out in the morning and takes it in at dusk; the posts stay.
 //
 // Stability: seeded by the patch's own cells.
 //
@@ -19,10 +21,11 @@
 // cells under each line, the basket's slot; sheets claim their cell's
 // 'sheet' slot.
 
-import { neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { keyX, keyZ, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
-import type { Slot } from '@/resolve/plan';
+import type { Facts } from '@/resolve/facts/api';
+import type { Slot, StructureId } from '@/resolve/plan';
 import { clearways } from '../decoration/clearways.fact';
 import { landUse } from './land-use.fact';
 import { emit, placer, plotOf, type Placed } from './plots';
@@ -35,7 +38,19 @@ interface Line {
   face: Dir4;
 }
 
-export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>({
+/** The house of the green nearest a cell (by its cells' column distance). */
+function nearestHouse(facts: Facts, cell: CellKey, houses: readonly StructureId[]): StructureId | undefined {
+  let best: StructureId | undefined, bestD = Infinity;
+  for (const h of houses) {
+    for (const c of facts.structures.get(h)?.cells ?? []) {
+      const d = Math.abs(keyX(c) - keyX(cell)) + Math.abs(keyZ(c) - keyZ(cell));
+      if (d < bestD) [best, bestD] = [h, d];
+    }
+  }
+  return best;
+}
+
+export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[]; houses: readonly StructureId[] }>({
   id: RULE,
   part: 'urban',
   tier: 2,
@@ -43,7 +58,7 @@ export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>
   about: 'Reads: landUse (drying greens: unfenced leftovers of 7–20 cells behind 3+ houses, off every street), clearways. Claims: the centre slots under each washing line, the basket’s slot, a sheet slot per sheet.',
   find({ facts, seed }) {
     const clear = clearways(facts);
-    const out: Candidate<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>[] = [];
+    const out: Candidate<{ items: Placed[]; lines: Line[]; sheets: CellKey[]; houses: readonly StructureId[] }>[] = [];
     for (const patch of landUse(facts).dryingGreens) {
       const plot = plotOf(facts, patch.cells, seed);
       const p = placer((c, pos) => clear.free(c, pos));
@@ -60,7 +75,8 @@ export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>
           // Lines keep a cell apart.
           const near = [c, n].some((k) => used.has(k) || [0, 1, 2, 3].some((e) => used.has(neighbor(k, e as Dir4))));
           if (near || !clear.free(c, 'c') || !clear.free(n, 'c')) continue;
-          if (!p.put({ type: 'drying-line', cell: c, pos: 'c', face, activities: ['hang-washing'], params: { span: 2, look: look('line', c) } })) continue;
+          if (!p.put({ type: 'drying-line', variant: 'posts', cell: c, pos: 'c', face, params: { span: 2, look: look('line', c) } })) continue;
+          p.put({ type: 'drying-line', cell: c, pos: 'c', face, claim: false, activities: ['hang-washing'], params: { span: 2, look: look('line', c) } });
           lines.push({ cell: c, next: n, face });
           used.add(c).add(n);
           break;
@@ -78,7 +94,7 @@ export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>
         p.put({ type: 'bleaching-sheet', cell: c, pos: 'nw', face: 2, claim: false, params: { look: look('sheet', c) } });
         sheets.push(c);
       }
-      out.push({ anchor: patch.cells[0]!, data: { items: p.items, lines, sheets } });
+      out.push({ anchor: patch.cells[0]!, data: { items: p.items, lines, sheets, houses: patch.houses } });
     }
     return out;
   },
@@ -87,7 +103,15 @@ export default defineRule<{ items: Placed[]; lines: Line[]; sheets: CellKey[] }>
     ...c.data.items.filter((i) => i.type === 'basket').map((i) => slot.floor(i.cell, i.pos)),
     ...c.data.sheets.map((s) => slot.custom('sheet', s)),
   ],
-  apply(c, out) {
-    emit(out, c.data.items);
+  apply(c, out, { facts }) {
+    const ids = emit(out, c.data.items);
+    // Washing day (L60's laundry chain): each line's wash is carried out in the morning and taken in at
+    // dusk by somebody from the nearest house, who stands at the line's first cell, facing along it.
+    c.data.items.forEach((item, i) => {
+      if (item.type !== 'drying-line' || item.variant === 'posts') return;
+      const home = nearestHouse(facts, item.cell, c.data.houses);
+      if (home === undefined) return;
+      out.socket({ id: `${RULE}@${ids[i]}`, type: 'errand', cell: item.cell, dir: ((item.face! + 1) % 4) as Dir4, structure: home, name: `laundry|line|${ids[i]}` });
+    });
   },
 });

@@ -46,6 +46,7 @@ declare module '@/core/vocab' {
     // 'hang-washing', 'line-0', 'line-1'. A basket (washing or apples): a floor slot; anchor 'basket'.
     // A bleaching sheet: at a cell's north-west corner slot facing south (the part re-centres).
     'drying-line': true;
+    'drying-line/posts': true; //      the two posts alone; the default is the rope and the wash
     'drying-line.span': number;
     'drying-line.look': number;
     'basket': true;

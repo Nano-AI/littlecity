@@ -89,7 +89,8 @@ export const compost = definePart({
 /**
  * Drying line: a line of washing strung between two posts `span` cells apart
  * along +X (U17 drying green): sheets, shirts and towels pegged on it, free
- * at the hem so the wind lifts them. Frame: a floor slot (the centre of the
+ * at the hem so the wind lifts them. Variant 'posts' draws the two posts
+ * only; the default draws the rope and the wash (L60 takes it in at dusk). Frame: a floor slot (the centre of the
  * first cell), the line running along +X. Anchors 'hang-washing' (beside the
  * middle of the line, facing it) and 'line-0', 'line-1' (the post tops).
  */
@@ -100,12 +101,18 @@ export const dryingLine = definePart({
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 677));
     const span = Math.max(1, Math.min(3, item.params?.span ?? 2));
     const x0 = -0.3, x1 = span - 0.7 + 0.3, h = 0.5;
-    b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'posts' }, () => {
-      for (const x of [x0, x1]) {
-        b.boxAt([x, 0, 0], [0.04, h, 0.04], { skip: ['bottom'] });
-        b.boxAt([x, h - 0.03, 0], [0.14, 0.025, 0.03]); // a crossbar
-      }
-    });
+    // The posts and the washing are two props ('posts' and the default), so the washing can be
+    // taken in at dusk (L60 hides the wash prop) while the posts stay.
+    if (item.variant === 'posts') {
+      b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'posts' }, () => {
+        for (const x of [x0, x1]) {
+          b.boxAt([x, 0, 0], [0.04, h, 0.04], { skip: ['bottom'] });
+          b.boxAt([x, h - 0.03, 0], [0.14, 0.025, 0.03]); // a crossbar
+        }
+      });
+      const anchors: Record<string, ReturnType<typeof translation>> = { 'line-0': translation(x0, h, 0), 'line-1': translation(x1, h, 0) };
+      return { mesh: b.build(), anchors };
+    }
     const sag = 0.06;
     const ropeY = (x: number): number => h - 0.03 - sag * (1 - Math.pow((2 * (x - x0)) / (x1 - x0) - 1, 2));
     const pts: [number, number, number][] = [];
