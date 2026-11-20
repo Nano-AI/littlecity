@@ -769,3 +769,20 @@ mischief agent.
 Note for big-islands (experimental): mischief owns save-section bit 1; the
 size section must move to bit 2 before that branch could merge.
 Running: test-diet, grow-town pass 4, mischief (nuke redo).
+
+**Test diet merged** (`6d9bfeb`, Opus). `npm run check` is the merge gate
+(typecheck, lint, unit tests, THEN browser tests on one shared server);
+`npm run check:full` (`LC_FULL=1`) adds big sweeps, long simulations,
+timing budgets and extra CLI runs. Helper: `tests/helpers/tier.ts`
+(`FULL`, `sized()`). Coplanar scan grid-based (137 s → 8 s). One browser
+file deleted (`app.e2e`). Gate on the merged build: 2,086 passed, 9
+skipped; 159 s and 288 s in two runs at load ~25 (was 10+ minutes with
+timeouts). Orchestrator fixed the new codec pin test (it iterated current
+kind lists; the Field floor kind appended since then changed the town).
+Rules for everyone: no wall-clock assertions in the gate; one expect per
+seed; wait on state, not sleeps; pages close at the end of their test.
+Pass on to the people agent: crowd.test.ts mean-step-time assertion →
+full tier; route.test.ts assert on search count; drop 120 s timeouts in
+solid.test.ts. Open question for logic: the incremental content key's
+resolved-kind part is untested (or redundant).
+Running: grow-town pass 4, mischief (nuke redo).
