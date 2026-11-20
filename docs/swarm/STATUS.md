@@ -637,3 +637,15 @@ land shaping (`3fb3f2e`).
 Running: disc1-fill, living-town (integration, then the new buildings).
 Previews awaiting Derek: walk (`swarm/walk`), mischief (`swarm/mischief`,
 served at port 5175).
+
+**Discovery 1 fill merged** (`0eb2a5f`): fingerposts 38/22/27 → 2/3/3 in
+grown towns; farm-lane lamps 22 → 5; U13 country lanes, U14 back gardens,
+U15 village green, U16 shops in the wall, U17 drying green, U18 orchard,
+U19 stair forecourt, U20 quay apron, U21 castle bailey, U22 ford, U23
+belvedere, D35 stair guardians, D36 shrine, D37 market cross, D38 rope
+swing. Guide conflict resolved by hand; guide picture budget raised to 3 MB.
+**All three discovery branches are on the main branch but it is RED:**
+7 unit failures at the seams (L51.bread, U16 fixture, scuffle test, two
+solid.test overlap bounds, two crowd.test cases). Living-town agent has the
+people ones; fill agent has U16. DO NOT PUBLISH until `npm test` is green.
+Last published build: land shaping (`3fb3f2e`).
