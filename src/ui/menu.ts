@@ -96,14 +96,14 @@ export function createMenu(actions: MenuActions): Menu {
             true,
           )
         : null;
-    const dice = iconButton('dice', 'Grow a town on a new island', {
+    const dice = iconButton('dice', 'New island with a new town', {
       class: 'lc-menu-item lc-menu-dice',
-      title: 'Grow a town on a new island',
+      title: 'New island with a new town',
       attrs: { role: 'menuitem', 'data-menu': 'grow-new' },
       on: { click: () => ask('grow-new') },
     });
     panel.replaceChildren(
-      el('div', { class: 'lc-menu-row' }, [item('grow', 'grow', 'Grow a town', () => ask('grow'), true), dice]),
+      el('div', { class: 'lc-menu-row' }, [item('grow', 'grow', 'Grow a town here', () => ask('grow'), true), dice]),
       el('div', { class: 'lc-menu-rule' }),
       item('new', 'island', 'New island', showConfirm, true),
       item('share', 'share', 'Share link', actions.shareLink),

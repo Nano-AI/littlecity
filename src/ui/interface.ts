@@ -238,7 +238,8 @@ export function createInterface(host: InterfaceHost): Interface {
   };
 
   const menu = createMenu({
-    growTown: () => grow(),
+    // On the island there is: a different kind of town each time, so asking again is worth it.
+    growTown: () => grow(shown),
     growNewIsland() {
       growth.stop();
       host.newIsland();

@@ -1102,8 +1102,10 @@ town is meant to show off every building combination the rules know.
   anything on it besides the starting trees, clears those, then plays the
   edits in order at about 25 a second so the town visibly builds itself with
   the landing bounce, district by district. A click or key skips to the end.
-  The whole growth is one undo step. A dice button beside the entry grows a
-  different town on a new island. The dice do not repeat a character
+  The whole growth is one undo step. The entry ("Grow a town here") keeps the
+  island and grows a different kind of town on it each time it is asked
+  again; the dice button beside it makes a new island and grows a town
+  there. Neither repeats a character
   until every character that suits the island rolled has had a turn, so a
   handful of rolls shows the whole range.
 - **Speed.** Generating the edit list takes under 200 ms for a full island.
