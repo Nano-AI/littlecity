@@ -278,7 +278,10 @@ when two rules want the same slot, unless a rule says otherwise.
 
 - **D01 · 1 · Street lamps** — a street of length ≥ 4 gets a lamp at each
   dead end and junction, then every 4th cell, alternating sides, on the edge
-  slot away from doors. New lamps arrive by F05.
+  slot away from doors. New lamps arrive by F05. Only in town: a street cell
+  with no building, square, stall or fountain within 3 (and no dock or arch
+  within 2) is country and stays dark (U13 dresses it; discovery round 1,
+  FX-04).
 - **D02 · 1 · Square lamps** — at the corners of a square; a square containing
   5 × 5 with no fountain gets a four-arm lamp at the centre.
 - **D03 · 2 · Benches** — one per 4 edge cells of a plaza, facing in; at a
@@ -298,7 +301,10 @@ when two rules want the same slot, unless a rule says otherwise.
 - **D08 · 2 · Café tables** — a café-type shop (R-H07) with 2+ free floor
   cells in front → up to 4 tables with parasols on those cells.
 - **D26 · 3 · Fingerpost** — a junction with 3+ branches, p=0.5 → signpost
-  with pictogram arms.
+  with pictogram arms. A junction is a place the street leaves in 3+
+  directions that stay apart for 3 cells (a two-wide street is no row of
+  junctions); none within 1 of a plaza; no two posts within 8 (discovery
+  round 1, FX-03).
 - **D27 · 3 · Post** — a house facing a street p=0.3 → mailbox; one postbox
   per street of length ≥ 10.
 - **D33 · 3 · Hand pump** — total street length ≥ 8 and no fountain in town
@@ -600,6 +606,22 @@ street cell.
 - **U12 · 2 · Centre and edge** — houses within 4 cells of a square get a
   stone ground storey and richer trim; houses more than 10 cells from any
   floor get rustic variants (thatch, timber, rough stone).
+
+Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
+
+- **U13 · 2 · Country lanes** (UF-04) — a run of 4+ street cells with no
+  building, square, stall or fountain within 3 → no lamps (D01); a hedgerow
+  down one side on the grass verge (a seeded hand for the whole town), a
+  field gate in a long hedge and in any gap left in a fence along the lane,
+  a milestone every 8th cell on the other side. Not on a verge with another
+  use, against a placed fence, or where people walk across.
+- **U14 · 2 · Burgage plots** (UF-01) — more than 6 cells of grass shut in by
+  placed fences or walls and the backs (no main door) of 2+ houses on one
+  side → one long garden per house: a low picket fence out from each party
+  line to the far fence; from the house out a bench in the sun (gardens
+  facing south), vegetable patches, a washing pole, a shed or compost heap,
+  and a fruit tree at the far end. Before U02 (with 3+ trees it stays a park;
+  with no house against it, a paddock); smaller patches stay U04 back yards.
 
 ---
 

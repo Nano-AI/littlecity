@@ -7,6 +7,10 @@
 // park, never both), so they are decided in one place, in this order:
 //
 //   front garden (U03)   the one grass cell between a main door and a street
+//   burgage plots (U14)  more than DRESSING.yardMax cells of grass shut in by
+//                        placed fences or walls and the backs (no main door)
+//                        of two or more houses in a row: one long garden per
+//                        house (discovery round 1, UF-01)
 //   field (U02)          6+ cells of grass shut in by placed fences or walls:
 //                        a park if 3+ trees stand in it, a walled garden if
 //                        walls alone enclose it, else a paddock
@@ -66,8 +70,21 @@ export interface Patch {
   houses: readonly StructureId[];
 }
 
+/**
+ * U14 (discovery round 1, UF-01): fenced land behind a row of houses, to be
+ * split into one long garden per house.
+ */
+export interface Burgage {
+  cells: readonly CellKey[];
+  /** The way from the land to the row of houses. */
+  dir: Dir4;
+  /** The houses of the row, each with the coordinates along the row (x, or z) of its back wall's cells facing the land. */
+  houses: readonly { id: StructureId; along: readonly number[] }[];
+}
+
 export type LandUse =
   | { use: 'front-garden'; garden: FrontGarden }
+  | { use: 'burgage'; burgage: Burgage }
   | { use: 'field'; field: Field }
   | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
@@ -78,10 +95,14 @@ export interface LandUses {
   byCell: ReadonlyMap<CellKey, LandUse>;
   frontGardens: readonly FrontGarden[];
   fields: readonly Field[];
+  burgages: readonly Burgage[];
   courtyards: readonly Patch[];
   backYards: readonly Patch[];
   pocketParks: readonly Patch[];
 }
+
+/** U14: the most cells a burgage patch may have (bigger fenced land is a field). */
+const BURGAGE_MAX = 80;
 
 /** D17: a courtyard is this many cells or more (and no more than COURT_MAX). */
 const COURT_MIN = 4;
@@ -131,7 +152,12 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     (g as { closed: readonly [boolean, boolean] }).closed = [flank(minus), flank(plus)];
   }
 
-  // ── leftovers: fields, back yards, pocket parks ──
+  // ── leftovers: burgage plots, fields, back yards, pocket parks ──
+  const mainDoors = new Set<string>();
+  for (const ft of shape.features) {
+    if (ft.type === 'door' && ft.cell !== undefined && ft.dir !== undefined && (ft.params as { main?: number } | undefined)?.main === 1) mainDoors.add(`${ft.cell}:${ft.dir}`);
+  }
+  const burgages: Burgage[] = [];
   const fields: Field[] = [];
   const courtyards: Patch[] = [];
   const backYards: Patch[] = [];
@@ -145,7 +171,11 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     const houses = l.structures.filter((id) => f.structures.get(id)?.kind === 'house');
     const fenced = l.bounds.has('fence') || l.bounds.has('wall');
     const open = l.bounds.has('floor') || l.bounds.has('cliff') || l.bounds.has('water');
-    if (fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
+    const burgage = fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
+    if (burgage) {
+      burgages.push(burgage);
+      for (const c of cells) byCell.set(c, { use: 'burgage', burgage });
+    } else if (fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
       const kind = trees >= DRESSING.parkTrees ? 'park' : l.bounds.has('wall') && !l.bounds.has('fence') ? 'walled-garden' : 'paddock';
       const field: Field = { kind, cells, trees };
       fields.push(field);
@@ -165,5 +195,27 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     }
   }
 
-  return { byCell, frontGardens: gardens, fields, courtyards, backYards, pocketParks };
+  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks };
+
+  /** The row of houses whose backs (no main door) face the land on one side, if two or more. */
+  function burgageOf(cells: readonly CellKey[]): Burgage | null {
+    const rows = new Map<Dir4, Map<StructureId, Set<number>>>();
+    for (const c of cells) {
+      for (const d of [0, 1, 2, 3] as Dir4[]) {
+        const n = neighbor(c, d);
+        if (n === NO_CELL || f.kinds.get(n) !== 'house' || mainDoors.has(`${n}:${(d + 2) % 4}`)) continue;
+        const id = f.structureAt.get(n)!;
+        let row = rows.get(d);
+        if (!row) rows.set(d, (row = new Map()));
+        let along = row.get(id);
+        if (!along) row.set(id, (along = new Set()));
+        along.add(d === 0 || d === 2 ? c & 63 : (c >> 6) & 63);
+      }
+    }
+    let best: [Dir4, Map<StructureId, Set<number>>] | null = null;
+    for (const [d, row] of [...rows].sort((a, b) => a[0] - b[0])) if (!best || row.size > best[1].size) best = [d, row];
+    if (!best || best[1].size < 2) return null;
+    const houses = [...best[1]].map(([id, along]) => ({ id, along: [...along].sort((a, b) => a - b) })).sort((a, b) => a.along[0]! - b.along[0]! || a.id - b.id);
+    return { cells, dir: best[0], houses };
+  }
 });

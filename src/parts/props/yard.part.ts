@@ -178,7 +178,7 @@ export const vegPatch = definePart({
   },
 });
 
-/** Washing pole: two posts with a line of washing between them. Frame: a floor slot; the line runs along X. */
+/** Washing pole: two posts with a line of washing between them. Frame: a floor slot; the line runs along X. Anchor 'hang-washing': where someone stands to peg out. */
 export const washingPole = definePart({
   prop: 'washing-pole',
   build(item, ctx) {
@@ -200,7 +200,8 @@ export const washingPole = definePart({
         b.setSway(0);
       });
     }
-    return { mesh: b.build() };
+    // Where someone stands to peg out the washing: in front of the line, facing it.
+    return { mesh: b.build(), anchors: { 'hang-washing': compose(translation(0, 0, 0.17), rotationY(Math.PI)) } };
   },
 });
 

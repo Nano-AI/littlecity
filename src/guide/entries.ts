@@ -741,6 +741,37 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 40, pitch: 42 },
     pad: -0.1,
   },
+  // ── discovery round 1: the fill builder's entries ──
+  {
+    id: 'country-lane',
+    group: 'green',
+    name: 'Country lane',
+    how: 'Run a path out of town across open grass: four or more squares of it more than three squares from any building or plaza get hedges, field gates and milestones instead of street lamps.',
+    proof: { prop: { rule: 'U13.country-lanes', type: 'hedge' } },
+    seed: 7651,
+    build(b) {
+      b.house(13, 19, { color: 2 });
+      b.path(13, 20, 27, 20);
+    },
+    view: { yaw: 30, pitch: 34 },
+    pad: -0.2,
+  },
+  {
+    id: 'burgage-plots',
+    group: 'green',
+    name: 'Back gardens',
+    how: 'Fence in the grass behind a row of two or more houses: each house gets its own long back garden, with a fruit tree at the far end.',
+    proof: { prop: { rule: 'U14.burgage-plots', type: 'fruit-tree' } },
+    seed: 7652,
+    build(b) {
+      b.path(16, 17, 23, 17);
+      for (let i = 0; i < 3; i++) b.house(17 + i * 2, 18, { w: 2, floors: 1 + (i % 2), color: (i * 3 + 1) % 8 });
+      for (let x = 17; x <= 22; x++) b.fenceEdge(x, 22, 'S');
+      for (let z = 19; z <= 22; z++) b.fenceEdge(17, z, 'W').fenceEdge(22, z, 'E');
+    },
+    view: { yaw: 200, pitch: 40 },
+    pad: -0.1,
+  },
   {
     id: 'pocket-park',
     group: 'green',
