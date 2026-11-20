@@ -745,3 +745,12 @@ arrive physically, continuous water jet, mending on every damaged building
 by itself, a nuke with mushroom cloud and crater), then merge and push;
 bigger islands and walk mode stay experimental (unmerged previews).
 Running: mischief (final iteration), test-diet.
+
+**Derek: Grow a town must choose and have flavour** (it still builds the
+old stair-and-temple and ignores the new buildings) → grow-town agent
+resumed for pass 4: town characters (great harbour, marble city, castle
+town, market and townhouse town, river town, farming village, hill town,
+games and gardens), a budgeted plan that drops districts instead of
+squeezing them, composed marble ensembles, coverage across seeds rather
+than within one town, no wall-clock test assertions.
+Running: mischief (final iteration), test-diet, grow-town pass 4.
