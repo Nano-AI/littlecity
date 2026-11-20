@@ -31,7 +31,7 @@ import { mergeMeshes, MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { DAMAGE_COLORS, RUIN, rgb } from '@/style/damage';
 import { PALETTE } from '@/style/palette';
-import { debrisOf, restMatrix, type Chunk } from './debris';
+import { afloatTopple, chunkMatrix, debrisOf, restMatrix, WATER_Y, type Chunk } from './debris';
 import { ashFloor, beam, crackShape, fallenBeams, groundColour, heap, raftersOn, scorchRing, sootShape, studsOn } from './extras';
 import { cutField, profileOf, STONE_KINDS, type Column, type Plane, type Profile } from './field';
 import { area, backOf, bounds, centroid, clip, clonePoly, normalOf, polysOf as polysOfMesh, Soup, tint, transformPoly, vert, type Poly, type Vert } from './poly';
@@ -291,6 +291,11 @@ function isOpen(col: Column, field: Field): boolean {
 export function blastChunks(intact: MeshData, s: Structure, plan: ShapePlan): Chunk[] {
   const prof = profileOf(s, plan);
   if (!prof.damaged) return [];
+  // Over the water on stilts: it goes over in one piece.
+  if (afloat(prof)) {
+    const a = afloatPose(prof);
+    return a.toppled && !a.mending ? [toppleOf(intact, prof)] : [];
+  }
   const field = cutField(prof, 'now');
   if (s.kind === 'tree') return treeChunks(intact, prof);
   const { removed } = breakPolys(polysOfMesh(intact), field, true);
@@ -310,11 +315,12 @@ function debrisPart(removed: readonly Poly[], prof: Profile): Poly[] {
 export function damageOutput(out: GenOutput, s: Structure, plan: ShapePlan): GenOutput {
   const prof = profileOf(s, plan);
   if (!prof.damaged || out.mesh.position.length === 0) return out;
-  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof) : buildingDamage(out.mesh, prof);
+  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof) : afloat(prof) ? afloatDamage(out.mesh, prof) : buildingDamage(out.mesh, prof);
   return { mesh, anchors: out.anchors };
 }
 
-function buildingDamage(intact: MeshData, prof: Profile): MeshData {
+/** `rubble` false: no heap and no pieces lying about (a wreck that went over into the water instead). */
+function buildingDamage(intact: MeshData, prof: Profile, rubble = true): MeshData {
   const { s, plan } = prof;
   const seed = s.seed;
   const polys = polysOfMesh(intact);
@@ -497,7 +503,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     const r = polys.find((p) => ROOF_PATTERNS.has(p.pattern));
     return r ? [r.v[0]![6]!, r.v[0]![7]!, r.v[0]![8]!] : null;
   })();
-  if (!settling) {
+  if (!settling && rubble) {
     const chunks = debrisOf(debrisPart(broken.removed, prof), prof);
     for (const [i, ch] of chunks.entries()) {
       const col = prof.columnNear(ch.to[0], ch.to[2]);
@@ -543,7 +549,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     if (col.mending) {
       scorched(col);
       const ph = col.phases;
-      if (col.stage === 3 && col.cause === 'blast' && ph.clear < 1 && s.kind !== 'dock') {
+      if (rubble && col.stage === 3 && col.cause === 'blast' && ph.clear < 1 && s.kind !== 'dock') {
         // Rubble being cleared: the heap goes down.
         heap(extras, col, hash(seed, col.x, col.z), mix3(wallColor, C.rubble, 0.55), 1 - ph.clear);
       }
@@ -767,6 +773,84 @@ function treeDamage(intact: MeshData, prof: Profile): MeshData {
   if (!soup.empty) meshes.push(soup.build());
   if (extras.vertexCount > 0) meshes.push(extras.build());
   return meshes.length === 0 ? intact : meshes.length === 1 ? meshes[0]! : mergeMeshes(meshes);
+}
+
+// ── on stilts over the water ─────────────────────────────────────────────
+
+/**
+ * Standing on stilts over the water: a pier or dock's deck itself, or anything built on one (a boathouse,
+ * a house on piles, a shed on the pier). A blast knocks these over rather than heaping them up.
+ */
+export function afloat(prof: Profile): boolean {
+  const { s, plan } = prof;
+  if (s.kind === 'dock') return true;
+  const low = Math.min(...s.cells.map((c) => keyY(c)));
+  if (low < 1) return false;
+  const base = s.cells.filter((c) => keyY(c) === low);
+  return base.length > 0 && base.every((c) => plan.kinds.get(c - 4096) === 'dock');
+}
+
+/** How a structure over the water stands: knocked over (a stage-3 blast), leaning (a stage-2 one), or neither. */
+function afloatPose(prof: Profile): { toppled: boolean; lean: number; mending: boolean; progress: number; clear: number; settling: boolean } {
+  let stage = 0, mending = false, progress = 1, clear = 1, settling = false, blast = false;
+  for (const col of prof.columns.values()) {
+    if (col.cause === 'blast' && col.stage > 0) blast = true;
+    stage = Math.max(stage, col.stage);
+    if (col.mending) {
+      mending = true;
+      progress = Math.min(progress, col.progress);
+      clear = Math.min(clear, col.phases.clear);
+    }
+    settling ||= col.settling;
+  }
+  const toppled = blast && stage === 3;
+  // A heavy hit short of knocking it over: a leg snapped, and it leans; straightened as it is mended.
+  const lean = blast && stage === 2 ? (prof.s.kind === 'dock' ? 0.07 : 0.16) * (mending ? 1 - progress : 1) : 0;
+  return { toppled, lean, mending, progress, clear, settling };
+}
+
+/** The whole structure going over (or gone over), as one chunk. */
+function toppleOf(intact: MeshData, prof: Profile): Chunk {
+  const polys = polysOfMesh(intact);
+  let lo = Infinity;
+  for (const p of polys) for (const v of p.v) lo = Math.min(lo, v[1]!);
+  const deck = prof.s.kind === 'dock';
+  // A deck goes down at one end; a building goes right over onto its side, half under.
+  return afloatTopple(polys, prof, deck ? 0.42 : 1.3, Math.max(0, lo - WATER_Y) + (deck ? 0.12 : 0.22));
+}
+
+function afloatDamage(intact: MeshData, prof: Profile): MeshData {
+  const a = afloatPose(prof);
+  const moved = (mesh: MeshData, m: readonly number[]): MeshData => {
+    const soup = new Soup();
+    for (const p of polysOfMesh(mesh)) {
+      const q = clonePoly(p);
+      transformPoly(q, m);
+      soup.add(q);
+    }
+    return soup.empty ? mesh : soup.build();
+  };
+  if (a.toppled && !a.mending) {
+    // In the air (the flight is drawing it): nothing here. Down: lying over in the water.
+    if (a.settling) return mergeMeshes([]);
+    const ch = toppleOf(intact, prof);
+    return moved(intact, restMatrix(ch));
+  }
+  if (a.toppled && a.mending) {
+    // Being rebuilt where it stood, as any building is; the wreck settles under the water as it is cleared.
+    const ch = toppleOf(intact, prof);
+    const m = restMatrix(ch);
+    m[13] = m[13]! - 1.4 * a.clear;
+    const meshes = [buildingDamage(intact, prof, false)];
+    if (a.clear < 1) meshes.push(moved(intact, m));
+    return mergeMeshes(meshes);
+  }
+  const now = prof.s.kind === 'dock' ? intact : buildingDamage(intact, prof);
+  if (a.lean <= 0) return prof.s.kind === 'dock' ? buildingDamage(intact, prof) : now;
+  // Leaning over its broken leg, a little down at that side.
+  const ch = toppleOf(intact, prof);
+  const m = chunkMatrix({ ...ch, topple: { pivot: ch.topple!.pivot, drop: 0 } }, -a.lean, 0, ch.to);
+  return moved(prof.s.kind === 'dock' ? buildingDamage(intact, prof) : now, m);
 }
 
 /** Wraps a generator registry so every structure is drawn with its damage. */

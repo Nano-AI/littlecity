@@ -172,15 +172,19 @@ describe('blast', () => {
     expect(ruinFall(sim.world.blocks.get(key(13, 1, 10))!.ruin)).toBe(1);
   });
 
-  test('in the water it only soaks', () => {
+  test('in the water: nothing on land breaks, but a pier beside it is knocked about, falling away', () => {
     const terrain = flatTerrain(3);
     const b = new TownBuilder(emptyWorld(3), terrain);
     b.block('dock', 20, 0, 2);
+    b.house(21, 3, { color: 1 });
     const sim = new Sim(terrain, b.world);
     const ev = sim.engine.blast([20.5, 0.4, 1.5], 1);
     sim.flush();
     expect(ev.water).toBe(true);
-    expect(sim.stage(20, 0, 2)).toBe(0);
+    expect(sim.stage(21, 1, 3)).toBe(0);
+    expect(sim.stage(20, 0, 2)).toBeGreaterThanOrEqual(2);
+    // South of the blast: it falls south.
+    expect(ruinFall(sim.world.blocks.get(key(20, 0, 2))!.ruin)).toBe(2);
   });
 
   test('the nuke on water still plans its hits (it used to plan none: a cloud and an untouched town)', () => {

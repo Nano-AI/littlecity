@@ -3,7 +3,7 @@
 // water spout. Built once, in the game's hand: flat colour, a pen line round
 // each shape, self-lit where it burns. Owner: Mischief.
 
-import { compose, rotationY, scaling, translation, type Vec3 } from '@/core/mat4';
+import { compose, rotationY, rotationZ, scaling, translation, type Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { airborne, MIST } from '@/gen/airborne';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
@@ -571,3 +571,41 @@ export function boltLightMesh(): MeshData {
   for (const r of [1, 0.86, 0.72, 0.58, 0.44, 0.3]) ball(b, 0, 0, 0, r, r * 0.7, r, 14, 7);
   return (boltLight = b.build());
 }
+
+// ── wreckage (a ship broken by mischief) ──
+
+const wrecks = new Map<number, MeshData>();
+/**
+ * A piece of a broken ship afloat: 0 a plank, 1 a short length of timbers, 2 a barrel, 3 a spar with a
+ * rag of sail, 4 a hatch cover. Origin at its middle, lying on the water (y = 0 the waterline).
+ */
+export function wreckPieceMesh(kind: number): MeshData {
+  const k = kind % 5;
+  let m = wrecks.get(k);
+  if (m) return m;
+  const b = new MeshBuilder({ ink: `wreck${k}` });
+  const wood = PALETTE.wood, dark = DAMAGE_COLORS.char;
+  if (k === 0) b.setColor(wood).setPattern(PATTERN.planks).setInk('plank').box([-0.32, -0.02, -0.06], [0.32, 0.04, 0.06]);
+  else if (k === 1) {
+    b.setColor(wood).setPattern(PATTERN.planks).setInk('timbers');
+    b.box([-0.26, -0.03, -0.14], [0.26, 0.03, -0.04]);
+    b.box([-0.22, -0.03, 0.02], [0.3, 0.03, 0.12]);
+    b.setColor(dark).setInk('cross').box([-0.05, 0.03, -0.18], [0.05, 0.07, 0.16]);
+  } else if (k === 2) {
+    b.setColor('#9a6a3e').setPattern(PATTERN.planks).setInk('barrel');
+    b.at(rotationZ(Math.PI / 2), () => b.lathe([[0.09, -0.15], [0.11, 0], [0.09, 0.15]], { segments: 10, capTop: true, capBottom: true }));
+    b.setColor(PALETTE.metal).setPattern(PATTERN.none).setInk('hoops');
+    for (const x of [-0.09, 0.09]) b.at(compose(translation(x, 0, 0), rotationZ(Math.PI / 2)), () => b.lathe([[0.112, -0.012], [0.112, 0.012]], { segments: 10 }));
+  } else if (k === 3) {
+    b.setColor(wood).setPattern(PATTERN.none).setInk('spar');
+    b.at(rotationZ(Math.PI / 2), () => b.lathe([[0.04, -0.7], [0.035, 0.7]], { segments: 7, capTop: true, capBottom: true }));
+    b.setColor('#efe6d2').setInk('rag');
+    sheet(b, [[-0.3, 0.02], [0.25, 0.02], [0.1, 0.32], [-0.2, 0.22]], 0, Math.PI / 2 - 0.2);
+  } else {
+    b.setColor(RAMPS_WOOD_DARK).setPattern(PATTERN.planks).setInk('hatch').box([-0.2, -0.02, -0.15], [0.2, 0.04, 0.15]);
+  }
+  m = b.build();
+  wrecks.set(k, m);
+  return m;
+}
+const RAMPS_WOOD_DARK = '#7a5434';

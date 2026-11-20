@@ -70,7 +70,19 @@ export interface CallInfo {
   call: ActorOf<'ship-call'>;
 }
 
-export type Phase = 'idle' | 'arriving' | 'swing-in' | 'warp-in' | 'moored' | 'warp-out' | 'swing-out' | 'leaving' | 'nudging' | 'stranded';
+export type Phase = 'idle' | 'arriving' | 'swing-in' | 'warp-in' | 'moored' | 'warp-out' | 'swing-out' | 'leaving' | 'nudging' | 'stranded' | 'sinking';
+
+/**
+ * Mischief (design section 13b): how badly a blast hurt a ship. 1 scorched (sails torn); 2 dismasted (a
+ * mast gone): either way it gives up its visit and limps off; 3 broken: it goes down where it is, under
+ * the water, and its berth is free again when it has gone.
+ */
+export interface ShipHit {
+  ship: Ship;
+  stage: 1 | 2 | 3;
+  /** Distance from the blast to the nearest point of the hull's line. */
+  d: number;
+}
 
 export interface Ship {
   id: string;
@@ -113,6 +125,9 @@ export interface Ship {
   bowWave: number;
   ring: number;
   m: Mat4;
+  /** Mischief: how badly it was hit (0 not at all), and which way it lists going down. */
+  hurt?: 0 | 1 | 2 | 3;
+  list?: number;
 }
 
 /** L42: a tall ship crossing far out, in through one side of the map and out through the other, never calling. */
@@ -141,6 +156,14 @@ export interface Harbour {
   readonly barges: readonly Barge[];
   /** Goods lying on each quay, by berth key. */
   readonly piles: ReadonlyMap<string, Pile>;
+  /**
+   * Mischief: a blast at (x, z) reaching `r3` (it breaks a ship and sinks it), `r2` (dismasts it) and `r1`
+   * (scorches it). Each ship worse off than it was is marked so and answers (gives up its visit and
+   * limps off, or goes down); the hits are returned for the drawing of it.
+   */
+  strike(x: number, z: number, r3: number, r2: number, r1: number): ShipHit[];
+  /** Mischief undone: a ship going down is gone at once (its berth free); the others sail on as they are. */
+  clearWrecks(): void;
   sync(shape: ShapePlan, dressing: DressingPlan, calls: readonly CallInfo[]): void;
   update(dt: number, signals: Signals): void;
   dispose(): void;
@@ -284,6 +307,9 @@ function passCorridor(p: Passer): Disc[] {
   return out;
 }
 
+/** Seconds a broken ship takes to go down. */
+const SINK_TIME = 9;
+
 const harbours = new WeakMap<LifeStage, Harbour>();
 /** The harbour running on a stage (for tests). */
 export function harbourOf(stage: LifeStage): Harbour | null {
@@ -421,6 +447,39 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     return pile;
   };
 
+  /** Mischief: see Harbour.strike. */
+  const strike = (x: number, z: number, r3: number, r2: number, r1: number): ShipHit[] => {
+    const out: ShipHit[] = [];
+    for (const ship of ships) {
+      if (ship.phase === 'idle' || ship.phase === 'sinking' || !ship.body) continue;
+      // The nearest point of the hull's line (stern to bow), less its half beam.
+      const sin = Math.sin(ship.pose.yaw), cos = Math.cos(ship.pose.yaw);
+      const along = Math.max(ship.hull.stern, Math.min(ship.hull.bow, (x - ship.pose.x) * sin + (z - ship.pose.z) * cos));
+      const d = Math.max(0, Math.hypot(x - (ship.pose.x + sin * along), z - (ship.pose.z + cos * along)) - ship.hull.halfBeam);
+      const stage: 0 | 1 | 2 | 3 = d <= r3 ? 3 : d <= r2 ? 2 : d <= r1 ? 1 : 0;
+      if (stage === 0 || stage <= (ship.hurt ?? 0)) continue;
+      ship.hurt = stage;
+      out.push({ ship, stage, d });
+      if (stage === 3) {
+        // It goes down: nobody stays aboard, nothing is tied to the quay.
+        ship.crew?.release();
+        ship.crew = null;
+        ship.plank?.release();
+        ship.plank = null;
+        ship.plankK = 0;
+        for (const l of ship.lines) l.release();
+        ship.lines = [];
+        ship.escort?.release();
+        ship.escort = null;
+        ship.voyage = null;
+        ship.speed = 0;
+        ship.list = (x - ship.pose.x) * cos - (z - ship.pose.z) * sin > 0 ? -1 : 1;
+        setPhase(ship, 'sinking');
+      }
+    }
+    return out;
+  };
+
   /** Ends a visit (the ship is out beyond the edge, or gone in a puff): its pieces go; goods stay. */
   const finish = (ship: Ship): void => {
     ship.body?.release();
@@ -436,6 +495,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.escort = null;
     ship.voyage = null;
     ship.visits++;
+    // A new visit is a sound ship.
+    ship.hurt = 0;
     const turn = turns.get(ship.berth.key);
     if (turn) {
       const [lo, hi] = GAP[ship.kind]();
@@ -522,6 +583,17 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.t += dt;
     const body = ship.body;
     if (!body) return;
+    if (ship.phase === 'sinking') {
+      // Down where it was hit: settling by the head, listing, and under (the water hides it); then gone,
+      // and its berth's turn comes round again.
+      const k = Math.min(1, ship.t / SINK_TIME);
+      const depth = 4.2 * k * k;
+      const list = (ship.list ?? 1) * Math.min(0.75, ship.t * 0.12);
+      fly(ship.pose.x, SEA_Y - depth, ship.pose.z, ship.pose.yaw, 0.08 + Math.min(0.42, ship.t * 0.05), list, 1, ship.m);
+      body.pose(ship.m, ship.pose.yaw);
+      if (ship.t >= SINK_TIME) finish(ship);
+      return;
+    }
     const wind = signals.wind(ship.pose.x, ship.pose.z);
     const sin = Math.sin(ship.pose.yaw), cos = Math.cos(ship.pose.yaw);
     const w: ShipWind = { lee: wind.dirX * cos - wind.dirZ * sin, along: wind.dirX * sin + wind.dirZ * cos, strength: wind.strength };
@@ -593,7 +665,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         ship.crew!.setPile(pile);
         // The plank comes down once it is fast, and up again when the stay is over and the crew are aboard.
         // After a night alongside they do not all go at first light: each waits its own while into the morning.
-        const done = (ship.t >= stay && !night && daylight >= r(ship, 'dawn') * 75) || ship.orphan;
+        // Hit by mischief, it gives up the visit and limps off as soon as its crew are aboard.
+        const done = (ship.t >= stay && !night && daylight >= r(ship, 'dawn') * 75) || ship.orphan || (ship.hurt ?? 0) > 0;
         const want = done && ship.crew!.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
         ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 2.4));
         if (done && ship.crew!.aboard && ship.plankK <= 0) {
@@ -863,6 +936,10 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     passers,
     barges,
     piles,
+    strike,
+    clearWrecks() {
+      for (const ship of ships) if (ship.phase === 'sinking') finish(ship);
+    },
     sync(nextShape, _dressing, calls) {
       const changed = nextShape !== shape;
       shape = nextShape;
