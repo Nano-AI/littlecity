@@ -400,10 +400,11 @@ export const swing = definePart({
       // D38: a rope swing from a willow's long bough out over the river, a stick for a seat.
       // `drop`: how far below the tree's foot the water lies; the seat hangs just above it.
       const z = 0.78, top = 0.62, seat = 0.08 + r('h') * 0.04 - Math.max(0, Math.min(1.4, item.params?.drop ?? 0));
-      b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.2, 0.05], [0.03, top - 0.04, z * 0.55], [0.05, top, z + 0.08]], [0.04, 0.028, 0.016], { seg: 5 }));
+      b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.2, 0.05], [0.03, top - 0.04, z * 0.55], [0.05, top, z + 0.08]], [0.055, 0.04, 0.024], { seg: 5 }));
+      // A thick rope (it must read at playing zoom: a thin one is a hair) and a red plank seat.
       b.with({ color: PALETTE.sand, pattern: PATTERN.none, ink: 'swing', sway: (_x: number, y: number) => Math.max(0, (top - y) / top) * 0.5 }, () => {
-        b.box([0.045 - 0.006, seat, z - 0.006], [0.045 + 0.006, top, z + 0.006]);
-        b.with({ color: PALETTE.trunk }, () => b.box([-0.05, seat - 0.02, z - 0.015], [0.14, seat, z + 0.015]));
+        b.box([0.045 - 0.014, seat, z - 0.014], [0.045 + 0.014, top, z + 0.014]);
+        b.with({ color: PALETTE.red }, () => b.box([-0.07, seat - 0.03, z - 0.05], [0.16, seat, z + 0.05]));
       });
       return { mesh: b.build(), anchors: { seat: translation(0.045, seat, z) } };
     }

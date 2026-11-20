@@ -122,7 +122,7 @@ them is on my branch.
 
 Branch `swarm/disc1-fill`: FX-03 (fingerposts), FX-04 + U13 country lanes,
 U14 burgage plots, U15 village green, U16 shops in the wall, U17 drying
-green, U18 orchard, D35 stair guardians, U19 stair forecourt, U20 quay
+green, U18 orchard, D39 stair guardians (renumbered from D35: the seasons builder's festival lights took D35), U19 stair forecourt, U20 quay
 apron, D36 wayside shrine, U21 castle bailey, D37 market cross, D38 rope
 swing, U22 ford, U23 belvedere garden. The sockets in the table above are
 all live; each fixture under `scenarios/rules/` checks its own.

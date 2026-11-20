@@ -3,8 +3,9 @@
 // columns with a 2 × 2 among them (a wall one cell thick or a small block is
 // not a building) and with no door, gets one: a stone-framed door into the vaults under it, in the middle of its
 // longest ground-storey wall run of 3+ cells that stands on level ground
-// with open ground (or a floor) at its foot and marble above it. A run
-// facing a path or a plaza wins over one facing grass. So a big slab is a
+// with open ground (or a floor) at its foot and marble above it. A run with
+// a path or plaza within 2 is left to U16's booths when another run will do;
+// otherwise nearer a path or plaza wins. So a big slab is a
 // storehouse, not a blank box, and its walls stay free for the booths and
 // niches of the urban fill on every other run.
 //
@@ -63,7 +64,10 @@ function doorOf(s: Structure, plan: ShapePlan): Door | null {
           if (plan.world.floors.has(q)) near = k;
         }
       }
-      const score = (6 - near) * 100 + run.length * 2 - d * 0.1; // ties: the lower side number
+      // A run with a path or plaza within 2 of it is a shopfront: U16 (shops in the wall) hollows it
+      // into booths. The vault door takes a run facing open ground when there is one.
+      const shopfront = near <= 2 ? -1000 : 0;
+      const score = shopfront + (6 - near) * 100 + run.length * 2 - d * 0.1; // ties: the lower side number
       if (!best || score > best.score) best = { door: { cell: mid, dir: d }, score };
     }
   }

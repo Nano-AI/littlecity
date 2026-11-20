@@ -1,4 +1,4 @@
-// D35 · tier 3 · Guardians at the head of the stair (discovery round 1, DC-03).
+// D39 · tier 3 · Guardians at the head of the stair (discovery round 1, DC-03).
 //
 // Monumental stairs are flanked. A flight of grand steps (R-M04) three or
 // more wide gets a pair of guardians at its head, on the landing just above
@@ -23,7 +23,7 @@ import type { CellPos } from '@/resolve/plan';
 import { clearways, cornerPos } from './clearways.fact';
 import { flights } from './flights.fact';
 
-const RULE = 'D35.stair-guardians';
+const RULE = 'D39.stair-guardians';
 
 interface Piece {
   type: 'guardian' | 'lamp';
@@ -37,7 +37,7 @@ export default defineRule<{ pieces: Piece[]; urn: boolean }>({
   id: RULE,
   part: 'decoration',
   tier: 3,
-  priority: 650,
+  priority: 610,
   about: 'Reads: flights of grand steps 3+ wide, clearways. Claims: the outer corner slot of each guardian at the head and each lamp at the foot.',
   find({ facts, seed }) {
     const clear = clearways(facts);

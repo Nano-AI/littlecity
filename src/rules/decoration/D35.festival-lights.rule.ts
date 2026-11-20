@@ -1,4 +1,4 @@
-// D35 · tier 2 · The midwinter festival (Seasons, design section 13a).
+// D39 · tier 2 · The midwinter festival (Seasons, design section 13a).
 //
 //   Eaves: every house's top storey gets a string of small coloured bulbs under its eaves, on every
 //   side that faces open air (one prop per top cell, its sides in a mask).

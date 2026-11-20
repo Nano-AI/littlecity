@@ -1,4 +1,4 @@
-// Guardian (D35): a stone lion or a great urn on a plinth, one of a pair at
+// Guardian (D39): a stone lion or a great urn on a plinth, one of a pair at
 // the head of a grand stair; and the market cross (D37) on a plinth.
 
 import { translation } from '@/core/mat4';

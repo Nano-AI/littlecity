@@ -1,5 +1,5 @@
 // Vocabulary added by the fill builder in discovery round 1: urban fill and
-// decoration (U13 onward, D35 onward). Types only: merged into the
+// decoration (U13 onward; D36 onward, and D39). Types only: merged into the
 // registries by module augmentation (see the header of src/core/vocab.ts).
 
 import '@/core/vocab';
@@ -46,6 +46,7 @@ declare module '@/core/vocab' {
     // 'hang-washing', 'line-0', 'line-1'. A basket (washing or apples): a floor slot; anchor 'basket'.
     // A bleaching sheet: at a cell's north-west corner slot facing south (the part re-centres).
     'drying-line': true;
+    'drying-line/posts': true; //      the two posts alone; the default is the rope and the wash
     'drying-line.span': number;
     'drying-line.look': number;
     'basket': true;
@@ -102,7 +103,7 @@ declare module '@/core/vocab' {
     'paving/earth': true;
     'paving.mask': number;
 
-    // D35 guardians at the head of a grand stair: a stone lion or an urn on a plinth, at a floor slot,
+    // D39 guardians at the head of a grand stair: a stone lion or an urn on a plinth, at a floor slot,
     // +Z the way it looks (down the stair); `mirror` 1 for the second of a pair.
     'guardian': true;
     'guardian/lion': true;

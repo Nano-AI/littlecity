@@ -241,11 +241,17 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
       for (const c of cells) byCell.set(c, { use: 'bailey', patch });
       continue;
     }
-    const burgage = fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
+    // Fenced ground beside a schoolhouse is its yard (R-H21 chalks a hopscotch court on it): not a
+    // paddock or back gardens.
+    const school = cells.some((c) => [0, 1, 2, 3].some((d) => {
+      const n = neighbor(c, d as Dir4);
+      return n !== NO_CELL && shape.roles.get(f.structureAt.get(n) ?? -1)?.role === 'schoolhouse';
+    }));
+    const burgage = !school && fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
     if (burgage) {
       burgages.push(burgage);
       for (const c of cells) byCell.set(c, { use: 'burgage', burgage });
-    } else if (fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
+    } else if (!school && fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
       const kind = trees >= DRESSING.parkTrees ? 'park' : l.bounds.has('wall') && !l.bounds.has('fence') ? 'walled-garden' : 'paddock';
       const field: Field = { kind, cells, trees };
       fields.push(field);
@@ -345,6 +351,20 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     const houses = new Set<StructureId>();
     for (const c of cells) for (const h of seers.get(c)!) houses.add(h);
     if (houses.size < GREEN_HOUSES) continue;
+    // The green lies between its houses: nothing more than a cell past the ends of their rows.
+    let bx0 = 99, bx1 = -1, bz0 = 99, bz1 = -1;
+    for (const h of houses) {
+      for (const c of f.structures.get(h)?.cells ?? []) {
+        bx0 = Math.min(bx0, c & 63);
+        bx1 = Math.max(bx1, c & 63);
+        bz0 = Math.min(bz0, (c >> 6) & 63);
+        bz1 = Math.max(bz1, (c >> 6) & 63);
+      }
+    }
+    const inside = cells.filter((c) => (c & 63) >= bx0 - 1 && (c & 63) <= bx1 + 1 && ((c >> 6) & 63) >= bz0 - 1 && ((c >> 6) & 63) <= bz1 + 1);
+    cells.length = 0;
+    cells.push(...inside);
+    if (cells.length < GREEN_MIN) continue;
     const street = cells.some((c) => [0, 1, 2, 3].some((d) => f.world.floors.get(neighbor(c, d as Dir4)) === 'path'));
     if (!street) continue;
     const col = (c: CellKey): [number, number] => [c & 63, (c >> 6) & 63];
