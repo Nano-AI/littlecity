@@ -1,7 +1,9 @@
 // R-H04 · tier 1 · Stilt house. Every lowest cell stands over water (on a
 // dock or on generated stilts): plank walls, a ladder down to the water and
-// a fishing spot on the water side.
-import { columnIndex, keyX, keyY, keyZ } from '@/core/grid';
+// a fishing spot on the water side. Only the house that stands on the dock
+// or the stilts: a house stacked on another house is not one (it would hang
+// a second ladder down the same wall as the house below it).
+import { below, columnIndex, keyX, keyY, keyZ, NO_CELL } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { structureInfo } from '@/resolve/facts/structure.fact';
@@ -12,13 +14,15 @@ export default defineRule({
   part: 'roles',
   tier: 1,
   priority: 9960,
-  about: 'Reads: terrain under the lowest cells, facades (water side). Emits: role, plank-walls, a ladder, a fishing-spot socket.',
+  about: 'Reads: terrain and the kind under the lowest cells (not another house), facades (water side). Emits: role, plank-walls, a ladder, a fishing-spot socket.',
   find(ctx) {
     const info = structureInfo(ctx.facts);
     return houseStructures(ctx)
       .filter((s) => {
         const minY = info.get(s.id)?.minY ?? 0;
-        return s.cells.filter((c) => keyY(c) === minY).every((c) => ctx.facts.terrain.height[columnIndex(keyX(c), keyZ(c))] === 0);
+        return s.cells
+          .filter((c) => keyY(c) === minY)
+          .every((c) => ctx.facts.terrain.height[columnIndex(keyX(c), keyZ(c))] === 0 && (below(c) === NO_CELL || ctx.facts.kinds.get(below(c)) !== 'house'));
       })
       .map((s) => ({ anchor: s.cells[0]!, structure: s.id }));
   },

@@ -4,7 +4,7 @@
 // gatehouse, a sky bridge's covered gallery, a buttress pinnacle and a
 // loggia's balustrade.
 
-import { CELL_H, neighbor, NO_CELL, type CellKey } from '@/core/grid';
+import { CELL_H, keyX, keyZ, neighbor, NO_CELL, type CellKey } from '@/core/grid';
 import { rand } from '@/core/rand';
 import { compose, rotationY, translation, type Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type ColorInput } from '@/gen/mesh';
@@ -44,7 +44,10 @@ export function archExtras(b: MeshBuilder, anchors: Record<string, Mat4Like>, f:
       // A hair (0.004) past the bridge's end, so the post's face covers the ends of the parapet, coping
       // and cornice rather than lying in their plane.
       const u = lo ? 0.086 : 0.914;
-      const tall = MONUMENTS.parapet + 0.11;
+      // Where a bridge turns a corner the posts of two ends (in neighbouring cells, side by side or
+      // diagonal) can stand side by side: by (x + 2z) mod 3, which differs between any two such cells,
+      // they stand 0, 1 or 2 hairs (0.004) taller, so their caps never share a plane.
+      const tall = MONUMENTS.parapet + 0.11 + 0.004 * ((((keyX(c.cell) + 2 * keyZ(c.cell)) % 3) + 3) % 3);
       const sockets: Record<string, Mat4Like> = {};
       for (const front of [true, false]) {
         const t = front ? 1 - MONUMENTS.parapetThick / 2 + 0.01 : MONUMENTS.parapetThick / 2 - 0.01;

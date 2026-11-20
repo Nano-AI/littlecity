@@ -171,6 +171,9 @@ declare module '@/core/vocab' {
     'doorstep.barrel': 0 | 1;
     'doorstep.bicycle': 0 | 1;
     'doorstep.lantern': 0 | 1; //      owns socket 'lamp-head' when 1
+    'doorstep.mat': 0 | 1; //          a doormat (none where there is no flat place for it)
+    'doorstep.ground': number; //      what the mat lies on: 0 ground, 1 path, 2 plaza, 3 deck or terrace, 4 marble, 5 cobbles
+    'doorstep.door': number; //        0 a house door, 1 a shop door, 2 a double door (the mat's size)
     'doorstep.flowers': number;
     'doorstep.look': number;
 

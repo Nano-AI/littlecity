@@ -4,13 +4,16 @@
 // them is drawn wherever one shows through the other. Used by coplanar.main.ts (the tool) and by
 // coplanar.test.ts (the regression).
 //
-// Structures and layers only: they are built in world coordinates. Props and actors are placed by
-// slot matrices and are not checked.
+// Structures and layers always; with a dressing plan also every prop, at the frame the layout gives it
+// (src/gen/layout.ts), as the renderer places it; with `actors`, every anchored actor at rest too (the
+// people waiting at one door then stand in one another, which life never shows: for looking only).
 
 import { allChunks } from '@/core/grid';
-import type { MeshData } from '@/gen/mesh';
+import type { Mat4Like } from '@/core/mat4';
+import { createLayout } from '@/gen/layout';
+import { transformMesh, type MeshData } from '@/gen/mesh';
 import { registriesFor } from '@/render/registries';
-import type { ShapePlan } from '@/resolve/index';
+import type { DressingPlan, ShapePlan } from '@/resolve/index';
 
 type V3 = [number, number, number];
 
@@ -86,7 +89,7 @@ function sharedArea(a: [number, number][], b: [number, number][]): number {
 }
 
 /** Every coplanar overlapping pair with different ink ids among a shape's structures and layers. */
-export function coplanarPairs(shape: ShapePlan): CoplanarPair[] {
+export function coplanarPairs(shape: ShapePlan, dressing: DressingPlan | null = null, opts: { actors?: boolean } = {}): CoplanarPair[] {
   const { generators, parts } = registriesFor(shape);
   const names: string[] = [];
   const buckets = new Map<string, Tri[]>();
@@ -112,8 +115,24 @@ export function coplanarPairs(shape: ShapePlan): CoplanarPair[] {
       list.push(tri);
     }
   };
-  for (const s of shape.structures.values()) add(`${s.kind}#${s.id}`, generators.build(s, shape, parts).mesh);
-  for (const layer of generators.layers()) for (const c of allChunks()) add(`layer ${layer.layer}`, layer.build(c, shape, parts).mesh);
+  const anchors = new Map<string, Mat4Like>();
+  const keep = (out: { mesh: MeshData; anchors: Record<string, Mat4Like> }): MeshData => {
+    for (const id in out.anchors) anchors.set(id, out.anchors[id]!);
+    return out.mesh;
+  };
+  for (const s of shape.structures.values()) add(`${s.kind}#${s.id}`, keep(generators.build(s, shape, parts)));
+  for (const layer of generators.layers()) for (const c of allChunks()) add(`layer ${layer.layer}`, keep(layer.build(c, shape, parts)));
+  if (dressing) {
+    const layout = createLayout({ shape, dressing, anchors, propOutput: (p, span) => parts.prop(p, { plan: shape, span }) });
+    for (const p of dressing.props) {
+      const at = layout.item(p.id);
+      if (at) add(`prop ${p.type}#${p.id}`, transformMesh(parts.prop(p, { plan: shape, span: at.span }).mesh, at.frame));
+    }
+    for (const a of opts.actors ? dressing.actors : []) {
+      const at = a.at === null ? null : layout.item(a.id);
+      if (at) add(`actor ${a.type}#${a.id}`, transformMesh(parts.actor(a, { plan: shape, span: at.span }).mesh, at.frame));
+    }
+  }
 
   const out: CoplanarPair[] = [];
   const seen = new Set<string>();

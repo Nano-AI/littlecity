@@ -93,7 +93,13 @@ function layoutOf(s: Structure, plan: ShapePlan): Map<CellKey, DockCell> {
     const ew = side[E] === 'dock' || side[W] === 'dock', ns = side[N] === 'dock' || side[S] === 'dock';
     const throughX = side[E] === 'dock' && side[W] === 'dock', throughZ = side[N] === 'dock' && side[S] === 'dock';
     const axis: Axis = body ? main : ew && !ns ? 'x' : ns && !ew ? 'z' : throughX && !throughZ ? 'x' : throughZ && !throughX ? 'z' : main;
-    out.set(c, { cell: c, x: keyX(c), z: keyZ(c), side, ext: side.map(extOf), axis });
+    // No tuck under a neighbour whose faces stand on the cell line (another dock's deck, an arch, a marble
+    // block): there is no gap to hide, and the tuck would lie in the plane of its top.
+    const flush = (d: number): boolean => {
+      const k = plan.kinds.get(neighbor(c, d as Dir4));
+      return side[d] === 'solid' && (k === 'dock' || k === 'arch' || k === 'marble');
+    };
+    out.set(c, { cell: c, x: keyX(c), z: keyZ(c), side, ext: side.map((v, d) => (flush(d) ? 0 : extOf(v))), axis });
   }
   return out;
 }

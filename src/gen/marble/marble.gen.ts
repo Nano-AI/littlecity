@@ -22,6 +22,13 @@ import { bollard, pedestal, pediment, quayStair } from '@/parts/monuments/marble
 import { arrowSlit, slitWindow, towerDoor } from '@/parts/monuments/openings';
 
 const FACE: readonly BoxFace[] = ['n', 'e', 's', 'w'];
+/**
+ * Where the ground beside a cell reaches its top, the top (and its cornice) stands two hairs
+ * (0.008) over the storey line: over the ground's lip, and a hair over what meets it there and is itself
+ * one hair up (an arch's deck, a house's terrace, a stair's top tread).
+ */
+const TOP_LIFT = 0.008;
+const liftOf = (c: MarbleCell): number => (c.topOpen && c.banked ? TOP_LIFT : 0);
 const COPING = 0.07;
 
 export interface MarbleCell {
@@ -41,6 +48,10 @@ export interface MarbleCell {
    * reach into it and lie in the planes of its top and of its own bands round the corner.
    */
   against: readonly boolean[];
+  /** Sides where the ground beside reaches the cell's top or higher (its bank's lip may lie on the top). */
+  bank: readonly boolean[];
+  /** Some side is banked. */
+  banked: boolean;
 }
 
 /** What the generator reads about each cell of a marble mass (all inside the structure hash). */
@@ -52,7 +63,7 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
     const up = above(cell);
     const down = below(cell);
     const onGround = height(x, z) === y && !mine.has(down);
-    const open: boolean[] = [], grounded: boolean[] = [], flush: boolean[] = [], against: boolean[] = [];
+    const open: boolean[] = [], grounded: boolean[] = [], flush: boolean[] = [], against: boolean[] = [], bank: boolean[] = [];
     for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
       const n = neighbor(cell, d);
       const nh = n === NO_CELL ? 0 : height(keyX(n), keyZ(n));
@@ -63,9 +74,10 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
       open.push(n === NO_CELL || !mine.has(n) || beside);
       grounded.push(onGround && n !== NO_CELL && !mine.has(n) && nh === y);
       flush.push(n !== NO_CELL && !mine.has(n) && nh === y + 1);
+      bank.push(n !== NO_CELL && !mine.has(n) && nh >= y + 1);
       against.push(n !== NO_CELL && !mine.has(n) && !beside && plan.kinds.get(n) === 'marble');
     }
-    return { cell, open, topOpen: up === NO_CELL || !mine.has(up), walkable: up === NO_CELL || !plan.kinds.has(up), grounded, flush, against };
+    return { cell, open, topOpen: up === NO_CELL || !mine.has(up), walkable: up === NO_CELL || !plan.kinds.has(up), grounded, flush, against, bank, banked: bank.some((v) => v) };
   });
 }
 
@@ -106,6 +118,9 @@ export default defineGenerator({
     // Castle roles are built of the towers' coursed stone, so keep, turret and curtain wall are one material.
     const castle = role === 'keep' || role === 'gatehouse' || role === 'quay-wall';
     const wallPattern = castle ? PATTERN.stone : PATTERN.marble;
+    /** A cornice runs along side `d` of a cell (and covers a lifted top's edge there). */
+    const corniced = (c: MarbleCell, d: number): boolean =>
+      MONUMENTS.marbleCornice > 0 && c.topOpen && c.open[d]! && !c.against[d] && !c.flush[d] && !carved.has(c.cell) && !besideSteps(c.cell, d) && !battlements.has(c.cell * 4 + d);
     const besideSteps = (cell: CellKey, d: number): boolean => {
       const n = neighbor(cell, d as Dir4);
       return n !== NO_CELL && carved.has(n);
@@ -138,10 +153,14 @@ export default defineGenerator({
         });
         continue;
       }
-      const sides = FACE.filter((_, d) => c.open[d]);
-      if (sides.length) b.box([x, y, z], [x + 1, y + CELL_H, z + 1], { only: sides, bevelTop: c.topOpen && MONUMENTS.marbleCornice <= 0 });
+      const top = y + CELL_H + liftOf(c);
+      // A lifted top's walls rise with it where its edge would show: not into the bank, nor under a cornice.
+      const rise = (d: number): boolean => top !== y + CELL_H && !c.bank[d] && !corniced(c, d);
+      const low = FACE.filter((_, d) => c.open[d] && !rise(d));
+      const high = FACE.filter((_, d) => c.open[d] && rise(d));
+      if (low.length) b.box([x, y, z], [x + 1, y + CELL_H, z + 1], { only: low, bevelTop: c.topOpen && MONUMENTS.marbleCornice <= 0 });
+      if (high.length) b.box([x, y, z], [x + 1, top, z + 1], { only: high, bevelTop: c.topOpen && MONUMENTS.marbleCornice <= 0 });
       if (!c.topOpen) continue;
-      const top = y + CELL_H;
       if (!(paved && c.walkable)) {
         b.box([x, y, z], [x + 1, top, z + 1], { only: ['top'] });
         continue;
@@ -207,7 +226,7 @@ export default defineGenerator({
     if (corniceH > 0) {
       // A temple's is deeper and darker: its frieze.
       b.with({ color: temple ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'cornice' }, () =>
-        band((c, d) => c.topOpen && c.open[d]! && !c.against[d] && !c.flush[d] && !carved.has(c.cell) && !besideSteps(c.cell, d) && !embattled(c, d), () => CELL_H - corniceH, corniceH, MONUMENTS.marbleCorniceOut),
+        band(corniced, (c) => CELL_H - corniceH + liftOf(c), corniceH, MONUMENTS.marbleCorniceOut),
       );
     }
     // A string course at every storey line: the pen lines a tall wall needs.
@@ -228,7 +247,8 @@ export default defineGenerator({
             onSide(c, d, () => {
               for (let i = 0; i < n; i++) {
                 const long = (i + keyY(c.cell) * n) % 2 === 0;
-                const la = long ? 0.19 : 0.11, lb = long ? 0.11 : 0.19;
+                // 0.2 long: at 0.19 a long stone's end lay in the plane of a quay stair's step (its runs are 0.76 / n).
+                const la = long ? 0.2 : 0.11, lb = long ? 0.11 : 0.2;
                 b.box([-0.5 - proud, i * qh, 0.5 - lb], [-0.5 + la, (i + 1) * qh, 0.5 + proud], { only: ['s', 'w', 'e', 'n'] });
               }
             });

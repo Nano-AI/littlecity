@@ -278,6 +278,17 @@ const api = {
     }
     return n;
   },
+  /** Hides every actor (people, birds, door leaves…), or shows them again. Returns how many there are. */
+  actors(visible: boolean): number {
+    let n = 0;
+    for (const a of dressing!.actors) {
+      const h = view!.stage.instance(a.id);
+      if (!h) continue;
+      h.setVisible(visible);
+      n++;
+    }
+    return n;
+  },
   /** Gives the view the same town again; returns the time it spent (nothing changed, so close to nothing). */
   rebuildMs(): number {
     view!.setTown(shape!, dressing);
