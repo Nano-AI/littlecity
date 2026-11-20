@@ -700,3 +700,18 @@ umbrellas; a snowman. Unit tests 1,890 green; all e2e green serially (two
 load failures passed alone). Published.
 Running: mischief (preview), living-town (broom, harvest, tool audit),
 field, big-islands (preview).
+
+**Mischief revision ready as a PREVIEW** (`swarm/mischief` at `786a5e6`,
+NOT merged; merged with main; ruins use save-section bit 1): rooted layered
+flames, fused smoke and dust, whole-part chunks, 32-step mending with crews
+that rebuild on their own (Rebuild switch), fire brigade with pump cart,
+hoses and a bucket chain, people fleeing and watching, falling windmill
+sails, sounds. Served at http://127.0.0.1:5175/?seed=4242&mischief.
+Raid not started. Waiting on Derek.
+**Test diet launched** (`swarm/test-diet`, Opus): Derek asked to cut the
+bloated suite: profile, shrink sweeps, drop duplicates and wall-clock
+assertions, fast `check` and `check:full` tiers.
+**Source is NOT pushed:** the working branch on GitHub is still the old
+spike commit; only `gh-pages` (built site) is pushed. Derek asked to see
+the code; offered to push the branch and open a PR: awaiting his word.
+Running: living-town, field (finishing), big-islands (preview), test-diet.
