@@ -666,6 +666,20 @@ its carrier. Nothing is ever left floating or vanishes in view.
   takes them). **Must not:** happen at night; the chapel erased or the
   couple gone calls it off and everybody goes about their day.
 
+- **L58 · 2 · Trade from the quay** — a town with a quay (R-D01) → up to 5
+  shops, inns and market stalls within 24 steps of it that can be walked to
+  (`trade|to|door`, `trade|to|stall`). Two carters (grown-ups with no job,
+  living nearest) keep a handcart parked outside their front doors. By day,
+  when goods a ship's crew landed lie on the quay (the harbour's piles,
+  L38–L40), a carter wheels the cart down, loads up to three of the crates,
+  barrels and sacks lying together there (the quay's stack goes down piece by
+  piece), pushes it to the place with the most room, sets the goods down in a
+  heap by its door or stall, and wheels the empty cart home. Goods a sailor
+  takes back aboard first are simply not there to load. **Must not:** send
+  two carters for one piece; carry more than fits where it is going.
+  *Not yet:* a horse-drawn cart on wide streets; the heaps in town are never
+  taken in, so trade stops when every place is full.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

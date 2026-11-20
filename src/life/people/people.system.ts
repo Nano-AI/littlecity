@@ -322,6 +322,12 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
         pose.armL = pose.armR = 2.3;
         pose.outL = pose.outR = 0.55;
         break;
+      case 'push':
+        // Both hands down on the handcart's handles.
+        pose.armL = pose.armR = 0.75;
+        pose.outL = pose.outR = -0.12;
+        pose.lean += 0.1;
+        break;
       default:
         pose.armL = pose.armR = 1.25;
         pose.outL = pose.outR = -0.2;
@@ -416,7 +422,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     // About its hold anchor, and bigger when the camera is far off (so a sack still reads on a shoulder
     // from the whole-island view; close up it is its own size).
     const [ax, ay, az] = holdAnchor(d.load.kind);
-    const k = loadScale();
+    const k = HOLD_OF[d.load.kind] === 'push' ? 1 : loadScale();
     for (let i = 0; i < 12; i++) loadM[i] = world[i]! * (i % 4 === 3 ? 1 : k);
     loadM[12] = world[0]! * ax + world[4]! * ay + world[8]! * az + world[12]!;
     loadM[13] = world[1]! * ax + world[5]! * ay + world[9]! * az + world[13]!;

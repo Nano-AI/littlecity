@@ -24,7 +24,7 @@ import { PALETTE } from '@/style/palette';
  *   sheaf    a sheaf of wheat                petals   a basket of petals
  *   bouquet  a bride's flowers
  */
-export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet';
+export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe';
 
 function ball(b: MeshBuilder, rx: number, ry: number, segments = 7): void {
   const prof: [number, number][] = [];
@@ -156,6 +156,38 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       b.setInk('petals').setColor('#f4a6c1');
       b.at(translation(0, 0.045, 0), () => ball(b, 0.042, 0.018));
       break;
+    case 'barrel':
+      b.setInk('barrel').setColor('#a8672f').setPattern(PATTERN.planks);
+      b.lathe([[0, 0], [0.045, 0], [0.056, 0.05], [0.045, 0.1], [0, 0.1]], { segments: 10 });
+      b.setInk('hoops').setColor(PALETTE.metal).setPattern(PATTERN.none);
+      for (const y of [0.022, 0.078]) b.lathe([[0.051, y - 0.005], [0.053, y + 0.005]], { segments: 10 });
+      break;
+    case 'cart':
+    case 'cart-1':
+    case 'cart-2':
+    case 'cart-3': {
+      // A two-wheeled handcart, handles toward −Z (where whoever pushes it stands), up to three goods on its bed.
+      b.setInk('cart').setColor('#9a6a3a').setPattern(PATTERN.planks);
+      b.box([-0.11, 0.08, -0.12], [0.11, 0.1, 0.14]);
+      b.box([-0.11, 0.1, -0.12], [-0.1, 0.14, 0.14]);
+      b.box([0.1, 0.1, -0.12], [0.11, 0.14, 0.14]);
+      b.box([-0.11, 0.1, 0.13], [0.11, 0.14, 0.14]);
+      b.setInk('handles').setColor(PALETTE.trunk).setPattern(PATTERN.none);
+      for (const x of [-0.09, 0.09]) tube(b, [[x, 0.1, -0.12], [x, 0.16, -0.24]], 0.007, { seg: 4 });
+      b.setInk('wheels').setColor('#5a3b22');
+      for (const x of [-0.13, 0.13]) b.at(translation(x, 0.065, 0.02), () => b.at([0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], () => b.lathe([[0, -0.012], [0.065, -0.012], [0.065, 0.012], [0, 0.012]], { segments: 10 })));
+      const n = kind === 'cart' ? 0 : Number(kind.slice(5));
+      const goods: Load[] = ['crate', 'barrel', 'sack'];
+      for (let i = 0; i < n; i++) b.at(translation((i - 1) * 0.07, 0.1, 0.02 + (i % 2) * 0.03), () => b.at([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1], () => drawLoadAt(b, goods[i % 3]!)));
+      break;
+    }
+    case 'scythe':
+      b.setInk('snath').setColor(PALETTE.trunk);
+      tube(b, [[0, 0, 0], [0, 0.32, 0.02]], 0.006, { seg: 4 });
+      b.setInk('blade').setColor('#c9ccd6').setPattern(PATTERN.metal);
+      b.polygon([[0, 0.3, 0.02], [0.02, 0.32, 0.02], [0.16, 0.24, 0.02], [0.12, 0.23, 0.02]]);
+      b.polygon([[0.12, 0.23, 0.02], [0.16, 0.24, 0.02], [0.02, 0.32, 0.02], [0, 0.3, 0.02]]);
+      break;
     case 'bouquet':
       b.setInk('stems').setColor('#5d8f3a');
       b.lathe([[0, 0], [0.012, 0], [0.025, 0.06], [0, 0.06]], { segments: 6 });
@@ -177,8 +209,9 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
  *   side       hanging from the right hand (a fish)
  *   chest      held up in front (a loaf, flowers)
  *   pole       up on a pole before them (the lantern)
+ *   push       a handcart pushed ahead of them on its wheels
  */
-export type Hold = 'shoulder' | 'shoulderL' | 'head' | 'high' | 'yoke' | 'side' | 'chest' | 'pole';
+export type Hold = 'shoulder' | 'shoulderL' | 'head' | 'high' | 'yoke' | 'side' | 'chest' | 'pole' | 'push';
 export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   sack: 'shoulder',
   crate: 'shoulder',
@@ -195,9 +228,15 @@ export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   loaf: 'chest',
   bouquet: 'chest',
   lantern: 'pole',
+  barrel: 'shoulder',
+  cart: 'push',
+  'cart-1': 'push',
+  'cart-2': 'push',
+  'cart-3': 'push',
+  scythe: 'shoulder',
 };
 /** Loads heavy enough that their carrier leans into them and walks slower. */
-export const HEAVY: ReadonlySet<Load> = new Set<Load>(['sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder']);
+export const HEAVY: ReadonlySet<Load> = new Set<Load>(['sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
 
 const rotX = (a: number): Mat4Like => rotationX(a);
 const rotZ = (a: number): Mat4Like => [Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -221,6 +260,13 @@ const HOLD: Record<Load, Mat4Like> = {
   loaf: multiply(translation(0.02, 0.2, 0.11), rotZ(0.9)),
   bouquet: translation(0, 0.19, 0.12),
   lantern: translation(0.11, 0.34, 0.12),
+  barrel: multiply(translation(0.075, 0.27, -0.1), rotX(Math.PI / 2)),
+  // On the ground ahead of them, its handles in their hands. (A cart is not drawn bigger: it is big enough.)
+  cart: translation(0, 0, 0.36),
+  'cart-1': translation(0, 0, 0.36),
+  'cart-2': translation(0, 0, 0.36),
+  'cart-3': translation(0, 0, 0.36),
+  scythe: multiply(translation(0.08, 0.2, -0.04), rotX(-0.5)),
 };
 
 const cache = new Map<string, MeshData>();
@@ -251,6 +297,7 @@ export function carriedMesh(kind: Load): MeshData {
         for (const x of [-0.19, 0.19]) b.box([x - 0.003, 0.11, -0.003], [x + 0.003, 0.26, 0.003]);
         for (const x of [-0.19, 0.19]) b.at(translation(x, 0.02, 0), () => drawLoad(b, kind, 1.3));
       } else if (kind === 'ladder') drawLoad(b, kind, 1.25);
+      else if (HOLD_OF[kind] === 'push') drawLoad(b, kind, 1.15);
       else if (kind === 'lantern') {
         // On a short pole held up before them.
         b.setInk('pole').setColor(PALETTE.trunk);

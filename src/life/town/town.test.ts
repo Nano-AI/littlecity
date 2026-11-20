@@ -12,6 +12,10 @@ import fishTown from '../../../scenarios/life/L53.fish.scenario';
 import watchTown from '../../../scenarios/life/L55.watchman.scenario';
 import marketTown from '../../../scenarios/life/L56.market-day.scenario';
 import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
+import tradeTown from '../../../scenarios/life/L58.trade.scenario';
+import { tradeChain } from './chains/trade';
+import type { Pile } from '../ships/crew';
+import type { InstanceHandle } from '../api';
 import type { WeddingChain } from './chains/wedding';
 import { MARKET } from '@/style/town-life';
 import type { MarketChain } from './chains/market-day';
@@ -205,6 +209,36 @@ describe('L51 bread and L52 water', () => {
     expect(dressed).toBeGreaterThan(5);
     // Over: nobody is left dressed up out in the street or in the party.
     if (wed.phase === 'none') for (const p of t.crowd.people) expect(p.party).toBe(false);
+  });
+
+  test('L58: goods landed on the quay are wheeled into town by the carters, and the stack on the quay goes down', () => {
+    const where = scenarioTown(tradeTown);
+    let released = 0;
+    const handle = (): InstanceHandle => ({ base: [], setMatrix() {}, setVisible() {}, setParams() {}, release: () => void released++ }) as unknown as InstanceHandle;
+    // Six pieces lying on the quay (on top of its blocks, level 1), as a ship's crew leaves them.
+    const spots = [20.4, 21.1, 21.8, 26.2, 26.9, 27.6].map((x, i) => ({ x, y: 0.82, z: 27.5 + (i % 2) * 0.2, yaw: 0 }));
+    const pile: Pile = { spots, items: spots.map(() => handle()) };
+    const c = clock(where.world.seed, 'day');
+    const t = createLivingTown({ seed: where.world.seed, chains: [tradeChain(() => new Map([['berth', pile]]))] });
+    t.sync(where.shape, where.dressing, c.time);
+    const w = watch(t.crowd, { maxStuck: 12 });
+    let carts = 0;
+    for (let i = 0; i < 240 * 30; i++) {
+      t.step(c.tick(1 / 30), c.time);
+      w.check();
+      if (i % 30 === 0) carts += t.crowd.people.filter((p) => (p.load ?? '').startsWith('cart-') && p.visible).length;
+    }
+    expect(w.problems).toEqual([]);
+    const left = pile.items.filter(Boolean).length;
+    expect(left).toBeLessThanOrEqual(3);
+    expect(released).toBe(6 - left);
+    const delivered = [...t.board.stores.values()].filter((s) => s.key.startsWith('trade:to:')).reduce((n, s) => n + t.board.count(s), 0);
+    expect(delivered).toBe(6 - left);
+    expect(carts).toBeGreaterThan(10);
+    // The carts are back by their doors or out with a carter.
+    const parked = [...t.board.stores.values()].filter((s) => s.key.startsWith('trade:cart:')).reduce((n, s) => n + t.board.count(s), 0);
+    const out = t.crowd.people.filter((p) => (p.load ?? '').startsWith('cart')).length;
+    expect(parked + out).toBe(2);
   });
 
   test('the same town stepped the same way tells the same story', () => {

@@ -92,6 +92,8 @@ export const CHAINS = defineStyle(
     fishGap: 14,
     fishBuyMorning: 0.16,
     fishBuy: 0.08,
+    /** L58: seconds a carter rests between trips with the cart. */
+    cartGap: 3,
     /** L55: seconds the watchman stops at each post of the beat. */
     watchStop: 2.5,
   },
@@ -112,6 +114,7 @@ export const CHAINS = defineStyle(
     fishBuyMorning: [0, 1, 0.01],
     fishBuy: [0, 1, 0.01],
     watchStop: [0, 10, 0.1],
+    cartGap: [0, 60, 1],
   },
 );
 
