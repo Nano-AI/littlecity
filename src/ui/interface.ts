@@ -31,7 +31,9 @@ import { clampLength, createScrollSteps, growthOf, planRun, type Run } from './l
 import { createMarkers } from './markers';
 import { createMenu } from './menu';
 import { faceZone, pickCell, type Pick } from './pick';
-import { DRAWER_IDS, drawerItems, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
+import { DRAWER_IDS, drawerItems, isMischiefTool, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
+import { createMischiefTools } from './mischief';
+import { mischiefOf } from '@/life/mischief/director';
 import { attachPointer } from './pointer';
 import { createStepper } from './stepper';
 import { createTray, type Tray } from './tray';
@@ -128,6 +130,20 @@ export function createInterface(host: InterfaceHost): Interface {
   const count = el('div', { class: 'lc-count', attrs: { 'data-ui': 'run-count', 'aria-hidden': 'true', hidden: '' } });
   let sound = readSound();
   let tuning: HTMLElement | null = null;
+  // Mischief (design section 13b): its tools, and undo calling off what is going on.
+  let lastUse = { x: 0, y: 0, shift: false };
+  const mischief = createMischiefTools({
+    view,
+    game,
+    feedback,
+    director: mischiefOf(view.stage),
+    root,
+    refuse: (reason) => refuse(reason, lastUse.x, lastUse.y),
+  });
+  const offMischief = mischiefOf(view.stage).on(() => api.sync());
+  const undoNow = (): void => {
+    if (!mischief.undo()) game.undo();
+  };
 
   // ── grow a town (design section 15a) ───────────────────────────────────
   let growingNote: (() => void) | null = null;
@@ -139,6 +155,7 @@ export function createInterface(host: InterfaceHost): Interface {
     },
   });
   const grow = (): void => {
+    mischief.undo();
     growth.stop();
     setGhost(null, '');
     growth.start(growTown(game.terrain, game.world.seed));
@@ -154,6 +171,7 @@ export function createInterface(host: InterfaceHost): Interface {
     },
     hasTown: () => !onlyStartingTrees(game.world, game.terrain),
     newIsland: () => {
+      mischief.undo();
       growth.stop();
       host.newIsland();
     },
@@ -218,7 +236,7 @@ export function createInterface(host: InterfaceHost): Interface {
     host.time.hold(next);
     showTime();
   });
-  undoButton.addEventListener('click', () => game.undo());
+  undoButton.addEventListener('click', undoNow);
   redoButton.addEventListener('click', () => game.redo());
 
   // ── acting on the town ─────────────────────────────────────────────────
@@ -411,6 +429,7 @@ export function createInterface(host: InterfaceHost): Interface {
   const onCanvasDown = (e: PointerEvent): void => {
     dismissing = closePopups();
     copying = e.altKey && e.pointerType === 'mouse' && e.button === 0;
+    lastUse.shift = e.shiftKey;
   };
 
   /** Alt-click (design section 7, "Copy a look"): the block's kind, colour and style go into the hand. */
@@ -429,6 +448,12 @@ export function createInterface(host: InterfaceHost): Interface {
       if (dismissing) return;
       if (growth.active) return growth.skip();
       if (copying) return copyAt(x, y);
+      const item = tray.state.item;
+      if (isMischiefTool(item)) {
+        lastUse = { ...lastUse, x, y };
+        mischief.use(item, look(x, y)?.pick ?? null, { shift: lastUse.shift });
+        return;
+      }
       const seen = look(x, y);
       if (!seen) return;
       const length = heldLength();
@@ -504,7 +529,7 @@ export function createInterface(host: InterfaceHost): Interface {
       if (key === 'z') {
         e.preventDefault();
         if (e.shiftKey) game.redo();
-        else game.undo();
+        else undoNow();
       } else if (key === 'y') {
         e.preventDefault();
         game.redo();
@@ -567,6 +592,17 @@ export function createInterface(host: InterfaceHost): Interface {
   // First visit to an empty island: point at Grow a town (see welcome.ts).
   const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
 
+  // ?mischief: straight to a grown town with the Mischief drawer open, to try it.
+  const openMischief = (): void => {
+    if (!new URLSearchParams(location.search).has('mischief')) return;
+    if (!welcomeHasTown()) {
+      grow();
+      growth.skip();
+    }
+    tray.select('torch');
+  };
+  const welcomeHasTown = (): boolean => !onlyStartingTrees(game.world, game.terrain);
+
   const api: Interface = {
     el: root,
     tray,
@@ -580,7 +616,7 @@ export function createInterface(host: InterfaceHost): Interface {
     },
     sync() {
       worldVersion++;
-      undoButton.disabled = !game.canUndo;
+      undoButton.disabled = !game.canUndo && !mischief.active;
       redoButton.disabled = !game.canRedo;
       showTime();
       guide.townChanged();
@@ -602,6 +638,8 @@ export function createInterface(host: InterfaceHost): Interface {
       guide: guide.isOpen,
     }),
     dispose() {
+      offMischief();
+      mischief.dispose();
       growth.stop();
       tray.styles.dispose();
       guide.dispose();
@@ -618,5 +656,6 @@ export function createInterface(host: InterfaceHost): Interface {
     },
   };
   api.sync();
+  openMischief();
   return api;
 }

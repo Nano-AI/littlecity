@@ -20,6 +20,7 @@ import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
 import type { LifeRuntime, SignalsDriver } from '@/life/api';
 import { createLife } from '@/life/runtime';
+import { mischiefOf } from '@/life/mischief/director';
 import { createSignals } from '@/life/signals';
 import { createTownView } from '@/render/index';
 import type { ShapePlan } from '@/resolve/plan';
@@ -112,9 +113,20 @@ const game = createGame(tiered(start), {
   },
 });
 
+// Mischief (design section 13b): what it does reaches the town as ordinary edits, one undo step per act.
+const mischief = mischiefOf(view.stage);
+mischief.connect({
+  begin: () => game.begin(),
+  apply: (edits) => void game.editAll(edits),
+  end: () => game.end(),
+  abort: () => void game.abort(),
+  edit: (edits) => void game.editAll(edits),
+});
+
 /** A different town: life and the signals start over with its seed; the held time of day carries across. */
 function open(next: GameStart): void {
   const holding = signals.holding;
+  mischief.detach();
   life.dispose();
   signals = createSignals(next.world.seed);
   signals.hold(holding);
@@ -212,6 +224,7 @@ function frame(now: number): void {
     ui?.dressed(ready.dressing);
   }
   life.update(dt);
+  mischief.flush();
   render();
   ui?.frame();
   requestAnimationFrame(frame);
@@ -236,4 +249,5 @@ window.__lc = {
   game,
   ui,
   autosave,
+  mischief,
 };
