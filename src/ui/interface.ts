@@ -16,6 +16,7 @@ import { edgeOf, keyY, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
 import type { DressingPlan } from '@/resolve/plan';
 import type { TimeHold } from '@/life/api';
+import type { SeasonHold, WeatherHold } from '@/life/season';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
 import { copyLook, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
@@ -43,6 +44,13 @@ export interface InterfaceHost {
   game: Game;
   /** The time-of-day control (the signals driver). */
   time: { readonly holding: TimeHold; hold(mode: TimeHold): void };
+  /** Added by Seasons: the season and weather controls (the signals driver). Without them, no buttons. */
+  seasons?: {
+    readonly seasonHolding: SeasonHold;
+    holdSeason(mode: SeasonHold): void;
+    readonly weatherHolding: WeatherHold;
+    holdWeather(mode: WeatherHold): void;
+  };
   /** Draws a frame right now (the postcard copies the canvas straight after). */
   renderNow(): void;
   /** A fresh island, already confirmed by the player. */
@@ -77,6 +85,9 @@ export interface Interface {
     /** The house-style flyout is open. */
     styles: boolean;
     time: TimeHold;
+    /** Added by Seasons. */
+    season: SeasonHold | null;
+    weather: WeatherHold | null;
     ghost: GhostSummary | null;
     markers: CellKey[];
     sound: boolean;
@@ -103,6 +114,27 @@ const TIME_LABEL: Record<TimeHold, string> = {
   dusk: 'Holding dusk. Press for night',
   night: 'Holding night. Press to let time pass',
   dawn: 'Holding dawn. Press to let time pass',
+};
+// Seasons (design section 13a): the season button cycles like the sun button; the weather button
+// steps through the kinds, auto first.
+const SEASON_ORDER: readonly SeasonHold[] = ['run', 'spring', 'summer', 'autumn', 'winter'];
+const SEASON_LABEL: Record<SeasonHold, string> = {
+  run: 'Seasons: the year is turning. Press to hold spring',
+  spring: 'Holding spring. Press for summer',
+  summer: 'Holding summer. Press for autumn',
+  autumn: 'Holding autumn. Press for winter',
+  winter: 'Holding winter, with the festival lights. Press to let the year turn',
+};
+const WEATHER_ORDER: readonly WeatherHold[] = ['auto', 'clear', 'cloudy', 'rain', 'storm', 'snow', 'fog', 'wind'];
+const WEATHER_LABEL: Record<WeatherHold, string> = {
+  auto: 'Weather: comes and goes. Press for a clear sky',
+  clear: 'Holding a clear sky. Press for cloud',
+  cloudy: 'Holding cloud. Press for rain',
+  rain: 'Holding rain. Press for a thunderstorm',
+  storm: 'Holding a thunderstorm. Press for snow',
+  snow: 'Holding snow. Press for mist',
+  fog: 'Holding mist. Press for wind',
+  wind: 'Holding a windy day. Press to let the weather change by itself',
 };
 const SOUND_KEY = 'little-city.sound';
 
@@ -187,13 +219,15 @@ export function createInterface(host: InterfaceHost): Interface {
   const guide = createGuide({ shape: () => game.shape });
 
   const timeButton = iconButton('time-run', 'Time of day', { class: 'lc-round', attrs: { 'data-ui': 'time' } });
+  const seasonButton = iconButton('season-run', 'Season', { class: 'lc-round', attrs: { 'data-ui': 'season' } });
+  const weatherButton = iconButton('weather-auto', 'Weather', { class: 'lc-round', attrs: { 'data-ui': 'weather' } });
   const undoButton = iconButton('undo', 'Undo', { class: 'lc-round', title: 'Undo (⌘Z)', attrs: { 'data-ui': 'undo' } });
   const redoButton = iconButton('redo', 'Redo', { class: 'lc-round', title: 'Redo (⇧⌘Z)', attrs: { 'data-ui': 'redo' } });
   root.append(
     markers.el,
     el('div', { class: 'lc-card lc-corner lc-corner-left' }, [menu.button]),
     el('div', { class: 'lc-card lc-corner lc-corner-left lc-corner-guide' }, [guide.button]),
-    el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, undoButton, redoButton]),
+    el('div', { class: 'lc-card lc-corner lc-corner-right' }, [timeButton, ...(host.seasons ? [seasonButton, weatherButton] : []), undoButton, redoButton]),
     tray.el,
     count,
     menu.el,
@@ -218,6 +252,32 @@ export function createInterface(host: InterfaceHost): Interface {
     host.time.hold(next);
     showTime();
   });
+  const showSeasons = (): void => {
+    const s = host.seasons;
+    if (!s) return;
+    const season = s.seasonHolding, weather = s.weatherHolding;
+    setIcon(seasonButton, `season-${season}`);
+    seasonButton.title = SEASON_LABEL[season];
+    seasonButton.setAttribute('aria-label', SEASON_LABEL[season]);
+    seasonButton.setAttribute('data-season', season);
+    setIcon(weatherButton, `weather-${weather}`);
+    weatherButton.title = WEATHER_LABEL[weather];
+    weatherButton.setAttribute('aria-label', WEATHER_LABEL[weather]);
+    weatherButton.setAttribute('data-weather', weather);
+  };
+  seasonButton.addEventListener('click', () => {
+    const s = host.seasons;
+    if (!s) return;
+    s.holdSeason(SEASON_ORDER[(SEASON_ORDER.indexOf(s.seasonHolding) + 1) % SEASON_ORDER.length]!);
+    showSeasons();
+  });
+  weatherButton.addEventListener('click', () => {
+    const s = host.seasons;
+    if (!s) return;
+    s.holdWeather(WEATHER_ORDER[(WEATHER_ORDER.indexOf(s.weatherHolding) + 1) % WEATHER_ORDER.length]!);
+    showSeasons();
+  });
+  showSeasons();
   undoButton.addEventListener('click', () => game.undo());
   redoButton.addEventListener('click', () => game.redo());
 
@@ -583,6 +643,7 @@ export function createInterface(host: InterfaceHost): Interface {
       undoButton.disabled = !game.canUndo;
       redoButton.disabled = !game.canRedo;
       showTime();
+      showSeasons();
       guide.townChanged();
       welcome.townChanged();
       if (hoverAt) updateGhost();
@@ -594,6 +655,8 @@ export function createInterface(host: InterfaceHost): Interface {
       style: tray.state.style,
       styles: tray.styles.isOpen,
       time: host.time.holding,
+      season: host.seasons?.seasonHolding ?? null,
+      weather: host.seasons?.weatherHolding ?? null,
       ghost: ghost ? { show: [...ghost.show], shimmer: [...(ghost.shimmer ?? [])], refuse: ghost.refuse ?? null } : null,
       markers: markers.cells(),
       sound,

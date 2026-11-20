@@ -162,6 +162,16 @@ ui = createInterface({
     },
     hold: (mode) => signals.hold(mode),
   },
+  seasons: {
+    get seasonHolding() {
+      return signals.seasonHolding;
+    },
+    holdSeason: (mode) => signals.holdSeason(mode),
+    get weatherHolding() {
+      return signals.weatherHolding;
+    },
+    holdWeather: (mode) => signals.holdWeather(mode),
+  },
   renderNow: render,
   newIsland() {
     leaveSpecialTown();
