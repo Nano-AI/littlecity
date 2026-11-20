@@ -425,51 +425,56 @@ Actors and motion. All read the signals in the design, section 13.
 
 ### Boats
 
-- **L17 · 1 · Moored rowboats** — one per pier or quay of 2+ cells, up to one
-  per 3 cells, tied to a bollard or stilt; they bob and tug on the line in
-  gusts.
-- **L18 · 2 · Fishing boat** — once the town has 6+ dock cells: leaves at
-  dawn, loops offshore, returns at dusk trailing gulls (town-wide).
-- **L19 · 1 · Sailboats** — 1 + number of lighthouses, at most 3. Each sails
-  a loop around the island at least 3 columns from land and docks, routed
-  through open water only; the sail flips sides with the wind.
-- **L20 · 3 · Rower** — two piers ≥ 10 apart → a rowboat crosses between
-  them now and then.
+- **L17 · 1 · Moored rowboats** — see "Boats and ships" below: any dock space that fits one gets one; they bob and tug on the line in gusts.
+- **L18 · 2 · Fishing boat** — see "Boats and ships" below: any dock that fits it; leaves at dawn, loops offshore, returns at dusk trailing gulls.
+- **L19 · 1 · Sailboats** — see "Boats and ships" below: one or two always, more with more dock; each sails a loop round the island through open water; the sail flips sides with the wind.
+- **L20 · 3 · Rower** — see "Boats and ships" below: with two or more docks, a rowboat crosses between two of them now and then.
 
-### Big ships (Derek's request, 2026-11-19)
+### Boats and ships (rewritten at Derek's request, 2026-11-19)
 
-Bigger visitors that a town earns by the size of its port. Each needs a
-**berth**: a straight run of dock or quay-wall cells with open water at
-least 3 columns wide alongside it for the ship's whole length plus 2, and an
-open-water lane from there to the edge of the map. Ships never overlap each
-other, piers, or small boats; small boats give way to them.
+Derek's words: "It shouldn't be tied to some specific board condition. If
+there's open available port space, it just spawns in. I just want boats."
+So there are no thresholds, counts or prerequisites. **Docks bring boats,
+and what comes is whatever fits the water beside them.** This replaces the
+earlier conditions in L17–L20 and L38–L42 (dock counts, "a port with 12+
+docks", "needs a lighthouse", "piers 10 apart").
 
-- **L38 · 2 · Galleon** — a berth of 8+ cells in a port with 12+ dock cells
-  in all → once or twice a day a three-masted galleon (about 7 cells long,
-  taller than a three-storey house, high stern castle, square sails, a long
-  pennant in the wind) appears at the edge of the map under full sail,
-  shortens sail as it nears, glides alongside and moors. Gangplank down;
-  sailors carry crates and barrels onto the quay (they pile up as dock
-  goods) and residents come to look. After a while it casts off, sets sail
-  and leaves by another edge. At night it stays, with stern lanterns lit.
-  Gulls wheel round its masts.
-- **L39 · 2 · Merchant cog** — a berth of 5+ cells in a port with 6+ dock
-  cells → a single-masted, round-bellied trading ship (about 4 cells long)
-  that calls more often than the galleon and stays a shorter time.
-- **L40 · 3 · Galley** — a lighthouse and a berth of 6+ cells → now and
-  then a long low galley (about 6 cells) with a bank of oars each side that
-  rise and dip together, one square sail furled or set by the wind; it rows
-  in, rests, and rows out.
-- **L41 · 3 · River barge** — a river with a dock on it and another dock at
-  least 10 cells away by water → a flat barge poled along the river between
-  them, carrying sacks, hay or barrels, passing under bridges (it lowers its
-  short mast if it has one).
-- **L42 · 3 · Passing sails** — any lighthouse → far out, beyond where the
-  small boats sail, a tall ship crosses the horizon once in a while without
-  calling.
+- **Fit is the only test.** A vessel may use a stretch of dock (or quay
+  wall) if its hull physically fits in the open water alongside and it can
+  sail or row in from the edge of the map without touching anything. A
+  single dock cell fits a rowboat; two or three fit a sailing dinghy or the
+  fishing boat; about four fit a cog; about six a galley; about seven a
+  galleon. River docks take rowboats, the rower and the barge. The lengths
+  are simply the hulls' sizes, not rules.
+- **Every dock gets used.** Free dock space fills up over the first minute
+  or two: small boats moor at the short and shallow places straight away,
+  and bigger ships call at any stretch they fit, the biggest that fits most
+  often, with the others taking turns so a long quay sees galleons, galleys
+  and cogs. A long quay with a ship in still has its small boats on the
+  rest of it. More dock means more boats, up to a cap that keeps the water
+  from looking crowded (and lower on phones).
+- **The sea is never empty.** Even an island with no dock has a sailboat or
+  two looping it and, now and then, a tall ship passing far out. No
+  lighthouse is needed for anything; a lighthouse just makes passing ships
+  a little more frequent.
+- **Rivers.** Any dock on a river brings the barge: it runs between river
+  docks if there are two or more, or between the one dock and the river
+  mouth.
+- **Nothing ever vanishes.** When the player removes a dock, fills the
+  water, or blocks a lane, the boats affected cast off and sail or row away
+  to the edge of the map (or to another free berth). They never shrink,
+  pop or fade in view. If something is built on the very water a boat is
+  floating in, the boat is nudged aside to the nearest free water first.
+  Only a boat with no water left to float in at all may be removed, and
+  then with the removal puff used for erased pieces, not a shrink. A boat
+  shut into an enclosed pool stays there as a resident until a way opens.
+- **Arrivals are still events.** Big ships sail in under shortening sail,
+  moor, unload, draw a crowd, stay the night with lanterns lit, and leave;
+  small boats give way to them; one big ship moves at a time.
 
-A port with a big ship moored is busier: more residents choose the quay as
-a destination, and the stalls nearest the harbour get customers.
+Rule ids stay as they are for the code's sake: L17 moored rowboats, L18
+fishing boat, L19 sailboats, L20 rower, L38 galleon, L39 cog, L40 galley,
+L41 river barge, L42 passing sails.
 
 ### People
 
