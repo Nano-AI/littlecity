@@ -14,6 +14,7 @@ import jobsTown from '../../../scenarios/rules/L23.jobs.scenario';
 import childrenTown from '../../../scenarios/rules/L28.children.scenario';
 import { createCrowd } from './crowd';
 import { clock, resolved, run, scenarioTown, townOf, watch } from './testing';
+import { FULL } from '../../../tests/helpers/tier';
 
 describe('a day in the town', () => {
   const town = scenarioTown(peopleTown);
@@ -132,7 +133,9 @@ describe('the big town', () => {
     expect(crowd.people.filter((p) => p.shutIn).every((p) => p.mode === 'home' && !p.visible)).toBe(true);
     // About 0.03 ms a step (0.5 ms at worst) on the machine this was written on. Only the mean is
     // asserted, loosely: under a busy test run a single step can be held up by anything. A frame is 16.7 ms.
-    expect(mean).toBeLessThan(1.5);
+    // A wall-clock budget, so only in the full run (LC_FULL=1): in the gate a busy machine failed it with
+    // nothing wrong (docs/swarm/test-diet.md).
+    if (FULL) expect(mean).toBeLessThan(1.5);
     console.info(`crowd on bench-2000: ${crowd.people.length} people, mean ${mean.toFixed(3)} ms a step, worst ${worst.toFixed(2)} ms, ${crowd.router!.stats.searches} searches, ${crowd.router!.stats.hits} cache hits`);
   });
 });
