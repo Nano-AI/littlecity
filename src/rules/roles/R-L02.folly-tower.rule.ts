@@ -8,9 +8,9 @@
 // Not: a Light within 6 of water (R-L01's lighthouse, whose beam L09 turns).
 //
 // Draws: plain coursed stone instead of the bands, the gallery with its
-// rail, and on top an open belvedere (four slim posts under a little dome,
-// a finial and a flag) in place of the glazed lantern room: no 'lantern'
-// socket, so no beam. A house touching it is not a keeper's cottage
+// rail (a second half-way up at 6 storeys, as R-L01), and on top an open
+// belvedere (four slim posts under a little dome, a finial and a flag) in
+// place of the glazed lantern room: no 'lantern' socket, so no beam. A house touching it is not a keeper's cottage
 // (R-H02 asks `inland`).
 //
 // Priority 7995: before R-L01 (7990).
@@ -50,6 +50,14 @@ export default defineRule({
     const s = plan.structures.get(c.structure!)!;
     const top = s.cells[s.cells.length - 1]!;
     out.role(s.id, 'folly-tower');
+    // Like a lighthouse, six storeys or more add a second gallery half-way up.
+    if (s.cells.length >= 6) {
+      out.tag(s.id, 'second-gallery');
+      const mid = s.cells[Math.floor(s.cells.length / 2)]!;
+      const g2 = out.feature({ type: 'gallery', structure: s.id, cell: mid });
+      out.socket({ type: 'flag-mount', owner: g2, cell: mid, structure: s.id });
+      out.socket({ type: 'perch', owner: g2, cell: mid, structure: s.id });
+    }
     if (plan.kinds.has(above(top))) return;
     const cap = out.feature({ type: 'cap', variant: 'belvedere', structure: s.id, cell: top });
     out.socket({ type: 'tower-top', owner: cap, cell: top, structure: s.id });
