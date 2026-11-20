@@ -15,6 +15,8 @@ import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
 import tradeTown from '../../../scenarios/life/L58.trade.scenario';
 import harvestTown from '../../../scenarios/life/L59.harvest.scenario';
 import laundryTown from '../../../scenarios/life/L60.laundry.scenario';
+import dogsTown from '../../../scenarios/life/L61.dogs.scenario';
+import type { DogChain } from './chains/dogs';
 import type { LaundryChain } from './chains/laundry';
 import { CLEAR, SUMMER } from '../season';
 import { tradeChain } from './chains/trade';
@@ -287,6 +289,28 @@ describe('L51 bread and L52 water', () => {
     step(120);
     expect(lines().filter((l) => l.out).length).toBeGreaterThan(lines().length - inNow);
     expect(w.problems).toEqual([]);
+  });
+
+  test('L61: a dog keeps at the heels of its people when they are out, and waits on the doorstep when they are in', () => {
+    let near = 0, out = 0, atDoor = 0, home = 0;
+    const { w } = run(240, 'day', town.dressing, (t) => {
+      const chain = t.board.chains.find((c) => c.id === 'dogs') as DogChain;
+      for (const d of chain.dogs) {
+        const people = t.crowd.people.filter((p) => p.home === d.post.structure && p.visible && (p.mode === 'walk' || p.mode === 'linger'));
+        if (people.length > 0) {
+          out++;
+          if (people.some((p) => Math.hypot(p.x - d.x, p.z - d.z) < 1.2)) near++;
+        } else {
+          home++;
+          const c = t.board.centre(d.post.cell);
+          if (Math.hypot(c.x - d.x, c.z - d.z) < 0.6) atDoor++;
+        }
+      }
+    }, scenarioTown(dogsTown));
+    expect(w.problems).toEqual([]);
+    expect(out).toBeGreaterThan(20);
+    expect(near / out).toBeGreaterThan(0.7);
+    if (home > 20) expect(atDoor / home).toBeGreaterThan(0.6);
   });
 
   test('the same town stepped the same way tells the same story', () => {

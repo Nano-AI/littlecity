@@ -703,6 +703,16 @@ its carrier. Nothing is ever left floating or vanishes in view.
   seen keeps its washing as drawn. *Simplified:* D05 draws rope and washing
   as one piece, so the whole line shows or hides.
 
+- **L61 · 3 · Dogs** — one per 6 house structures, at most 3: every sixth
+  house by its door cell from the fourth (`dog|home|<coat>`, 4 coats). The
+  dog trots at the heels of whoever of its house is out (a step behind and to
+  the side), sits when they stop, and sits on the doorstep looking out while
+  they are all indoors. Now and then (6–14 s apart, by day) it trots up to a
+  passer-by to say hello (a little bark, front feet up), or dashes at a cat
+  (L33) within 2.5 cells, which leaps up arched and stays sitting up a while;
+  it runs to bark at a scuffle (L50) within 5 cells. The crowd never waits
+  for a dog.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;
