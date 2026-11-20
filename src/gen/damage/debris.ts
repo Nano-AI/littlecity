@@ -121,9 +121,11 @@ function partsOf(polys: readonly Poly[], prof: Profile): Map<string, Poly[]> {
 }
 
 const STRIPS = true;
+/** Round things (a curved wall is many narrow faces): a back gives them depth; edge strips would only fight it. */
+const ROUND = new Set<string>(['windmill', 'lighthouse', 'tower', 'pillar', 'fountain']);
 
 /** A thin surface made a solid piece: its back face set in by `t`, and every open edge closed by a strip. */
-function thicken(polys: readonly Poly[], t: number, dark: readonly number[] | null): Poly[] {
+function thicken(polys: readonly Poly[], t: number, dark: readonly number[] | null, strips = true): Poly[] {
   const out: Poly[] = [...polys];
   // Only the piece's main surface (the wall, the roof slope) gets a back and edges; what stands on it
   // (a window frame, a sill) stays as it is.
@@ -164,7 +166,7 @@ function thicken(polys: readonly Poly[], t: number, dark: readonly number[] | nu
     }
   }
   for (const { a, b, p, n } of edges.values()) {
-    if (n !== 1 || !STRIPS) continue;
+    if (n !== 1 || !STRIPS || !strips) continue;
     const [nx, ny, nz] = normalOf(p);
     const a2 = new Float64Array(a), b2 = new Float64Array(b);
     a2[0] = a[0]! - nx * t; a2[1] = a[1]! - ny * t; a2[2] = a[2]! - nz * t;
@@ -330,7 +332,7 @@ export function debrisOf(removed: readonly Poly[], prof: Profile): Chunk[] {
     }
     const dark = polys.length ? [polys[0]!.v[0]![6]! * 0.8, polys[0]!.v[0]![7]! * 0.8, polys[0]!.v[0]![8]! * 0.8] : null;
     // A real piece has depth: a wall slab its thickness, a roof its boards.
-    ch.polys = prof.s.kind === 'dock' ? [...polys, ...polys.map((p) => backOf(p, 0.018, dark))] : thicken(polys, k.startsWith('roof') ? 0.05 : 0.08, dark);
+    ch.polys = prof.s.kind === 'dock' ? [...polys, ...polys.map((p) => backOf(p, 0.018, dark))] : thicken(polys, k.startsWith('roof') ? 0.05 : 0.08, dark, !ROUND.has(prof.s.kind));
     const lo = lowestAfter(ch.polys, ch);
     // A hair of height by the piece, so no two pieces ever lie in one plane.
     ch.to = [tx, ground - lo - 0.025 + rand(key, 'lift') * 0.02, tz];
