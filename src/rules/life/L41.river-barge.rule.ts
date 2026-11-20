@@ -5,24 +5,20 @@
 // short mast).
 //
 // RIVER WATER is open water at sea level marked as river by generator 2
-// (MAT_RIVER), or, on a hand-made island, water lying in a channel: within
-// RIVER_REACH of a bank with land on both sides (across x or across z) no
-// more than about five columns off, so a coast or a wide lagoon is not a
-// river. A bridge's arch
-// over the water is no obstacle. A dock is ON the river if river water lies
-// beside it.
+// (MAT_RIVER), or (a channel the player dug) water at most three columns
+// across for a run of six or more: a channel, not a cove. A dock is ON the
+// river if river water lies beside it. The barge goes under a bridge only if
+// there is room: see lowObstacles.
 //
 // The harbour system poles the barge to and fro (src/life/ships/barge.ts).
 
 import { columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
-import type { Facts } from '@/resolve/facts/api';
+import { defineFact, type Facts } from '@/resolve/facts/api';
 import { MAT_RIVER } from '@/terrain/terrain2';
 import { graphFrom, routeTo, seaField, type Pt } from './ship-routes';
 
-/** River water lies within this many columns of a bank. */
-export const RIVER_REACH = 2.6;
 /** A barge's half-beam for keeping off the banks. */
 export const BARGE_CLEAR = 0.45;
 /** Its drawn half-beam. */
@@ -37,34 +33,62 @@ export interface RiverRun {
 }
 
 /**
- * Land columns, and the columns where something stands at sea level (a dock, a pier): what a barge sails
- * round. A bridge's arch over the water is not in the way: the barge goes under it (its mast lowered).
+ * What a barge sails round: land, anything standing at sea level (a dock, a pier, and an arch: a bridge's
+ * opening at sea level is about a quarter of a storey high, and the barge stands half a storey out of the
+ * water with its load, its bargeman more), and anything one storey up over the water (a bridge deck: under
+ * it there is less than half a storey). Only what is built two storeys or more over the water leaves room
+ * to pass under, the mast lowered (barge.ts).
  */
 export function lowObstacles(f: Facts): Uint8Array {
   const m = new Uint8Array(SIZE_X * SIZE_Z);
   for (let i = 0; i < m.length; i++) if (f.terrain.height[i]! > 0) m[i] = 1;
-  for (const [c, k] of f.kinds) if (keyY(c) === 0 && k !== 'arch') m[columnIndex(keyX(c), keyZ(c))] = 1;
+  for (const c of f.kinds.keys()) if (keyY(c) <= 1) m[columnIndex(keyX(c), keyZ(c))] = 1;
   return m;
 }
 
-/** Is the water at a column river water? Generator 2 marks it (MAT_RIVER); a hand-dug channel counts by its shape. */
+/** A channel this narrow or narrower (columns across) is a river, if it runs on at least RIVER_RUN columns. */
+export const RIVER_WIDE = 3;
+export const RIVER_RUN = 6;
+
+/**
+ * Is the water at a column river water? Generator 2 marks it (MAT_RIVER). Otherwise (a channel the player
+ * dug) water counts as river where it is narrow, at most RIVER_WIDE columns across, for a run of at least
+ * RIVER_RUN columns along it: a channel, not a cove.
+ */
 export function riverWater(f: Facts, low: Uint8Array): (x: number, z: number) => boolean {
-  const landAt = (x: number, z: number): boolean => inColumnBounds(x, z) && f.terrain.height[columnIndex(x, z)]! > 0;
-  const reach = Math.ceil(RIVER_REACH * 2);
-  const bank = (x: number, z: number, dx: number, dz: number, n: number): boolean => {
-    for (let k = 1; k <= n; k++) if (landAt(x + dx * k, z + dz * k)) return true;
-    return false;
+  const wet = (x: number, z: number): boolean => inColumnBounds(x, z) && f.terrain.height[columnIndex(x, z)] === 0;
+  /** How wide the water is across (dx, dz) through a column. */
+  const across = (x: number, z: number, dx: number, dz: number): number => {
+    let n = 1;
+    for (let k = 1; wet(x + dx * k, z + dz * k) && n <= RIVER_WIDE; k++) n++;
+    for (let k = 1; wet(x - dx * k, z - dz * k) && n <= RIVER_WIDE; k++) n++;
+    return n;
   };
-  const DIRS = [[1, 0], [0, 1]] as const;
+  /** How far a narrow channel (narrow across (cx, cz)) runs along (ax, az) through a column. */
+  const run = (x: number, z: number, ax: number, az: number, cx: number, cz: number): number => {
+    let n = 1;
+    for (let k = 1; wet(x + ax * k, z + az * k) && across(x + ax * k, z + az * k, cx, cz) <= RIVER_WIDE && n < RIVER_RUN; k++) n++;
+    for (let k = 1; wet(x - ax * k, z - az * k) && across(x - ax * k, z - az * k, cx, cz) <= RIVER_WIDE && n < RIVER_RUN; k++) n++;
+    return n;
+  };
   return (x, z) => {
     if (!inColumnBounds(x, z) || low[columnIndex(x, z)] !== 0) return false;
     if (f.terrain.material[columnIndex(x, z)] === MAT_RIVER) return true;
-    // A channel: banks on both sides within reach (across x or across z), one of them near.
-    return (
-      DIRS.some(([dx, dz]) => bank(x, z, dx, dz, reach) && bank(x, z, -dx, -dz, reach)) &&
-      DIRS.some(([dx, dz]) => bank(x, z, dx, dz, Math.floor(RIVER_REACH)) || bank(x, z, -dx, -dz, Math.floor(RIVER_REACH)))
-    );
+    return (across(x, z, 1, 0) <= RIVER_WIDE && run(x, z, 0, 1, 1, 0) >= RIVER_RUN) || (across(x, z, 0, 1) <= RIVER_WIDE && run(x, z, 1, 0, 0, 1) >= RIVER_RUN);
   };
+}
+
+/** The barge keeps to the river: the sea, a lake or a cove is no water of its (1 = not its water). */
+function riverOnly(low: Uint8Array, river: (x: number, z: number) => boolean): Uint8Array {
+  const m = new Uint8Array(low);
+  for (let z = 0; z < SIZE_Z; z++) for (let x = 0; x < SIZE_X; x++) if (!river(x, z)) m[columnIndex(x, z)] = 1;
+  return m;
+}
+
+/** The water the barge works its run in (barge.ts): the river, under nothing too low to pass. */
+export function bargeWater(f: Facts): Uint8Array {
+  const low = lowObstacles(f);
+  return riverOnly(low, riverWater(f, low));
 }
 
 /** The barge's run for a town, or null. Pure. */
@@ -105,35 +129,56 @@ export function riverRun(f: Facts): RiverRun | null {
     for (let k = 1; k < route.length; k++) length += Math.hypot(route[k]![0] - route[k - 1]![0], route[k]![1] - route[k - 1]![1]);
     return { a, b, route, length };
   };
-  // Two or more: between the first pair (in dock order) joined through the water, not side by side.
+  const riverField = seaField(riverOnly(low, river));
+  // Two or more: between the first pair (in dock order) joined through the river, not side by side.
   for (let i = 0; i < ends.length; i++) {
-    const g = graphFrom(water, ends[i]!, BARGE_CLEAR);
+    const g = graphFrom(riverField, ends[i]!, BARGE_CLEAR);
     for (let j = i + 1; j < ends.length; j++) {
       if (Math.hypot(ends[j]![0] - ends[i]![0], ends[j]![1] - ends[i]![1]) < 3) continue;
       const route = routeTo(g, ends[i]!, ends[j]!);
       if (route) return run(ends[i]!, ends[j]!, route);
     }
   }
-  // One: between the dock and the river's mouth (the nearest open water that is not river).
-  const a = ends[0]!;
-  const g = graphFrom(water, a, BARGE_CLEAR);
-  let mouth = -1, best = Infinity;
-  for (let z = 0; z < SIZE_Z; z++) {
-    for (let x = 0; x < SIZE_X; x++) {
-      const i = columnIndex(x, z);
-      if (low[i] || river(x, z) || g.cost[i]! === Infinity || g.cost[i]! >= best) continue;
-      if (!DIR4.some(([dx, dz]) => river(x + dx, z + dz))) continue;
-      best = g.cost[i]!;
-      mouth = i;
+  // Else: between a river dock and the river's mouth (the nearest open water that is not river), the first
+  // dock (in dock order) that has a way there; a bridge too low to pass under may stand between.
+  for (const a of ends) {
+    const g = graphFrom(water, a, BARGE_CLEAR);
+    let mouth = -1, best = Infinity;
+    for (let z = 0; z < SIZE_Z; z++) {
+      for (let x = 0; x < SIZE_X; x++) {
+        const i = columnIndex(x, z);
+        if (low[i] || river(x, z) || g.cost[i]! === Infinity || g.cost[i]! >= best) continue;
+        if (!DIR4.some(([dx, dz]) => river(x + dx, z + dz))) continue;
+        best = g.cost[i]!;
+        mouth = i;
+      }
     }
+    if (mouth < 0) continue;
+    // It turns about in the river short of the mouth: the river water it can reach nearest the mouth.
+    const gr = graphFrom(riverField, a, BARGE_CLEAR);
+    const mx = (mouth % SIZE_X) + 0.5, mz = Math.floor(mouth / SIZE_X) + 0.5;
+    let b: Pt | null = null, near = Infinity;
+    for (let z = Math.floor(mz) - 3; z <= Math.floor(mz) + 3; z++) {
+      for (let x = Math.floor(mx) - 3; x <= Math.floor(mx) + 3; x++) {
+        if (!inColumnBounds(x, z) || gr.cost[columnIndex(x, z)]! === Infinity) continue;
+        const d = Math.hypot(x + 0.5 - mx, z + 0.5 - mz);
+        if (d < near) {
+          near = d;
+          b = [x + 0.5, z + 0.5];
+        }
+      }
+    }
+    if (!b) continue;
+    const route = routeTo(gr, a, b);
+    const r = route ? run(a, b, route) : null;
+    // A dock right at the mouth has no river to work: try the next.
+    if (r && r.length >= 4) return r;
   }
-  if (mouth < 0) return null;
-  const b: Pt = [(mouth % SIZE_X) + 0.5, Math.floor(mouth / SIZE_X) + 0.5];
-  const route = routeTo(g, a, b);
-  const r = route ? run(a, b, route) : null;
-  // A dock right at the mouth has no river to work: no barge.
-  return r && r.length >= 4 ? r : null;
+  return null;
 }
+
+/** The barge's run, once per resolve (L17 keeps its rowboats out of the barge's way). */
+export const bargeRun = defineFact<RiverRun | null>('bargeRun', (f) => riverRun(f));
 
 export default defineRule<RiverRun>({
   id: 'L41.river-barge',
@@ -143,7 +188,7 @@ export default defineRule<RiverRun>({
   townWide: true,
   about: 'Reads: docks, river water (MAT_RIVER, or a channel), open water. Emits: one ship-call (barge) between two river docks, or between a river dock and the river mouth.',
   find({ facts }) {
-    const run = riverRun(facts);
+    const run = bargeRun(facts);
     return run ? [{ anchor: key(Math.floor(run.a[0]), 0, Math.floor(run.a[1])), key: 'barge', data: run }] : [];
   },
   apply(c, out, ctx) {

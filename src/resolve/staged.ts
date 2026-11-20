@@ -69,7 +69,7 @@ export function createStagedResolver(terrain: Terrain, opts: ResolveOptions = {}
   };
 }
 
-/** Same blocks, floors and edge pieces (and seed and next seq): the same town to resolve. */
+/** Same blocks, floors, edge pieces and reshaped land (and seed and next seq): the same town to resolve. */
 export function sameWorld(a: World, b: World): boolean {
   if (a === b) return true;
   if (a.seed !== b.seed || a.nextSeq !== b.nextSeq) return false;
@@ -80,6 +80,12 @@ export function sameWorld(a: World, b: World): boolean {
   }
   for (const [c, k] of a.floors) if (b.floors.get(c) !== k) return false;
   for (const [e, k] of a.edges) if (b.edges.get(e) !== k) return false;
+  // The reshaped land (World.terrainEdits) is part of the town.
+  const ta = a.terrainEdits, tb = b.terrainEdits;
+  if (ta !== tb) {
+    if ((ta?.size ?? 0) !== (tb?.size ?? 0)) return false;
+    if (ta && tb) for (const [c, h] of ta) if (tb.get(c) !== h) return false;
+  }
   return true;
 }
 

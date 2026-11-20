@@ -1297,6 +1297,17 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     }
     return best;
   };
+  /**
+   * Shaping the land: a resident on a column that rose or sank rides it, to the same spot a level up or
+   * down, if that is still somewhere to stand (else the caller sends them to the nearest place that is).
+   */
+  const rideOf = (p: Person, was: ShapePlan['terrain'] | null): number => {
+    if (!was || !terrain || was === terrain || p.cell < 0) return -1;
+    const col = columnIndex(keyX(p.cell), keyZ(p.cell));
+    const dy = terrain.height[col]! - was.height[col]!;
+    if (dy === 0 || terrain.height[col] === 0) return -1;
+    return nav!.nodeAt.get(p.cell + dy * (1 << 12)) ?? -1;
+  };
   const hopTo = (p: Person, node: number): void => {
     const c = nodeCentre(nav!, node);
     clearWalk(p);
@@ -1604,6 +1615,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const old = nav;
       seed = shape.world.seed;
       shapeNow = shape;
+      const oldTerrain = terrain;
       terrain = shape.terrain;
       blocks = shape.structureAt;
       // L29: doors new to the town start as they should already be; shops stand open by day.
@@ -1680,7 +1692,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         leaveHaunt(p);
         clearWalk(p);
         p.goal = null;
-        if (node === undefined || p.mode === 'visit') hopTo(p, nearestNode(p.x, p.y, p.z));
+        const rode = node === undefined ? rideOf(p, oldTerrain) : -1;
+        if (node === undefined || p.mode === 'visit') hopTo(p, rode >= 0 ? rode : nearestNode(p.x, p.y, p.z));
         else {
           place(p, node);
           p.mode = 'wait';

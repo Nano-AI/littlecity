@@ -61,7 +61,7 @@ function sailIn(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   }
   fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll * 0.5, 1, state.m);
   ctx.instance.setMatrix(state.m);
-  notePose(ctx.stage, ctx.item.id, state.m);
+  notePose(ctx.stage, ctx.item.id, state.m, 'sailboat');
   state.sails.pose(state.m);
   if (c.s >= c.len - 1e-6) state.coming = null;
 }
@@ -165,7 +165,7 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   }
   if (gap < GAP) want *= smooth((gap - GAP / 2) / (GAP / 2));
   // Big ships (L38–L42): slow for one ahead, and stand aside out of its way.
-  const yieldTo = giveWay(ctx.stage, state.x, state.z, state.yaw);
+  const yieldTo = giveWay(ctx.stage, state.x, state.z, state.yaw, 2.8, ctx.item.id);
   want *= yieldTo.slow;
   state.offX += yieldTo.px * dt;
   state.offZ += yieldTo.pz * dt;
@@ -173,6 +173,8 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   state.offX = Math.min(SIZE_X - 0.8 - state.x, Math.max(0.8 - state.x, state.offX));
   state.offZ = Math.min(SIZE_Z - 0.8 - state.z, Math.max(0.8 - state.z, state.offZ));
   state.speed += (want - state.speed) * glide(0.9, dt);
+  // (Giving way it checks at once: it does not sail on into a boat.)
+  if (yieldTo.slow < 1) state.speed = Math.min(state.speed, want);
   state.place.s = (state.place.s + state.speed * dt) % lane.length;
   const p = lane.at(state.place.s);
   // (Not while standing aside for a big ship: it keeps out of the way until the ship has passed.)
@@ -203,7 +205,7 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   // Sailing, the bow lifts a touch with speed.
   fly(state.x, SEA_Y + sw.heave, state.z, state.yaw, sw.pitch + 0.03 * Math.min(1, state.speed / BOATS.speed), sw.roll * 0.5 + state.heel, 1, state.m);
   ctx.instance.setMatrix(state.m);
-  notePose(ctx.stage, ctx.item.id, state.m);
+  notePose(ctx.stage, ctx.item.id, state.m, 'sailboat');
   state.sails.pose(state.m);
 }
 

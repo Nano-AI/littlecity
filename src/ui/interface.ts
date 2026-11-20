@@ -12,27 +12,27 @@
 // refusal. The view is used only through TownView.
 
 import { maybeWelcome } from './welcome';
-import { edgeOf, keyY, NO_CELL, type CellKey } from '@/core/grid';
-import type { Edit, World } from '@/core/world';
+import { columnIndex, edgeOf, key, keyX, keyY, keyZ, NO_CELL, type CellKey } from '@/core/grid';
+import type { Edit, Terrain, World } from '@/core/world';
 import type { DressingPlan } from '@/resolve/plan';
 import type { TimeHold } from '@/life/api';
 import type { SeasonHold, WeatherHold } from '@/life/season';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
-import { copyLook, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
+import { brushAt, copyLook, landColumn, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
 import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
 import { growTown } from '@/townmaker/index';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
-import { ghostFor, ghostForRun } from './ghost';
+import { ghostFor, ghostForLand, ghostForRun } from './ghost';
 import { createGuide, type Guide } from './guide';
-import { clampLength, createScrollSteps, growthOf, planRun, type Run } from './length';
+import { clampLength, createScrollSteps, growthOf, maxLengthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
 import { createMenu } from './menu';
 import { faceZone, pickCell, type Pick } from './pick';
-import { DRAWER_IDS, drawerItems, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
+import { DRAWER_IDS, drawerItems, isLandTool, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
 import { attachPointer } from './pointer';
 import { createStepper } from './stepper';
 import { createTray, type Tray } from './tray';
@@ -282,7 +282,12 @@ export function createInterface(host: InterfaceHost): Interface {
   redoButton.addEventListener('click', () => game.redo());
 
   // ── acting on the town ─────────────────────────────────────────────────
-  const tool = (): ToolState => ({ item: tray.state.item, swatch: tray.state.swatch, style: tray.state.style });
+  const tool = (): ToolState => ({
+    item: tray.state.item,
+    swatch: tray.state.swatch,
+    style: tray.state.style,
+    ...(isLandTool(tray.state.item) ? { brush: heldLength() ?? 1 } : {}),
+  });
 
   const look = (x: number, y: number, world: World = game.world): { pick: Pick; ctx: ActionContext } | null => {
     const ray = view.screenToRay(x, y);
@@ -348,6 +353,13 @@ export function createInterface(host: InterfaceHost): Interface {
       if (!hoverAt || isToolId(tray.state.item)) return setGhost(null, '');
       const seen = look(hoverAt.x, hoverAt.y);
       if (!seen) return setGhost(null, '');
+      if (isLandTool(tray.state.item)) {
+        // Raise, Dig, Level: the ground as it would be, and what it carries.
+        const plan = planUse(tool(), seen.pick, seen.ctx);
+        const key = `${worldVersion}|${tray.state.item}|${heldLength()}|${plan.at}|${JSON.stringify(plan.tries[0] ?? null)}`;
+        if (key === ghostKey) return;
+        return setGhost(ghostForLand(plan, game), key);
+      }
       const length = heldLength();
       if (length !== null && length > 1) {
         // A held run: worked out again only when the target, the direction, the length or the piece changes.
@@ -370,8 +382,11 @@ export function createInterface(host: InterfaceHost): Interface {
 
   // ── held length (design section 7) ─────────────────────────────────────
   /** Length per piece, for this session; every piece starts at 1. */
-  const lengths = new Map<ItemId, number>();
-  const heldLength = (): number | null => (growthOf(tray.state.item) === null ? null : (lengths.get(tray.state.item) ?? 1));
+  const lengths = new Map<string, number>();
+  /** The land tools share one brush. */
+  const lengthKey = (item: ItemId): string => (isLandTool(item) ? 'brush' : item);
+  const heldLength = (): number | null => (growthOf(tray.state.item) === null ? null : (lengths.get(lengthKey(tray.state.item)) ?? 1));
+  const showStepper = (): void => stepper.show(heldLength(), maxLengthOf(tray.state.item), isLandTool(tray.state.item) ? 'Brush' : 'Length');
   const stepper = createStepper((by) => changeLength(by));
   tray.el.append(stepper.el);
   tray.avoid(stepper.el);
@@ -382,10 +397,10 @@ export function createInterface(host: InterfaceHost): Interface {
   const changeLength = (by: number): void => {
     const length = heldLength();
     if (length === null) return;
-    const next = clampLength(length + by);
+    const next = clampLength(length + by, maxLengthOf(tray.state.item));
     if (next === length) return;
-    lengths.set(tray.state.item, next);
-    stepper.show(next);
+    lengths.set(lengthKey(tray.state.item), next);
+    showStepper();
     updateGhost();
   };
 
@@ -458,6 +473,86 @@ export function createInterface(host: InterfaceHost): Interface {
     run.last = cell;
   };
 
+  // ── Shift-drag with Raise, Dig or Level: a stroke (shaping the land) ───
+  // Each column changes at most once per stroke, and the whole stroke is one
+  // undo step. Columns gathered while the pointer moves are applied once per
+  // frame, in one edit, so a fast stroke over twenty columns costs one
+  // resolve and one rebuild a frame rather than one per pointer event.
+  let stroke: {
+    item: ItemId;
+    /** The town when the stroke began: the pointer is picked against it, so the ground does not move under it. */
+    world0: World;
+    terrain0: Terrain;
+    /** Level: the height of the column the stroke began on. */
+    levelTo: number;
+    brush: number;
+    done: Set<number>;
+    pending: number[];
+    last: { x: number; z: number };
+  } | null = null;
+
+  const strokeAt = (x: number, y: number): Pick | null => (stroke ? pickCell(view.screenToRay(x, y), stroke.world0, stroke.terrain0) : null);
+
+  const strokeAdd = (cols: readonly number[]): void => {
+    if (!stroke) return;
+    for (const c of cols) {
+      if (stroke.done.has(c)) continue;
+      stroke.done.add(c);
+      stroke.pending.push(c);
+    }
+  };
+
+  /** Applies the columns gathered since the last frame, as one edit. Refusals stay quiet: the stroke goes on. */
+  const flushStroke = (): void => {
+    if (!stroke || stroke.pending.length === 0) return;
+    const cols = stroke.pending;
+    stroke.pending = [];
+    const heights = game.terrain.height;
+    let e: Edit;
+    if (stroke.item === 'raise') e = { type: 'land', up: cols, down: [] };
+    else if (stroke.item === 'dig') e = { type: 'land', up: [], down: cols };
+    else e = { type: 'land', up: cols.filter((c) => heights[c]! < stroke!.levelTo), down: cols.filter((c) => heights[c]! > stroke!.levelTo) };
+    if (e.up.length + e.down.length > 0) game.edit(e);
+  };
+
+  const strokeStart = (x: number, y: number): boolean => {
+    const seen = look(x, y);
+    if (!seen) return false;
+    const { x: cx, z: cz } = landColumn(seen.pick);
+    const brush = heldLength() ?? 1;
+    const levelTo = game.terrain.height[columnIndex(cx, cz)]!;
+    game.begin();
+    stroke = { item: tray.state.item, world0: game.world, terrain0: game.terrain, levelTo, brush, done: new Set(), pending: [], last: { x: cx, z: cz } };
+    const plan = planUse({ ...tool(), levelTo }, seen.pick, seen.ctx);
+    for (const e of plan.tries) if (e.type === 'land') for (const c of [...e.up, ...e.down]) stroke.done.add(c);
+    // Level: the columns already at the height count as done too, so the brush's first dab is the whole brush.
+    for (const c of brushAt(seen.pick, brush)) stroke.done.add(c);
+    if (plan.tries.length > 0) perform(plan, x, y);
+    return true;
+  };
+
+  const strokeMove = (x: number, y: number): void => {
+    if (!stroke) return;
+    const pick = strokeAt(x, y);
+    if (!pick) return;
+    const { x: tx, z: tz } = landColumn(pick);
+    // Every column between the last sample and this one, so a fast stroke leaves no gaps.
+    const from = key(stroke.last.x, 0, stroke.last.z);
+    const steps = tx === stroke.last.x && tz === stroke.last.z ? [] : lineCells(from, key(tx, 0, tz));
+    for (const c of steps) {
+      const at: Pick = { ...pick, cell: key(keyX(c), keyY(pick.cell), keyZ(c)), point: [keyX(c) + (pick.point[0] - tx), pick.point[1], keyZ(c) + (pick.point[2] - tz)] };
+      strokeAdd(brushAt(at, stroke.brush));
+    }
+    strokeAdd(brushAt(pick, stroke.brush));
+    stroke.last = { x: tx, z: tz };
+  };
+
+  const strokeEnd = (): void => {
+    flushStroke();
+    stroke = null;
+    game.end();
+  };
+
   // ── the pointer ────────────────────────────────────────────────────────
   /** A press on the town while a pop-up is open only closes it: that click builds nothing. */
   let dismissing = false;
@@ -492,7 +587,7 @@ export function createInterface(host: InterfaceHost): Interface {
       const seen = look(x, y);
       if (!seen) return;
       const length = heldLength();
-      if (length !== null && length > 1) placeRun(x, y, seen, length);
+      if (length !== null && length > 1 && !isLandTool(tray.state.item)) placeRun(x, y, seen, length);
       else perform(planUse(tool(), seen.pick, seen.ctx), x, y);
     },
     erase(x, y) {
@@ -520,6 +615,7 @@ export function createInterface(host: InterfaceHost): Interface {
     },
     runStart(x, y) {
       if (dismissing || growth.active || copying || !paintsRuns(tray.state.item)) return false;
+      if (isLandTool(tray.state.item)) return strokeStart(x, y);
       const seen = look(x, y);
       if (!seen) return false;
       const plan = planUse(tool(), seen.pick, seen.ctx);
@@ -538,8 +634,12 @@ export function createInterface(host: InterfaceHost): Interface {
       };
       return true;
     },
-    runMove: runStep,
+    runMove(x, y) {
+      if (stroke) strokeMove(x, y);
+      else runStep(x, y);
+    },
     runEnd() {
+      if (stroke) return strokeEnd();
       run = null;
       game.end();
     },
@@ -619,10 +719,10 @@ export function createInterface(host: InterfaceHost): Interface {
   tray.onChange(() => {
     ghostKey = '';
     scrollSteps.reset();
-    stepper.show(heldLength());
+    showStepper();
     updateGhost();
   });
-  stepper.show(heldLength());
+  showStepper();
 
   // First visit to an empty island: point at Grow a town (see welcome.ts).
   const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
@@ -635,6 +735,7 @@ export function createInterface(host: InterfaceHost): Interface {
     guide,
     dressed: (dressing) => guide.dressed(dressing),
     frame() {
+      flushStroke();
       growth.tick(performance.now());
       markers.update(tray.state.item === 'change', game.world, game.terrain);
     },

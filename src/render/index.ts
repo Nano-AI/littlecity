@@ -62,6 +62,8 @@ import { compositeFragment, paperFragment, screenVertex } from './shaders/compos
 import { GROUND_MAP, heightFragment, heightVertex, shadeFragment } from './shaders/ground';
 import { surfaceFragment, surfaceVertex } from './shaders/surface';
 import { SLOT_AIR, SLOT_GROUNDED, SLOT_LIFTED, SLOT_WIDTH, SlotTable } from './slots';
+import { buildTerrainColumns } from '@/gen/terrain/terrain.gen';
+import { createGroundMotion } from './ground-motion';
 
 /** While only props and actors move, the grounding picture is redrawn every this many frames. */
 const GROUND_ITEMS = 4;
@@ -558,6 +560,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const ghostPostScene = new THREE.Scene().add(screenMesh(ghostComposite));
   const allPools = [...chunkPools.values(), dynamic, movers];
   const chunkKeyOf = (x: number, z: number): string => `${Math.floor(x / CHUNK)}:${Math.floor(z / CHUNK)}`;
+  // Shaping the land: raised and dug columns bounce and sink for a moment (ground-motion.ts).
+  const groundMotion = createGroundMotion(dynamic.pool, slots, (cols, plan) => buildTerrainColumns(cols, plan).build());
 
   // ── town state ───────────────────────────────────────────────────────────
   const structures = new Map<StructureId, DrawnStructure>();
@@ -619,6 +623,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
   // ── building geometry ────────────────────────────────────────────────────
   const dropAll = (): void => {
+    groundMotion.clear();
     for (const p of chunkPools.values()) p.pool.clear();
     for (const d of structures.values()) {
       d.alive = false;
@@ -977,6 +982,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
     setTown(nextShape, nextDressing) {
       const t0 = beginRebuild();
+      groundMotion.changed(shape, nextShape, lastSeconds ?? 0);
       shape = nextShape;
       syncShape(nextShape);
       if (nextDressing) dressing = nextDressing;
@@ -1008,6 +1014,26 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         for (const id of ghost.show) {
           const s = ghost.plan.structures.get(id);
           if (s) add(reg.generators.build(s, ghost.plan, reg.parts).mesh, slot);
+        }
+      }
+      if (shape && ghost.plan.terrain !== shape.terrain) {
+        // Shaping the land: the ground as it would be. Reshaped columns are drawn from the ghost's island;
+        // a column dug down to the water shows the water that would fill it.
+        const a = shape.terrain.height, h = ghost.plan.terrain.height;
+        const cols: number[] = [];
+        const wet = new MeshBuilder({ ink: 'ghost' }).setColor(PALETTE.sea);
+        for (let i = 0; i < a.length; i++) {
+          if (a[i] === h[i]) continue;
+          cols.push(i);
+          if (h[i] === 0) {
+            const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+            wet.box([x + 0.04, SEA_Y - 0.06, z + 0.04], [x + 0.96, SEA_Y, z + 0.96]);
+          }
+        }
+        if (cols.length > 0 && cols.length <= 64) {
+          const slot = ghostSlot(0);
+          add(buildTerrainColumns(cols, ghost.plan, 'ghost').build(), slot);
+          add(wet.build(), slot);
         }
       }
       if (ghost.shimmer && ghost.shimmer.length > 0) {
@@ -1086,6 +1112,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const seconds = signals.time.seconds;
       const dt = lastSeconds === null ? 0 : seconds - lastSeconds;
       lastSeconds = seconds;
+      groundMotion.tick(seconds);
       if (!samePose(shown, goal)) {
         shown = easePose(shown, goal, dt);
         applyCamera();

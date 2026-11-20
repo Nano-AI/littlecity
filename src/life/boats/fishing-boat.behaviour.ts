@@ -164,7 +164,7 @@ export default defineBehaviour({
     }
 
     // Travel: smooth, every frame. Big ships (L38–L42) have the way: it slows for one ahead and stands aside.
-    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt);
+    const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt, ctx.item.id);
     dt *= aside.slow;
     const px = state.x, pz = state.z;
     let heading: number;
@@ -228,7 +228,7 @@ export default defineBehaviour({
     }
     fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch, state.swell.roll + state.bank, 1, state.m);
     ctx.instance.setMatrix(state.m);
-    notePose(ctx.stage, ctx.item.id, state.m);
+    notePose(ctx.stage, ctx.item.id, state.m, 'fishing-boat');
   },
   dispose(_state, ctx) {
     news.delete(ctx.stage);

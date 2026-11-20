@@ -17,8 +17,8 @@ export const HARBOUR_DOCKS: readonly (readonly [number, number, number, number])
   [12, 37, 19, 37], // south-west quay: eight
   [27, 37, 34, 37], // south-east quay: eight
   [37, 27, 41, 27], // a pier out from the east shore
-  [21, 26, 21, 30], // up the river, on its west bank
-  [25, 18, 25, 21], // further up, on its east bank
+  [22, 26, 22, 30], // up the river, on its west bank
+  [24, 18, 24, 21], // further up, on its east bank
 ];
 
 export default scenario({
@@ -29,7 +29,7 @@ export default scenario({
     t.flat(0);
     t.rect(12, 12, 36, 36, 1);
     // A river from the middle of the island out to the south shore.
-    t.water(21, 16, 25, 36);
+    t.water(22, 16, 24, 36);
   },
   build(b) {
     for (const [x0, z0, x1, z1] of HARBOUR_DOCKS) for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) b.block('dock', x, 0, z);

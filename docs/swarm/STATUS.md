@@ -590,3 +590,32 @@ laundry, a dog, the watchman breaking up scuffles, the fill builder's
 sockets, temporary stalls on the walking graph.
 Running: disc1-structures, disc1-fill, mischief (preview), landshaping,
 ships fixes, living-town pass 2.
+
+**Boat fixes merged** (`a7b149d`): no two floating things overlap (test
+`src/life/ships/afloat.test.ts` over six towns, five minutes each); the
+barge treats arches at the water and decks one storey up as blocked, stays
+inside river water (river material, or water ≤ 3 wide for ≥ 6), poles back
+without turning; rowboats get waiting places clear of berths and lanes.
+Full check clean: 1,783 tests. Published. Side effect: grown-town-4 and -7
+get no barge (low bridges cut their river docks off). Only the rowboat cap
+scales with free water so far.
+Running: disc1-structures, disc1-fill, living-town pass 2, mischief
+(preview), landshaping.
+
+**Shaping the land merged** (`b046809`, Opus): Raise, Dig and Level in the
+Nature drawer; `World.terrainEdits`; one `land` edit type; things ride their
+column; water classified as sea, river or pond (`MAT_POND`); share codec
+v4 = v3 + flags + length-prefixed sections (bit 0 land; mischief should use
+bit 1). One conflict in `src/life/people/crowd.ts` resolved (both lines
+kept). Full check clean: 1,837 tests. Published.
+Over budget: town logic after a land edit 12.1 ms (budget 8); a 20-column
+stroke frame 28 ms rebuild; steep-island worst chunk 34 ms. Weak: one-wide
+dug channels look thin; brush-raised hills are square-stepped; water does
+not visibly flow in. The six play-throughs were built as scenarios, not
+clicked by hand.
+**Mischief Phase A ready as a PREVIEW** (`swarm/mischief` at `b9bdb78`, NOT
+merged): torch, bomb, mallet, mend; staged damage; ruins of every kind;
+repair scaffolding and crew assets. Served at http://127.0.0.1:5175/
+(`/?seed=4242&mischief`). It also uses codec version 4 → will conflict with
+landshaping's v4 on merge (move ruins to flag bit 1). Waiting on Derek.
+Running: disc1-structures, disc1-fill, living-town pass 2.

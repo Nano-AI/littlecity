@@ -28,7 +28,7 @@ import { Twos } from '../motion/twos';
 import { SHIPS } from '@/style/ships';
 import { alongRoute, routeLength, waterMask, type Pt } from '@/rules/life/waterway';
 import { entryRoute, notePose, townLive } from '../ships/ferry.system';
-import { berthZoneAt } from '../ships/news';
+import { berthZoneAt, standAside } from '../ships/news';
 import { hullRing, swellAt, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
@@ -74,10 +74,12 @@ export interface RowboatState {
   ropes: InstanceHandle[];
   m: Mat4;
   rope: Mat4;
-  /** L38–L40: rowed aside out of a big ship's way: how far along the dock it has gone (0 at its mooring). */
+  /** L38–L40: rowed aside out of a big ship's way: how far toward its waiting place it has gone (0 at its mooring). */
   aside: number;
   /** On a phone, past the town's phone cap: never shown. */
   spare: boolean;
+  /** Not yet updated (a town just opened). */
+  first: boolean;
   /** Rowing in from the edge of the map to its mooring (a dock built in a town already shown). */
   coming: { route: Pt[]; len: number; s: number } | null;
 }
@@ -232,7 +234,7 @@ function pose(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals
   // A tight line holds the bow down a touch.
   fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch - 0.035 * state.taut, sw.roll, 1, state.m);
   ctx.instance.setMatrix(state.m);
-  notePose(ctx.stage, ctx.item.id, state.m);
+  notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
 
   // ── the line ──
   const bow = transformPoint(state.m, rowboatBow());
@@ -260,9 +262,12 @@ function rowIn(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signal
   const p = alongRoute(c.route, c.s);
   const now = signals.time.seconds;
   const sw = swellAt(now, state.phase, BOATS.rowLength, signals.wind(p.x, p.z).strength, state.swell);
-  fly(p.x, SEA_Y + sw.heave, p.z, Math.atan2(p.dx, p.dz), sw.pitch, sw.roll, 1, state.m);
+  // Keeping clear of the boats it passes on the way in.
+  const a = standAside(ctx.stage, state, p.x, p.z, Math.atan2(p.dx, p.dz), dt, ctx.item.id);
+  c.s = Math.max(0, c.s - 0.55 * dt * (1 - a.slow));
+  fly(a.x, SEA_Y + sw.heave, a.z, Math.atan2(p.dx, p.dz), sw.pitch, sw.roll, 1, state.m);
   ctx.instance.setMatrix(state.m);
-  notePose(ctx.stage, ctx.item.id, state.m);
+  notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
   if (c.s >= c.len - 1e-6) {
     state.coming = null;
     state.u = 0;
@@ -279,35 +284,21 @@ function isPhone(): boolean {
 }
 
 /**
- * Where to wait out of a big ship's way: how far along the dock (in columns, signed) to the nearest open
- * water no ship's zone covers; 0 if its own water is clear.
+ * Whether to wait out of a big ship's way: the length of the row from its mooring to its own waiting place
+ * (L17 gives it one, open water out of every berth) if a ship's zone covers any of its hull; 0 if its water
+ * is clear (or it has no place: then no ship berths over it).
  */
 function asideTarget(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>): number {
-  const at = (u: number): [number, number] => [state.ax + state.alongX * u + state.outX * 0.6, state.az + state.alongZ * u + state.outZ * 0.6];
-  const [x, z] = at(0);
-  if (!berthZoneAt(ctx.stage, x, z)) return 0;
-  const f = { terrain: ctx.shape.terrain, kinds: ctx.shape.kinds };
-  for (let k = 1; k <= 12; k++) {
-    for (const u of [k, -k]) {
-      const [px, pz] = at(u);
-      if (!berthZoneAt(ctx.stage, px, pz) && freeWater(f, Math.floor(px), Math.floor(pz))) {
-        // The whole way there is water.
-        let ok = true;
-        for (let w = 0; Math.abs(w) < Math.abs(u) && ok; w += Math.sign(u) * 0.5) {
-          const [qx, qz] = at(w);
-          ok = freeWater(f, Math.floor(qx), Math.floor(qz));
-        }
-        if (ok) return u;
-      }
-    }
-  }
-  // Nowhere along the dock: out from it instead (it keeps its distance from the ship's side).
-  return 0.0001;
+  const p = ctx.item.params;
+  if (p?.asideX === undefined || p.asideZ === undefined) return 0;
+  const x = state.ax + state.outX * 0.6, z = state.az + state.outZ * 0.6;
+  const covered = [-0.45, 0, 0.45].some((k) => berthZoneAt(ctx.stage, x + state.outX * k, z + state.outZ * k));
+  return covered ? Math.hypot(p.asideX - x, p.asideZ - z) || 1e-3 : 0;
 }
 
-/** Rows (bow first) along the dock to `target` (or home to the mooring when it is 0), its line in. */
+/** Rows (bow first) straight to its waiting place, `target` along (or home to the mooring when it is 0), its line in. */
 function rowAside(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals: Signals, dt: number, target: number): void {
-  const pace = 0.45;
+  const pace = 0.6;
   const d = target - state.aside;
   const move = Math.sign(d) * Math.min(Math.abs(d), pace * dt);
   state.aside += move;
@@ -318,15 +309,23 @@ function rowAside(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, sig
     return;
   }
   for (const r of state.ropes) r.setVisible(false);
-  const x = state.ax + state.alongX * state.aside + state.outX * 0.6, z = state.az + state.alongZ * state.aside + state.outZ * 0.6;
-  // Heading along the dock the way it is going (or lying along it, waiting).
-  const dir = move !== 0 ? Math.sign(move) : Math.sign(state.aside || 1);
-  const yaw = Math.atan2(state.alongX * dir, state.alongZ * dir);
+  const p = ctx.item.params!;
+  const rx = state.ax + state.outX * 0.6, rz = state.az + state.outZ * 0.6;
+  const len = Math.hypot(p.asideX! - rx, p.asideZ! - rz) || 1e-3;
+  const ux = (p.asideX! - rx) / len, uz = (p.asideZ! - rz) / len;
+  const t = Math.min(state.aside, len);
+  // Heading the way it is going (or lying that way, waiting), keeping clear of other boats.
+  const dir = move < 0 ? -1 : 1;
+  const yaw = Math.atan2(ux * dir, uz * dir);
+  const kept = standAside(ctx.stage, state, rx + ux * t, rz + uz * t, yaw, dt, ctx.item.id);
+  // Easing up for a boat in its way (it gets round, pushed aside, or waits).
+  state.aside -= move * (1 - kept.slow);
+  const x = kept.x, z = kept.z;
   const now = signals.time.seconds;
   const sw = swellAt(now, state.phase, BOATS.rowLength, signals.wind(x, z).strength, state.swell);
   fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch, sw.roll, 1, state.m);
   ctx.instance.setMatrix(state.m);
-  notePose(ctx.stage, ctx.item.id, state.m);
+  notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
   // Where it is now, in the mooring's frame, for when it comes home.
   state.u = 0;
   state.v = REST;
@@ -354,6 +353,7 @@ export default defineBehaviour<'rowboat', RowboatState>({
       aside: 0,
       spare: isPhone() && (item.params?.rank ?? 0) >= Math.round(SHIPS.rowboatsPhone),
       coming: null,
+      first: !townLive(ctx.stage),
     };
     if (moored) {
       moor(state, ctx);
@@ -399,6 +399,9 @@ export default defineBehaviour<'rowboat', RowboatState>({
     // A big ship coming in to this stretch of quay (or lying there): cast off and row aside along the dock
     // until it has gone, then back (src/life/ships/news.ts).
     const away = asideTarget(state, ctx);
+    // A town opened with a ship already in: its boats are already out of its way.
+    if (state.first && away !== 0) state.aside = away;
+    state.first = false;
     if (away !== 0 || state.aside !== 0) {
       rowAside(state, ctx, signals, dt, away);
       return;

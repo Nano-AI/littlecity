@@ -37,6 +37,13 @@ export interface World {
    * (Added 2026-11-19, docs/swarm/requests/terrain2.md.)
    */
   terrainGen?: 1 | 2;
+  /**
+   * Shaping the land (design section 6): the columns whose terrain height the
+   * player changed, column index (x + z * 48) → height 0–10, laid over the
+   * island the seed and generator make. Absent when the island is as
+   * generated. (Added 2026-11-19, docs/swarm/requests/landshaping.md.)
+   */
+  terrainEdits?: ReadonlyMap<number, number>;
   nextSeq: number;
   blocks: ReadonlyMap<CellKey, Block>;
   /** Key = the cell the floor lies in (the cell above the walkable top). */
@@ -64,7 +71,14 @@ export type Edit =
   | { type: 'eraseEdge'; edge: EdgeKey }
   | { type: 'setKind'; cell: CellKey; kind: PlacedKind }
   | { type: 'setRot'; cell: CellKey; rot: Rot }
-  | { type: 'paint'; cell: CellKey; color: number };
+  | { type: 'paint'; cell: CellKey; color: number }
+  /**
+   * Shaping the land (added 2026-11-19, docs/swarm/requests/landshaping.md):
+   * the columns (column index x + z * 48) in `up` rise one level and those in
+   * `down` drop one, carrying what stands on them. Columns that cannot move
+   * are skipped; the edit is refused only if none can.
+   */
+  | { type: 'land'; up: readonly number[]; down: readonly number[] };
 
 export type EditResult = { ok: true } | { ok: false; reason: string };
 

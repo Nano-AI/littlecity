@@ -258,7 +258,7 @@ describe('desktop: mouse and keys', () => {
     // Opening a drawer does not change the tool in hand.
     expect(await debug(page, 'item')).toBe('auto');
     await page.click('[data-drawer="nature"]');
-    expect(await items()).toEqual(['tree', 'garden', 'fountain']);
+    expect(await items()).toEqual(['raise', 'dig', 'level', 'tree', 'garden', 'fountain']); // the Land group first (shaping the land)
     await page.click('[data-drawer="tools"]');
     expect(await items()).toEqual(['change', 'paint', 'erase']);
 

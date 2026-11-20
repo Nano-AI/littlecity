@@ -9,7 +9,7 @@
 // shows a red outline. Only placing a piece has a ghost: the Change,
 // Paint and Erase tools act on what is already there.
 
-import { NO_CELL, type CellKey } from '@/core/grid';
+import { columnIndex, keyX, keyZ, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, EditResult, Terrain, World } from '@/core/world';
 import type { Ghost } from '@/render/api';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
@@ -84,6 +84,22 @@ export function structuresOf(edits: readonly Edit[], plan: ShapePlan): Structure
     if (id !== undefined) out.add(id);
   }
   return [...out];
+}
+
+/**
+ * The ghost for Raise, Dig or Level (shaping the land): the ground as it would
+ * be, and whatever it carries drawn where it would stand. The view draws the
+ * reshaped columns from `plan.terrain`; a refused edit shows the red frame.
+ */
+export function ghostForLand(plan: Plan, host: GhostHost): Ghost | null {
+  const edit = plan.tries.find((e) => e.type === 'land');
+  if (!edit || edit.type !== 'land') return null;
+  if (!host.can(edit).ok) return plan.at === NO_CELL ? null : { plan: host.shape, show: [], refuse: plan.at };
+  const preview = host.preview(applyEdit(host.world, host.terrain, edit));
+  const moved = new Set([...edit.up, ...edit.down]);
+  const show = new Set<StructureId>();
+  for (const [cell, id] of preview.structureAt) if (moved.has(columnIndex(keyX(cell), keyZ(cell))) && !host.world.blocks.has(cell)) show.add(id);
+  return { plan: preview, show: [...show] };
 }
 
 /** The ghost for a held-length run (./length.ts): the whole run, or a red outline when its first cell is refused. */

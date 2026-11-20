@@ -14,10 +14,12 @@ import type { ResolveOptions } from '@/resolve/index';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { createStagedResolver, type StagedResolver } from '@/resolve/staged';
 import { canRedo, canUndo, createHistory, pushHistory, redo, undo, type History } from '@/world/history';
+import { islandOf } from '@/terrain/land';
 import { applyEdit, canApply } from '@/world/world';
 
 export interface GameStart {
   world: World;
+  /** The island the world was made on (generated or hand-made); the world's reshaped columns are laid over it. */
   terrain: Terrain;
   /** Passed to every resolve (a scenario's own rules). */
   resolve?: ResolveOptions;
@@ -35,6 +37,7 @@ export interface GameEvents {
 
 export interface Game {
   readonly world: World;
+  /** The island as it stands now, reshaped land included. */
   readonly terrain: Terrain;
   /** The shape of the world as shown. */
   readonly shape: ShapePlan;
@@ -106,7 +109,8 @@ export function createGame(start: GameStart, events: GameEvents): Game {
       return world;
     },
     get terrain() {
-      return terrain;
+      // The island as the player has shaped it (World.terrainEdits over the start's island).
+      return islandOf(world, terrain);
     },
     get shape() {
       return shape;

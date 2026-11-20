@@ -247,6 +247,20 @@
   height: 56px;
   flex: none;
 }
+.lc-item.lc-group-after {
+  /* The Land group (Raise, Dig, Level) is set off from the Nature pieces by a pencilled gap. */
+  margin-left: 9px;
+  position: relative;
+  overflow: visible;
+}
+.lc-item.lc-group-after::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 8px;
+  bottom: 8px;
+  border-left: 1.5px dashed color-mix(in srgb, var(--lc-ink) 35%, transparent);
+}
 .lc-item[aria-pressed='true'] {
   background: color-mix(in srgb, var(--lc-pick) 58%, white);
   border-color: var(--lc-ink);
