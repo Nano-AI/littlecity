@@ -385,7 +385,7 @@ export function buildWheatFarm(town: Town, n: number): boolean {
     if (h < 0) return null;
     if (town.site.waterDist[columnIndex(f.x(4, 3), f.z(4, 3))]! < 2) return null;
     // The barn wants no square within six (R-H18): the square's plaza reaches two or three from its middle.
-    if (chebFromSquare(town, f, 6, 1, 9, 2) < 10) return null;
+    if (chebFromSquare(town, f, 6, 1, 9, 2) < 9) return null;
     // No street at its walls (a barn stands in its yard, off the road).
     if (!rectFree(g, f, 5, 0, 10, 3, CLAIM.street)) return null;
     const d = fromSquare(town, f.x(5, 3), f.z(5, 3));
@@ -424,25 +424,32 @@ export function buildWheatFarm(town: Town, n: number): boolean {
  */
 export function buildWheatField(town: Town, n: number): boolean {
   const { g } = town;
-  const found = search(g, `wheat-field${n}`, (f) => {
-    if (!fits(g, f, 0, 0, 5, 5)) return null;
-    const h = rectFlat(g, f, 0, 0, 5, 5);
-    if (h < 0) return null;
-    if (town.site.waterDist[columnIndex(f.x(3, 2), f.z(3, 2))]! < 2) return null;
-    const d = fromSquare(town, f.x(3, 2), f.z(3, 2));
-    if (d < 10) return null;
-    return { score: Math.abs(d - 14), data: h };
-  });
-  if (!found) return false;
-  const f = found.frame, h = found.data;
-  const W = new Local(g, f);
-  const d = startDistrict(town, `wheat-field${n}`, f.x(3, 2), f.z(3, 2));
-  W.claim(0, 0, 5, 4, CLAIM.built);
-  for (let u = 0; u <= 5; u++) pave(g, f.x(u, 5), f.z(u, 5));
-  for (let v = 0; v <= 4; v++) for (let u = 1; u <= 5; u++) W.floor('garden', u, v, h);
-  for (let u = 1; u <= 5; u++) W.edge(u, h, 0, 0, 'fence');
-  for (let v = 0; v <= 4; v++) W.edge(5, h, v, 1, 'fence');
-  W.stack('windmill', 0, 0, 2, 0);
-  W.way(d, 0, 5);
-  return true;
+  // A big field where there is room, smaller ones where the ground is broken up (four cells at least: R-G01).
+  for (const k of [5, 4, 3]) {
+    const found = search(g, `wheat-field${n}-${k}`, (f) => {
+      if (!fits(g, f, 0, 0, k, k)) return null;
+      const h = rectFlat(g, f, 0, 0, k, k);
+      if (h < 0) return null;
+      if (town.site.waterDist[columnIndex(f.x(k >> 1, k >> 1), f.z(k >> 1, k >> 1))]! < 2) return null;
+      const d = fromSquare(town, f.x(k >> 1, k >> 1), f.z(k >> 1, k >> 1));
+      if (d < 8) return null;
+      // Side by side with the other farmland: a patchwork.
+      let near = 0;
+      for (const o of town.districts) if (/^(wheat|veg|orchard|farm|barn|paddock)/.test(o.name) && Math.abs(o.x - f.ox) + Math.abs(o.z - f.oz) < 12) near++;
+      return { score: Math.abs(d - 14) - near * 2 - k, data: h };
+    });
+    if (!found) continue;
+    const f = found.frame, h = found.data;
+    const W = new Local(g, f);
+    const d = startDistrict(town, `wheat-field${n}`, f.x(k >> 1, k >> 1), f.z(k >> 1, k >> 1));
+    W.claim(0, 0, k, k - 1, CLAIM.built);
+    for (let u = 0; u <= k; u++) pave(g, f.x(u, k), f.z(u, k));
+    for (let v = 0; v < k; v++) for (let u = 1; u <= k; u++) W.floor('garden', u, v, h);
+    for (let u = 1; u <= k; u++) W.edge(u, h, 0, 0, 'fence');
+    for (let v = 0; v < k; v++) W.edge(k, h, v, 1, 'fence');
+    W.stack('windmill', 0, 0, 2, 0);
+    W.way(d, 0, k);
+    return true;
+  }
+  return false;
 }

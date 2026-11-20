@@ -18,15 +18,15 @@ highest ground, how much river, how much coast):
 | **Harbour town** | long coast | the waterfront is the town: a great harbour (a galleon berth, warehouses, a pier, stilt houses, a boathouse, a quay wall), then up to four more quays along the coast (each a berth of eight where the sea is wide, else six, five or four docks, with a warehouse and a fish stall), two more waterfronts (pier, stilt house, boathouse), a fish market on a little plaza, jetties; the lighthouse; housing, chapel, smithy | castle, temples, mills, fields, farms |
 | **Marble city** | a broad flat site | the forum (below); the acropolis; three shrines (small temples on four pillars); after the streets, three colonnades (pillars and a marble beam along a street) and three monuments (an obelisk or victory column on a small square by a street); the folly and a folly tower; two viaducts; fine housing and courtyards; the manor | farms, fields, castle |
 | **Castle town** | high ground | the castle (keep, curtain walls, four turrets, gatehouse, bailey); after the streets, a town wall round the heart (wall pieces on the free ground of a ring round the square, an arch over each street that crosses it: gateways, towers at the corners: turrets); three walled towers on the heights; watchtowers; walled gardens and lawns; smithy, chapel and churchyard, hilltop, tight housing | temples, farms |
-| **Market town** | gentle ground | a square with a market cross among its stalls, town hall, inn, clock tower; after the streets, up to four more market places (a plaza by a street with a market cross and stalls); three to five housing blocks of row houses and townhouses; two courtyard blocks; a schoolhouse; a smithy; an inhabited bridge where there is a river; an orchard on the outskirts | castle, temples, farms |
-| **River town** | a river | a square near the river; the riverside (barge landings far apart by water, up to ten willows along the banks, a reed bed, a boathouse, a watermill); two more watermills; two inhabited bridges; three more bridges; a mill on the bank; two orchards; a park; housing | castle, temples |
-| **Farming village** | a broad plain | a small square and a village green; the chapel and churchyard; three wheat farms (windmill, fenced wheat, barn off the road, farmhouse) and three wheat fields by their windmills; three barns by their fields; three orchards; three paddocks; two greenhouses; the manor, a smithy; few cottages | housing blocks, courtyards, castle, temples |
-| **Hill town** | steep ground | a square on the low ground; the hilltop (observatory or lookout cottage), the castle on a shelf, four cliff houses, a walled tower, the chapel, the acropolis, three flights of stairs, the folly and a folly tower, two viaducts, two watchtowers | farms, fields |
+| **Market town** | gentle ground | a square with a market cross, town hall, inn, clock tower; the great market (a plaza 9 × 6, or 7 × 5, with two rows of stalls, a market cross, and a market hall along one side: a long marble roof on pillars, a stoa) with streets in at its corners; after the streets, up to four smaller market places; three to five housing blocks; two courtyard blocks; a schoolhouse; a smithy; an inhabited bridge where there is a river; an orchard on the outskirts | castle, temples, farms |
+| **River town** | a long river (the character is not rolled without one) | a square near the river; the river front (a walk along both banks for the river's whole length, two-storey houses one cell back facing it); bridges first, then two inhabited bridges and two more watermills; the riverside (barge landings far apart by water, willows, a reed bed, a boathouse, a watermill); a mill on the bank; orchards; a park; housing | castle, temples |
+| **Farming village** | a broad plain | a small village centre (a plaza with a well and the inn: no town hall, no clock tower) by the green, the chapel; then the farmland as most of the island: wheat fields by their windmills side by side (up to five, 5 × 5 where there is room, smaller where the ground is broken), two wheat farms (windmill, wheat, barn off the road, farmhouse), vegetable plots by their farmhouses, barns by their fields, three orchards, three paddocks, two greenhouses, fenced edges and lanes; cottages only near the green; nothing from a second character | housing blocks, courtyards, castle, temples, sports courts |
+| **Hill town** | steep ground | a square on the low ground; the hilltop (observatory or lookout cottage); up to eight terraced rows of houses stepping up the hill (standing against the rises and on the high shelves, highest first) with stairs and viaducts between them; the castle on a shelf; cliff houses; a walled tower; the acropolis; the folly and folly tower; watchtowers | farms, fields |
 | **Garden town** | gentle ground | the manor and its park; three parks with bandstands; two walled gardens and two walled lawns; two greenhouses; two orchards; playing fields; a schoolhouse; a folly tower; after the streets, four flower beds; avenues of trees along nearly every outer street; the most woodland | castle, farms, temples |
 
-The secondary character adds its own showpieces (for a castle, the castle
+A castle town whose castle finds no site, and a marble city whose forum finds none, grow as another kind of town instead. The secondary character adds its own showpieces (for a castle, the castle
 and a smithy; for a river, the riverside and the inhabited bridge…) after
-the primary's first districts, so two towns of one character still differ.
+the primary's first districts, so two towns of one character still differ (not in a farming village: they would crowd the farmland).
 Every town gets the shared basics where they fit: a square with its town
 hall, a chapel, an inn, some shops, a lighthouse on the sea, streets.
 
@@ -77,3 +77,12 @@ are built only where their own ground is flat and free.
 rectangle helpers · `route.ts` streets, bridges, climbs · `character.ts`
 characters · `index.ts` the plan and the watching order · `districts/` the
 stamps.
+
+## Known weak
+
+- A hill town's terraced shelves are joined to the square by stair climbs;
+  on some islands a climb lands inside the castle's walls, and walkers then
+  reach those shelves only through the bailey, so fewer houses there reach
+  the square on foot (generator 2, seed 5: 31 of 74).
+- The castle town's town wall uses only free ground on its ring, so it has
+  gaps where houses already stand.
