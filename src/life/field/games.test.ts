@@ -7,6 +7,7 @@ import { describe, expect, test } from 'vitest';
 import { CELL_H } from '@/core/grid';
 import { courtLocal, courtOf, type Court, type FieldRole } from '@/rules/roles/field.lib';
 import { basketball } from './basketball';
+import { tennis } from './tennis';
 import type { Athlete, Game } from './kit';
 
 function athletes(c: Court, n: number): Athlete[] {
@@ -52,6 +53,44 @@ export function run(game: Game, limit: number, dt = 1 / 30): Run {
   for (const e of game.events) kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
   return { game, kinds, problems };
 }
+
+describe('tennis', () => {
+  const court = courtFor('tennis-court', 5, 2, 'clay');
+
+  test('singles: serves, rallies that cross the net several times, points, games and handshakes', () => {
+    const g = tennis(court, athletes(court, 2), { seed: 9, length: 200 });
+    const r = run(g, 320);
+    expect(r.problems).toEqual([]);
+    // The longest rally: shots (serve and hits) between two points.
+    let longest = 0, n = 0;
+    for (const e of g.events) {
+      if (e.kind === 'serve' || e.kind === 'hit') n++;
+      if (e.kind === 'point') {
+        longest = Math.max(longest, n);
+        n = 0;
+      }
+    }
+    expect(longest).toBeGreaterThanOrEqual(4);
+    expect(r.kinds.get('point') ?? 0).toBeGreaterThanOrEqual(6);
+    expect(r.kinds.get('game') ?? 0).toBeGreaterThanOrEqual(1);
+    expect((r.kinds.get('out') ?? 0) + (r.kinds.get('into-net') ?? 0)).toBeGreaterThanOrEqual(1);
+    expect(g.phase).toBe('over');
+  });
+
+  test('doubles on a wide court', () => {
+    const wide = courtFor('tennis-court', 6, 3, 'grass');
+    const r = run(tennis(wide, athletes(wide, 4), { seed: 4, length: 120 }), 220);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('point') ?? 0).toBeGreaterThanOrEqual(4);
+    expect(r.game.phase).toBe('over');
+  });
+
+  test('the same seed plays the same game', () => {
+    const a = run(tennis(court, athletes(court, 2), { seed: 2, length: 60 }), 100);
+    const b = run(tennis(court, athletes(court, 2), { seed: 2, length: 60 }), 100);
+    expect(b.game.events).toEqual(a.game.events);
+  });
+});
 
 describe('basketball', () => {
   const court = courtFor('basketball-court', 4, 3);

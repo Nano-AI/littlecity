@@ -203,7 +203,9 @@ export function movePlayers(c: Court, players: readonly Player[], dt: number): v
     const moved = Math.hypot(p.u - pu, p.v - pv);
     const speed = moved / Math.max(dt, 1e-6);
     // Face: the way they run when running, else the way they look (else as they are).
-    const wantFace = speed > 0.3 || Number.isNaN(p.look) ? (speed > 0.05 ? Math.atan2(p.v - pv, p.u - pu) : p.face) : p.look;
+    // (Going somewhere at more than a shuffle, they turn the way they mean to go, even before they are up to speed.)
+    const going = sp;
+    const wantFace = going > 0.3 || speed > 0.3 || Number.isNaN(p.look) ? (going > 0.05 ? Math.atan2(wv, wu) : speed > 0.05 ? Math.atan2(p.v - pv, p.u - pu) : p.face) : p.look;
     let off = wantFace - p.face;
     off -= Math.round(off / (Math.PI * 2)) * Math.PI * 2;
     p.face += Math.max(-TURN * dt, Math.min(TURN * dt, off));
@@ -304,9 +306,9 @@ export function stepBall(b: Ball, c: Court, dt: number): void {
       b.state = 'rest';
     }
   }
-  // The edge of the playing rectangle (and a little grass round it): it stops there.
+  // The edge of the playing rectangle: it stops there (as against the grass), where a player can still reach it.
   const [u, v] = courtLocal(c, b.x, b.z);
-  const mu = c.rl + 0.1, mv = c.rw + 0.1;
+  const mu = c.rl - 0.03, mv = c.rw - 0.03;
   if (Math.abs(u) > mu || Math.abs(v) > mv) {
     const [x, z] = courtPoint(c, Math.max(-mu, Math.min(mu, u)), Math.max(-mv, Math.min(mv, v)));
     b.x = x;
