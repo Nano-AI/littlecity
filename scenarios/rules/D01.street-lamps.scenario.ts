@@ -1,7 +1,9 @@
 // Fixture for D01 (street lamps). A street long enough to be lit: a lamp at
 // the T junction, one at each dead end, and one every fourth cell between,
 // on alternating sides and never in front of a door. To the south, a street
-// of three cells: too short, no lamps. To the east, a bend.
+// of three cells: too short, no lamps. To the east, a bend. A cottage stands
+// near the far end of the side street and of the bend: a lane with nothing
+// built near it is country and stays dark (U13, discovery round 1).
 
 import { scenario } from '@/scenario';
 
@@ -22,6 +24,9 @@ export default scenario({
     b.house(23, 15, { color: 6 });
     b.house(24, 13, { color: 1 });
     b.put('tree', 18, 16).put('tree', 30, 11);
+    // Cottages out along the side street and the bend, so they are in town.
+    b.house(15, 19, { color: 5 });
+    b.house(31, 10, { color: 7 });
   },
   cameras: [
     { name: 'street', yaw: 45, pitch: 34, zoom: 2.7, target: [20, 1, 15] },

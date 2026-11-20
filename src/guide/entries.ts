@@ -666,6 +666,20 @@ export const ENTRIES: readonly GuideEntry[] = [
     },
     view: { yaw: 20, pitch: 30 },
   },
+  {
+    id: 'wall-shops',
+    group: 'stone',
+    name: 'Shops in the wall',
+    how: 'Build a long marble wall two blocks tall beside a plaza or a path (not a castle): little arched shops and a fountain open in it.',
+    proof: { prop: { rule: 'U16.shops-in-the-wall', type: 'wall-booth' } },
+    seed: 7654,
+    build(b) {
+      b.fill('marble', 17, 18, 22, 19, { floors: 2, color: 2 });
+      b.plaza(16, 21, 23, 22);
+    },
+    view: { yaw: 20, pitch: 28 },
+    pad: -0.1,
+  },
 
   // ── bridges ───────────────────────────────────────────────────────────
   {
@@ -947,6 +961,66 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 40, pitch: 42 },
     pad: -0.1,
   },
+  // ── discovery round 1: the fill builder's entries ──
+  {
+    id: 'country-lane',
+    group: 'green',
+    name: 'Country lane',
+    how: 'Run a path out of town across open grass: four or more squares of it more than three squares from any building or plaza get hedges, field gates and milestones instead of street lamps.',
+    proof: { prop: { rule: 'U13.country-lanes', type: 'hedge' } },
+    seed: 7651,
+    build(b) {
+      b.house(13, 19, { color: 2 });
+      b.path(13, 20, 27, 20);
+    },
+    view: { yaw: 30, pitch: 34 },
+    pad: -0.2,
+  },
+  {
+    id: 'burgage-plots',
+    group: 'green',
+    name: 'Back gardens',
+    how: 'Fence in the grass behind a row of two or more houses: each house gets its own long back garden, with a fruit tree at the far end.',
+    proof: { prop: { rule: 'U14.burgage-plots', type: 'fruit-tree' } },
+    seed: 7652,
+    build(b) {
+      b.path(16, 17, 23, 17);
+      for (let i = 0; i < 3; i++) b.house(17 + i * 2, 18, { w: 2, floors: 1 + (i % 2), color: (i * 3 + 1) % 8 });
+      for (let x = 17; x <= 22; x++) b.fenceEdge(x, 22, 'S');
+      for (let z = 19; z <= 22; z++) b.fenceEdge(17, z, 'W').fenceEdge(22, z, 'E');
+    },
+    view: { yaw: 200, pitch: 40 },
+    pad: -0.1,
+  },
+  {
+    id: 'village-green',
+    group: 'green',
+    name: 'Village green',
+    how: 'Leave a patch of grass between two rows of houses that face each other across it, with a path beside it: it becomes the village green, with a maypole.',
+    proof: { prop: { rule: 'U15.village-green', type: 'maypole' } },
+    seed: 7653,
+    build(b) {
+      b.path(15, 15, 15, 24);
+      for (const x of [17, 20]) b.house(x, 16, { color: x % 8 }).house(x, 23, { color: (x + 3) % 8 });
+      b.path(16, 15, 21, 15).path(16, 24, 21, 24);
+      b.put('tree', 21, 19);
+    },
+    view: { yaw: 40, pitch: 36 },
+    pad: -0.1,
+  },
+  {
+    id: 'orchard',
+    group: 'green',
+    name: 'Orchard',
+    how: 'Plant six or more trees in rows, two squares apart each way: they become an orchard, with ladders, baskets of apples and beehives.',
+    proof: { prop: { rule: 'U18.orchard', type: 'ladder' } },
+    seed: 7655,
+    build(b) {
+      for (let x = 17; x <= 23; x += 2) for (let z = 18; z <= 22; z += 2) b.put('tree', x, z);
+    },
+    view: { yaw: 35, pitch: 36 },
+    pad: -0.1,
+  },
   {
     id: 'pocket-park',
     group: 'green',
@@ -1108,6 +1182,21 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: 0.2,
     life: { settle: 70, residents: true },
     frame: [16, 16, 24, 21, 2],
+  },
+  {
+    id: 'market-cross',
+    group: 'town',
+    name: 'Market cross',
+    how: 'Put a single marble block on a plaza with two or more stalls round it (and no fountain beside it): it becomes the market cross.',
+    proof: { prop: { rule: 'D37.market-cross', type: 'market-cross' } },
+    seed: 7656,
+    build(b) {
+      b.plaza(17, 18, 22, 22);
+      b.put('marble', 19, 20, { color: 3 });
+      b.put('stall', 17, 20).put('stall', 21, 21);
+    },
+    view: { yaw: 30, pitch: 32 },
+    pad: -0.1,
   },
 ];
 

@@ -97,7 +97,9 @@ describe('the pictures', () => {
       expect(size, `${e.id}.webp is ${size} bytes`).toBeLessThan(48_000);
       total += size;
     }
-    expect(total).toBeLessThan(1_500_000);
+    // Pictures load lazily as the guide scrolls, so the whole set's size is not paid on opening the
+    // game. The cap was 1.5 MB at 47 entries; raised as the discovery rounds added buildings.
+    expect(total).toBeLessThan(3_000_000);
   });
 
   test('no picture is left over from an entry that is gone', () => {
