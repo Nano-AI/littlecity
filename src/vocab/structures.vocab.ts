@@ -19,7 +19,7 @@ declare module '@/core/vocab' {
     // marble (R-M08 …)
     'podium': 'marble'; //       R-M08: carries a temple, a stair or a forum: no battlements
     'folly-tower': 'lighthouse'; // R-L02: a Light far inland: a stone belvedere, no beam
-    'bandstand': 'marble'; //    R-M11: a small temple on a green or square: a tented roof
+    'bandstand': 'marble'; //    R-M11: a park pavilion: a ring of slender columns under a tented roof
     'stoa': 'marble'; //         R-M12: a long temple on the side of a square: one sloping roof
     'obelisk': 'marble'; //      R-M10: a free 1 × 1 marble column 3+ tall on a square
     'theatre': 'marble'; //      R-M09: tiers of seats facing a stage
@@ -35,6 +35,15 @@ declare module '@/core/vocab' {
     'bell-cupola': true; //      R-H21: a little open bell turret on the ridge (cell = the roof cell)
     'forge-front': true; //      R-H19: an open forge front with a glowing hearth, on a ground-storey wall
     'mill-race': true; //        R-H16: the wheel's timber frame and bearing on the water side; owns 'wheel-hub'
+    // R-M11: on each pillar under a bandstand (cell = its top cell): it draws the pavilion's columns that stand in
+    // its cell, not a fat shaft. The footprint (a bitmask over 4 × 4 cells from x0, z0: bit dx + 4 dz) and the
+    // highest and lowest ground under it, so the pillar works out the same layout as the marble.
+    'pavilion-bay': true;
+    'pavilion-bay.mask': number;
+    'pavilion-bay.x0': number;
+    'pavilion-bay.z0': number;
+    'pavilion-bay.ground': number;
+    'pavilion-bay.low': number;
   }
   interface SocketVocab {
     'loading-door': true; //     R-H17: the threshold of a warehouse's ground-storey loading door, +Z out
@@ -52,6 +61,10 @@ declare module '@/core/vocab' {
     'stoa:e': true;
     'stoa:s': true;
     'stoa:w': true;
+    'bandstand:n': true; //      R-M11: the side the bandstand's open bay faces (toward a path, else the plaza)
+    'bandstand:e': true;
+    'bandstand:s': true;
+    'bandstand:w': true;
     'obelisk:column': true; //   R-M10: drawn as a victory column with a gilt statue, not an obelisk
     'watch:pyramid': true; //    R-T07 (FX-10): a crowded watchtower: square, under a tiled pyramid
     'watch:crenel': true; //     R-T07 (FX-10): a crowded watchtower: a square tower house, crenellated

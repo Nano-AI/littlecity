@@ -21,6 +21,7 @@ import { ownSockets } from '@/parts/monuments/kit';
 import { bollard, pedestal, pediment, quayStair } from '@/parts/monuments/marble-parts';
 import { arrowSlit, slitWindow, towerDoor } from '@/parts/monuments/openings';
 import { obelisk, victoryColumn } from '@/parts/structures/obelisk';
+import { drawPavilion, pavilionLayout, type Pavilion } from './pavilion';
 
 const FACE: readonly BoxFace[] = ['n', 'e', 's', 'w'];
 /**
@@ -83,25 +84,16 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
 }
 
 /**
- * R-M11, R-M12: the roof over a bandstand (an eight-sided tent with a finial) or a stoa (one slope
- * falling away from the square from its front cornice, with stone cheeks at the ends), on the top of
- * the slab.
+ * R-M12: the roof over a stoa (one slope falling away from the square from its front cornice, with stone
+ * cheeks at the ends), on the top of the slab. (A bandstand, R-M11, is a pavilion: ./pavilion.ts.)
  */
-function pavilionRoof(b: MeshBuilder, s: Structure, role: 'bandstand' | 'stoa', roof: string, stone: string, tags: ReadonlySet<string> | undefined): void {
+function stoaRoof(b: MeshBuilder, s: Structure, roof: string, stone: string, tags: ReadonlySet<string> | undefined): void {
   const mine = new Set(s.cells);
   const tops = s.cells.filter((c) => !mine.has(above(c)));
   const xs = tops.map(keyX), zs = tops.map(keyZ);
   const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, z0 = Math.min(...zs), z1 = Math.max(...zs) + 1;
   const y = (keyY(tops[0]!) + 1) * CELL_H + 0.002;
   const eave = 0.1;
-  if (role === 'bandstand') {
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, r = (Math.max(x1 - x0, z1 - z0) / 2) * Math.SQRT2 * 0.92 + eave;
-    b.at(compose(translation(cx, y, cz), rotationY(Math.PI / 8)), () => {
-      b.with({ color: roof, pattern: PATTERN.shingles, ink: 'tent' }, () => b.lathe([[r, 0], [r * 0.55, 0.32], [r * 0.12, 0.55], [0, 0.6]], { segments: 8, smooth: false, capBottom: true }));
-      b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => b.lathe([[0.03, 0.6], [0.05, 0.66], [0, 0.74]], { segments: 6 }));
-    });
-    return;
-  }
   // The stoa: high along the front (the square side), low at the back.
   const front = tags?.has('stoa:n') ? 0 : tags?.has('stoa:e') ? 1 : tags?.has('stoa:w') ? 3 : 2;
   const rise = 0.42;
@@ -139,6 +131,12 @@ function pavilionRoof(b: MeshBuilder, s: Structure, role: 'bandstand' | 'stoa', 
   });
 }
 
+/** The bandstand's layout, from the marble's own cells and the ground under them. */
+export function pavilionOf(s: Structure, plan: ShapePlan): Pavilion {
+  const hs = s.cells.map((c) => plan.terrain.height[columnIndex(keyX(c), keyZ(c))]!);
+  return pavilionLayout({ cells: s.cells.map((c) => [keyX(c), keyZ(c)]), ground: Math.max(...hs), low: Math.min(...hs), level: Math.min(...s.cells.map(keyY)) });
+}
+
 export default defineGenerator({
   kind: 'marble',
   build(s, plan, parts) {
@@ -159,6 +157,15 @@ export default defineGenerator({
         const at = featureFrame(f);
         if (at) placeFeature(b, anchors, f, at, { plan, structure: s, parts });
       }
+      return { mesh: b.build(), anchors };
+    }
+
+    if (role === 'bandstand') {
+      // R-M11: the marble is the pavilion's roof, entablature and plinth; its pillars draw its columns.
+      const tags = plan.tags.get(s.id);
+      const door = tags?.has('bandstand:n') ? 0 : tags?.has('bandstand:e') ? 1 : tags?.has('bandstand:w') ? 3 : tags?.has('bandstand:s') ? 2 : -1;
+      const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
+      drawPavilion(b, pavilionOf(s, plan), { stone, shade: PALETTE.stoneShade, roof }, door);
       return { mesh: b.build(), anchors };
     }
 
@@ -415,7 +422,7 @@ export default defineGenerator({
 
     // ── features ──
     const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
-    if (role === 'bandstand' || role === 'stoa') pavilionRoof(b, s, role, roof, stone, plan.tags.get(s.id));
+    if (role === 'stoa') stoaRoof(b, s, roof, stone, plan.tags.get(s.id));
     for (const f of features) {
       if (f.type === 'battlement' || f.type === 'stylobate') continue;
       if (f.type === 'broad-steps') {
