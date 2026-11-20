@@ -77,3 +77,12 @@ are built only where their own ground is flat and free.
 rectangle helpers · `route.ts` streets, bridges, climbs · `character.ts`
 characters · `index.ts` the plan and the watching order · `districts/` the
 stamps.
+
+## Known weak
+
+- A hill town's terraced shelves are joined to the square by stair climbs;
+  on some islands a climb lands inside the castle's walls, and walkers then
+  reach those shelves only through the bailey, so fewer houses there reach
+  the square on foot (generator 2, seed 5: 31 of 74).
+- The castle town's town wall uses only free ground on its ring, so it has
+  gaps where houses already stand.
