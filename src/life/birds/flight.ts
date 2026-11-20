@@ -205,7 +205,7 @@ export function flyOff(stage: LifeStage, spec: SpawnSpec, from: Mat4Like, seed: 
  * into `out`: in from a few cells out and above, gliding down to settle. Returns its heading.
  */
 export function arriving(u: number, x: number, y: number, z: number, from: number, out: { x: number; y: number; z: number }): number {
-  const k = 1 - easeOut(Math.min(1, u));
+  const k = 1 - easeOut(Math.max(0, Math.min(1, u)));
   out.x = x + Math.cos(from) * ARRIVE.far * k;
   out.z = z + Math.sin(from) * ARRIVE.far * k;
   out.y = y + ARRIVE.up * k * k;

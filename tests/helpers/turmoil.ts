@@ -22,6 +22,8 @@
 //   created / disposed   behaviour states made and dropped after `mark()`
 //   recreated            a state dropped and one of the same kind made within
 //                        half a cell of it in the same sync (identity churn)
+//   moved                one dropped and one of the same kind made elsewhere in
+//                        the same sync (a rule that picks afresh on any change)
 //   changed              `changed` calls (same item, new content) after mark
 //   jumps                a visible thing moving further in one frame than
 //                        JUMP world units (a teleport)
@@ -42,6 +44,7 @@ import { createGame, type Game, type GameStart } from '@/app/game';
 import { ruinStage } from '@/world/damage';
 import type { Behaviour, InstanceHandle, LifeContext, LifeStage, Signals, System } from '@/life/api';
 import { allBehaviours, allSystems } from '@/life/discover';
+import { fxOf } from '@/life/fx/fx';
 import { mischiefOf, type Director } from '@/life/mischief/director';
 import { createLife, type Life } from '@/life/runtime';
 import { createSignals, type TownSignals } from '@/life/signals';
@@ -55,6 +58,8 @@ export interface KindStats {
   created: number;
   disposed: number;
   recreated: number;
+  /** One dropped and one of the same kind made somewhere else in the same change (a rule picking afresh). */
+  moved: number;
   /** An item made again after it was dropped, more than once since mark(): popping on and off. */
   flicker: number;
   /** Dropped while it was drawn: gone in a frame, with no going (the owner: nothing pops out of existence). */
@@ -122,7 +127,7 @@ export function createTurmoil(start: GameStart, opts: { fps?: number; part?: 'da
   let counting = false;
   const statOf = (kind: string): KindStats => {
     let s = stats.get(kind);
-    if (!s) stats.set(kind, (s = { kind, created: 0, disposed: 0, recreated: 0, flicker: 0, vanished: 0, changed: 0, seen: 0, jumps: 0, reversals: 0, regrow: 0, inRuin: 0, nonFinite: 0, maxStep: 0 }));
+    if (!s) stats.set(kind, (s = { kind, created: 0, disposed: 0, recreated: 0, moved: 0, flicker: 0, vanished: 0, changed: 0, seen: 0, jumps: 0, reversals: 0, regrow: 0, inRuin: 0, nonFinite: 0, maxStep: 0 }));
     return s;
   };
   const track = (kind: string, read: Track['read']): Track => {
@@ -157,10 +162,21 @@ export function createTurmoil(start: GameStart, opts: { fps?: number; part?: 'da
   /** How many times each item has been made since mark(). */
   const comings = new Map<string, number>();
   const matchChurn = (): void => {
+    const rest: typeof made = [];
     for (const m of made) {
       const i = dropped.findIndex((d) => d.kind === m.kind && Math.hypot(d.x - m.x, d.z - m.z) < 0.5);
-      if (i < 0) continue;
+      if (i < 0) {
+        rest.push(m);
+        continue;
+      }
       statOf(m.kind).recreated++;
+      dropped.splice(i, 1);
+    }
+    // One of a kind dropped here and one made there in the same change: it moved house in a frame.
+    for (const m of rest) {
+      const i = dropped.findIndex((d) => d.kind === m.kind);
+      if (i < 0) continue;
+      statOf(m.kind).moved++;
       dropped.splice(i, 1);
     }
     made = [];
@@ -211,17 +227,20 @@ export function createTurmoil(start: GameStart, opts: { fps?: number; part?: 'da
         dispose: (state: unknown, ctx: LifeContext) => {
           const kind = kindOfItem(b.type, ctx.item.variant);
           const posed = ctx.instance as unknown as { m: number[] | null; visible: boolean | null; dead: boolean };
+          const m = posed.m ?? ctx.instance.base;
+          const shown = posed.visible !== false && Math.hypot(m[4]!, m[5]!, m[6]!) > 1e-4;
           if (counting) {
             statOf(kind).disposed++;
             const [x, z] = where(ctx);
             dropped.push({ kind, x, z });
-            const m = posed.m ?? ctx.instance.base;
-            if (posed.visible !== false && Math.hypot(m[4]!, m[5]!, m[6]!) > 1e-4) statOf(kind).vanished++;
           }
           posed.dead = true;
           if (state && typeof state === 'object') states.delete(state);
           owner = kind;
+          // Leaving by an effect (flying off, bolting for a door) is going, not vanishing.
+          const before = fxOf(stage).live;
           h.dispose?.(state, ctx);
+          if (counting && shown && fxOf(stage).live <= before) statOf(kind).vanished++;
           owner = 'app';
         },
       },

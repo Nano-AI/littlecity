@@ -155,7 +155,7 @@ export default defineBehaviour({
       phase: ctx.rand('phase'), n: 0, t: ctx.rand('t') * 20, mode: item.variant === 'dove' ? 'perch' : 'ground', modeT: 0, modeLen: 3 + 8 * ctx.rand('len'),
       x, z, yaw: ctx.rand('yaw') * TAU, fx: x, fz: z, tx: x, tz: z, hopT: 1, ty: 0, sits: false, ox: x, oy: 0, oz: z, town: null, retry: 0,
       // Made after the town opened: its home is new, or stands again. It flies in.
-      arrive: scaresOf(ctx.stage).towns > 1 && item.variant !== 'duck' ? (item.variant === 'sparrow' ? SPARROW_ARRIVE : ARRIVE.time) : 0,
+      arrive: scaresOf(ctx.stage).towns > 1 ? (item.variant === 'sparrow' ? SPARROW_ARRIVE : ARRIVE.time) : 0,
       from: ctx.rand('from') * TAU,
       seen: scaresOf(ctx.stage).seq, shown: true,
       trail: [], ducklings, m: new Array<number>(16).fill(0),
@@ -180,7 +180,14 @@ export default defineBehaviour({
         const len = v === 'sparrow' ? SPARROW_ARRIVE : ARRIVE.time;
         state.arrive = Math.max(0, state.arrive - dt);
         const u = 1 - state.arrive / len;
-        const yaw = arriving(u, bx, by + h, bz, state.from, spot);
+        const ty = v === 'duck' ? SEA_Y : by + h;
+        // The ducklings come in close behind, each a beat after the one ahead.
+        state.ducklings.forEach((d, i) => {
+          const dyaw = arriving(u - 0.05 * (i + 1), bx, ty, bz, state.from, spot);
+          fly(spot.x, spot.y, spot.z, dyaw, 0, 0, 1, m);
+          d.setMatrix(m);
+        });
+        const yaw = arriving(u, bx, ty, bz, state.from, spot);
         fly(spot.x, spot.y, spot.z, yaw, 0, 0, 1, m);
         if (u < 0.9 && frame % 2 === 1) {
           m[0]! *= 0.45; m[1]! *= 0.45; m[2]! *= 0.45;
@@ -312,8 +319,12 @@ export default defineBehaviour({
       m[0]! *= beat; m[1]! *= beat; m[2]! *= beat;
       ctx.instance.setMatrix(m);
       if (state.modeT >= hold + backLen(state)) {
+        // Down where it took off. (A hop it was in the middle of is over: its target was the roof it flew to.)
         state.mode = 'ground';
         state.modeT = 0;
+        state.x = state.tx = state.fx;
+        state.z = state.tz = state.fz;
+        state.hopT = 1;
       }
       return;
     }
