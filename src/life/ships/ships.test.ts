@@ -108,12 +108,22 @@ function run(opts: Run) {
   return { harbour, rec, signals, town: current, full };
 }
 
-/** Fails if any boat's hull is ever drawn at another size than its own, or hidden once shown. */
+/** Fittings that must never shrink or blink out either: the gangplank and the goods. */
+const FITTINGS = new Set(['gangplank', 'ship-goods']);
+
+/**
+ * Fails if any boat's hull, gangplank or load of goods is ever drawn at another size than its own, or hidden
+ * once shown; or if any person (a sailor, a bargeman: a mesh of their own) is hidden once shown.
+ */
 function watchHulls(rec: ReturnType<typeof recordingStage>, problems: string[]): void {
   const seen = new Map<Recorded, boolean>();
   for (const r of rec.spawned) {
+    if (!r.spec && !r.released) {
+      if (r.moves > 0 && !r.visible) problems.push(`a figure hidden (${r.id})`);
+      continue;
+    }
     const actor = r.spec && 'actor' in r.spec ? r.spec.actor : '';
-    if (!HULLS.has(actor) || r.released) continue;
+    if ((!HULLS.has(actor) && !FITTINGS.has(actor)) || r.released) continue;
     const m = r.matrix;
     const zero = m[0] === 0 && m[5] === 0 && m[10] === 0;
     if (zero) continue;

@@ -441,8 +441,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       nudge(ship, field);
       return;
     }
-    ship.crew?.release();
-    ship.crew = null;
+    ship.crew?.setPile(null);
     const v = planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), -1, ship.pose) ?? planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, 0.05, r(ship, 'exit'), -1, ship.pose);
     if (v) {
       ship.voyage = v;
@@ -463,9 +462,21 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     }
     ship.from = { ...ship.pose };
     ship.to = to;
-    ship.crew?.release();
-    ship.crew = null;
+    ship.crew?.setPile(null);
     setPhase(ship, 'nudging');
+  };
+
+  /** Its crew, cargo and gangplank: aboard from the start of the visit to its end, never appearing in view. */
+  const aboard = (ship: Ship): void => {
+    const rig = rigOf(ship.kind, ship.look);
+    const { way } = gangwayOf(ship);
+    const goods = Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67));
+    ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, rig.crew.slice(0, CREW[ship.kind]), way.hatch, goods, goods);
+    const m = ship.mooring;
+    const top = transform(fly(m.x, SEA_Y, m.z, m.yaw, 0, 0, 1), way.top);
+    ship.plankLen = Math.round(Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2])) * 20) / 20;
+    ship.plank = stage.spawn({ actor: 'gangplank', params: { length: ship.plankLen } }, HIDDEN);
+    ship.plankK = 0;
   };
 
   const begin = (ship: Ship): boolean => {
@@ -481,6 +492,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.pose = { x: p.x, z: p.z, yaw: p.yaw };
     ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 1);
     ship.escort = new Escort(stage, seed, ship.id);
+    aboard(ship);
     setPhase(ship, 'arriving');
     return true;
   };
@@ -490,6 +502,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.pose = { x: ship.mooring.x, z: ship.mooring.z, yaw: ship.mooring.yaw };
     ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 0);
     ship.escort = new Escort(stage, seed, ship.id);
+    aboard(ship);
     ship.cameFrom = -1;
     setPhase(ship, 'moored');
     ship.t = into;
@@ -566,18 +579,13 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         const stay = STAY[ship.kind]();
         const night = signals.time.isNight || signals.time.isDusk;
         const pile = pileOf(ship);
-        if (!ship.crew) ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, CREW[ship.kind], Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67)), pile);
-        if (!ship.plank) {
-          const { way } = gangwayOf(ship);
-          const top = transform(fly(m.x, SEA_Y, m.z, m.yaw, 0, 0, 1), way.top);
-          ship.plankLen = Math.round(Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2])) * 20) / 20;
-          ship.plank = stage.spawn({ actor: 'gangplank', params: { length: ship.plankLen } }, HIDDEN);
-        }
+        if (!ship.crew) aboard(ship);
+        ship.crew!.setPile(pile);
         // The plank comes down once it is fast, and up again when the stay is over and the crew are aboard.
         const done = (ship.t >= stay && !night) || ship.orphan;
-        const want = done && ship.crew.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
-        ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 1.8));
-        if (done && ship.crew.aboard && ship.plankK <= 0) {
+        const want = done && ship.crew!.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
+        ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 2.4));
+        if (done && ship.crew!.aboard && ship.plankK <= 0) {
           // Its way out, and only once nobody is under way across it: else it holds at its berth.
           ship.t2 += dt;
           if (ship.t2 >= 1) {
@@ -692,27 +700,35 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     // ── the crew, the gangplank and the lines, while it lies alongside ──
     const alongside = ship.phase === 'moored' || ship.phase === 'warp-out' || ship.phase === 'warp-in';
     const { way, side } = gangwayOf(ship);
-    if (ship.crew) ship.crew.update(dt, ship.m, way, ship.phase === 'moored' && ship.t < STAY[ship.kind]() - 6 && !ship.orphan);
-    if (ship.phase !== 'moored' && ship.crew && ship.crew.aboard) {
-      ship.crew.release();
-      ship.crew = null;
-    }
+    if (ship.crew) ship.crew.update(dt, ship.m, ship.phase === 'moored' ? way : null, ship.phase === 'moored' && ship.t < STAY[ship.kind]() - 6 && !ship.orphan);
     if (ship.plank) {
-      // Swung up from the rail (raised) down to rest on the quay; hauled aboard (out of sight) once it is up.
+      // The gangplank: stowed on deck along the ship (0); swung up on end at the rail (½); down on the quay (1).
+      if (ship.phase !== 'moored') ship.plankK = Math.max(0, ship.plankK - dt / 1.2);
       const top = transform(ship.m, way.top);
       const f = way.foot;
       const dx = f[0] - top[0], dy = f[1] - top[1], dz = f[2] - top[2];
-      const flat = Math.hypot(dx, dz), length = Math.hypot(flat, dy);
-      const yaw = Math.atan2(dx, dz);
-      const k = easeInOut(ship.plankK);
-      const pitch = Math.atan2(-dy, flat) * k - 1.25 * (1 - k);
+      const rest = Math.atan2(-dy, Math.hypot(dx, dz));
+      const quayYaw = Math.atan2(dx, dz);
+      const k = ship.plankK;
+      let x: number, y: number, z: number, yaw: number, pitch: number;
+      if (k >= 0.5) {
+        const u = easeInOut((k - 0.5) * 2);
+        [x, y, z] = top;
+        y += 0.02;
+        yaw = quayYaw;
+        pitch = -1.3 + (rest + 1.3) * u;
+      } else {
+        // Stowed: lying on deck inboard of the rail, its foot aft, along the ship.
+        const u = easeInOut(k * 2);
+        const deck = transform(ship.m, [way.rail[0] * 0.35, way.rail[1] + 0.05, way.rail[2] - ship.plankLen * 0.5]);
+        x = deck[0] + (top[0] - deck[0]) * u;
+        y = deck[1] + (top[1] + 0.02 - deck[1]) * u;
+        z = deck[2] + (top[2] - deck[2]) * u;
+        yaw = ship.pose.yaw + angleDelta(ship.pose.yaw, quayYaw) * u;
+        pitch = -1.3 * u;
+      }
       const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
-      const sz = ship.plankK > 0.02 ? length / ship.plankLen : 1;
-      ship.plank.setMatrix([cy, 0, -sy, 0, sy * sp, cp, cy * sp, 0, sy * cp * sz, -sp * sz, cy * cp * sz, 0, top[0], top[1] + 0.02, top[2], 1]);
-      if (ship.phase !== 'moored' && ship.plankK <= 0) {
-        ship.plank.release();
-        ship.plank = null;
-      } else if (ship.phase !== 'moored') ship.plankK = Math.max(0, ship.plankK - dt / 1.2);
+      ship.plank.setMatrix([cy, 0, -sy, 0, sy * sp, cp, cy * sp, 0, sy * cp, -sp, cy * cp, 0, x, y, z, 1]);
     }
     if (ship.lines.length === 2 && alongside) {
       const rig = rigOf(ship.kind, ship.look);
