@@ -18,7 +18,34 @@ import type { TownView } from '@/render/api';
 import { PALETTE } from '@/style/palette';
 import type { Feedback } from './feedback';
 import type { Pick } from './pick';
+import { el } from './dom';
+import { icon } from './icons';
 import type { MischiefToolId } from './pieces';
+
+/** The field guide's Mischief group: what each tool does, in a sentence (no recipe town: nothing here is built). */
+export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how: string }[] = [
+  { tool: 'torch', name: 'Torch', how: 'Click a building to set it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
+  { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes BOOM. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
+  { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
+  { tool: 'mend', name: 'Mend', how: 'Click something damaged: scaffolding goes up, and each click mends a stage until it is exactly as you built it. Shift-click mends it at once.' },
+];
+
+export function mischiefGuideSection(): HTMLElement {
+  const list = el('ul', { class: 'lc-guide-list' });
+  for (const m of MISCHIEF_GUIDE) {
+    list.append(
+      el('li', { class: 'lc-guide-entry', attrs: { 'data-entry': `mischief-${m.tool}` } }, [
+        el('div', { class: 'lc-guide-picture lc-guide-mischief-icon', html: icon(m.tool) }),
+        el('div', { class: 'lc-guide-words' }, [el('h4', {}, [el('span', { text: m.name })]), el('p', { text: m.how })]),
+      ]),
+    );
+  }
+  return el('section', { class: 'lc-guide-group lc-guide-mischief', attrs: { 'data-group': 'mischief' } }, [
+    el('h3', {}, [el('span', { text: 'Mischief' })]),
+    el('p', { class: 'lc-guide-note', text: 'Only your clicks start anything, and undo puts it all back.' }),
+    list,
+  ]);
+}
 
 const HINTS_KEY = 'little-city.mischief-hints';
 
@@ -48,6 +75,13 @@ const CSS = `
   transform-origin: 50% 60%;
   animation: lc-boom 1.1s ease-out forwards;
 }
+.lc-guide-mischief-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, ${PALETTE.red} 10%, var(--lc-card));
+}
+.lc-guide-mischief-icon .lc-icon { width: 60%; height: 60%; }
 @keyframes lc-boom {
   0% { opacity: 0; scale: 0.2; }
   12% { opacity: 1; scale: 1.15; }

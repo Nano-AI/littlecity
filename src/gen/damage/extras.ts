@@ -11,6 +11,15 @@ import { heapHeight } from './debris';
 import type { Column } from './field';
 import { normalOf, type Poly, vert } from './poly';
 
+/** A beam from a to b pulled in by `by` at each end, so its end faces never lie flush in the face it meets. */
+function inset(b: MeshBuilder, a: Vec3, c: Vec3, by: number, w: number, h: number): void {
+  const dx = c[0] - a[0], dy = c[1] - a[1], dz = c[2] - a[2];
+  const len = Math.hypot(dx, dy, dz);
+  if (len <= by * 2 + 1e-3) return;
+  const k = by / len;
+  beam(b, [a[0] + dx * k, a[1] + dy * k, a[2] + dz * k], [c[0] - dx * k, c[1] - dy * k, c[2] - dz * k], w, h);
+}
+
 /** A square-section beam from a to b (`w` wide, `h` deep), level side up. */
 export function beam(b: MeshBuilder, a: Vec3, c: Vec3, w: number, h: number): void {
   const dx = c[0] - a[0], dy = c[1] - a[1], dz = c[2] - a[2];
@@ -62,7 +71,7 @@ export function raftersOn(b: MeshBuilder, roof: Poly, gap: number, size: number)
       const t = (s - ap) / (aq - ap);
       hits.push([p[0] + (q[0] - p[0]) * t - nx * size * 0.6, p[1] + (q[1] - p[1]) * t - ny * size * 0.6, p[2] + (q[2] - p[2]) * t - nz * size * 0.6]);
     }
-    if (hits.length >= 2) beam(b, hits[0]!, hits[1]!, size, size);
+    if (hits.length >= 2) inset(b, hits[0]!, hits[1]!, 0.025, size, size);
   }
 }
 
@@ -75,7 +84,7 @@ export function studsOn(b: MeshBuilder, wall: Poly, gap: number, size: number): 
   const along = pts.map((p) => p[0] * tx + p[2] * tz);
   const lo = Math.min(...along);
   const hi = Math.max(...along);
-  const inset = (p: Vec3): Vec3 => [p[0] - nx * size, p[1], p[2] - nz * size];
+  const inward = (p: Vec3): Vec3 => [p[0] - nx * size, p[1], p[2] - nz * size];
   for (let s = Math.ceil(lo / gap) * gap; s <= hi; s += gap) {
     const hits: Vec3[] = [];
     for (let i = 0; i < pts.length; i++) {
@@ -89,7 +98,7 @@ export function studsOn(b: MeshBuilder, wall: Poly, gap: number, size: number): 
     }
     if (hits.length >= 2) {
       hits.sort((a, c) => a[1] - c[1]);
-      beam(b, inset(hits[0]!), inset(hits[hits.length - 1]!), size, size);
+      inset(b, inward(hits[0]!), inward(hits[hits.length - 1]!), 0.02, size, size);
     }
   }
 }

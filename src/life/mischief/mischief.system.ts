@@ -260,13 +260,13 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
       return;
     }
     st.flashes.push({ h: stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2 + rand(e.bomb, 'dust', i) * 0.4;
-      const far = 0.8 + rand(e.bomb, 'far', i) * 1.2;
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * Math.PI * 2 + rand(e.bomb, 'dust', i) * 0.4;
+      const far = 0.9 + rand(e.bomb, 'far', i) * 1.6;
       const look = DUST[i % 4]!;
-      fx.play(look, 2.2 + rand(e.bomb, 'life', i) * 1.2, (t, m) => {
+      fx.play(look, 2.6 + rand(e.bomb, 'life', i) * 1.6, (t, m) => {
         const ease = 1 - (1 - t) * (1 - t);
-        const s = (0.35 + ease * 0.9) * (1 - Math.max(0, t - 0.8) * 2);
+        const s = (0.6 + ease * 1.1) * (1 - Math.max(0, t - 0.75) * 2.5);
         setPlace(m, x + Math.cos(a) * far * ease, y + 0.15 + ease * (0.5 + (i % 3) * 0.3), z + Math.sin(a) * far * ease, Math.max(0.01, s));
       }, { delay: rand(e.bomb, 'delay', i) * 0.15 });
     }
@@ -604,13 +604,15 @@ export default defineSystem<State>({
     kept = 0;
     for (const f of st.flashes) {
       f.age += dt;
-      if (f.age > 0.42) {
+      if (f.age > 0.55) {
         f.h.release();
         continue;
       }
       st.flashes[kept++] = f;
-      const t = f.age / 0.42;
-      const s = (0.4 + 1.5 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5)) * f.power * (t > 0.6 ? 1 - (t - 0.6) / 0.4 : 1);
+      const t = f.age / 0.55;
+      // On twos, like a drawn burst: big at once, a second bigger drawing, then it breaks up.
+      const tt = Math.floor(t * 0.55 * FPS) / (0.55 * FPS);
+      const s = (1.4 + 1.4 * Math.min(1, tt * 2.5)) * f.power * (tt > 0.6 ? Math.max(0.05, 1 - (tt - 0.6) / 0.4) : 1);
       f.h.setMatrix(compose(translation(f.x, f.y, f.z), rotationY(t * 0.8), scaling(Math.max(0.01, s))));
       f.h.setParams(1);
       f.h.setVisible(true);

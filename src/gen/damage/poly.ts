@@ -238,9 +238,14 @@ export function transformPoly(poly: Poly, m: ArrayLike<number>): void {
     p[1] = m[1]! * x + m[5]! * y + m[9]! * z + m[13]!;
     p[2] = m[2]! * x + m[6]! * y + m[10]! * z + m[14]!;
     const nx = p[3]!, ny = p[4]!, nz = p[5]!;
-    p[3] = m[0]! * nx + m[4]! * ny + m[8]! * nz;
-    p[4] = m[1]! * nx + m[5]! * ny + m[9]! * nz;
-    p[5] = m[2]! * nx + m[6]! * ny + m[10]! * nz;
+    const ax = m[0]! * nx + m[4]! * ny + m[8]! * nz;
+    const ay = m[1]! * nx + m[5]! * ny + m[9]! * nz;
+    const az = m[2]! * nx + m[6]! * ny + m[10]! * nz;
+    // Uniform scales only (a regrowing tree): keep the normals unit length.
+    const l = Math.hypot(ax, ay, az) || 1;
+    p[3] = ax / l;
+    p[4] = ay / l;
+    p[5] = az / l;
   }
 }
 

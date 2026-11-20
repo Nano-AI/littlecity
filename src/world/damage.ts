@@ -65,8 +65,8 @@ export const ruinCause = (v: number | undefined): DamageCause => ((v ?? 0) & BLA
 export const ruinMending = (v: number | undefined): boolean => ((v ?? 0) & MENDING) !== 0;
 export const ruinSettling = (v: number | undefined): boolean => ((v ?? 0) & SETTLING) !== 0;
 
-/** Houses nobody, has no dressing, no shop: half-destroyed or worse. */
-export const ruinUninhabitable = (v: number | undefined): boolean => ruinStage(v) >= 2;
+/** Houses nobody, has no dressing, no shop: half-destroyed or worse, or in scaffolding. */
+export const ruinUninhabitable = (v: number | undefined): boolean => ruinStage(v) >= 2 || ruinMending(v);
 
 /** The value saved for a block (settling dropped; a value that drops to nothing is still a ruin of its stage). */
 export function savedRuin(v: number | undefined): number {

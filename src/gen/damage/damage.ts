@@ -263,6 +263,9 @@ const mix3 = (a: readonly number[], b: readonly number[], t: number): [number, n
 /** Hollow buildings: a broken one shows a dark inside, floors, partitions and fallen beams. */
 const HOLLOW_KINDS = new Set<string>(['house', 'tower', 'lighthouse', 'windmill']);
 
+/** Built of boards and posts with nothing inside to show. */
+const OPEN_WORK = new Set<string>(['dock', 'fence', 'stall']);
+
 const WOOD_PATTERNS = new Set<number>([PATTERN.planks, PATTERN.planksAcross, PATTERN.timber, PATTERN.thatch, PATTERN.bark]);
 const ROOF_PATTERNS = new Set<number>([PATTERN.shingles, PATTERN.thatch]);
 
@@ -381,8 +384,8 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
       }
     }
     soup.add(p);
-    // Inside faces where the walls are open to view.
-    if (col && open.has(col)) {
+    // Inside faces where the walls are open to view (not for open-work things: docks, fences, stalls).
+    if (col && open.has(col) && !OPEN_WORK.has(s.kind)) {
       const [, ny] = normalOf(p);
       const c = centroid(p);
       if (walls.has(p.ink) && Math.abs(ny) < 0.2) soup.add({ ...backOf(p, RUIN.wallThickness, insideOf(col)), pattern: PATTERN.none });
@@ -516,7 +519,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
         // A top plate of new timber where the walls will meet the roof.
         extras.setColor(C.fresh).setPattern(PATTERN.none).setInk('new-timber');
         const y = col.top - 0.03;
-        for (const [ax, az, bx, bz] of [[0.07, 0.07, 0.93, 0.07], [0.93, 0.07, 0.93, 0.93], [0.93, 0.93, 0.07, 0.93], [0.07, 0.93, 0.07, 0.07]] as const) {
+        for (const [ax, az, bx, bz] of [[0.12, 0.12, 0.88, 0.12], [0.88, 0.14, 0.88, 0.88], [0.86, 0.88, 0.12, 0.88], [0.12, 0.86, 0.12, 0.14]] as const) {
           beam(extras, [col.x + ax, y, col.z + az], [col.x + bx, y, col.z + bz], 0.04, 0.04);
         }
       }
