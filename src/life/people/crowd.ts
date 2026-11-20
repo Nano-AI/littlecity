@@ -33,6 +33,8 @@ import { AVOID, PEOPLE, PERSON } from '@/style/people';
 import { DOORS } from '@/style/animation';
 import { createDoors, type DoorTable } from './doors';
 import { BODY } from './overlap';
+/** How close anybody lets another come: a body and a hand's breadth (steady following sits just outside an overlap). */
+const KEEP = BODY + 0.025;
 import { createRouter, type Router } from './route';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
@@ -884,7 +886,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (dx > 0.4 || dx < -0.4 || dz > 0.4 || dz < -0.4 || Math.abs(q.y - p.y) > 0.3) continue;
         // p.x, p.z is the line here (the offset is added below).
         const dNew = Math.hypot(dx - nx, dz - nz), dOld = Math.hypot(dx - p.offX, dz - p.offZ);
-        if (dNew < BODY && dNew < dOld) {
+        if (dNew < KEEP && dNew < dOld) {
           nx = p.offX;
           nz = p.offZ;
           break;
@@ -1144,8 +1146,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             if (dx > 0.5 || dx < -0.5 || dz > 0.5 || dz < -0.5 || Math.abs(q.y - p.y) > 0.3) continue;
             const ahead = dx * fx + dz * fz;
             const lat = dx * rx + dz * rz;
-            if (ahead <= 0 || Math.abs(lat) >= BODY) continue;
-            const allowed = ahead - Math.sqrt(BODY * BODY - lat * lat) - 0.005;
+            if (ahead <= 0 || Math.abs(lat) >= KEEP) continue;
+            const allowed = ahead - Math.sqrt(KEEP * KEEP - lat * lat) - 0.005;
             const keep = Math.max(0, Math.min(1, allowed / reach));
             if (keep < p.slow) p.slow = keep;
           }

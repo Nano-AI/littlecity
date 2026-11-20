@@ -440,7 +440,7 @@ describe('children (L28)', () => {
     const { w, flying } = play(0.1);
     expect(w.problems).toEqual([]);
     expect(flying).toBe(0);
-    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(2); // two children, five minutes, mostly after the pigeons
+    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThanOrEqual(2); // two children, five minutes, mostly after the pigeons (fewer now people wait for each other)
   });
 });
 
