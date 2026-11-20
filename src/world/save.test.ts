@@ -48,11 +48,23 @@ function bigTown(): World {
 
 describe('deflate', () => {
   test('round-trips, and agrees with zlib both ways', () => {
-    const cases = [new Uint8Array(0), Uint8Array.from([1, 2, 3]), new Uint8Array(5000).fill(7), Uint8Array.from({ length: 3000 }, (_, i) => (i * 7919) % 251)];
+    // Fibonacci-weighted bytes make a Huffman tree deeper than 15 levels (the length limit must hold),
+    // a few bytes make a near-empty code, noise makes a stored block, the rest dynamic or fixed blocks.
+    const fib: number[] = [];
+    for (let a = 1, b = 1, s = 0; s < 22; s++, [a, b] = [b, a + b]) for (let k = 0; k < a; k++) fib.push(s * 11);
+    const cases = [
+      new Uint8Array(0), Uint8Array.from([1]), Uint8Array.from([1, 2, 3]), new Uint8Array(5000).fill(7),
+      Uint8Array.from({ length: 3000 }, (_, i) => (i * 7919) % 251),
+      Uint8Array.from({ length: 4000 }, (_, i) => Math.floor(rand(3, 'noise', i) * 256)),
+      Uint8Array.from({ length: 3000 }, (_, i) => (i % 7 === 0 ? i & 255 : i % 3)),
+      Uint8Array.from(fib.map((v, i) => (i % 5 === 0 ? v : fib[(i * 7919) % fib.length]!))),
+    ];
     for (const data of cases) {
       const mine = deflateRaw(data);
-      expect(inflateRaw(mine)).toEqual(data);
+      expect(inflateRaw(mine, 1 << 22, true)).toEqual(data);
       expect(new Uint8Array(inflateRawSync(mine))).toEqual(data);
+      expect(mine.length).toBeLessThanOrEqual(new Uint8Array(deflateRawSync(data, { level: 9 })).length + 8);
+      expect(deflateRaw(data)).toEqual(mine); // deterministic
       expect(inflateRaw(new Uint8Array(deflateRawSync(data)))).toEqual(data); // dynamic Huffman blocks
       expect(inflateRaw(new Uint8Array(deflateRawSync(data, { level: 0 })))).toEqual(data); // stored blocks
     }

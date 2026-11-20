@@ -12,6 +12,7 @@ import { codecVersion, decodeTown, encodeTown, loadTown, readTownFile, saveTown,
 import { applyEdit, emptyWorld } from './world';
 import { createHistory, pushHistory, undo } from './history';
 import { fromBase64Url, inflateRaw, deflateRaw, toBase64Url } from './deflate';
+import { legacyEncodeTown } from './legacy-codec';
 
 const terrain = flatTerrain(77);
 const col = columnIndex(30, 30);
@@ -32,15 +33,22 @@ const BEFORE = {
 };
 
 describe('saving the reshaped land', () => {
-  test('a town with no reshaped land encodes byte for byte as before; old links decode as before', () => {
-    expect(encodeTown(town(1))).toBe(BEFORE.styled1);
-    expect(encodeTown(town(2))).toBe(BEFORE.styled2);
+  test('old links decode as before, to the towns the old encoder made them from', () => {
+    // legacy-codec.ts is the old encoder: it still writes these codes byte for byte.
+    expect(legacyEncodeTown(town(1))).toBe(BEFORE.styled1);
+    expect(legacyEncodeTown(town(2))).toBe(BEFORE.styled2);
+    expect(decodeTown(BEFORE.styled1)).toEqual({ ok: true, world: town(1) });
+    expect(decodeTown(BEFORE.styled2)).toEqual({ ok: true, world: town(2) });
     for (const code of Object.values(BEFORE)) {
       const r = decodeTown(code);
       expect(r.ok).toBe(true);
       if (r.ok) {
         expect('terrainEdits' in r.world).toBe(false);
-        expect(encodeTown(r.world)).toBe(code);
+        expect(legacyEncodeTown(r.world)).toBe(code);
+        // Written again today, it is no longer and opens to the same town.
+        const again = encodeTown(r.world);
+        expect(again.length).toBeLessThanOrEqual(code.length);
+        expect(decodeTown(again)).toEqual(r);
       }
     }
   });
@@ -51,7 +59,7 @@ describe('saving the reshaped land', () => {
     expect(codecVersion(up)).toBe(4);
     const back = applyEdit(up, terrain, { type: 'land', up: [], down: [col] });
     expect('terrainEdits' in back).toBe(false);
-    expect(encodeTown(back)).toBe(BEFORE.styled2);
+    expect(encodeTown(back)).toBe(encodeTown(w));
   });
 
   test('version 4 round-trips through links, town files and autosave, on either generator', () => {

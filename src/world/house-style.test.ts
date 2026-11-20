@@ -9,6 +9,7 @@ import { resolveShape } from '@/resolve/index';
 import { structureStyle } from '@/resolve/structures';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { createHistory, pushHistory, redo, undo } from './history';
+import { legacyEncodeTown } from './legacy-codec';
 import { codecVersion, decodeTown, encodeTown, readTownFile, townFileText } from './save';
 import { applyEdit, canApply, emptyWorld } from './world';
 
@@ -137,9 +138,13 @@ describe('house style in the share codec', () => {
     expect(r.world).toEqual(legacyTown());
   });
 
-  test('a town with no styled block is still written as version 1, byte for byte', () => {
+  test('a town with no styled block is still version 1, and the old encoder wrote exactly the pinned code', () => {
     expect(codecVersion(legacyTown())).toBe(1);
-    expect(encodeTown(legacyTown())).toBe(LEGACY_CODE);
+    // The pinned code is the old encoder's (legacy-codec.ts); today's writes a shorter code that opens to the same town.
+    expect(legacyEncodeTown(legacyTown())).toBe(LEGACY_CODE);
+    const code = encodeTown(legacyTown());
+    expect(code.length).toBeLessThanOrEqual(LEGACY_CODE.length);
+    expect(decodeTown(code)).toEqual({ ok: true, world: legacyTown() });
   });
 
   test('styles round-trip through version 2', () => {
