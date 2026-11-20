@@ -36,6 +36,7 @@ Branch `swarm/people`. Brief: the orchestrator's original message (residents who
 - Doors open (L29): the crowd owns a door table (`doors.ts`, `crowd.doors`) and gates door pieces on it; `Piece.enter` marks a door piece going in. Shopkeepers sweep on the window side of a shop. Walkers going wide past a door go wide away from it (`towardDoor` in walk.ts).
 - Thresholds: `Person.edgeX/edgeZ/fadeTime`: newcomers climb up out of the water at their landing before walking home; leavers walk off a dock's end or into the sea (way-outs over water preferred). people.system draws the step down/up instead of shrinking.
 - Workers hold tools (`toolOf` in people.system.ts, meshes in `src/parts/people/extras.ts`).
+- People are solid (crowd.ts `follow` and `stepAside`, `AVOID` in the style, `overlap.ts`, `solid.test.ts`): see the README. Sustained overlaps over 7.5 minutes: people town 121 → about 20, everything 162 → about 80 (knots at its arch passage and carved steps), a 47-person square 131 → about 27. The crowd step went from about 0.023 to 0.076 ms for 78 people.
 - Castle life: `troop.ts`, `rider.ts`, `track.ts`, `garrison.system.ts`; walkers wait for soldiers and the horse (`CrowdOptions.obstacles`).
 
 ## How walking is verified
