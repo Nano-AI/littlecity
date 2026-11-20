@@ -304,7 +304,9 @@ How pieces meet. Joinery decides geometry and produces sockets.
   widens; on a dock, planks follow the run; on a bridge deck, cobbles.
 - **J22 · 2 · Plaza paving** — pattern aligned to the region's bounding box,
   border course at the edges; a region containing 5 × 5 gets a radial centre
-  motif.
+  motif. With a fountain on that square off its middle, the motif (rings)
+  centres on the fountain at the largest odd size that fits round it, and
+  is left out if not even a 5 × 5 fits (FX-08).
 - **J23 · 1 · Dock body** — planks along the run, stilts at corners and every
   2 cells, cross-bracing on outer edges.
 - **J24 · 1 · Foundation** — a structure whose ground cells sit over lower
