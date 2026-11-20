@@ -1016,3 +1016,20 @@ from the current view, Escape back to the main view, and Escape in
 general returning to the main view. He asked to brainstorm it: questions
 sent, nothing built yet. `swarm/walk` has the flying code to reuse.
 Running: mischief (crew pulsing), short-links.
+
+**Crew pulsing merged** (`ee24bac`, Opus). The people shrinking and
+growing were not crew but residents of houses being mended, leaving town
+(a house mid-mend counts as uninhabitable). Every mend step changed the
+town, every change replanned everyone's route, and for someone leaving
+that cancelled the fade-out and sent them walking (full size) again:
+140+ size drops per person in 60 s once many buildings were mending. Fix
+in `src/life/people/crowd.ts`: a leaver keeps route and exit unless they
+no longer exist; with no water or map edge to leave by they walk to the
+nearest door and go in. New test `src/app/mend-crew.test.ts` (471
+grow-backs before, none after). Gate: 2,124 passed, 8 skipped, clean. No
+pictures of the pulse before or after; evidence is the per-frame log and
+the test. Not verified: Derek's town (raised terrace, retaining wall);
+the door exit on screen. Open design question for Derek: should
+residents stay and wander while their house is mended instead of leaving
+the island?
+Running: short-links. Waiting on Derek: fly mode answers.
