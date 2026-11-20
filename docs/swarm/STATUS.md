@@ -579,3 +579,14 @@ is flat white; festival bulbs tiny at overview. Follow-up NOT yet sent
 bridges** → ships agent resumed.
 Running: disc1-structures, disc1-fill, living-town, mischief (preview),
 landshaping, ships fixes.
+
+**Living town merged** (`ed2e2b3`, Opus): L50 scuffle (dust cloud, grawlix
+balloon, watchers, dazed ending), L51 bread, L52 water, L53 the catch, L54
+builders at a newly placed house, L55 night watchman, L56 market day, L57
+wedding; an errand engine in `src/life/town/`; guide group "Days the town
+earns". Full check clean: 1,726 tests. Published. Second pass sent to the
+same agent: bigger loads at wide zoom, trade carts from the quay, harvest,
+laundry, a dog, the watchman breaking up scuffles, the fill builder's
+sockets, temporary stalls on the walking graph.
+Running: disc1-structures, disc1-fill, mischief (preview), landshaping,
+ships fixes, living-town pass 2.
