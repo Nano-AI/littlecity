@@ -84,6 +84,7 @@ export default defineRule<{ s: Structure }>({
       const top = info ? keyY(f.cell) === info.maxY : false;
       if (role === 'chapel') variant = 'pointed';
       else if (role === 'barn') variant = 'shuttered';
+      else if (role === 'schoolhouse') variant = 'tall';
       else if (role === 'shop' || role === 'bridge-shop') {
         if (f.storey === 1 && (f.street === 1 || f.plaza === 1) && f.drop === 0) variant = 'shopfront';
         else if (f.storey >= 2 && (f.street !== undefined || f.plaza !== undefined) && ctx.rand('bay', f.cell, f.dir) < 0.2) variant = 'bay';

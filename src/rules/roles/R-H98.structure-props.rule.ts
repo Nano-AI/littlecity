@@ -15,6 +15,8 @@
 //                     forge front; a hitching rail and trough by the door
 //   stoa (R-M12)      goods for the booths on every other free ground cell
 //                     under it, along its back
+//   schoolhouse       a hopscotch court chalked on the middle of its yard
+//   (R-H21)
 //   warehouse (R-H17) crates, a barrel and a sack beside its loading door
 //   watermill (R-H16) the water wheel (an actor) on the mill race's hub; a
 //                     timber weir across the stream beside it; flour sacks
@@ -24,15 +26,16 @@
 // it serves. Priority 896: just before R-H99, and before the general
 // doorstep dressing (D11), so these get their floor slots first.
 
-import { columnIndex, edgeCells, key, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, edgeCells, edgeOf, key, keyX, keyY, keyZ, neighbor, NO_CELL, opposite, turn, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
 import { cellInfo } from '@/resolve/facts/cell.fact';
 import type { Anchor, CellPos } from '@/resolve/plan';
 import { theatreOf } from './R-M09.theatre.rule';
 import { chapels, grassYard, isChurchyard } from './churchyard.lib';
 import { riverAt } from './river.lib';
+import { schoolYard } from './R-H21.schoolhouse.rule';
 
-type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates' | 'anvil' | 'hitching' | 'headstone' | 'cross' | 'yew' | 'lychgate';
+type Variant = 'backdrop' | 'brazier' | 'hay' | 'weir' | 'crates' | 'anvil' | 'hitching' | 'hopscotch' | 'headstone' | 'cross' | 'yew' | 'lychgate';
 interface Data {
   variant: Variant | 'cart' | 'sacks' | 'wheel';
   at: Anchor;
@@ -126,7 +129,20 @@ export default defineRule<Data>({
       }
     }
     for (const [id, { role }] of plan.roles) {
-      if (role === 'stoa') {
+      if (role === 'schoolhouse') {
+        // In the fenced part of the yard if it has one: a cell with a fence or wall on a side, or beyond one.
+        const yardCells = schoolYard(ctx.facts, plan.structures.get(id)!).filter(free);
+        const fenced = (c: CellKey): boolean =>
+          ([0, 1, 2, 3] as Dir4[]).some((d) => {
+            const e = edgeOf(c, d);
+            const k = ctx.facts.kinds.get(neighbor(c, d));
+            return (e !== NO_CELL && ctx.facts.world.edges.has(e)) || k === 'fence' || k === 'wall';
+          });
+        const inner = yardCells.filter(fenced);
+        const pool = inner.length > 0 ? inner : yardCells;
+        const at = pool[Math.floor(pool.length / 2)];
+        if (at !== undefined) add(at, id, 'hopscotch', 'hopscotch', { cell: at, pos: 'c' }, slot.floor(at, 'c'));
+      } else if (role === 'stoa') {
         const s = plan.structures.get(id)!;
         const tags = plan.tags.get(id);
         const front: Dir4 = tags?.has('stoa:n') ? 0 : tags?.has('stoa:e') ? 1 : tags?.has('stoa:w') ? 3 : 2;

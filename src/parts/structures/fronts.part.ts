@@ -7,7 +7,7 @@
 // which expects the piece centred half-way up a storey (y = CELL_H / 2).
 
 import { CELL_H } from '@/core/grid';
-import { compose, rotationX, translation } from '@/core/mat4';
+import { compose, rotationX, rotationY, translation } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
@@ -106,6 +106,24 @@ export const bridgeBrackets = definePart({
         b.at(compose(translation(x, -0.06, 0.03), rotationX(0.6)), () => b.box([-0.025, -0.36, -0.025], [0.025, 0, 0.025], { skip: ['top'] }));
       }
     });
+    return { mesh: b.build() };
+  },
+});
+
+export const bellCupola = definePart({
+  feature: 'bell-cupola',
+  build(_item, ctx) {
+    const b = ctx.mesh();
+    // R-H21: a little open bell turret astride the ridge: a boarded base, four posts, a bell, a pyramid cap.
+    b.with({ color: PALETTE.white, pattern: PATTERN.planks, ink: 'base' }, () => b.boxAt([0, -0.08, 0], [0.24, 0.16, 0.24]));
+    b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'posts' }, () => {
+      for (const x of [-0.1, 0.1]) for (const z of [-0.1, 0.1]) b.boxAt([x, 0.08, z], [0.035, 0.2, 0.035], { skip: ['bottom', 'top'] });
+    });
+    b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'bell' }, () => b.lathe([[0.055, 0.1], [0.045, 0.16], [0.02, 0.21], [0, 0.22]], { segments: 8, capBottom: true }));
+    b.with({ color: PALETTE.redDark, pattern: PATTERN.shingles, ink: 'cap' }, () =>
+      b.at(rotationY(Math.PI / 4), () => b.lathe([[0.19, 0.28], [0, 0.46]], { segments: 4, smooth: false, capBottom: true })),
+    );
+    b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'finial' }, () => b.boxAt([0, 0.46, 0], [0.018, 0.08, 0.018], { skip: ['bottom'] }));
     return { mesh: b.build() };
   },
 });

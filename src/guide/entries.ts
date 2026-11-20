@@ -238,6 +238,23 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
+    id: 'schoolhouse',
+    group: 'houses',
+    name: 'Schoolhouse',
+    how: 'In a town of ten or more houses, give a one-storey house on a path a fenced yard beside it: the biggest such yard is the school’s, with a bell on the roof and hopscotch in the yard.',
+    proof: { role: 'schoolhouse' },
+    seed: 7119,
+    build(b) {
+      b.path(8, 21, 30, 21);
+      for (let i = 0; i < 5; i++) b.house(8 + i * 3, 19, { w: 2, d: 2, floors: 2, color: i });
+      for (let i = 0; i < 5; i++) b.house(8 + i * 3, 22, { w: 2, floors: 2, color: (i + 3) % 8 });
+      b.house(24, 22, { w: 2, color: 2 });
+      b.fenceAround(26, 22, 28, 24);
+    },
+    view: FRONT,
+    frame: [22, 19, 29, 25, 3],
+  },
+  {
     id: 'townhouse',
     group: 'houses',
     name: 'Townhouse',

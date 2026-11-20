@@ -132,6 +132,15 @@ type and which later rules apply.
   night, a propped plank shutter); an anvil on its block and a quench
   barrel outside it, a hitching rail with a trough by the door (R-H98).
   Not: a house of 2+ storeys; a house over water or a dock. Priority 9925.
+- **R-H21 · 3 · Schoolhouse** (discovery 1, RC-19; town-wide) — in a town of
+  10+ house structures, of the houses with no role yet that have 1 storey,
+  a footprint of 1–4 and a ground-storey facade with a street within 2,
+  the one with the largest yard (the free grass or garden cells at its
+  level within 2 of it, 4+ of them, with a fence or wall on some side; then
+  the lowest id) → a bell cupola on the middle of its ridge (J30), tall
+  windows (J09), no chimney, and a hopscotch court chalked on its yard, in
+  the fenced part if it has one (R-H98). One per town. Not: a house that
+  already has another role. Priority 9855 (just before the cottage).
 - **R-H09 · 2 · Manor** — footprint ≥ 10 cells with 2+ storeys, or total ≥ 16
   cells → hip roof, dormers, two chimneys, portico with two small columns
   at the door. (A big one-storey house is a barn by the fields, else a

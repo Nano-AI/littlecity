@@ -206,6 +206,32 @@ export default definePart({
         b.with({ color: PALETTE.glass, pattern: PATTERN.water, ink: 'water' }, () => b.quad([-0.13, 0.095, 0.15], [0.13, 0.095, 0.15], [0.13, 0.095, 0.07], [-0.13, 0.095, 0.07]));
         break;
       }
+      case 'hopscotch': {
+        // R-H21: a hopscotch court chalked on the ground: a ladder of squares with a pair and a round head.
+        const y = 0.006, w = 0.13, z0 = -0.42;
+        b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'chalk' }, () => {
+          const line = (ax: number, az: number, bx: number, bz: number): void => {
+            const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz), nx = (-dz / l) * 0.008, nz = (dx / l) * 0.008;
+            b.quad([ax - nx, y, az - nz], [ax + nx, y, az + nz], [bx + nx, y, bz + nz], [bx - nx, y, bz - nz]);
+          };
+          const rows = [1, 1, 2, 1, 2, 1];
+          let z = z0;
+          for (const n of rows) {
+            const hw = (w * n) / 2;
+            line(-hw, z, hw, z);
+            line(-hw, z + w, hw, z + w);
+            line(-hw, z, -hw, z + w);
+            line(hw, z, hw, z + w);
+            if (n === 2) line(0, z, 0, z + w);
+            z += w;
+          }
+          for (let i = 0; i < 8; i++) {
+            const a0 = (i / 8) * Math.PI, a1 = ((i + 1) / 8) * Math.PI;
+            line(Math.cos(a0) * w * 0.5, z + Math.sin(a0) * w * 0.5, Math.cos(a1) * w * 0.5, z + Math.sin(a1) * w * 0.5);
+          }
+        });
+        break;
+      }
       case 'weir': {
         // R-H16: a timber weir across the stream: a row of stakes with a plank wall between them, its top
         // a little over the water, and a white line of foam where the water spills over on the far side.

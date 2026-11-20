@@ -7,6 +7,7 @@ import '@/core/vocab';
 declare module '@/core/vocab' {
   interface RoleVocab {
     // houses (R-H16 …)
+    'schoolhouse': 'house'; //   R-H21: one house per town of 10+: a bell cupola and a yard to play in
     'bridge-shop': 'house'; //   R-H20: a house on a bridge or viaduct deck: a shop over the water
     'smithy': 'house'; //        R-H19: a one-storey house against a short tower: a forge
     'forge-chimney': 'tower'; // R-H19: the smithy's tower, a broad smoking chimney
@@ -31,6 +32,7 @@ declare module '@/core/vocab' {
     'loading-doors.storeys': number; // how many storeys the column climbs (default 2)
     'cap/belvedere': true; //    R-L02: an open belvedere on a folly tower (no lantern, no beam)
     'bridge-brackets': true; //  R-H20: timber struts under a bridge shop's wall where it overhangs the drop
+    'bell-cupola': true; //      R-H21: a little open bell turret on the ridge (cell = the roof cell)
     'forge-front': true; //      R-H19: an open forge front with a glowing hearth, on a ground-storey wall
     'mill-race': true; //        R-H16: the wheel's timber frame and bearing on the water side; owns 'wheel-hub'
   }
@@ -68,6 +70,7 @@ declare module '@/core/vocab' {
     'structure-prop.edge': number; //    lychgate: 1 when the opening is on the cell's edge (+Z side), 0 in the cell
     'structure-prop/anvil': true; //     smithy: an anvil on its block and a quench barrel, outside the forge
     'structure-prop/hitching': true; //  smithy: a hitching rail with a water trough
+    'structure-prop/hopscotch': true; // schoolhouse: a hopscotch court chalked on the yard
     'structure-prop/crates': true; //    warehouse: crates and a barrel by the loading door
     'structure-prop/weir': true; //      watermill: a timber weir across the stream, from the bank (+Z) out
     'structure-prop.span': number; //    weir: how many water cells it crosses (default 2)

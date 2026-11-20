@@ -120,6 +120,8 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         return null; // drawn by this file
       case 'chimney':
         return chimneyFrame(h, f);
+      case 'bell-cupola':
+        return finialFrame(h, f);
       case 'finial':
         return finialFrame(h, f);
       case 'dormer':
