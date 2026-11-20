@@ -441,7 +441,10 @@ when two rules want the same slot, unless a rule says otherwise.
 
 - **D01 · 1 · Street lamps** — a street of length ≥ 4 gets a lamp at each
   dead end and junction, then every 4th cell, alternating sides, on the edge
-  slot away from doors. New lamps arrive by F05.
+  slot away from doors. New lamps arrive by F05. Only in town: a street cell
+  with no building, square, stall or fountain within 3 (and no dock or arch
+  within 2) is country and stays dark (U13 dresses it; discovery round 1,
+  FX-04).
 - **D02 · 1 · Square lamps** — at the corners of a square; a square containing
   5 × 5 with no fountain gets a four-arm lamp at the centre.
 - **D03 · 2 · Benches** — one per 4 edge cells of a plaza, facing in; at a
@@ -461,7 +464,10 @@ when two rules want the same slot, unless a rule says otherwise.
 - **D08 · 2 · Café tables** — a café-type shop (R-H07) with 2+ free floor
   cells in front → up to 4 tables with parasols on those cells.
 - **D26 · 3 · Fingerpost** — a junction with 3+ branches, p=0.5 → signpost
-  with pictogram arms.
+  with pictogram arms. A junction is a place the street leaves in 3+
+  directions that stay apart for 3 cells (a two-wide street is no row of
+  junctions); none within 1 of a plaza; no two posts within 8 (discovery
+  round 1, FX-03).
 - **D27 · 3 · Post** — a house facing a street p=0.3 → mailbox; one postbox
   per street of length ≥ 10.
 - **D33 · 3 · Hand pump** — total street length ≥ 8 and no fountain in town
@@ -525,6 +531,28 @@ when two rules want the same slot, unless a rule says otherwise.
   park.
 - **D34 · 3 · Lost kite** — one kite snagged in the tallest tree, p=0.1 per
   town (town-wide).
+
+Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
+
+- **D35 · 3 · Guardians at the head of the stair** (DC-03) — a flight of grand
+  steps 3+ wide → a pair of stone lions or urns (seeded per flight) on the
+  landing above its two outer top steps, looking down it; a pair of tall
+  lamps on the ground before its two outer bottom steps. Outer corner slots
+  only (the stair's walking line stays clear); none for narrower flights.
+- **D36 · 3 · Wayside shrine** (DC-01) — a street junction (3+ ways out) on
+  the ground with no building, square, green, stall or fountain within 4 →
+  on a free corner of the junction cell, a stone calvary on three stepped
+  stones or a roofed niche on a post (seeded), with fresh flowers, on a
+  corner D26's fingerpost left free (both stand at one crossroads).
+- **D37 · 3 · Market cross** (RC-12) — a plinth (R-M06) with 2+ stalls within
+  3 and no fountain within 2 (the `marketCrosses` fact; D19 leaves these
+  plinths alone) → a market cross: two octagonal steps, a tall shaft, a
+  cross head with a gilt ball ('activity'/'vend' on the ground in front).
+- **D38 · 3 · Rope swing** (DC-06) — a willow on the ground with river water
+  beside it (open water with a bank across within 3), p = 0.4 → a rope swing
+  from a long bough out over the water, its seat just above the water (a
+  'seat' socket). Not by the sea; never a second swing on a tree (shares
+  D32's claim).
 
 ---
 
@@ -945,6 +973,86 @@ street cell.
 - **U12 · 2 · Centre and edge** — houses within 4 cells of a square get a
   stone ground storey and richer trim; houses more than 10 cells from any
   floor get rustic variants (thatch, timber, rough stone).
+
+Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
+
+- **U13 · 2 · Country lanes** (UF-04) — a run of 4+ street cells with no
+  building, square, stall or fountain within 3 → no lamps (D01); a hedgerow
+  down one side on the grass verge (a seeded hand for the whole town), a
+  field gate in a long hedge and in any gap left in a fence along the lane,
+  a milestone every 8th cell on the other side. Not on a verge with another
+  use, against a placed fence, or where people walk across.
+- **U14 · 2 · Burgage plots** (UF-01) — more than 6 cells of grass shut in by
+  placed fences or walls and the backs (no main door) of 2+ houses on one
+  side → one long garden per house: a low picket fence out from each party
+  line to the far fence; from the house out a bench in the sun (gardens
+  facing south), vegetable patches, a washing pole, a shed or compost heap,
+  and a fruit tree at the far end. Before U02 (with 3+ trees it stays a park;
+  with no house against it, a paddock); smaller patches stay U04 back yards.
+- **U15 · 2 · Village green** (UF-02) — bare grass with no other use, looked
+  across from opposite sides by the ground storeys of 2+ houses (each house
+  looks 8 cells out across three columns; trees do not block the view),
+  trimmed to open space (cells in some 3 × 3), 9–100 cells, 4+ houses in all,
+  touching a street, no square within 4 → a mown sward a shade lighter than
+  the meadow (no outline), a maypole near the middle clear of trees
+  ('activity'/'dance'), a ring bench round each tree on or beside it (four
+  seats), a village sign by the street. Not a single row's frontage, a gap
+  between houses, a square's lawn, or any ground with another use.
+- **U16 · 2 · Shops in the wall** (UF-03) — a run of 3+ blank (no door,
+  window, arrow slit or other feature) ground-storey cells of one marble
+  wall, 2+ storeys tall there, with standable ground at its foot, looking
+  out on a street, plaza or ground within 2; not a keep, gatehouse, quay
+  wall, temple or plinth → every second cell (a map lattice): facing a
+  street or plaza within 2, an arched booth with goods and a lantern under
+  its canopy ('activity'/'vend', 'browse'), once in a run of 4+ a wall
+  fountain ('activity'/'fetch-water'), and the grass strip in front paved;
+  facing ground, a storeroom door, a niche bench or two-storey ivy. Props
+  against the wall (the generator cannot recess it).
+- **U17 · 2 · Drying green** (UF-12) — a leftover of more than 6 and up to 20
+  cells, unfenced, touching no street or square, shut in by the backs of 3+
+  houses (not a courtyard: D17 takes buildings-only patches up to 16 that
+  are 2+ across both ways) → 2–3 washing lines on posts, each two cells
+  long and a cell apart ('activity'/'hang-washing'), a basket of washing
+  ('activity'/'basket'), one or two sheets bleaching on the grass.
+- **U18 · 2 · Orchard** (RC-04) — 6+ trees on the ground on grass or garden
+  (not plaza or sand), each 2 from another along x or z and none right
+  beside another, holding a full 2 × 2 of the lattice (the `orchards` fact,
+  base-only) → the grass between the rows mown (sward), a ladder into one
+  tree in four ('activity'/'pick'), a basket of apples under another one in
+  four ('activity'/'basket'), two beehives on the south edge. Not a grove,
+  a single row, or planter trees. The trees become fruit trees once R-P01
+  reads the fact.
+- **U19 · 2 · Forecourt at the foot of grand steps** (UF-10) — the cells a
+  flight of grand steps descends onto, its full width and 2 deep, where bare
+  ground (no water, block, floor or other use, at the stair's foot level) →
+  stone paving; where a path or plaza lies straight ahead within 4, the
+  paving runs on to meet it.
+- **U20 · 2 · Quay apron** (UF-09) — a straight run of bare ground (grass or
+  sand, no block, floor or other use) of up to 4 cells from a street to a
+  quay (R-D01) or quay wall (R-M05) → cobbled flush with the street; on its
+  water side a net rack or a stack of barrels or crates now and then. Not a
+  beach with no quay, not a pier's or jetty's foot.
+- **U21 · 2 · Castle bailey** (UF-05) — a leftover of 4+ cells shut in by 2+
+  of a castle's parts (keep, gatehouse, curtain wall, castle turret), one of
+  them a keep or gatehouse, no water on its bounds (before fields, so a
+  curtain-walled yard is never a walled garden) → packed earth, a well near
+  the middle ('activity'/'fetch-water'), a lean-to stable with a horse
+  looking out against the curtain wall, hay, a practice dummy and an
+  archery butt. (Garrison drill and stabling the rider's horse here are the
+  life builder's.)
+- **U22 · 2 · Ford and stepping stones** (UF-08) — two path dead ends on the
+  ground facing each other straight across 1–2 cells of open water, no arch
+  within 2 (the `fords` fact) → three stepping stones across each water
+  cell, with a ripple ring round each; D03 puts no view bench at a ford's
+  ends. 'activity'/'ford' and 'ford-far' sockets at the two ends for the
+  walking graph (a link there is the life builder's).
+- **U23 · 2 · Belvedere garden** (UF-11) — a marble terrace (R-M07) with 9+
+  standable top cells, its top 2+ levels above the ground at its foot, and
+  no floor or piece on top → citrus trees in pots on a grid of its inner
+  cells and in a row along the parapet, a pergola with a table at its middle
+  (two seats), stone benches looking out from the middle of each edge. The
+  walkable stair up to it is not built (a walking-graph link: the life
+  builder's).
 
 ---
 

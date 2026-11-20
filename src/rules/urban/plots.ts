@@ -63,6 +63,11 @@ export interface Placed {
   claim?: boolean;
   /** Seat sockets to declare on it (benches). */
   seats?: number;
+  /**
+   * Activity sockets to declare on it (docs/swarm/requests/disc1-fill.md): each name is both the
+   * socket's `name` (what a person does there) and the anchor the prop's part supplies its frame by.
+   */
+  activities?: readonly string[];
 }
 
 export function claimsOf(items: readonly Placed[]): Slot[] {
@@ -75,6 +80,7 @@ export function emit(out: RuleOut, items: readonly Placed[]): void {
     // The list is built from typed literals in each rule; here it is emitted as loose records.
     const id = (out.prop as (p: object) => string)({ type: i.type, variant: i.variant, at, params: i.params });
     for (let s = 0; s < (i.seats ?? 0); s++) out.socket({ type: 'seat', owner: id, name: `seat-${s}`, cell: i.cell, dir: i.face });
+    for (const name of i.activities ?? []) out.socket({ type: 'activity', owner: id, name, cell: i.cell, dir: i.face });
   }
 }
 

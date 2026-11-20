@@ -4,6 +4,9 @@
 // junction and each dead end, then one every `lampEvery` cells along the
 // rest, on alternating sides, on the edge of the path and away from doors.
 // Only on the ground: a path over a bridge or along a pier is lit by D20.
+// Only in town: a street cell with no building, square, stall or fountain
+// within a few cells (the countryside fact) stays dark; U13 gives the lane
+// hedgerows and milestones instead.
 //
 // Stability. Lamps along a street are NOT counted from one of its ends (a
 // street grown by one cell would then shuffle every lamp on it). They stand
@@ -11,7 +14,7 @@
 // 0, so a lamp depends only on the few path cells round it: extending the
 // street, or building anywhere else, never moves it.
 //
-// Reads: streets, clearways (doors, stairs, awnings, retaining walls), townEdge.
+// Reads: streets, clearways (doors, stairs, awnings, retaining walls), townEdge, countryside.
 // Claims: the floor slot the lamp stands on, and one lamp per cell.
 
 import { keyX, keyZ, opposite, type CellKey, type Dir4 } from '@/core/grid';
@@ -21,6 +24,7 @@ import { streets, type Street } from '@/resolve/facts/streets.fact';
 import type { CellPos } from '@/resolve/plan';
 import { DRESSING } from '@/style/dressing';
 import { clearways, cornerPos, edgePos, type Clearways } from './clearways.fact';
+import { countryside } from '../urban/countryside.fact';
 import { townEdge } from '../urban/town-edge.fact';
 import { onGround } from './lib';
 import { streetEnds } from './street-ends.fact';
@@ -112,17 +116,20 @@ export default defineRule<{ pos: CellPos }>({
   part: 'decoration',
   tier: 1,
   priority: 990,
-  about: 'Reads: streets (junctions, dead ends, links), clearways. Claims: the floor slot of each lamp, one lamp per cell.',
+  about: 'Reads: streets (junctions, dead ends, links), clearways, countryside (no lamps out in the country). Claims: the floor slot of each lamp, one lamp per cell.',
   find({ facts }) {
     const clear = clearways(facts);
     const edge = townEdge(facts);
     const views = streetEnds(facts).views;
+    const country = countryside(facts);
     const out: Candidate<{ pos: CellPos }>[] = [];
     for (const street of streets(facts).list) {
       if (street.length < DRESSING.lampStreet) continue;
       for (const [cell, spot] of lampCells(street, clear)) {
         // Street lamps stand on the ground. A bridge has its own lamps (D20), a pier its harbour lamp.
         if (!onGround(facts, cell)) continue;
+        // Out in the country, with nothing built facing the street, a lane is not lit (U13 dresses it).
+        if (country.isCountry(cell)) continue;
         // One candidate per slot it could take, best first; the first whose slot is free wins the cell.
         // A slot out in the open beats one tucked under a house's eaves.
         // Where the street frays into a trail (U06) the lamp keeps to the side: the way ahead stays open.

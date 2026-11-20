@@ -57,7 +57,10 @@ export const goodsStack = definePart({
   },
 });
 
-/** Wall fountain: a stone back with a spout over a half-round basin. Frame: an edge slot against a wall, +Z out. */
+/**
+ * Wall fountain: a stone back with a spout over a half-round basin. Frame: an edge slot against a wall,
+ * +Z out. Anchor 'fetch-water': where someone stands to fill a pail, in front of the basin, facing it.
+ */
 export const wallFountain = definePart({
   prop: 'wall-fountain',
   build(_item, ctx) {
@@ -75,7 +78,7 @@ export const wallFountain = definePart({
     b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: 'spout' }, () => b.box([-0.025, 0.3, z0 + 0.07], [0.025, 0.34, z0 + 0.12]));
     b.with({ color: PALETTE.foam, pattern: PATTERN.foam, ink: 'spout' }, () => b.box([-0.01, 0.15, z0 + 0.1], [0.01, 0.3, z0 + 0.12], { skip: ['top', 'bottom'] }));
     void ctx;
-    return { mesh: b.build(), anchors: { 'water-surface': translation(0, 0.15, z0 + 0.14) } };
+    return { mesh: b.build(), anchors: { 'water-surface': translation(0, 0.15, z0 + 0.14), 'fetch-water': compose(translation(0, 0, z0 + 0.42), rotationY(Math.PI)) } };
   },
 });
 
@@ -178,7 +181,7 @@ export const vegPatch = definePart({
   },
 });
 
-/** Washing pole: two posts with a line of washing between them. Frame: a floor slot; the line runs along X. */
+/** Washing pole: two posts with a line of washing between them. Frame: a floor slot; the line runs along X. Anchor 'hang-washing': where someone stands to peg out. */
 export const washingPole = definePart({
   prop: 'washing-pole',
   build(item, ctx) {
@@ -200,7 +203,8 @@ export const washingPole = definePart({
         b.setSway(0);
       });
     }
-    return { mesh: b.build() };
+    // Where someone stands to peg out the washing: in front of the line, facing it.
+    return { mesh: b.build(), anchors: { 'hang-washing': compose(translation(0, 0, 0.17), rotationY(Math.PI)) } };
   },
 });
 

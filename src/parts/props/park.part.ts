@@ -5,14 +5,14 @@
 import { compose, rotationY, translation, type Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { SLOT_INSET } from '@/gen/frames';
-import { PATTERN } from '@/gen/mesh';
+import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 import { bush, dab, flowerColors, localTone, lump, mixColor, rngOf, roundedRect, tube, vary, TONE } from './kit';
 import type { Dir4 } from '@/core/grid';
 
 const LINE = -(0.5 - SLOT_INSET);
 /** Raw ink ids shared across pieces so a run reads as one surface. */
-const INK_HEDGE = 61010, INK_TRACK = 61011;
+const INK_HEDGE = 61010, INK_TRACK = 61011, INK_HEDGE_WILD = 61012;
 
 /**
  * Bench. 'wood': slatted seat and back on two cast-iron ends; 'stone': a
@@ -56,6 +56,7 @@ export const hedge = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const from = item.params?.from ?? 1, to = item.params?.to ?? 1;
+    if (item.variant === 'wild') return { mesh: hedgerow(b, item.params?.look ?? 0, ctx.seed, from, to, (item.params?.face ?? 2) as Dir4).build() };
     const h = 0.2, t = 0.085;
     const x0 = from === 1 ? -0.44 : -0.5, x1 = to === 1 ? 0.44 : 0.5;
     const piece = (a: number, c: number, ra: boolean, rc: boolean): void => {
@@ -72,6 +73,36 @@ export const hedge = definePart({
     return { mesh: b.build() };
   },
 });
+
+/**
+ * A country hedgerow along the cell line (U13): taller and shaggier than a
+ * clipped park hedge, a row of overlapping leafy masses on one shared ink id
+ * so a lane's hedge is outlined once along its length, with a few hawthorn
+ * or dog-rose flowers in it. Pieces meet at the cell line when an end runs on.
+ */
+function hedgerow(b: MeshBuilder, look: number, seed: number, from: number, to: number, face: Dir4): MeshBuilder {
+  const r = rngOf(seed ^ (look * 787));
+  const tone = localTone(face);
+  const x0 = from === 1 ? -0.4 : -0.5, x1 = to === 1 ? 0.4 : 0.5;
+  const base = vary(mixColor(PALETTE.bush, PALETTE.leafDark, 0.25), r('c'), 0.6);
+  const n = 4;
+  b.setInkId(INK_HEDGE_WILD).setPattern(PATTERN.leaves).setSway(0.12);
+  for (let i = 0; i < n; i++) {
+    const x = x0 + ((i + 0.5) / n) * (x1 - x0) + (r('x', i) - 0.5) * 0.04;
+    const h = 0.34 + r('h', i) * 0.08, rx = ((x1 - x0) / n) * 0.78, rz = 0.11 + r('z', i) * 0.02;
+    b.with({ color: base }, () => lump(b, x, h * 0.48, LINE, rx, h * 0.52, rz, { seg: 7, rings: 4, normal: tone.lit, twist: i }));
+    b.with({ color: mixColor(base, PALETTE.leafDark, 0.4) }, () => lump(b, x + 0.03, h * 0.38, LINE - 0.045, rx * 0.8, h * 0.4, rz * 0.75, { seg: 7, rings: 3, normal: tone.shade, twist: i + 1 }));
+  }
+  const flower = r('fl') < 0.5 ? PALETTE.white : PALETTE.pink;
+  b.with({ color: flower, pattern: PATTERN.none, sway: 0.12 }, () => {
+    for (let i = 0; i < 3; i++) {
+      if (r('f', i) < 0.35) continue;
+      const x = x0 + r('fx', i) * (x1 - x0), y = 0.17 + r('fy', i) * 0.12;
+      dab(b, x, y, LINE + 0.12, 0.025, tone.lit, 5, 0.015);
+    }
+  });
+  return b;
+}
 
 /** Shrub: a rounded bush, 'flowering' with blossom. Frame: a floor slot, square to the world. */
 export const shrub = definePart({

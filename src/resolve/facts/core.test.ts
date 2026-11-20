@@ -163,6 +163,22 @@ describe('regions', () => {
     expect(all.totalLength).toBe(11);
   });
 
+  test('streets: a two-wide street is no row of junctions; where two wide streets meet is one', () => {
+    // A two-wide street x 6..30 at z 10..11, a two-wide street south from x 18..19, a two-cell spur north at x 25.
+    const f = facts((b) => b.path(6, 10, 30, 11).path(18, 12, 19, 20).path(25, 8, 25, 9));
+    const s = streets(f).byCell.get(k(6, 1, 10))!;
+    expect(s.junctions).toHaveLength(1);
+    const j = s.junctions[0]!;
+    expect([18, 19]).toContain(j & 63);
+    expect([10, 11]).toContain((j >> 6) & 63);
+    expect(s.branches.get(j)).toEqual([1, 2, 3]); // E, S, W
+    // A one-wide crossroads is still one junction, with four branches.
+    const g = facts((b) => b.path(10, 20, 20, 20).path(15, 15, 15, 19).path(15, 21, 15, 25));
+    const c = streets(g).byCell.get(k(10, 1, 20))!;
+    expect(c.junctions).toEqual([k(15, 1, 20)]);
+    expect(c.branches.get(k(15, 1, 20))).toEqual([0, 1, 2, 3]);
+  });
+
   test('plazas: a square contains a full 3 × 3', () => {
     const f = facts((b) => b.plaza(10, 10, 12, 12).plaza(20, 10, 21, 15));
     const [a, c] = plazas(f).list;

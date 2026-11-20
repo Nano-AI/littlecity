@@ -292,6 +292,7 @@ export const ladder = definePart({
         for (let y = 0.12; y < len - 0.04; y += 0.13) b.box([-0.09, y - 0.011, -0.01], [0.09, y + 0.011, 0.01], { skip: ['e', 'w'] });
       });
     });
-    return { mesh: b.build() };
+    // Where someone stands at its foot, facing the wall or tree it leans on (U18 orchard pickers).
+    return { mesh: b.build(), anchors: { pick: compose(translation(0, 0, foot + 0.14), rotationY(Math.PI)) } };
   },
 });
