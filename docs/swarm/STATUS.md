@@ -590,3 +590,14 @@ laundry, a dog, the watchman breaking up scuffles, the fill builder's
 sockets, temporary stalls on the walking graph.
 Running: disc1-structures, disc1-fill, mischief (preview), landshaping,
 ships fixes, living-town pass 2.
+
+**Boat fixes merged** (`a7b149d`): no two floating things overlap (test
+`src/life/ships/afloat.test.ts` over six towns, five minutes each); the
+barge treats arches at the water and decks one storey up as blocked, stays
+inside river water (river material, or water ≤ 3 wide for ≥ 6), poles back
+without turning; rowboats get waiting places clear of berths and lanes.
+Full check clean: 1,783 tests. Published. Side effect: grown-town-4 and -7
+get no barge (low bridges cut their river docks off). Only the rowboat cap
+scales with free water so far.
+Running: disc1-structures, disc1-fill, living-town pass 2, mischief
+(preview), landshaping.
