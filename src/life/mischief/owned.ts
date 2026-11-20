@@ -19,8 +19,21 @@ export interface Owned {
   releaseAll(): void;
 }
 
+/** Per real stage, every owned set still holding handles (for the debug handle and tests: what mischief has drawn). */
+const byStage = new WeakMap<LifeStage, Set<Set<InstanceHandle>>>();
+
+/** How many handles the mischief systems on this stage have drawn and not given back. */
+export function mischiefDrawn(stage: LifeStage): number {
+  let n = 0;
+  for (const s of byStage.get(stage) ?? []) n += s.size;
+  return n;
+}
+
 export function ownStage(real: LifeStage): Owned {
   const live = new Set<InstanceHandle>();
+  let sets = byStage.get(real);
+  if (!sets) byStage.set(real, (sets = new Set()));
+  sets.add(live);
   const track = (h: InstanceHandle): InstanceHandle => {
     const w: InstanceHandle = {
       get base() {
@@ -54,6 +67,7 @@ export function ownStage(real: LifeStage): Owned {
     },
     releaseAll() {
       for (const h of [...live]) h.release();
+      sets.delete(live);
     },
   };
 }

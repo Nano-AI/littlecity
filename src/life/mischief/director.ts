@@ -34,6 +34,7 @@ import type { LifeStage } from '../api';
 import type { Brigade, PumpCart } from './response';
 import { createMischiefEngine, type BlastEvent, type Env, type Hit, type MischiefEngine } from './engine';
 import { NUKE_TIME, waveRadius } from './nuke-timing';
+import { mischiefDrawn } from './owned';
 
 /** Seconds between the batches of hits a shockwave does on its way out. */
 const WAVE_BATCH = 0.2;
@@ -75,6 +76,8 @@ export type MischiefEvent =
 
 export class Director {
   readonly engine: MischiefEngine;
+  /** The stage it was made for (by mischiefOf). */
+  stage: LifeStage | null = null;
   private host: MischiefHost | null = null;
   private shape: ShapePlan | null = null;
   private act = false;
@@ -366,6 +369,11 @@ export class Director {
     }
   }
 
+  /** How many things the mischief systems have drawn and not given back (the debug handle, browser tests). */
+  drawn(): number {
+    return this.stage ? mischiefDrawn(this.stage) : 0;
+  }
+
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
     this.emit({ type: 'reset' });
@@ -389,6 +397,9 @@ const byStage = new WeakMap<LifeStage, Director>();
 /** The director of a stage (made on first use). */
 export function mischiefOf(stage: LifeStage, seed = 0x6d15c): Director {
   let d = byStage.get(stage);
-  if (!d) byStage.set(stage, (d = new Director(seed)));
+  if (!d) {
+    byStage.set(stage, (d = new Director(seed)));
+    d.stage = stage;
+  }
   return d;
 }
