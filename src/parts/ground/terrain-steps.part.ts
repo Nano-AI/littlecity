@@ -54,7 +54,8 @@ export default definePart({
     b.with({ color: PALETTE.stoneShade, pattern: PATTERN.stone, ink: 'cheeks' }, () => {
       for (const side of [-1, 1]) {
         const x0 = side < 0 ? -half - 0.1 : half, x1 = side < 0 ? -half : half + 0.1;
-        b.box([x0, 0, -RUN * 0.5], [x1, CELL_H + 0.05 + k, LAP], { skip: ['bottom'] });
+        // 0.054 over the upper level: a retaining wall's coping beside it stands 0.05.
+        b.box([x0, 0, -RUN * 0.5], [x1, CELL_H + 0.054 + k, LAP], { skip: ['bottom'] });
         b.box([x0, 0, -RUN - 0.03], [x1, CELL_H * 0.5 + 0.04 + k, -RUN * 0.5], { skip: ['bottom', 's'] });
       }
     });

@@ -5,11 +5,12 @@
 // the face it sits on, leave a hidden face out, or trim one of two solids). This holds the towns to
 // that: a new piece that lays a face on another's shows up here, with a place to look.
 //
-// Same scan as `node src/render/testing/coplanar.mjs <scenario> --pairs` (structures and layers;
-// props and actors are placed by slot matrices and are not scanned).
+// Same scan as `node src/render/testing/coplanar.mjs <scenario> --props=1 --pairs`: structures, layers
+// and every prop where the layout puts it. (Actors are left out: at rest the people waiting at a door
+// stand in one another, which life never shows.)
 
 import { describe, expect, test } from 'vitest';
-import { resolveShape } from '@/resolve/index';
+import { resolveDressing, resolveShape } from '@/resolve/index';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { coplanarPairs, kindOf, type CoplanarPair } from './coplanar-scan';
@@ -22,55 +23,69 @@ import { coplanarPairs, kindOf, type CoplanarPair } from './coplanar-scan';
 const MIN_SHARED = 5e-4;
 
 /**
- * What may remain, by scenario and by the kinds of the two sides, with the most pairs allowed. Each is
- * something a generator cannot fix from what it may read (the structure hash), or another owner's rule.
+ * What may remain in any one town, by the kinds of the two sides, with the most pairs allowed. Each is
+ * something a generator or part cannot fix from what it may read, or a small known clash between two
+ * owners' pieces, written down here so it does not grow.
  */
-const ALLOWED: Record<string, Record<string, number>> = {
-  // Two houses touching corner to corner, both with a J24 foundation round that corner: each ledge
-  // reaches 0.035 past its cell's corner, so the two mitred ends lie on one diagonal. Neither house
-  // can see the other (a diagonal neighbour is not in its hash).
-  'grown-town-3': { 'house / house': 2 },
-  // TEMPORARY (orchestrator, at the merge): the town generator's third pass changed these towns after
-  // this test was written. Two dock structures meeting at a corner overlap their deck edges, a bridge's
-  // arches meet a dock deck at the same lifted height, and marble meets marble and an arch body. The cleanup owner is fixing both at the source; remove these lines
-  // when that lands.
-  'grown-town-1': { 'dock / dock': 2, 'arch / dock': 4 },
-  'grown-town-2': { 'arch / marble': 1, 'marble / marble': 1 },
-  'monuments-vertical': {
-    // R-H04 (rules, Houses) makes a house stacked on a stilt house a stilt house too, and gives it a
-    // ladder down the same wall as the one below: two ladders in one place. A rule fix, not a mesh one.
-    'house / house': 34,
-    // A marble block's cornice stops, end on, in the face of an arch that runs into its side. The
-    // marble generator cannot tell a full arch (which buries the cornice) from a buttress rib (which
-    // leaves it showing either side), so it keeps the cornice.
-    'arch / marble': 1,
-  },
+const ALLOWED: Record<string, number> = {
+  // Two docks touching corner to corner: their deck overhangs meet in the open cell's corner, 0.035 each
+  // way. Neither dock can see the other (a diagonal neighbour is not in its hash).
+  'dock / dock': 1,
+  // A marble block's cornice stops, end on, in the face of an arch that runs into its side (or a base
+  // course where an arch's pier meets it). The marble generator cannot tell a full arch (which buries
+  // it) from a buttress rib (which leaves it showing), so it keeps the cornice.
+  'arch / marble': 2,
+  // A balustrade edge run (J19) ends in a post at a stair's head, where the stair draws its own
+  // balustrade post: two posts in one place. Neither structure sees the other's edge pieces.
+  'fence / stairs': 6,
+  // Props against other owners' pieces, small (under 0.04 square units each), each a clash of positions
+  // two rules choose apart: a laundry line's wall brackets in the plane of a window frame (D05 does not
+  // know where the windows are); a retaining wall's end pier (U07) in the plane of a fence post, a
+  // path's gate post or a house's board on the same cell line; a pocket park's hedge (U01) against a
+  // plaza's edge; a woodpile's logs on a window sill; a street lamp's foot on a path's dirt patch; two
+  // crates of a dock's goods stack (D15) level with each other.
+  'house / prop laundry-line': 14,
+  'house / prop retaining-wall': 1,
+  'path / prop retaining-wall': 3,
+  'fence / prop retaining-wall': 1,
+  'plaza / prop hedge': 1,
+  'house / prop woodpile': 1,
+  'path / prop lamp': 1,
+  'prop goods-stack / prop goods-stack': 2,
+  // A front garden's corner post (U03) where a placed fence run (an edge piece) or a retaining wall's
+  // pier ends at the same grid corner: two posts in one place. Known, not yet fixed: U03 would need the
+  // edge pieces' post positions.
+  'fence / prop garden-fence': 6,
+  'prop garden-fence / prop retaining-wall': 2,
 };
 
-const SCENARIOS = ['everything', 'grown-town-1', 'grown-town-2', 'grown-town-3', 'dressing-town', 'people-town', 'monuments-vertical', 'village-green-and-harbour'];
+const SCENARIOS = [
+  'everything', 'grown-town-1', 'grown-town-2', 'grown-town-3', 'grown-town-4', 'grown-town-5', 'grown-town-6', 'grown-town-7',
+  'dressing-town', 'people-town', 'monuments-vertical', 'village-green-and-harbour', 'look-terrain2-river-town',
+];
 
 const where = (p: CoplanarPair): string => `${p.a} / ${p.b} at ${p.at.map((v) => v.toFixed(2)).join(', ')} (shares ${p.shared.toFixed(4)})`;
 
 describe('no faces lie on each other in the dense towns (coplanar overlaps with different ink ids)', () => {
   for (const name of SCENARIOS) {
-    test(name, { timeout: 180_000 }, () => {
+    test(name, { timeout: 300_000 }, () => {
       const scn = findScenario(name);
       expect(scn, name).toBeDefined();
       const built = buildScenario(scn!);
-      const shape = resolveShape(built.world, built.terrain, scenarioResolveOptions(scn!));
-      const pairs = coplanarPairs(shape).filter((p) => p.shared >= MIN_SHARED);
+      const opts = scenarioResolveOptions(scn!);
+      const shape = resolveShape(built.world, built.terrain, opts);
+      const pairs = coplanarPairs(shape, resolveDressing(shape, opts)).filter((p) => p.shared >= MIN_SHARED);
       const byKinds = new Map<string, CoplanarPair[]>();
       for (const p of pairs) {
         const label = [kindOf(p.a), kindOf(p.b)].sort().join(' / ');
         byKinds.set(label, [...(byKinds.get(label) ?? []), p]);
       }
-      const allowed = ALLOWED[name] ?? {};
       const over: string[] = [];
       for (const [label, list] of byKinds) {
-        const max = allowed[label] ?? 0;
+        const max = ALLOWED[label] ?? 0;
         if (list.length > max) over.push(`${label}: ${list.length} pairs (allowed ${max}), e.g. ${list.slice(0, 3).map(where).join('; ')}`);
       }
-      expect(over, `faces lying on each other in ${name} (run node src/render/testing/coplanar.mjs ${name} --pairs)`).toEqual([]);
+      expect(over, `faces lying on each other in ${name} (run node src/render/testing/coplanar.mjs ${name} --min 0.0005 --props=1 --pairs)`).toEqual([]);
     });
   }
 });

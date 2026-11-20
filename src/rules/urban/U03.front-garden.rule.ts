@@ -12,7 +12,7 @@
 // Reads: landUse.frontGardens. Claims: every floor slot of the garden cell
 // except its centre (the walk).
 
-import { opposite, type Dir4 } from '@/core/grid';
+import { neighbor, opposite, type Dir4 } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule, slot } from '@/resolve/engine/api';
 import type { CellPos } from '@/resolve/plan';
@@ -34,8 +34,11 @@ export default defineRule<FrontGarden>({
     const cell = g.cell;
     const look = Math.floor(ctx.rand('look') * 1000);
     const minus = ((g.dir + 3) % 4) as Dir4, plus = ((g.dir + 1) % 4) as Dir4;
-    // The street fence, with its gate. It draws the corner posts.
-    out.prop({ type: 'garden-fence', variant: 'gate', at: { cell, pos: edgePos(g.dir), face: opposite(g.dir) }, params: { from: 1, to: 1, look } });
+    // The street fence, with its gate. It draws the corner posts, but where the next garden along the
+    // street (its +X end, a quarter turn on from its side) has a fence on the same line, that garden's
+    // post stands there already: two would stand in one another.
+    const next = landUse(ctx.facts).frontGardens.some((o) => o.cell === neighbor(cell, plus) && o.dir === g.dir);
+    out.prop({ type: 'garden-fence', variant: 'gate', at: { cell, pos: edgePos(g.dir), face: opposite(g.dir) }, params: { from: 1, to: next ? 0 : 1, look } });
     // The flanks: from the street corner (no post: the street fence drew it) back into the house wall.
     // A flank piece's own +X is a quarter turn on from its side, so the street end is its −X end on
     // the +X flank and its +X end on the −X flank.
