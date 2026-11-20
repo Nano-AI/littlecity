@@ -1128,3 +1128,23 @@ life-under-fire is in `src/life`), lightning on sails, hull chunks cut
 from the hull, swimmers climbing out, the stilt fall at night, galleon
 stays dangling.
 Running: life-under-fire.
+
+**Life under fire merged** (`c38b986`, Opus). Derek's bird loops: a
+burning building reports itself to nearby birds every 0.4 s, each report
+counted as a new fright, each fright added height in one frame (swifts:
+1,002 teleports in 60 s in the real app, now 0). Not the shared life
+runtime (actors are not recreated as ruin stages tick). Fixed in the
+birds' shared helpers (`scare.ts`, `town.ts`, `flight.ts`): one startle
+per fright, drift instead of jump when the town changes, no perching on
+wrecks, storks/owls/doves/crow/ducks fly off and back instead of
+blinking out. Cats and sparrows are placed by each place's own hash
+(the crater used to move 6 cats and 11 sparrows); the garrison is kept
+while its route is unchanged (was rebuilt 355 times, 17,395 pieces);
+dogs run in at a door; a resident's hop is capped at 2.5 cells. Stress
+harness `tests/helpers/turmoil.ts`, gate test
+`src/life/under-fire.test.ts` (14 problems on the old code). Gate: 2,161
+passed, 9 skipped, clean. Not fixed (agent's list): a fire reaching a
+house mid-mend makes its lights, cat and signs pop on for about 10 s
+(belongs to mischief/world: `ruinUninhabitable`); residents' heading
+twitches about 58 times a minute with or without a nuke; a cat or dog
+with no door in reach runs 6 cells and disappears.
