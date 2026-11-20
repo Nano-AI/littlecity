@@ -116,7 +116,7 @@ describe('share codec', () => {
     const good = encodeTown(sampleTown());
     const bad = [
       '', '   ', 'not a town', '%%%', 'e30', 'TEM', 'TEMC', good.slice(0, 20), good.slice(0, -3), good + 'AAAA',
-      good.slice(0, 12) + 'x' + good.slice(13), 'TEMD' + good.slice(4), // other version byte
+      good.slice(0, 12) + 'x' + good.slice(13), 'TEMJ' + good.slice(4), // version 9, nobody's
       toBase64Url(Uint8Array.from([0x4c, 0x43, 1, 0, 0, 0, 0, 3, 0])),
       undefined as unknown as string, 42 as unknown as string,
     ];
@@ -125,7 +125,7 @@ describe('share codec', () => {
       expect(r.ok, String(code)).toBe(false);
       expect(!r.ok && r.reason).toMatch(/\.$/);
     }
-    expect(decodeTown('TEMD' + good.slice(4))).toEqual({ ok: false, reason: 'This town was made by a different version of Little City.' });
+    expect(decodeTown('TEMJ' + good.slice(4))).toEqual({ ok: false, reason: 'This town was made by a different version of Little City.' });
     // Every truncation and every single-character corruption is refused or decodes to a valid town.
     for (let n = 0; n < good.length; n++) expect(decodeTown(good.slice(0, n)).ok).toBe(false);
     for (let i = 0; i < good.length; i += 3) {

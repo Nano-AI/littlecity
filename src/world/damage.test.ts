@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest';
 import { key } from '@/core/grid';
 import { flatTerrain, TownBuilder } from '@/scenario';
-import { codecVersion, decodeTown, encodeTown } from './save';
+import { deflatedVersion, encodeDeflated, encodeRanged, decodeTown, encodeTown } from './save';
 import { isRuin, packRuin, ruinName, savedRuin, unpackRuin } from './damage';
 import { applyEdit, canApply, emptyWorld, type World } from './world';
 
@@ -56,9 +56,9 @@ describe('setRuin and repair', () => {
 });
 
 describe('the share codec', () => {
-  test('a town with no ruins is written exactly as before (version 1–3)', () => {
+  test('a mended town leaves no trace in the save (in the deflated form it needs only version 1)', () => {
     const w = town();
-    expect(codecVersion(w)).toBe(1);
+    expect(deflatedVersion(w)).toBe(1);
     const hurt = applyEdit(w, terrain, { type: 'setRuin', cell: key(10, 1, 10), ruin: packRuin({ stage: 1, cause: 'fire' }) });
     const back = applyEdit(hurt, terrain, { type: 'repair', cell: key(10, 1, 10) });
     expect(encodeTown(back)).toBe(encodeTown(w));
@@ -69,9 +69,12 @@ describe('the share codec', () => {
     w = applyEdit(w, terrain, { type: 'setRuin', cell: key(10, 1, 10), ruin: packRuin({ stage: 3, cause: 'blast', settling: true }) });
     w = applyEdit(w, terrain, { type: 'setRuin', cell: key(10, 2, 10), ruin: packRuin({ stage: 2, cause: 'fire', mending: true }) });
     w = applyEdit(w, terrain, { type: 'setRuin', cell: key(14, 1, 10), ruin: packRuin({ stage: 1, cause: 'fire' }) });
-    expect(codecVersion(w)).toBe(4);
+    expect(deflatedVersion(w)).toBe(4);
+    // Either format may be written (the shorter); both must hold the town.
+    expect(encodeDeflated(w).startsWith('TEME')).toBe(true);
+    expect(decodeTown(encodeDeflated(w))).toEqual(decodeTown(encodeTown(w)));
+    expect(decodeTown(encodeRanged(w))).toEqual(decodeTown(encodeDeflated(w)));
     const code = encodeTown(w);
-    expect(code.startsWith('TEME')).toBe(true);
     const r = decodeTown(code);
     expect(r.ok).toBe(true);
     if (!r.ok) return;

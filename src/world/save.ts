@@ -1,6 +1,44 @@
 // Share codec, autosave and the town file (design section 15). Owner: Logic.
 //
-// The share code is the town packed to binary, deflated and base64url'd:
+// A share code is base64url of "LC", a version byte, then the town. There are
+// two forms. encodeTown writes whichever is shorter for the town (a tie goes
+// to version 5); the link, the town file and the autosave all use it, and
+// decodeTown reads every version.
+//
+// ── Version 5 (2026-11-20, short links): the town range-coded ──
+//
+//   "LC" 5 | checksum (u32 LE, FNV-1a of everything after it) | seed (i32 LE)
+//   | body: one adaptive binary range-coded stream (rangecoder.ts), laid out
+//     and modelled in codec5.ts:
+//       generator bit | blocks: count, then per block in seq order: seq gap;
+//         where it is (on the block after the one under the last block? the
+//         step that followed this step last time? the same step again? else
+//         dy, dx, dz); kind (by the kind below or the last kind); colour (by
+//         the colour below, or the last); rot (stairs); styled bit, style
+//       | nextSeq − last seq − 1
+//       | floors: every column of the map, row by row: has a floor (by its
+//         neighbours west, north, north-west, north-east); per floor, lowest
+//         first: kind (by the kinds west and north), level (from a
+//         neighbour's), another floor above it?
+//       | edges: count, then key gap and kind (by the last kind)
+//       | sections: flags, then per set bit, lowest first, the section coded
+//         in place: bit 0 the reshaped land (every column: edited? height,
+//         from a neighbour's); bit 1 damaged blocks (every block: damaged?
+//         the same damage as the last? damage). Bit 2 is promised to the
+//         island size. A bit this code does not know is "a different version".
+//
+//   Grown towns come out about 40% shorter than the old encoder made them.
+//   The checksum is what refuses a damaged code: a range decoder reads any
+//   bytes as some bits, so every value is also checked as it is read.
+//
+// ── Versions 1 to 4: the town packed to bytes and deflated ──
+//
+// Until 2026-11-20 every town was written this way; it is still written when
+// it is the shorter (a town of exact machine-made repeats, like the
+// benchmark's, where deflate's long matches win). Since 2026-11-20 the
+// deflate encoder parses optimally with dynamic Huffman codes (deflate.ts),
+// so the same payload deflates about 24% smaller than before; old decoders
+// read either. legacy-codec.ts keeps the old encoder, frozen, for the tests.
 //
 //   "LC" version | checksum (u32 LE, of the payload) | deflate(payload)
 //   payload = seed (i32 LE) | nextSeq (varint)
@@ -12,15 +50,14 @@
 //           | edges:  count, then key delta (varint), kind (byte)
 //
 // Version 2 (2026-11-19, house styles) differs from version 1 only in the
-// styled bit and the style byte after it. A town with no styled block is
-// still written as version 1, byte for byte as before, so links made before
-// styles and links to unstyled towns are the same; the decoder reads both.
+// styled bit and the style byte after it. In this form a town with no styled
+// block is still written as version 1; the decoder reads both.
 //
 // Version 3 (2026-11-19, the second island generator) is version 2 with one
 // byte after the seed: the generator that made the island (World.terrainGen,
-// 1 or 2). Only a town on generator 2 is written as version 3; a town on
-// generator 1 is written exactly as before (version 1 or 2), so every old
-// link and file still opens on the island it was built on.
+// 1 or 2). Only a town on generator 2 needs version 3; a code without the
+// byte is generator 1, so every old link and file still opens on the island
+// it was built on.
 //
 // Version 4 (2026-11-19, shaping the land) is version 3 (generator byte
 // included) followed by optional sections after the edges:
@@ -37,18 +74,19 @@
 //
 // Each section is self-contained and length-prefixed, so another optional
 // section can take the next bit beside this one without touching it. A town
-// with no section to write is written as before (version 1, 2 or 3), byte for
-// byte; a flag bit this code does not know is "a different version".
+// with no section to write is written as version 1, 2 or 3 (the lowest that
+// holds it); a flag bit this code does not know is "a different version".
 //
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
 // and the autosaver report storage trouble instead of failing (Focus 5).
 
 import { inBounds, key, keyX, keyY, keyZ, NO_CELL, edgeCells, type CellKey, type EdgeKey } from '@/core/grid';
-import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
+import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind } from '@/core/kinds';
 import type { Block, Rot, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
 import { LAND_MAX, landEditable } from '@/terrain/land';
+import { Bad, decodeBody, encodeBody, PLACED, SECTION_LAND, SECTION_RUINS } from './codec5';
 import { isRuin, savedRuin } from './damage';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
@@ -64,15 +102,10 @@ const VERSION_2 = 2;
 const VERSION_3 = 3;
 /** Version 3 plus optional sections after the edges (the reshaped land). */
 const VERSION_4 = 4;
-/** Section flags of version 4. Take the next free bit for a new section. */
-const SECTION_LAND = 1 << 0;
-const SECTION_RUINS = 1 << 1;
+/** Everything range-coded under learned contexts (codec5.ts). */
+const VERSION_5 = 5;
+/** Section flags (versions 4 and 5) and the kind codes are codec5.ts's: one list for every version. */
 const KNOWN_SECTIONS = SECTION_LAND | SECTION_RUINS;
-/** Kind codes in the share format. Append only: the order is part of the format. */
-const PLACED: readonly PlacedKind[] = [
-  'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
-  'stairs', 'windmill', 'tree', 'fountain', 'stall', 'fence', 'wall',
-];
 
 const NOT_A_TOWN = 'This is not a Little City town.';
 const DAMAGED = 'This town link is damaged or incomplete.';
@@ -145,9 +178,33 @@ function sortedKeys<K extends number>(m: ReadonlyMap<K, unknown>): K[] {
 
 // ───────────────────────────────────────────────────────────── codec ──
 
-/** A URL-safe string holding the whole town. */
+/**
+ * A URL-safe string holding the whole town: version 5, or the deflated
+ * format (version 1 to 4) when that comes out shorter (a town of exact
+ * machine-made repeats can); a tie goes to version 5.
+ */
 export function encodeTown(w: World): string {
-  const version = codecVersion(w);
+  const ranged = encodeRanged(w);
+  const deflated = encodeDeflated(w);
+  return deflated.length < ranged.length ? deflated : ranged;
+}
+
+/** Version 5: "LC" 5 | checksum (u32 LE, of everything after it) | seed (i32 LE) | range-coded body. */
+export function encodeRanged(w: World, moreFlags = 0): string {
+  const body = encodeBody(w, moreFlags);
+  const all = new Uint8Array(11 + body.length);
+  all.set([0x4c, 0x43, VERSION_5]);
+  const seed = w.seed | 0;
+  for (let i = 0; i < 4; i++) all[7 + i] = (seed >>> (8 * i)) & 0xff;
+  all.set(body, 11);
+  const sum = checksum(all.subarray(7));
+  for (let i = 0; i < 4; i++) all[3 + i] = (sum >>> (8 * i)) & 0xff;
+  return toBase64Url(all);
+}
+
+/** The deflated format: version 1, 2, 3 or 4, the lowest that holds the town. */
+export function encodeDeflated(w: World): string {
+  const version = deflatedVersion(w);
   const p = new Writer();
   p.u32(w.seed | 0);
   if (version >= VERSION_3) p.byte(w.terrainGen ?? 1);
@@ -284,8 +341,14 @@ function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }, or
   return null;
 }
 
-/** The codec version a town needs: 4 with reshaped land or a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
-export function codecVersion(w: World): 1 | 2 | 3 | 4 {
+/** The version encodeTown writes for this town. */
+export function codecVersion(w: World): 1 | 2 | 3 | 4 | 5 {
+  return versionOf(encodeTown(w));
+}
+const versionOf = (code: string): 1 | 2 | 3 | 4 | 5 => fromBase64Url(code.slice(0, 4))![2] as 1 | 2 | 3 | 4 | 5;
+
+/** The deflated format's version for a town: 4 with reshaped land or a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+export function deflatedVersion(w: World): 1 | 2 | 3 | 4 {
   if (w.terrainEdits && w.terrainEdits.size > 0) return VERSION_4;
   for (const b of w.blocks.values()) if (savedRuin(b.ruin)) return VERSION_4;
   if (w.terrainGen === 2) return VERSION_3;
@@ -312,6 +375,7 @@ function decode(code: string): DecodeResult {
   if (!bytes || bytes.length < 2 || bytes[0] !== 0x4c || bytes[1] !== 0x43) return { ok: false, reason: NOT_A_TOWN };
   if (bytes.length < 3) return { ok: false, reason: DAMAGED };
   const version = bytes[2];
+  if (version === VERSION_5) return decode5(bytes);
   if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3 && version !== VERSION_4) return { ok: false, reason: OTHER_VERSION };
   if (bytes.length < 8) return { ok: false, reason: DAMAGED };
   const head = new Reader(bytes.subarray(3, 7));
@@ -405,6 +469,20 @@ function decode(code: string): DecodeResult {
   return { ok: true, world };
 }
 
+/** Version 5: "LC" 5 | checksum (u32 LE, of everything after it) | seed (i32 LE) | range-coded body. */
+function decode5(bytes: Uint8Array): DecodeResult {
+  if (bytes.length < 11) return { ok: false, reason: DAMAGED };
+  const head = new Reader(bytes.subarray(3, 11));
+  const sum = head.u32();
+  const seed = head.u32() | 0;
+  if (checksum(bytes.subarray(7)) !== sum) return { ok: false, reason: DAMAGED };
+  try {
+    return { ok: true, world: decodeBody(bytes.subarray(11), seed) };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Bad && e.otherVersion ? OTHER_VERSION : DAMAGED };
+  }
+}
+
 /** The share code, and whether it is short enough for a link (else offer the town file). */
 export function shareTown(w: World): { code: string; fitsLink: boolean } {
   const code = encodeTown(w);
@@ -428,7 +506,8 @@ export function townFileName(w: World): string {
 
 /** The contents of a town file: a small JSON wrapper around the share code. */
 export function townFileText(w: World): string {
-  return JSON.stringify({ littleCity: codecVersion(w), town: encodeTown(w) }) + '\n';
+  const town = encodeTown(w);
+  return JSON.stringify({ littleCity: versionOf(town), town }) + '\n';
 }
 
 /** Reads a dropped town file (or a pasted link or code). Never throws. */

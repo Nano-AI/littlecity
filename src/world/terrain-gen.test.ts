@@ -9,7 +9,7 @@ import type { World } from '@/core/world';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { generateTerrain, initialWorld, terrainOf } from '@/terrain/terrain';
 import { createHistory, pushHistory, undo } from './history';
-import { codecVersion, decodeTown, encodeTown, loadTown, readTownFile, saveTown, townFileText } from './save';
+import { deflatedVersion, encodeDeflated, encodeRanged, decodeTown, encodeTown, loadTown, readTownFile, saveTown, townFileText } from './save';
 import { applyEdit, emptyWorld } from './world';
 
 const terrain = flatTerrain(77);
@@ -25,7 +25,7 @@ describe('the island generator in the saved world', () => {
   test('generator 1 leaves no trace: no field, versions 1 and 2 as before', () => {
     expect('terrainGen' in emptyWorld(5)).toBe(false);
     expect('terrainGen' in initialWorld(5, generateTerrain(5))).toBe(false);
-    expect(codecVersion(town(1))).toBe(1);
+    expect(deflatedVersion(town(1))).toBe(1);
     expect(decodeTown(encodeTown(town(1)))).toEqual({ ok: true, world: town(1) });
   });
 
@@ -42,12 +42,15 @@ describe('the island generator in the saved world', () => {
 
   test('version 3 round-trips a town on generator 2, styled or not, through links, files and autosave', () => {
     const w = town(2);
-    expect(codecVersion(w)).toBe(3);
+    expect(deflatedVersion(w)).toBe(3);
+    // Either format may be written (the shorter); both must hold the town.
+    expect(encodeDeflated(w).startsWith('TEMD')).toBe(true);
+    expect(decodeTown(encodeDeflated(w))).toEqual(decodeTown(encodeTown(w)));
+    expect(decodeTown(encodeRanged(w))).toEqual(decodeTown(encodeDeflated(w)));
     const code = encodeTown(w);
-    expect(code.startsWith('TEMD')).toBe(true);
     expect(decodeTown(code)).toEqual({ ok: true, world: w });
     expect(readTownFile(townFileText(w))).toEqual({ ok: true, world: w });
-    expect(JSON.parse(townFileText(w)).littleCity).toBe(3);
+    expect([3, 5]).toContain(JSON.parse(townFileText(w)).littleCity);
     const styled = applyEdit(w, terrain, { type: 'placeBlock', cell: key(30, 1, 30), kind: 'house', color: 3, from: null, style: 4 });
     expect(decodeTown(encodeTown(styled))).toEqual({ ok: true, world: styled });
     const store = new Map<string, string>();

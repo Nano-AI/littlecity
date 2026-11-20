@@ -8,7 +8,7 @@ import type { World } from '@/core/world';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { islandOf } from '@/terrain/land';
 import { generateTerrain, initialWorld, terrainOf } from '@/terrain/terrain';
-import { codecVersion, decodeTown, encodeTown, loadTown, readTownFile, saveTown, townFileText } from './save';
+import { deflatedVersion, encodeDeflated, encodeRanged, decodeTown, encodeTown, loadTown, readTownFile, saveTown, townFileText } from './save';
 import { applyEdit, emptyWorld } from './world';
 import { createHistory, pushHistory, undo } from './history';
 import { fromBase64Url, inflateRaw, deflateRaw, toBase64Url } from './deflate';
@@ -56,7 +56,7 @@ describe('saving the reshaped land', () => {
   test('raising and digging back leaves no trace in the save', () => {
     const w = town(2);
     const up = applyEdit(w, terrain, { type: 'land', up: [col], down: [] });
-    expect(codecVersion(up)).toBe(4);
+    expect(deflatedVersion(up)).toBe(4);
     const back = applyEdit(up, terrain, { type: 'land', up: [], down: [col] });
     expect('terrainEdits' in back).toBe(false);
     expect(encodeTown(back)).toBe(encodeTown(w));
@@ -67,13 +67,16 @@ describe('saving the reshaped land', () => {
       let w = town(gen);
       w = applyEdit(w, terrain, { type: 'land', up: [col, col + 1], down: [] });
       w = applyEdit(w, terrain, { type: 'land', up: [], down: [columnIndex(20, 20)] });
+      // Either format may be written (the shorter); both must hold the town.
+      expect(encodeDeflated(w).startsWith('TEME')).toBe(true);
+      expect(decodeTown(encodeDeflated(w))).toEqual(decodeTown(encodeTown(w)));
+      expect(decodeTown(encodeRanged(w))).toEqual(decodeTown(encodeDeflated(w)));
       const code = encodeTown(w);
-      expect(code.startsWith('TEME')).toBe(true);
       const r = decodeTown(code);
       expect(r).toEqual({ ok: true, world: w });
       if (r.ok) expect(r.world.terrainGen === 2 ? 2 : 1).toBe(gen);
       expect(readTownFile(townFileText(w))).toEqual({ ok: true, world: w });
-      expect(JSON.parse(townFileText(w)).littleCity).toBe(4);
+      expect([4, 5]).toContain(JSON.parse(townFileText(w)).littleCity);
       const store = new Map<string, string>();
       const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
       expect(saveTown(storage, w)).toBe(true);
@@ -104,7 +107,7 @@ describe('saving the reshaped land', () => {
 
   test('a damaged or unknown section is refused, never trusted', () => {
     const w = applyEdit(town(1), terrain, { type: 'land', up: [col], down: [] });
-    const code = encodeTown(w);
+    const code = encodeDeflated(w);
     for (let i = 3; i < code.length; i++) {
       const bad = code.slice(0, i) + (code[i] === 'A' ? 'B' : 'A') + code.slice(i + 1);
       const r = decodeTown(bad);
