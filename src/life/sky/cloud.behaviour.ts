@@ -34,7 +34,12 @@ interface State {
   radius: number;
   n: number;
   m: Mat4;
+  /** The other clouds of this town (and this one): crossing shadows share their shade. */
+  peers: Set<State>;
 }
+
+/** The clouds of each town, so that shadows which cross can share their shade instead of stacking into a dark blot. */
+const PEERS = new WeakMap<object, Set<State>>();
 
 export default defineBehaviour({
   actor: 'cloud',
@@ -52,7 +57,11 @@ export default defineBehaviour({
     // Spread over the paper, one per band, so the sky opens with clouds already in it.
     const along = ((index + 0.5) / CLOUDS - 0.5) * CLOUD_REACH * 1.6;
     const across = (ctx.rand('across') - 0.5) * 30;
-    return { lobes, shadow, x: SIZE_X / 2 + along, z: SIZE_Z / 2 + across, y: 9 + 3 * ctx.rand('y'), radius: long * 1.15, n: 0, m: new Array<number>(16).fill(0) };
+    let peers = PEERS.get(ctx.stage);
+    if (!peers) PEERS.set(ctx.stage, (peers = new Set()));
+    const state: State = { lobes, shadow, x: SIZE_X / 2 + along, z: SIZE_Z / 2 + across, y: 9 + 3 * ctx.rand('y'), radius: long * 1.15, n: 0, m: new Array<number>(16).fill(0), peers };
+    peers.add(state);
+    return state;
   },
   update(state, dt, signals, ctx) {
     const wind = signals.wind(state.x, state.z);
@@ -87,9 +96,16 @@ export default defineBehaviour({
     // The shadow falls on the island and the sea, not on the paper round the map: it fades out at the edge.
     const out = Math.max(Math.max(-state.x, state.x - SIZE_X), Math.max(-state.z, state.z - SIZE_Z));
     const onMap = 1 - Math.min(1, Math.max(0, (out + r * 0.6) / (r * 0.8)));
-    state.shadow.setParams(0.2 * (signals.time.light * 0.8 + 0.2) * onMap, 0, 0, r);
+    // Where shadows cross they share the shade: two right on top of each other are together as dark as
+    // one, not nearly twice as dark (which read as a black blot on the sea).
+    let crowd = 0;
+    for (const o of state.peers) {
+      if (o !== state) crowd += Math.max(0, 1 - Math.hypot(o.x - state.x, o.z - state.z) / (r + o.radius * 0.75));
+    }
+    state.shadow.setParams((0.2 * (signals.time.light * 0.8 + 0.2) * onMap) / (1 + crowd), 0, 0, r);
   },
   dispose(state) {
+    state.peers.delete(state);
     for (let i = 1; i < state.lobes.length; i++) state.lobes[i]!.handle.release();
     state.shadow.release();
   },

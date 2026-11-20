@@ -44,6 +44,18 @@ describe('clouds (L31)', () => {
     }
     const shadows = rec.spawned.filter((r) => r.spec && 'actor' in r.spec && r.spec.variant === 'shadow');
     expect(shadows).toHaveLength(clouds.length);
+    // Shadows that cross share their shade: the more one is overlapped, the fainter it is, so two
+    // lying on each other are together about as dark as one alone (not a black blot on the sea).
+    for (const a of shadows) {
+      const [ax, , az] = positionOf(a.matrix);
+      let crowd = 0;
+      for (const b of shadows) {
+        if (b === a) continue;
+        const [bx, , bz] = positionOf(b.matrix);
+        crowd += Math.max(0, 1 - Math.hypot(bx - ax, bz - az) / (a.params[3]! + b.params[3]!));
+      }
+      expect(a.params[0]! * (1 + crowd)).toBeLessThanOrEqual(0.2 + 1e-6);
+    }
     for (const s of shadows) {
       expect(positionOf(s.matrix)[1]).toBeLessThan(1.5);
       expect(s.params[0]).toBeLessThanOrEqual(0.25);
