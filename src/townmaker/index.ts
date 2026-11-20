@@ -221,6 +221,10 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
     if (name === 'housing') buildHousing(town, Number(a), Number(b));
     else STEPS[name!]?.(town);
   }
+  // A castle town with no castle (no site fits it) is no castle town: grow another kind.
+  if (primary === 'castle' && !opts.character && !opts.never && !town.districts.some((d) => d.name === 'castle')) {
+    return planTown(terrain, seed, { avoid: opts.avoid, never: 'castle' });
+  }
   for (let n = 2; n <= MORE_HOUSING[primary]; n++) buildHousing(town, n, 8 + n * 2);
   const unjoined = joinStreets(town);
   for (const step of AFTER_STREETS[primary]) STEPS[step.split(':')[0]!]?.(town);
