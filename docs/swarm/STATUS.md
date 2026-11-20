@@ -715,3 +715,17 @@ assertions, fast `check` and `check:full` tiers.
 spike commit; only `gh-pages` (built site) is pushed. Derek asked to see
 the code; offered to push the branch and open a PR: awaiting his word.
 Running: living-town, field (finishing), big-islands (preview), test-diet.
+
+**Bigger islands: first report (PREVIEW, `swarm/big-islands` at `a11ddd6`,
+NOT merged).** Sizes 48 / 72 / 96 as a world property; key packing extended
+above bit 16 so 48-column keys are numerically unchanged (digest of 281
+scenarios, 40 islands ×2 generators, 12 grown towns identical to base);
+save section bit for size. Drawing holds: 96 with 9,861 blocks runs 56–60
+fps (frame cost ~14 ms). Editing does not: shape stage 43–45 ms and
+dressing 109 ms per edit at 96 (20 / 44 ms at 72), because every edit
+re-resolves the whole town; grown towns are smaller (1,288 blocks at 96:
+edits 22–31 ms, worst frame 83–100 ms). Recommendation: offer 72 on
+desktop; hold 96 until town logic resolves by region. Served at
+http://127.0.0.1:5176/?seed=5&size=96 (or size=72).
+CONFLICT TO SETTLE BEFORE ANY MERGE: big-islands takes save-section bit 1
+for size; the mischief preview also took bit 1 for ruins.
