@@ -812,6 +812,13 @@ function afloatPose(prof: Profile): { toppled: boolean; lean: number; mending: b
 /** The whole structure going over (or gone over), as one chunk. */
 function toppleOf(intact: MeshData, prof: Profile): Chunk {
   const polys = polysOfMesh(intact);
+  // Its windows go dark as it goes (no lamp stays lit in a house going over into the water).
+  const hole = rgb(DAMAGE_COLORS.hole);
+  for (const p of polys) {
+    if (p.pattern !== PATTERN.glass) continue;
+    p.pattern = PATTERN.none;
+    tint(p, hole, 1);
+  }
   let lo = Infinity;
   for (const p of polys) for (const v of p.v) lo = Math.min(lo, v[1]!);
   const deck = prof.s.kind === 'dock';
@@ -821,11 +828,17 @@ function toppleOf(intact: MeshData, prof: Profile): Chunk {
 
 function afloatDamage(intact: MeshData, prof: Profile): MeshData {
   const a = afloatPose(prof);
+  const hole = rgb(DAMAGE_COLORS.hole);
   const moved = (mesh: MeshData, m: readonly number[]): MeshData => {
     const soup = new Soup();
     for (const p of polysOfMesh(mesh)) {
       const q = clonePoly(p);
       transformPoly(q, m);
+      // A wreck's windows are dark: no lamp is lit in a house lying in the water.
+      if (q.pattern === PATTERN.glass) {
+        q.pattern = PATTERN.none;
+        tint(q, hole, 1);
+      }
       soup.add(q);
     }
     return soup.empty ? mesh : soup.build();
