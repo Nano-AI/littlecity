@@ -372,7 +372,8 @@ export default defineSystem<State>({
     // The scorched crater, once the ground has gone down. If the crater's ground changes after that (the nuke
     // undone, or the player filling it in), the scorch and whatever is left of the show go with it.
     for (const n of [...st.nukes]) {
-      if (n.water || n.t < 0.3 || n.scorchOf === next.shape.terrain) continue;
+      // (Landed in water, the banks round it are scorched all the same: the sea itself is left out.)
+      if (n.t < 0.3 || n.scorchOf === next.shape.terrain) continue;
       const h = next.shape.terrain.height;
       if (!n.dug) {
         n.dug = new Map();
@@ -563,12 +564,18 @@ export default defineSystem<State>({
         a.h.setMatrix(compose(translation(a.x, a.y, a.z), rotationY(a.spin + t * 2), [0.05, 0, 0, 0, 0, 0.05, 0, 0, 0, 0, 0.05, 0, 0, 0, 0, 1]));
         a.h.setVisible(true);
       }
-      if (t > 1 && n.embers.length === 0 && !n.water) {
+      if (t > 1 && n.embers.length === 0) {
         for (let i = 0; i < 9; i++) {
           const h = pool(st, stage, 'ember', emberMesh).take();
           const a = rand(n.id, 'ea', i) * Math.PI * 2, rr = rand(n.id, 'er', i) * NUKE.crater;
           const x = n.x + Math.cos(a) * rr, z = n.z + Math.sin(a) * rr;
-          h.setMatrix(compose(translation(x, groundAt(st.shape, x, z).y + 0.06, z), rotationY(a)));
+          const g = groundAt(st.shape, x, z);
+          if (g.water) {
+            // No embers on the water.
+            pool(st, stage, 'ember', emberMesh).give(h);
+            continue;
+          }
+          h.setMatrix(compose(translation(x, g.y + 0.06, z), rotationY(a)));
           h.setVisible(true);
           n.embers.push(h);
         }
