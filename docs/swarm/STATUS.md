@@ -457,3 +457,12 @@ Open: fishing boat only slows for ships, rower ignores them; barge under a
 bridge untested; rigging busy at overview.
 Running: coplanar follow-up (doormats first), walk (preview fixes),
 animation-polish (people avoidance).
+
+**Boat rules rejected by Derek** ("I just want boats"): no thresholds or
+prerequisites; any dock space brings whatever boat fits; nothing shrinks or
+fades; boats leave and arrive through an invisible barrier at the map edge,
+cut off cross-section-wise. Catalogue section "Boats and ships" rewritten
+(`eca4f0c`); ships agent resumed to rework L17–L20 and L38–L42, the guide
+entries, and add edge clipping in the renderer.
+Running: ships rework, coplanar follow-up (doormats first), walk (preview
+fixes), animation-polish (people avoidance).
