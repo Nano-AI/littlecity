@@ -13,7 +13,43 @@ import type { StructureKind } from '@/core/kinds';
 import { rand } from '@/core/rand';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { RUIN } from '@/style/damage';
-import { unpackRuin, type DamageCause, type DamageStage } from '@/world/damage';
+import { MEND_STEPS, unpackRuin, type DamageCause, type DamageStage } from '@/world/damage';
+
+/**
+ * Where mending has got, phase by phase (each 0 not begun to 1 done): rubble cleared, scaffolding up,
+ * the timber frame, the walls course by course, rafters, tiles row by row, glazing, paint, and the
+ * scaffolding coming down. Which phases there are depends on the damage being mended.
+ */
+export interface MendPhases {
+  clear: number;
+  scaffold: number;
+  frame: number;
+  walls: number;
+  rafters: number;
+  tiles: number;
+  glass: number;
+  paint: number;
+  down: number;
+}
+export const DONE: MendPhases = Object.freeze({ clear: 1, scaffold: 1, frame: 1, walls: 1, rafters: 1, tiles: 1, glass: 1, paint: 1, down: 0 });
+
+const SPANS: Record<number, Partial<Record<keyof MendPhases, [number, number]>>> = {
+  3: { clear: [0, 0.1], scaffold: [0.06, 0.14], frame: [0.12, 0.22], walls: [0.2, 0.5], rafters: [0.5, 0.6], tiles: [0.6, 0.8], glass: [0.8, 0.86], paint: [0.86, 0.95], down: [0.95, 1] },
+  2: { clear: [0, 0.05], scaffold: [0, 0.08], walls: [0.08, 0.3], rafters: [0.3, 0.42], tiles: [0.42, 0.72], glass: [0.72, 0.82], paint: [0.82, 0.94], down: [0.94, 1] },
+  1: { scaffold: [0, 0.12], glass: [0.12, 0.4], paint: [0.4, 0.88], down: [0.88, 1] },
+  0: { scaffold: [0, 0.1], paint: [0, 0.8], down: [0.8, 1] },
+};
+
+export function mendPhases(stage: number, q: number): MendPhases {
+  const spans = SPANS[stage] ?? SPANS[0]!;
+  const out = { ...DONE };
+  for (const k of Object.keys(DONE) as (keyof MendPhases)[]) {
+    const span = spans[k];
+    if (!span) continue;
+    out[k] = Math.max(0, Math.min(1, (q - span[0]) / (span[1] - span[0])));
+  }
+  return out;
+}
 
 /** Kinds that hardly burn: fire only soots them (stone cracks and tumbles instead). */
 export const STONE_KINDS: ReadonlySet<StructureKind> = new Set<StructureKind>([
@@ -36,6 +72,9 @@ export interface Column {
   cause: DamageCause;
   mending: boolean;
   settling: boolean;
+  /** How far mending has got, 0–1, and its phases (all 1 when not mending). */
+  progress: number;
+  phases: MendPhases;
   /** Any damage at all (stage ≥ 1, or mending). */
   damaged: boolean;
 }
@@ -79,7 +118,7 @@ export function profileOf(s: Structure, plan: ShapePlan): Profile {
     const k = colKey(x, z);
     let col = columns.get(k);
     if (!col) {
-      col = { x, z, base: y * CELL_H, top: (y + 1) * CELL_H, wreckBase: Infinity, stage: 0, cause: 'fire', mending: false, settling: false, damaged: false };
+      col = { x, z, base: y * CELL_H, top: (y + 1) * CELL_H, wreckBase: Infinity, stage: 0, cause: 'fire', mending: false, settling: false, progress: 0, phases: DONE, damaged: false };
       columns.set(k, col);
     }
     col.base = Math.min(col.base, y * CELL_H);
@@ -92,6 +131,7 @@ export function profileOf(s: Structure, plan: ShapePlan): Profile {
       col.cause = d.cause;
     }
     if (stage === 3) col.wreckBase = Math.min(col.wreckBase, y * CELL_H);
+    if (d.mending) col.progress = col.mending ? Math.min(col.progress, d.progress / MEND_STEPS) : d.progress / MEND_STEPS;
     col.mending ||= d.mending;
     col.settling ||= d.settling;
     col.damaged ||= d.stage > 0 || d.mending;
@@ -99,6 +139,7 @@ export function profileOf(s: Structure, plan: ShapePlan): Profile {
   let damaged = false;
   for (const col of columns.values()) {
     if (!Number.isFinite(col.wreckBase)) col.wreckBase = col.top;
+    if (col.mending) col.phases = mendPhases(col.stage, col.progress);
     damaged ||= col.damaged;
   }
   const columnNear = (x: number, z: number): Column | null => {
@@ -184,8 +225,8 @@ function holeShape(prof: Profile): HoleShape {
 export type FieldMode =
   /** The ruin as it is now. */
   | 'now'
-  /** Where a destroyed (stage 3) block of this cause would be cut: what mending has rebuilt above it is fresh. */
-  | 'wreck';
+  /** Where the damage being mended cut it (what mending has put back above it is fresh). */
+  | 'damage';
 
 /**
  * The cut field of a structure: for a tile (by its integer tile indices), the
@@ -226,7 +267,6 @@ export function cutField(prof: Profile, mode: FieldMode = 'now'): (ix: number, i
       const h = col.wreckBase + CELL_H * (RUIN.stubMin + (RUIN.stubMax - RUIN.stubMin) * r1 + corner * 0.12);
       return { h: Math.min(h, col.top - 0.04), gx: r2 * 1.4, gz: r3 * 1.4, cx, cz };
     };
-    if (mode === 'wreck') return shell(col.cause);
     const roofOff = (deep: number): Plane | null => {
       // Is this tile in the hole?
       let depth: number;
@@ -242,14 +282,28 @@ export function cutField(prof: Profile, mode: FieldMode = 'now'): (ix: number, i
       const h = col.top - CELL_H * (deep * (0.25 + 0.75 * depth) * (0.55 + 0.45 * r1));
       return { h: Math.max(h, col.base + 0.08), gx: r2 * 1.1, gz: r3 * 1.1, cx, cz };
     };
-    if (col.mending) {
-      // Rebuilding, a stage at a time: walls first, the roof last.
+    const damageCut = (): Plane | null => {
       if (col.stage === 3) return shell(col.cause);
-      if (col.stage === 2) return { h: col.top + 0.01, gx: 0, gz: 0, cx, cz };
-      if (col.stage === 1) {
-        const p = roofOff(0);
-        return p ? { h: col.top + 0.01, gx: 0, gz: 0, cx, cz } : null;
+      if (col.stage === 2) {
+        if (prof.s.kind === 'dock') return r1 < 0.45 ? { h: SEA_Y + 0.06 + r1 * 0.1, gx: r2, gz: r3, cx, cz } : null;
+        return roofOff(col.cause === 'fire' ? 0.9 : 1.15);
       }
+      return null;
+    };
+    if (mode === 'damage') return col.mending ? damageCut() : null;
+    if (col.mending) {
+      // Rebuilding: the walls rise course by course (a level line over the broken tops), then the roof
+      // goes back on row by row from the eaves.
+      const was = damageCut();
+      if (!was) return null;
+      const ph = col.phases;
+      if (prof.s.kind === 'dock') return ph.walls < 1 ? was : null;
+      if (ph.walls < 1) {
+        const from = col.stage === 3 ? col.wreckBase : col.top - CELL_H * 1.2;
+        const level = from + (col.top - from) * ph.walls;
+        return level > was.h ? { h: level, gx: 0, gz: 0, cx, cz } : was;
+      }
+      if (ph.tiles < 1) return { h: col.top + 1.25 * ph.tiles, gx: 0, gz: 0, cx, cz };
       return null;
     }
     if (col.stage === 3) return shell(col.cause);

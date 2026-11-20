@@ -10,13 +10,13 @@ import { ruinBox, STATES } from './states';
 export default scenario({
   name: 'mischief-ruins-houses',
   seed: 1913,
-  about: 'Houses in every damage state (sound, scorched, half-burnt, burnt out, cracked, half-wrecked, rubble, mending 3 to 0), and long inns damaged at one end.',
+  about: 'Houses in every damage state (sound, scorched, half-burnt, burnt out, cracked, half-wrecked, rubble, then mending stage by stage), and long inns damaged at one end.',
   terrain(t) {
     t.rect(1, 1, 46, 46, 1);
   },
   build(b) {
     STATES.forEach((st, i) => {
-      const x = 3 + i * 4;
+      const x = 1 + i * 4;
       b.house(x, 4, { floors: 2, color: 2 });
       ruinBox(b, x, 1, 4, 1, 1, 2, st.ruin);
       b.house(x, 9, { floors: 2, w: 2, d: 2, color: 4 });

@@ -32,7 +32,7 @@
 //
 //   bit 1, damaged blocks (Block.ruin, mischief: design section 13b): count
 //          (varint), then per damaged block its index in the block list
-//          above (delta varint, the first from -1) and its damage byte (the
+//          above (delta varint, the first from -1) and its damage (varint; the
 //          passing "settling" mark is never saved)
 //
 // Each section is self-contained and length-prefixed, so another optional
@@ -231,7 +231,7 @@ function writeSections(p: Writer, w: World, order: readonly Block[]): void {
     for (const [i, r] of ruined) {
       s.varint(i - prev);
       prev = i;
-      s.byte(r);
+      s.varint(r);
     }
     sections.push(s.bytes);
   }
@@ -275,7 +275,7 @@ function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }, or
       const cell = order[at];
       if (at === prev || cell === undefined) return DAMAGED;
       prev = at;
-      const ruin = r.byte();
+      const ruin = r.varint();
       if (!isRuin(ruin) || savedRuin(ruin) !== ruin) return DAMAGED;
       blocks.set(cell, { ...blocks.get(cell)!, ruin });
     }

@@ -5,7 +5,7 @@ import { key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain, World } from '@/core/world';
 import { resolveShape } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
-import { ruinCause, ruinMending, ruinStage } from '@/world/damage';
+import { ruinCause, ruinMending, ruinProgress, ruinStage } from '@/world/damage';
 import { applyEdit, emptyWorld } from '@/world/world';
 import { createMischiefEngine, type Env, type MischiefEngine } from './engine';
 
@@ -181,12 +181,13 @@ describe('knocks and repairs', () => {
     sim.run(3, CALM);
     const steps: string[] = [];
     for (let i = 0; i < 6; i++) {
-      sim.engine.repair(c, 1);
+      sim.engine.repair(c, 8);
       sim.flush();
       const r = sim.world.blocks.get(c)!.ruin;
-      steps.push(r ? `${ruinStage(r)}${ruinMending(r) ? 'm' : ''}` : 'sound');
+      steps.push(r ? `${ruinStage(r)}${ruinMending(r) ? 'm' : ''}${Math.round(ruinProgress(r) * 32)}` : 'sound');
     }
-    expect(steps).toEqual(['3m', '2m', '1m', '0m', 'sound', 'sound']);
+    // The damage it had stays while it is mended; mending goes 32 steps, then it is sound.
+    expect(steps).toEqual(['3m7', '3m15', '3m23', '3m31', 'sound', 'sound']);
     expect(sim.world.blocks.get(c)).toEqual(before);
   });
 });

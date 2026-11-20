@@ -24,7 +24,7 @@ import type { Edit, World } from '@/core/world';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { structureStyle } from '@/resolve/structures';
 import { BLAST, FIRE } from '@/style/damage';
-import { packRuin, ruinCause, ruinMending, ruinSettling, ruinStage, unpackRuin, type DamageCause, type DamageStage } from '@/world/damage';
+import { MEND_STEPS, packRuin, ruinCause, ruinMending, ruinSettling, ruinStage, unpackRuin, type DamageCause, type DamageStage } from '@/world/damage';
 
 /** Fixed simulation step, seconds. */
 export const STEP = 0.1;
@@ -389,16 +389,14 @@ export function createMischiefEngine(seed: number): MischiefEngine {
         setRuin(cell, 0);
         return true;
       }
-      let d = unpackRuin(now);
-      for (let i = 0; i < amount; i++) {
-        if (!d.mending) d = { ...d, mending: true, settling: false };
-        else if (d.stage > 0) d = { ...d, stage: (d.stage - 1) as DamageStage };
-        else {
-          setRuin(cell, 0);
-          return true;
-        }
+      // Mending goes in MEND_STEPS steps (the first puts the scaffolding up); the step after the last makes it sound.
+      const d = unpackRuin(now);
+      const progress = d.mending ? d.progress + amount : amount - 1;
+      if (progress >= MEND_STEPS) {
+        setRuin(cell, 0);
+        return true;
       }
-      setRuin(cell, packRuin(d));
+      setRuin(cell, packRuin({ ...d, stage: d.stage, mending: true, settling: false, progress }));
       return true;
     },
     douse(cell, amount) {

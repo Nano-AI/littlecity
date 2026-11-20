@@ -77,13 +77,18 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   const sides = outsideSides(prof);
   if (sides.length === 0) return;
   const seed = prof.s.seed;
+  // How much of it stands: poles first, then the walks, then the sheet and hoist; down in the reverse order.
+  const ph = sides[0]!.col.phases;
+  const up = ph.scaffold * (1 - ph.down);
+  if (up <= 0.02) return;
+  const full = ph.scaffold >= 1 && ph.down <= 0;
   const wood = rgb(DAMAGE_COLORS.scaffold);
   const poles = new Map<string, Vec3 & { top: number }>();
   const key = (p: Vec3): string => `${Math.round(p[0] * 100)},${Math.round(p[2] * 100)}`;
   for (const s of sides) {
     for (const p of sideEnds(s)) {
       const k = key(p);
-      const top = s.col.top + 0.42;
+      const top = s.col.base + (s.col.top + 0.42 - s.col.base) * Math.min(1, up * 1.6);
       const had = poles.get(k);
       if (!had || had.top < top) poles.set(k, Object.assign([p[0], Math.min(p[1], had?.[1] ?? Infinity), p[2]] as Vec3, { top }));
     }
@@ -94,7 +99,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   }
   // Plank walks at every storey, and a ledger under each.
   b.setInk('scaffold-planks');
-  for (const s of sides) {
+  for (const s of up > 0.6 ? sides : []) {
     const [a, c] = sideEnds(s);
     for (let y = s.col.base + CELL_H; y <= s.col.top + 1e-6; y += CELL_H) {
       const lift = y - 0.005;
@@ -110,7 +115,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
     }
   }
   b.setInk('scaffold-braces');
-  sides.forEach((s, i) => {
+  (up > 0.6 ? sides : []).forEach((s, i) => {
     const [a, c] = sideEnds(s);
     const flip = rand(seed, 'brace', i) < 0.5;
     const lo = flip ? a : c;
@@ -122,7 +127,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   // A ladder up one side, leaning out from the first plank walk.
   const lad = ladderOf(prof, sides)!;
   const ls = lad.side;
-  {
+  if (up > 0.6) {
     const { mx, mz, ux, uz, topY, foot } = lad;
     b.setColor(rgb(DAMAGE_COLORS.fresh)).setPattern(PATTERN.none).setInk('ladder');
     const lo1: Vec3 = [mx - ux + ls.dx * foot, ls.col.base, mz - uz + ls.dz * foot];
@@ -140,7 +145,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   }
 
   // A canvas sheet hung from the top walk on another side.
-  if (sides.length > 1) {
+  if (sides.length > 1 && full) {
     const cs = sides[(sides.indexOf(ls) + 1 + Math.floor(rand(seed, 'canvas') * (sides.length - 1))) % sides.length]!;
     const [a, c] = sideEnds(cs);
     const topY = cs.col.top - 0.01;
@@ -167,7 +172,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   }
 
   // A hoist at one corner pole: an arm over the side, a rope, a bucket.
-  {
+  if (full) {
     const list = [...poles.values()];
     const p = list[Math.floor(rand(seed, 'hoist') * list.length)]!;
     const s = sides.find((sd) => sideEnds(sd).some((e) => key(e) === key(p))) ?? sides[0]!;
@@ -186,7 +191,7 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
     );
   }
 
-  materials(b, prof, sides, roofColor);
+  if (ph.down < 0.5) materials(b, prof, sides, roofColor);
 }
 
 /** The builders' stack on open ground beside the building (the first open side, by the seed). */

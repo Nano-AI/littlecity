@@ -1,6 +1,6 @@
 // Gallery (mischief, design section 13b): every other kind of block in every
 // damage state, west to east as in mischief-ruins-houses (sound, scorched,
-// half-burnt, burnt out, cracked, half-wrecked, rubble, mending 3 → 0).
+// half-burnt, burnt out, cracked, half-wrecked, rubble, then mending: clearing, walls, rafters, tiles, paint).
 // Rows, north to south: tower, lighthouse, windmill, marble, pillar, stall,
 // fountain, tree, fence and low wall, and docks on the sea.
 
@@ -31,7 +31,7 @@ export default scenario({
     ROWS.forEach((row, r) => {
       const z = 2 + r * 4;
       STATES.forEach((st, i) => {
-        const x = 2 + i * 4;
+        const x = 1 + i * 4;
         const w = row.w ?? 1;
         const d = row.d ?? 1;
         const floors = row.floors ?? 1;
@@ -41,7 +41,7 @@ export default scenario({
     });
     // Docks: a little pier per state, out on the sea.
     STATES.forEach((st, i) => {
-      const x = 2 + i * 4;
+      const x = 1 + i * 4;
       for (let dz = 0; dz < 3; dz++) {
         for (let dx = 0; dx < 2; dx++) b.block('dock', x + dx, 0, 41 + dz);
       }

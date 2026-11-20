@@ -149,7 +149,8 @@ export function crackShape(seed: number, length: number): [number, number][][] {
 }
 
 /** A low heap of broken stuff over a destroyed column: an irregular dome of rubble. */
-export function heap(b: MeshBuilder, col: Column, seed: number, color: readonly number[]): void {
+export function heap(b: MeshBuilder, col: Column, seed: number, color: readonly number[], left = 1): void {
+  if (left <= 0.02) return;
   const cx = col.x + 0.5, cz = col.z + 0.5;
   const rings = 3, segs = 9;
   const R = 0.62;
@@ -159,7 +160,7 @@ export function heap(b: MeshBuilder, col: Column, seed: number, color: readonly 
     const x = cx + Math.cos(a) * r;
     const z = cz + Math.sin(a) * r;
     const bump = i === 0 || i === rings ? 0 : (rand(seed, 'hh', i, j % segs) - 0.4) * 0.07;
-    return [x, col.wreckBase + Math.max(0, heapHeight(col, x, z) + bump) + (i === rings ? 0.01 : 0), z];
+    return [x, col.wreckBase + Math.max(0, (heapHeight(col, x, z) + bump) * left) + (i === rings ? 0.01 : 0), z];
   };
   b.setColor(color as [number, number, number]).setPattern(PATTERN.cobbles).setInk('heap');
   for (let i = 0; i < rings; i++) {

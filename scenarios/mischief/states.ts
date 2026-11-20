@@ -12,10 +12,11 @@ export const STATES: readonly { name: string; ruin: number }[] = [
   { name: 'cracked', ruin: packRuin({ stage: 1, cause: 'blast' }) },
   { name: 'half-wrecked', ruin: packRuin({ stage: 2, cause: 'blast' }) },
   { name: 'rubble', ruin: packRuin({ stage: 3, cause: 'blast' }) },
-  { name: 'mending 3', ruin: packRuin({ stage: 3, cause: 'fire', mending: true }) },
-  { name: 'mending 2', ruin: packRuin({ stage: 2, cause: 'fire', mending: true }) },
-  { name: 'mending 1', ruin: packRuin({ stage: 1, cause: 'fire', mending: true }) },
-  { name: 'mending 0', ruin: packRuin({ stage: 0, cause: 'fire', mending: true }) },
+  { name: 'clearing rubble', ruin: packRuin({ stage: 3, cause: 'blast', mending: true, progress: 2 }) },
+  { name: 'walls going up', ruin: packRuin({ stage: 3, cause: 'fire', mending: true, progress: 10 }) },
+  { name: 'rafters', ruin: packRuin({ stage: 3, cause: 'fire', mending: true, progress: 18 }) },
+  { name: 'tiles', ruin: packRuin({ stage: 3, cause: 'fire', mending: true, progress: 22 }) },
+  { name: 'painting', ruin: packRuin({ stage: 3, cause: 'fire', mending: true, progress: 29 }) },
 ];
 
 /** Damages every block of a w × d × floors box whose lowest north-west cell is (x, y, z). */

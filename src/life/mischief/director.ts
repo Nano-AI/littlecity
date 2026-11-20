@@ -19,6 +19,10 @@ import type { CellKey } from '@/core/grid';
 import type { Edit } from '@/core/world';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { BLAST } from '@/style/damage';
+import { MEND_STEPS } from '@/world/damage';
+
+/** A click of the Mend tool: a quarter of the way. */
+const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
 import { createMischiefEngine, type BlastEvent, type Env, type MischiefEngine } from './engine';
 
@@ -148,7 +152,7 @@ export class Director {
     const s = this.shape;
     if (!s?.world.blocks.has(cell)) return false;
     let any = false;
-    for (const c of this.cellsOf(cell)) any = this.engine.repair(c, all ? 'all' : 1) || any;
+    for (const c of this.cellsOf(cell)) any = this.engine.repair(c, all ? 'all' : MEND_CLICK) || any;
     if (!any) return false;
     const sid = s.structureAt.get(cell);
     if (sid !== undefined) this.emit({ type: 'mend', structure: sid, cell });

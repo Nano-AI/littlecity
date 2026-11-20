@@ -298,7 +298,7 @@ function debrisPart(removed: readonly Poly[], prof: Profile): Poly[] {
   return removed.filter((p) => {
     const c = centroid(p);
     const col = prof.columnNear(c[0], c[2]);
-    return !!col && col.cause === 'blast' && col.stage >= 2 && !col.mending;
+    return !!col && col.cause === 'blast' && col.stage >= 2 && (!col.mending || col.phases.clear < 1);
   });
 }
 
@@ -346,15 +346,15 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
   const insideOf = (col: Column): [number, number, number] =>
     !hollow ? solidInside : col.mending ? mix3(C.inside, C.fresh, 0.35) : col.cause === 'fire' ? C.charDeep : C.inside;
 
-  // Fresh work on a column being mended: what stands above where the wreck was cut is new.
-  const wreck = cutField(prof, 'wreck');
+  // Fresh work on a column being mended: what stands above where the damage cut it is new.
+  const wreck = cutField(prof, 'damage');
   let kept = broken.kept;
   const fresh = new Set<Poly>();
-  if ([...prof.columns.values()].some((c) => c.mending && c.stage < 3)) {
+  if ([...prof.columns.values()].some((c) => c.mending)) {
     const next: Poly[] = [];
     for (const p of kept) {
       const col = colAt(p);
-      if (!col?.mending || col.stage >= 3) {
+      if (!col?.mending) {
         next.push(p);
         continue;
       }
@@ -373,13 +373,14 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     const col = colAt(p);
     if (col && col.damaged) {
       const r = rand(seed, 'poly', hash(Math.round(centroid(p)[0] * 37), Math.round(centroid(p)[1] * 41), Math.round(centroid(p)[2] * 43)));
-      if (p.pattern === PATTERN.glass && (col.stage >= 1 || (col.mending && col.stage > 0))) {
+      if (p.pattern === PATTERN.glass && col.stage >= 1 && (!col.mending || col.phases.glass < 1)) {
         p.pattern = PATTERN.none;
         tint(p, C.hole, 1);
-      } else if (fresh.has(p)) {
-        tint(p, WOOD_PATTERNS.has(p.pattern) ? C.fresh : C.freshPlaster, 0.4);
       } else if (col.mending) {
-        if (col.cause === 'fire') tint(p, C.soot, 0.12);
+        // New work is pale until it is painted; the old is cleaned as it goes.
+        const left = 1 - col.phases.paint;
+        if (fresh.has(p)) tint(p, WOOD_PATTERNS.has(p.pattern) ? C.fresh : C.freshPlaster, 0.45 * left);
+        else if (col.cause === 'fire' && col.stage >= 2) tint(p, C.soot, 0.25 * left);
       } else if (col.cause === 'fire') {
         if (col.stage === 2) tint(p, C.soot, 0.22 + 0.12 * r);
         else if (col.stage === 3) tint(p, stone ? C.soot : C.char, (stone ? 0.35 : 0.6) + 0.25 * r);
@@ -473,7 +474,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     const inset = (dx: number, dz: number): number => (prof.columns.has(prof.colKey(col.x + dx, col.z + dz)) ? 0 : 0.07);
     const x0 = col.x + inset(-1, 0), x1 = col.x + 1 - inset(1, 0);
     const z0 = col.z + inset(0, -1), z1 = col.z + 1 - inset(0, 1);
-    if (col.stage === 3 && !col.mending) {
+    if (col.stage === 3 && (!col.mending || col.phases.clear < 1)) {
       if (s.kind === 'dock') continue;
       const color = col.cause === 'fire' && !stone ? C.ash : mix3(C.rubble, wallColor, 0.3);
       ashFloor(extras, x0, z0, x1, z1, col.wreckBase + 0.02, color);
@@ -494,7 +495,10 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
   })();
   if (!settling) {
     const chunks = debrisOf(debrisPart(broken.removed, prof), prof);
-    for (const ch of chunks) {
+    for (const [i, ch] of chunks.entries()) {
+      const col = prof.columnNear(ch.to[0], ch.to[2]);
+      // Carried away a piece at a time while the rubble is cleared.
+      if (col?.mending && i >= Math.round(chunks.length * (1 - col.phases.clear))) continue;
       const m = restMatrix(ch);
       for (const p of ch.polys) {
         const q = clonePoly(p);
@@ -508,10 +512,13 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     const col = colAt(p);
     if (!col) continue;
     const [, ny] = normalOf(p);
+    const c = centroid(p);
     if (col.mending) {
+      const ph = col.phases;
       extras.setColor(C.fresh).setPattern(PATTERN.none).setInk('new-timber');
-      if (ny > 0.25) raftersOn(extras, p, 0.2, 0.035);
-      else if (col.stage === 3 && walls.has(p.ink)) studsOn(extras, p, 0.22, 0.035);
+      // Rafters go up from the eaves; the frame of the walls rises from the floor.
+      if (ny > 0.25 && c[1] < col.top + 1.25 * ph.rafters) raftersOn(extras, p, 0.2, 0.035);
+      else if (col.stage === 3 && walls.has(p.ink) && ph.frame > 0 && c[1] < col.wreckBase + (col.top - col.wreckBase) * ph.frame + 0.2) studsOn(extras, p, 0.22, 0.035);
     } else if (col.cause === 'fire' && col.stage === 2 && ny > 0.25 && !stone) {
       extras.setColor(C.char).setPattern(PATTERN.none).setInk('rafters');
       raftersOn(extras, p, 0.22, 0.04);
@@ -519,7 +526,12 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
   }
   for (const col of prof.columns.values()) {
     if (col.mending) {
-      if (col.stage >= 2 && col.top > col.base) {
+      const ph = col.phases;
+      if (col.stage === 3 && col.cause === 'blast' && ph.clear < 1 && s.kind !== 'dock') {
+        // Rubble being cleared: the heap goes down.
+        heap(extras, col, hash(seed, col.x, col.z), mix3(wallColor, C.rubble, 0.55), 1 - ph.clear);
+      }
+      if (col.stage >= 2 && col.top > col.base && ph.walls >= 1 && ph.tiles < 1) {
         // A top plate of new timber where the walls will meet the roof.
         extras.setColor(C.fresh).setPattern(PATTERN.none).setInk('new-timber');
         const y = col.top - 0.03;
@@ -556,7 +568,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     if ((f.type !== 'window' && f.type !== 'door') || f.cell === undefined || f.dir === undefined) continue;
     const x = keyX(f.cell), y = keyY(f.cell), z = keyZ(f.cell);
     const col = prof.columns.get(prof.colKey(x, z));
-    if (!col || col.cause !== 'fire' || col.stage < 1 || col.mending) continue;
+    if (!col || col.cause !== 'fire' || col.stage < 1 || (col.mending && col.phases.paint >= 0.5)) continue;
     const [dx, dz] = DIR4[f.dir]!;
     const px = x + 0.5 + dx * 0.5, pz = z + 0.5 + dz * 0.5;
     const top = y * CELL_H + (f.type === 'door' ? 0.5 : 0.62);
@@ -577,7 +589,7 @@ function buildingDamage(intact: MeshData, prof: Profile): MeshData {
     if (d) decals.push(d);
   }
   for (const col of prof.columns.values()) {
-    if (col.cause !== 'blast' || col.stage < 1 || col.mending) continue;
+    if (col.cause !== 'blast' || col.stage < 1 || (col.mending && col.phases.paint >= 0.5)) continue;
     const mine = faces.filter((f) => {
       const cx = f.nx * f.d + -f.nz * ((f.u0 + f.u1) / 2);
       const cz = f.nz * f.d + f.nx * ((f.u0 + f.u1) / 2);
@@ -655,9 +667,9 @@ function treeDamage(intact: MeshData, prof: Profile): MeshData {
 
   if (col.mending) {
     // Regrowing: the tree as it was, smaller, beside the old stump.
-    const grow = [0.3, 0.55, 0.78, 0.92][3 - Math.min(3, col.stage)]!;
-    if (col.stage >= 2) stump(0.16);
-    const m = [grow, 0, 0, 0, 0, grow, 0, 0, 0, 0, grow, 0, trunkX * (1 - grow) + (col.stage >= 2 ? 0.18 : 0), col.base * (1 - grow), trunkZ * (1 - grow), 1];
+    const grow = 0.3 + 0.65 * col.progress;
+    if (col.stage >= 2 && col.progress < 0.6) stump(0.16);
+    const m = [grow, 0, 0, 0, 0, grow, 0, 0, 0, 0, grow, 0, trunkX * (1 - grow) + (col.stage >= 2 && col.progress < 0.6 ? 0.18 : 0), col.base * (1 - grow), trunkZ * (1 - grow), 1];
     for (const p of polys) {
       const q = clonePoly(p);
       transformPoly(q, m);
