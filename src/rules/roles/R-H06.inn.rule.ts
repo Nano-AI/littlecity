@@ -39,8 +39,26 @@ export default defineRule({
     const squares = plazas(ctx.facts);
     const places = arrivals(ctx.facts);
     if (places.length === 0) return [];
-    const squareAt = new Map<number, StructureId>();
-    for (const p of squares.list) if (p.square) for (const c of p.cells) squareAt.set(columnIndex(keyX(c), keyZ(c)), p.id);
+    // The columns within 2 of each square (Chebyshev), worked out once from the squares' own cells.
+    const nearSquare = new Map<number, StructureId[]>();
+    for (const p of squares.list) {
+      if (!p.square) continue;
+      const seen = new Set<number>();
+      for (const c of p.cells) {
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            const x = keyX(c) + dx, z = keyZ(c) + dz;
+            if (!inColumnBounds(x, z)) continue;
+            const col = columnIndex(x, z);
+            if (seen.has(col)) continue;
+            seen.add(col);
+            const list = nearSquare.get(col);
+            if (list) list.push(p.id);
+            else nearSquare.set(col, [p.id]);
+          }
+        }
+      }
+    }
     // Candidates, with the places each one stands at.
     const at = new Map<string, StructureId[]>();
     const size = new Map<StructureId, number>();
@@ -56,14 +74,7 @@ export default defineRule({
         if (p?.square) onSquares.add(p.id);
       }
       // On a street just off a square: a cell of the house within 2 of it.
-      for (const c of s.cells) {
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dz = -2; dz <= 2; dz++) {
-            const id = squareAt.get(columnIndex(keyX(c) + dx, keyZ(c) + dz));
-            if (id !== undefined && inColumnBounds(keyX(c) + dx, keyZ(c) + dz)) onSquares.add(id);
-          }
-        }
-      }
+      for (const c of s.cells) for (const id of nearSquare.get(columnIndex(keyX(c), keyZ(c))) ?? []) onSquares.add(id);
       for (const place of places) {
         const here = place.kind === 'square' ? onSquares.has(place.plaza!) : within(s.cells, place.x!, place.z!, ARRIVAL_REACH);
         if (!here) continue;
