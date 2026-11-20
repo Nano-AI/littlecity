@@ -128,6 +128,15 @@ export interface TownView {
    */
   prepareEye?(): void;
 
+  /**
+   * Added for the quality governor (src/render/quality.ts). How sharp the page is drawn: the levels
+   * this view has, sharpest first, and the one in use. A view made with a fixed pixel ratio or ink
+   * has one level.
+   */
+  quality?(): { level: number; levels: { pixelRatio: number; superSample: 1 | 2; halfInk: boolean }[] };
+  /** Changes to a level (an index into quality().levels). */
+  setQuality?(level: number): void;
+
   /** Match the canvas's CSS size. Call on window resize. */
   resize(width: number, height: number): void;
   /** Draws one frame. Reads time of day and wind from `signals`; never reads the clock itself. */
