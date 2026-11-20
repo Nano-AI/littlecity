@@ -47,7 +47,9 @@ export interface ShipWind {
 
 export class ShipBody {
   readonly rig: ShipRig;
-  readonly hull: InstanceHandle;
+  hull: InstanceHandle;
+  /** Sails lost to mischief (torn away, or gone with their mast): never shown again. */
+  private lost = new Set<number>();
   readonly sails: SailPiece[] = [];
   private pennant: InstanceHandle | null = null;
   private ensign: InstanceHandle | null = null;
@@ -227,9 +229,34 @@ export class ShipBody {
   }
 
   private show(s: SailPiece, which: number): void {
+    const i = this.sails.indexOf(s);
+    if (this.lost.has(i)) which = -2;
     if (s.shown === which) return;
     s.shown = which;
-    s.cloth.forEach((c, i) => c.setVisible(i === which));
+    s.cloth.forEach((c, k) => c.setVisible(k === which));
+    s.yard.setVisible(which !== -2);
+  }
+
+  /**
+   * Mischief (design section 13b): sails torn away (`sails`, by index), or a whole mast gone with its
+   * yards and sails (`mast`); the hull drawn afresh without it (`hull`, the old one released). Nothing is
+   * shown again of what was lost.
+   */
+  damage(opts: { sails?: readonly number[]; mast?: number; hull?: InstanceHandle }): void {
+    if (this.released) {
+      opts.hull?.release();
+      return;
+    }
+    for (const i of opts.sails ?? []) this.lost.add(i);
+    if (opts.mast !== undefined) this.rig.sails.forEach((d, i) => d.mast === opts.mast && this.lost.add(i));
+    for (const s of this.sails) s.shown = -3;
+    if (opts.hull) {
+      this.hull.release();
+      this.hull = opts.hull;
+    }
+    if (opts.mast !== undefined) {
+      if (this.pennant) this.pennant.setVisible(false);
+    }
   }
 
   private cut = false;
