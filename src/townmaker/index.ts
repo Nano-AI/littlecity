@@ -22,8 +22,11 @@
 
 import { columnIndex, key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain } from '@/core/world';
+import { rollCharacter, type Character } from './character';
 import { buildCastle } from './districts/castle';
-import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWillow } from './districts/country';
+import { buildForum } from './districts/forum';
+import { buildBarn, buildFields, buildFollyTower, buildOrchard, buildPark, buildSchool, buildSmithy, buildVillageGreen } from './districts/village';
+import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWalledLawn, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
 import { buildHarbour } from './districts/harbour';
 import { buildRiverside } from './districts/riverside';
@@ -31,7 +34,7 @@ import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildFolly, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
 import { buildSmallSquare, buildSquare } from './districts/square';
-import { buildBoardwalk, buildBridge, buildJetty, buildViaduct } from './districts/water';
+import { buildBoardwalk, buildBridge, buildInhabitedBridge, buildJetty, buildViaduct } from './districts/water';
 import { Grower, type Made } from './grower';
 import { joinedStreets, route } from './route';
 import { readSite } from './site';
@@ -51,49 +54,127 @@ export interface GrownTown {
   square: { x: number; z: number; h: number } | null;
   /** What each column was claimed for (CLAIM bits), for tools and tests. */
   claims: Uint8Array;
+  /** The town's character, and the one that flavours it (character.ts, README.md). */
+  character: Character;
+  secondary: Character;
 }
 
-export function growTown(terrain: Terrain, seed: number): Edit[] {
-  return planTown(terrain, seed).edits;
+export interface GrowOptions {
+  /** A character not to roll (the last one the dice showed), when the island allows another. */
+  avoid?: Character;
+  /** Grow this character whatever the island leans to (scenarios, tools). */
+  character?: Character;
 }
 
-export function planTown(terrain: Terrain, seed: number): GrownTown {
+export function growTown(terrain: Terrain, seed: number, opts: GrowOptions = {}): Edit[] {
+  return planTown(terrain, seed, opts).edits;
+}
+
+type Step = (town: Town) => unknown;
+
+/** Every district the planner can ask for, by name. `name:n` asks again (a second barn, a second row). */
+const STEPS: Record<string, Step> = {
+  square: (t) => buildSquare(t) || buildSmallSquare(t),
+  forum: (t) => buildForum(t) || buildSquare(t) || buildSmallSquare(t),
+  willow: buildWillow,
+  hilltop: buildHilltop,
+  cliff: buildCliffHouse,
+  castle: buildCastle,
+  acropolis: buildAcropolis,
+  folly: buildFolly,
+  manor: buildManor,
+  harbour: (t) => buildHarbour(t, false),
+  greatHarbour: (t) => buildHarbour(t, true),
+  lighthouse: buildLighthouse,
+  riverside: buildRiverside,
+  courtyard: (t) => buildCourtyard(t, 0, 8),
+  chapel: buildChapel,
+  mill: buildMill,
+  greenhouse: buildGreenhouse,
+  walledGarden: buildWalledGarden,
+  boardwalk: buildBoardwalk,
+  bridge: buildBridge,
+  jetty: buildJetty,
+  watchtower: buildWatchtower,
+  paddock: buildPaddock,
+  stairs: buildStairs,
+  viaduct: buildViaduct,
+  green: (t) => buildVillageGreen(t),
+  barn: (t) => buildBarn(t, t.districts.length),
+  orchard: (t) => buildOrchard(t, t.districts.length),
+  smithy: (t) => buildSmithy(t),
+  school: (t) => buildSchool(t),
+  fields: (t) => buildFields(t),
+  park: (t) => buildPark(t),
+  inhabitedBridge: buildInhabitedBridge,
+  farmstead: reserveFarmstead,
+  follyTower: buildFollyTower,
+  walledLawn: buildWalledLawn,
+};
+
+/**
+ * The plans, in priority order: the first districts get the best ground,
+ * the rest fit where they can or are left out. `housing:n:d` is a housing
+ * block about d steps from the square. See README.md for what each town is.
+ */
+const PLANS: Record<Character, readonly string[]> = {
+  harbour: ['square', 'greatHarbour', 'lighthouse', 'willow', 'housing:0:8', 'courtyard', 'chapel', 'smithy', 'boardwalk', 'bridge', 'jetty', 'riverside', 'housing:1:11', 'walledGarden', 'stairs', 'viaduct'],
+  marble: ['forum', 'willow', 'acropolis', 'folly', 'follyTower', 'housing:0:9', 'courtyard', 'viaduct', 'chapel', 'walledGarden', 'walledLawn', 'harbour', 'lighthouse', 'manor', 'courtyard:1', 'housing:1:12', 'bridge', 'boardwalk', 'stairs'],
+  castle: ['square', 'castle', 'smithy', 'chapel', 'hilltop', 'housing:0:8', 'housing:1:11', 'walledGarden', 'walledLawn', 'watchtower', 'cliff', 'harbour', 'lighthouse', 'willow', 'stairs', 'bridge', 'courtyard', 'fields'],
+  market: ['square', 'housing:0:8', 'housing:1:10', 'courtyard', 'school', 'chapel', 'smithy', 'courtyard:1', 'inhabitedBridge', 'harbour', 'lighthouse', 'fields', 'housing:2:13', 'greenhouse', 'willow', 'bridge', 'stairs'],
+  river: ['square', 'riverside', 'inhabitedBridge', 'mill', 'willow', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'park', 'fields', 'greenhouse', 'boardwalk', 'bridge', 'courtyard', 'housing:1:12', 'walledGarden'],
+  farming: ['square', 'green', 'manor', 'chapel', 'farmstead', 'barn', 'orchard', 'mill', 'paddock', 'barn:1', 'orchard:1', 'smithy', 'greenhouse', 'manor', 'fields', 'willow', 'harbour', 'lighthouse', 'paddock:1', 'walledLawn'],
+  hill: ['square', 'hilltop', 'castle', 'cliff', 'cliff:1', 'chapel', 'acropolis', 'folly', 'follyTower', 'viaduct', 'stairs', 'housing:0:9', 'harbour', 'lighthouse', 'willow', 'watchtower', 'bridge'],
+  gardens: ['square', 'manor', 'park', 'fields', 'school', 'greenhouse', 'walledGarden', 'walledLawn', 'follyTower', 'housing:0:9', 'chapel', 'harbour', 'lighthouse', 'willow', 'courtyard', 'boardwalk', 'bridge', 'paddock'],
+};
+
+/** What a secondary character adds: its showpieces, after the primary's first few districts. */
+const FLAVOUR: Record<Character, readonly string[]> = {
+  harbour: ['greatHarbour'],
+  marble: ['acropolis', 'folly'],
+  castle: ['castle', 'smithy'],
+  market: ['school', 'courtyard:1'],
+  river: ['riverside', 'inhabitedBridge'],
+  farming: ['barn', 'orchard'],
+  hill: ['hilltop', 'cliff'],
+  gardens: ['park', 'fields'],
+};
+
+/** How thickly cottages fill the streets, by character. */
+const INFILL: Record<Character, number> = { harbour: 1, marble: 1, castle: 1, market: 1.1, river: 1, farming: 0.45, hill: 0.9, gardens: 0.7 };
+
+/** The plan for a primary and a secondary character. */
+export function planFor(primary: Character, secondary: Character): string[] {
+  const plan = [...PLANS[primary]];
+  const family = (k: string): string => (k === 'greatHarbour' ? 'harbour' : k.split(':')[0]!);
+  const extra = FLAVOUR[secondary].filter((k) => !plan.some((p) => p === k || (family(p) === family(k) && family(k) !== 'housing' && !k.includes(':'))));
+  plan.splice(3, 0, ...extra);
+  // A great harbour replaces the plain one.
+  if (plan.includes('greatHarbour')) return plan.filter((k) => k !== 'harbour');
+  return plan;
+}
+
+export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {}): GrownTown {
   const g = new Grower(terrain, seed);
+  const site = readSite(terrain);
+  const { primary, secondary } = rollCharacter(site, seed, opts.avoid, opts.character);
   // One town in five has no fountain anywhere, so the hand pump (D33, which needs a town without one) shows too.
-  const town: Town = { g, site: readSite(terrain), square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 };
+  const town: Town = { g, site, square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 && primary !== 'marble', marketCross: primary === 'market' || secondary === 'market' };
 
-  if (!buildSquare(town)) buildSmallSquare(town);
-  buildWillow(town);
-  buildHilltop(town);
-  buildCliffHouse(town);
-  buildCastle(town);
-  buildAcropolis(town);
-  buildFolly(town);
-  if (town.site.land < 750) buildManor(town);
-  buildHarbour(town);
-  buildLighthouse(town);
-  reserveFarmstead(town);
-  buildRiverside(town);
-  buildHousing(town, 0, 9);
-  buildCourtyard(town, 0, 8);
-  if (town.site.land >= 750) buildManor(town);
-  buildHousing(town, 1, 11);
-  buildChapel(town);
-  buildMill(town);
-  buildGreenhouse(town);
-  buildWalledGarden(town);
-  buildBoardwalk(town);
-  buildBridge(town);
-  buildJetty(town);
-  buildWatchtower(town);
-  buildPaddock(town);
-  buildStairs(town);
-  buildViaduct(town);
-  for (let n = 2; n < 6; n++) buildHousing(town, n, 8 + n * 2);
+  const plan = planFor(primary, secondary);
+  // A marble city stands or falls by its forum: on an island with no site for one, grow another kind of town.
+  if (primary === 'marble' && !opts.character && plan[0] === 'forum' && !buildForum(town)) return planTown(terrain, seed, { avoid: 'marble' });
+  if (primary === 'marble' && town.square) plan.shift();
+  for (const step of plan) {
+    const [name, a, b] = step.split(':');
+    if (name === 'housing') buildHousing(town, Number(a), Number(b));
+    else STEPS[name!]?.(town);
+  }
+  for (let n = 2; n < 6; n++) if (primary !== 'farming') buildHousing(town, n, 8 + n * 2);
   const unjoined = joinStreets(town);
   buildFlowerBed(town, 0);
   buildFlowerBed(town, 1);
-  for (let ring = 0; ring < 4; ring++) buildInfill(town, ring);
+  for (let ring = 0; ring < 4; ring++) buildInfill(town, ring, INFILL[primary]);
   buildTrees(town);
   buildFarmstead(town);
 
@@ -108,6 +189,8 @@ export function planTown(terrain: Terrain, seed: number): GrownTown {
     fellBack,
     square: town.square,
     claims: g.claim,
+    character: primary,
+    secondary,
   };
 }
 

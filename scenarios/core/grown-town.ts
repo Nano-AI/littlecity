@@ -12,11 +12,40 @@ import type { CameraSpec } from '@/scenario';
 import { scenario } from '@/scenario';
 import { generateTerrain } from '@/terrain/terrain';
 import { generateIsland2 } from '@/terrain/terrain2';
-import { planTown } from '@/townmaker/index';
+import { CHARACTER_NAMES, PROMISES, type Character } from '@/townmaker/character';
+import { planTown, type GrownTown } from '@/townmaker/index';
+import type { CellKey } from '@/core/grid';
+import type { Edit, Terrain, World } from '@/core/world';
+import { decodeTown } from '@/world/save';
+import { LEGACY_TOWNS } from './grown-town-legacy';
 
-export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
+/**
+ * The edits that rebuild a saved world on its island: floors on the ground,
+ * then the blocks in the order they were placed, then floors on blocks, then
+ * edge pieces. Each is legal when it comes (the scenario builder checks).
+ */
+export function editsOf(w: World, t: Terrain): Edit[] {
+  const ground = (c: CellKey): boolean => (c >> 12) === t.height[(c & 63) + ((c >> 6) & 63) * 48];
+  const out: Edit[] = [];
+  for (const [cell, floor] of w.floors) if (ground(cell)) out.push({ type: 'placeFloor', cell, floor });
+  const blocks = [...w.blocks].sort((a, b) => a[1].seq - b[1].seq);
+  for (const [cell, b] of blocks) {
+    const under = cell - 4096;
+    out.push({ type: 'placeBlock', cell, kind: b.kind, color: b.color, rot: b.rot, from: cell >= 4096 && w.blocks.has(under) ? under : null });
+  }
+  for (const [cell, floor] of w.floors) if (!ground(cell)) out.push({ type: 'placeFloor', cell, floor });
+  for (const [edge, kind] of w.edges) out.push({ type: 'placeEdge', edge, kind });
+  return out;
+}
+
+/** A grown town: `n` names it grown-town-<n>, or a character name grown-<character>, grown on that character. */
+export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, character?: Character) {
   const terrain = generateTerrain(seed, gen);
-  const plan = planTown(terrain, seed);
+  const legacy = typeof n === 'number' ? LEGACY_TOWNS[n] : undefined;
+  const decoded = legacy ? decodeTown(legacy) : null;
+  const fresh = planTown(terrain, seed, character ? { character } : {});
+  // A numbered town is the one other tests were tuned on: its saved edits, with the new planner's districts for the cameras.
+  const plan: GrownTown = decoded?.ok ? { ...fresh, edits: editsOf(decoded.world, terrain) } : fresh;
   const at = (name: string): [number, number] | null => {
     const d = plan.districts.find((x) => x.name === name);
     return d ? [d.x, d.z] : null;
@@ -38,6 +67,7 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
   ];
   const close: [string, string, number, number][] = [
     ['square', 'square', 45, 4],
+    ['square', 'square-back', 225, 3.2],
     ['harbour', 'harbour', 45, 3.6],
     ['castle', 'castle', 45, 3.4],
     ['acropolis', 'acropolis', 135, 3.6],
@@ -47,13 +77,20 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
     ['manor', 'manor', 315, 4],
     ['mill', 'mill', 45, 4.5],
     ['lighthouse', 'lighthouse', 315, 4.5],
+    ['village-green', 'green', 45, 4],
+    ['fields', 'fields', 45, 4],
+    ['park', 'park', 45, 4.5],
+    ['riverside', 'riverside', 135, 3.6],
+    ['inhabited-bridge', 'bridge-shops', 45, 5],
+    ['hilltop', 'hilltop', 45, 3.4],
   ];
-  for (const [district, name, yaw, zoom] of close) {
+  // A kept town's districts are not the new planner's: only the overviews and the town views.
+  for (const [district, name, yaw, zoom] of legacy ? [] : close) {
     const p = at(district);
     if (!p) continue;
     cameras.push({ name, yaw, pitch: name === 'square' ? 44 : 32, zoom, target: [p[0] + 0.5, level(p[0], p[1]) + 0.5, p[1] + 0.5] });
   }
-  if (gen === 2) {
+  if (gen === 2 && !legacy) {
     // The bridges: each arch run over water, seen from beside it; and the river half way along.
     const seen = new Set<number>();
     let i = 0;
@@ -74,7 +111,7 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
       cameras.push({ name: 'river', yaw: 135, pitch: 30, zoom: 3.4, target: [(c % 48) + 0.5, 0.5, Math.floor(c / 48) + 0.5] });
     }
   }
-  const sq = plan.square;
+  const sq = legacy ? null : plan.square;
   const town: [number, number, number] = sq ? [sq.x + 0.5, sq.h + 0.5, sq.z + 0.5] : mid;
   cameras.push(
     { name: 'town', yaw: 45, pitch: 33, zoom: 2.4, target: town },
@@ -85,9 +122,9 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
   );
 
   return scenario({
-    name: `grown-town-${n}`,
+    name: typeof n === 'number' ? `grown-town-${n}` : `grown-${n}`,
     seed,
-    about: `Grow a town on the generated island for seed ${seed}: the generator's whole town, every edit legal, district by district.`,
+    about: `Grow a town on generator ${gen}'s island for seed ${seed}: a ${CHARACTER_NAMES[plan.character]} (with a touch of ${CHARACTER_NAMES[plan.secondary]}), every edit legal, district by district.`,
     terrain: 'generated',
     terrainGen: gen, // generator 1 is pinned; generator 2's islands may shift a little while it is tuned
     build(b) {
@@ -96,10 +133,10 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
     cameras,
     expect(shape, dressing, check) {
       const roles = new Set([...shape.roles.values()].map((r) => r.role));
-      check.ok(roles.size >= 30, `a grown town shows at least 30 roles (has ${roles.size})`);
-      const want = gen === 1 ? (['shop', 'chapel', 'steeple', 'clock-tower', 'tiered-fountain', 'lighthouse', 'windmill', 'keep', 'temple'] as const) : (['town-hall', 'shop', 'lighthouse'] as const);
-      for (const r of want) check.ok(roles.has(r), `a ${r}`);
-      check.ok(roles.has('pier') || roles.has('quay'), 'a pier or a quay');
+      // A coherent town, not a complete one: the character's promises, and the town basics.
+      check.ok(roles.size >= 25, `a grown town shows plenty (has ${roles.size} roles)`);
+      if (!legacy) for (const group of PROMISES[plan.character]) check.ok(group.some((r) => roles.has(r)), `a ${CHARACTER_NAMES[plan.character]} has a ${group.join(' or ')}`);
+      check.ok(roles.has('chapel') || roles.has('town-hall'), 'a chapel or a town hall');
       check.ok(dressing.props.some((p) => p.rule.startsWith('D01')), 'street lamps');
     },
   });

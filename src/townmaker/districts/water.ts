@@ -148,3 +148,48 @@ export function buildViaduct(town: Town): boolean {
   V.way(d, len + 1, 0);
   return true;
 }
+
+/**
+ * An inhabited bridge: arches two wide across a river, a street along one
+ * lane and two-storey houses standing on the other (R-H20: shops over the
+ * river), the ends left open so people pass.
+ */
+export function buildInhabitedBridge(town: Town): boolean {
+  const { g } = town;
+  let found = null;
+  for (const n of [4, 5, 3, 6, 2]) {
+    if (found) break;
+    found = search(g, `bridge-shops${n}`, (f) => {
+      const top = g.h(f.ox, f.oz);
+      if (top < 1) return null;
+      for (const v of [0, 1]) {
+        for (const u of [0, n + 1]) {
+          const x = f.x(u, v), z = f.z(u, v);
+          if (g.h(x, z) !== top || !g.free(x, z) || g.groundTaken(x, z)) return null;
+        }
+        for (let u = 1; u <= n; u++) if (!openWater(g, f.x(u, v), f.z(u, v)) || g.claimed(f.x(u, v), f.z(u, v), CLAIM.built | CLAIM.keep)) return null;
+      }
+      // Water on the outer sides too: it is a river, not a ditch.
+      for (const v of [-1, 2]) for (let u = 1; u <= n; u++) if (g.h(f.x(u, v), f.z(u, v)) !== 0) return null;
+      for (const u of [-1, n + 2]) if (Math.abs(g.h(f.x(u, 0), f.z(u, 0)) - top) > 1 || g.h(f.x(u, 0), f.z(u, 0)) === 0) return null;
+      return { score: fromSquare(town, f.ox, f.oz) * 0.5 - n, data: { n, top } };
+    }, { turns: [0, 1, 2, 3] });
+  }
+  if (!found) return false;
+  const f = found.frame;
+  const { n, top } = found.data;
+  const B = new Local(g, f);
+  const d = startDistrict(town, 'inhabited-bridge', f.x(n / 2, 0), f.z(n / 2, 0));
+  B.claim(0, 0, n + 1, 1, CLAIM.built);
+  for (const u of [-1, 0, n + 1, n + 2]) pave(g, f.x(u, 0), f.z(u, 0));
+  for (let u = 1; u <= n; u++) for (const v of [0, 1]) B.put('arch', u, top - 1, v, 0);
+  for (let u = 1; u <= n; u++) B.floor('path', u, 0, top);
+  for (let u = n > 2 ? 2 : 1; u <= (n > 2 ? n - 1 : n); u++) {
+    const c = B.color('house', [[u, top, 1], [u, top + 1, 1]], `bridge-shop${u}`);
+    B.put('house', u, top, 1, c);
+    B.put('house', u, top + 1, 1, c);
+  }
+  B.way(d, -1, 0);
+  B.way(d, n + 2, 0);
+  return true;
+}

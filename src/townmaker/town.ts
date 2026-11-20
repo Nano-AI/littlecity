@@ -27,6 +27,8 @@ export interface Town {
   districts: District[];
   /** A town with no fountain at all: it draws its water at a hand pump (D33) instead. */
   pumps: boolean;
+  /** A market cross in the middle of the square instead of the fountain (market towns). */
+  marketCross?: boolean;
   /** Where the outlying farmstead goes, its ground kept clear (farmstead.ts). */
   farm?: [number, number];
 }

@@ -102,8 +102,8 @@ export function buildAcropolis(town: Town): boolean {
 export function buildChapel(town: Town): boolean {
   const { g } = town;
   const found = search(g, 'chapel', (f) => {
-    if (!fits(g, f, 0, -1, 3, 1)) return null;
-    const h = rectFlat(g, f, 0, -1, 3, 1);
+    if (!fits(g, f, 0, -3, 3, 1)) return null;
+    const h = rectFlat(g, f, 0, -3, 3, 1);
     if (h < 0) return null;
     const d = fromSquare(town, f.x(1, 1), f.z(1, 1));
     if (d < 6) return null;
@@ -114,14 +114,21 @@ export function buildChapel(town: Town): boolean {
   const h = found.data;
   const C = new Local(g, f);
   const d = startDistrict(town, 'chapel', f.x(1, 0), f.z(1, 0));
-  C.claim(0, -1, 3, 1, CLAIM.built);
-  C.claim(-1, -2, 4, 2, CLAIM.open);
+  C.claim(0, -3, 3, 1, CLAIM.built);
+  C.claim(-1, -4, 4, 2, CLAIM.open);
   for (let u = -1; u <= 3; u++) pave(g, f.x(u, 1), f.z(u, 1));
   pave(g, f.x(1, 2), f.z(1, 2));
   C.house(0, 0, 2, 0, 2, 'chapel');
   C.stack('tower', 3, 0, 5, C.color('tower', [[3, h, 0]], 'steeple'));
   // A flying buttress off the chapel's north wall, at the upper storey.
   C.put('arch', 1, h + 1, -1, 0);
+  // The churchyard behind it: a garden walled round on the chapel's far side (R-G02: headstones and a yew).
+  for (let v = -3; v <= -1; v++) for (let u = 0; u <= 2; u++) C.floor('garden', u, v, h);
+  for (let u = 0; u <= 2; u++) C.edge(u, h, -3, 0, 'wall');
+  for (let v = -3; v <= -1; v++) {
+    C.edge(0, h, v, 3, 'wall');
+    C.edge(2, h, v, 1, 'wall');
+  }
   C.way(d, 1, 2);
   C.way(d, -1, 1);
   return true;

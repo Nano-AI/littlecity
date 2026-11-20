@@ -25,7 +25,8 @@ import { brushAt, copyLook, landColumn, levelSteps, lineCells, planErase, planUs
 import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
-import { growTown } from '@/townmaker/index';
+import { planTown } from '@/townmaker/index';
+import { CHARACTER_NAMES, type Character } from '@/townmaker/character';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
 import { ghostFor, ghostForLand, ghostForRun } from './ghost';
@@ -222,20 +223,26 @@ export function createInterface(host: InterfaceHost): Interface {
       api.sync();
     },
   });
-  const grow = (): void => {
+  /** The character the last grown town had: the dice favour another, so rolls show the range. */
+  let lastCharacter: Character | undefined;
+  const grow = (avoid?: Character): void => {
     mischief.undo();
     growth.stop();
     setGhost(null, '');
-    growth.start(growTown(game.terrain, game.world.seed));
-    if (growth.active) growingNote = feedback.banner('A town is growing.', [{ label: 'Finish now', primary: true, run: () => growth.skip() }]);
+    const plan = planTown(game.terrain, game.world.seed, { avoid });
+    lastCharacter = plan.character;
+    growth.start(plan.edits);
+    const name = CHARACTER_NAMES[plan.character];
+    const article = /^[aeiou]/.test(name) ? 'An' : 'A';
+    if (growth.active) growingNote = feedback.banner(`${article} ${name} is growing.`, [{ label: 'Finish now', primary: true, run: () => growth.skip() }]);
   };
 
   const menu = createMenu({
-    growTown: grow,
+    growTown: () => grow(),
     growNewIsland() {
       growth.stop();
       host.newIsland();
-      grow();
+      grow(lastCharacter);
     },
     hasTown: () => !onlyStartingTrees(game.world, game.terrain),
     newIsland: () => {
@@ -922,7 +929,7 @@ export function createInterface(host: InterfaceHost): Interface {
   showStepper();
 
   // First visit to an empty island: point at Grow a town (see welcome.ts).
-  const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: grow });
+  const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: () => grow() });
 
   // ?mischief: straight to a grown town with the Mischief drawer open, to try it.
   const openMischief = (): void => {
