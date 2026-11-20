@@ -618,6 +618,25 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 60, pitch: 30 },
   },
   {
+    // Shaping the land (design section 6): how to dig a river or a moat.
+    id: 'dug-river',
+    group: 'waterfront',
+    name: 'Dug river and barge',
+    how: 'Dig a narrow channel in from the sea with Dig (Nature drawer; Shift-drag paints) and it fills as a river: put a dock on it and a barge comes. Dig all round a building for a moat.',
+    proof: { actor: { rule: 'L41.river-barge' } },
+    seed: 7509,
+    ground: seaSouth,
+    build(b) {
+      // A channel three wide from the sea at z = 21 up to z = 9, dug by hand.
+      const cols: number[] = [];
+      for (let z = 9; z <= 20; z++) for (const x of [20, 21, 22]) cols.push(x + z * 48);
+      b.edit({ type: 'land', up: [], down: cols }, 'dig');
+      b.block('dock', 20, 0, 10).block('dock', 20, 0, 11);
+      b.house(17, 10, { color: 3 });
+    },
+    view: { yaw: 30, pitch: 34 },
+  },
+  {
     id: 'quay',
     group: 'waterfront',
     name: 'Quay',
