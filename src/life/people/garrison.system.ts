@@ -13,7 +13,9 @@ import { clothColors } from '@/parts/props/kit';
 import { TOOL_PIECE, toolMesh, type Tool } from '@/parts/people/extras';
 import { buildHorse, HORSE_PIECES, horseMatrices, horsePose, SADDLE } from '@/parts/people/horse';
 import { buildPerson, PIECES, rigOf, soldierLook, type Look, type Rig } from '@/parts/people/person';
+import { applyHold, aimArm, handReach } from '@/parts/people/hands';
 import { poseOf, rigMatrices, sitDrop, type Pose } from '@/parts/people/pose';
+import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import { findCastles, type Castle } from '@/rules/life/castle.lib';
 import type { ShapePlan, DressingPlan } from '@/resolve/plan';
 import { PERSON } from '@/style/people';
@@ -36,7 +38,7 @@ interface Garrison {
   colour: string;
   soldiers: { look: Look; rig: Rig; fig: Figure | null }[];
   horse: { pieces: InstanceHandle[]; last: Float32Array } | null;
-  rider: { look: Look; rig: Rig; fig: Figure | null; lance: InstanceHandle | null } | null;
+  rider: { look: Look; rig: Rig; fig: Figure | null; reins: InstanceHandle | null } | null;
   horseLook: number;
 }
 
@@ -57,7 +59,7 @@ function release(g: Garrison): void {
   if (g.horse) for (const h of g.horse.pieces) h.release();
   if (g.rider) {
     dropFigure(g.rider.fig);
-    g.rider.lance?.release();
+    g.rider.reins?.release();
   }
 }
 function dropFigure(f: Figure | null): void {
@@ -158,11 +160,41 @@ function build(shape: ShapePlan, dressing: DressingPlan, seed: number, time: Par
       if (!track && !tether) continue;
       g.ride = createRide(castle, track, seed ^ castle.id, time, tether);
       const look = soldierLook(seed * 37 + castle.id, colour);
-      g.rider = { look, rig: rigOf(look), fig: null, lance: null };
+      g.rider = { look, rig: rigOf(look), fig: null, reins: null };
       g.horseLook = Number((a.params as { look?: number } | undefined)?.look ?? 0);
     }
   }
   return out;
+}
+
+/** Where the rider's left hand holds the reins, body frame: low and forward over the withers. */
+export const REINS_HAND: [number, number, number] = [-0.035, 0.2, 0.07];
+
+let reinsMesh: ReturnType<MeshBuilder['build']> | null = null;
+/** Two reins from one hand (the origin) to the two sides of the bit: unit lengths along +Z, the bit ±X apart (reinsMatrix scales it). */
+function buildReins(): ReturnType<MeshBuilder['build']> {
+  const b = new MeshBuilder({ ink: 'reins' });
+  b.setInk('reins').setColor('#4a3424').setPattern(PATTERN.none);
+  // (X is scaled by the bit's width, about 0.05, so a strap's width across it is drawn about twenty times over.)
+  const w = 0.004, wx = 0.085;
+  for (const x of [-1, 1]) {
+    // A thin strap from the hand (0, 0, 0) to the bit (x / 2, 0, 1); both faces, flat and edge on.
+    b.quad([-wx, 0, 0], [wx, 0, 0], [x * 0.5 + wx, 0, 1], [x * 0.5 - wx, 0, 1]);
+    b.quad([wx, 0, 0], [-wx, 0, 0], [x * 0.5 - wx, 0, 1], [x * 0.5 + wx, 0, 1]);
+    b.quad([0, -w, 0], [0, w, 0], [x * 0.5, w, 1], [x * 0.5, -w, 1]);
+    b.quad([0, w, 0], [0, -w, 0], [x * 0.5, -w, 1], [x * 0.5, w, 1]);
+  }
+  return b.build();
+}
+/** The reins' matrix: from the hand to the middle of the bit along +Z, the bit's two sides at ±0.5 X. */
+function reinsMatrix(hand: [number, number, number], l: [number, number, number], r: [number, number, number]): number[] {
+  const mid = [(l[0] + r[0]) / 2, (l[1] + r[1]) / 2, (l[2] + r[2]) / 2];
+  const z = [mid[0]! - hand[0], mid[1]! - hand[1], mid[2]! - hand[2]];
+  const x = [r[0] - l[0], r[1] - l[1], r[2] - l[2]];
+  // y: perpendicular to both (its length only scales the strap's thickness: keep it unit).
+  const y = [z[1]! * x[2]! - z[2]! * x[1]!, z[2]! * x[0]! - z[0]! * x[2]!, z[0]! * x[1]! - z[1]! * x[0]!];
+  const n = Math.hypot(y[0]!, y[1]!, y[2]!) || 1;
+  return [x[0]!, x[1]!, x[2]!, 0, y[0]! / n, y[1]! / n, y[2]! / n, 0, z[0]!, z[1]!, z[2]!, 0, hand[0], hand[1], hand[2], 1];
 }
 
 const RIDE_POSE: Pose = { legL: 0.4, legR: 0.4, armL: 0.75, armR: 0.3, outL: 0.05, outR: 0.12, lean: 0.04, lift: 0, twist: 0 };
@@ -219,9 +251,8 @@ export default defineSystem<State>({
           const d = g.soldiers[i]!;
           d.fig ??= newFigure(ctx.stage, d.look, `${g.key}-soldier${i}`);
           const pose = s.pose === 'walk' ? poseOf('walk', s.stride, 0) : { legL: 0, legR: 0, armL: 0, armR: 0, outL: 0.08, outR: 0.08, lean: 0, lift: 0, twist: 0 };
-          // The pike hand is held still, in step or halted; a sentry raises the torch a little.
-          pose.armR = s.torch ? 0.55 : 0.32;
-          pose.outR = 0.06;
+          // The pike (or the sentry's torch) in the right hand: the hand closes on its shaft (hands.ts).
+          applyHold(pose, d.rig, { tool: s.torch ? 'torch' : 'pike', load: null, hold: null, anchor: null });
           rigMatrices(d.look, pose, local, 0, d.rig);
           place(5, s.x, s.y, s.z, s.heading, d.look.scale, local, world);
           drawFigure(ctx.stage, d.fig, world, s.torch ? 'torch' : 'pike', g.colour);
@@ -234,6 +265,8 @@ export default defineSystem<State>({
         const hp = horsePose(r.gait, r.phase, (g.castle.id % 7) / 7);
         horseMatrices(hp, local);
         place(6, r.x, r.y, r.z, r.heading, 1, local, world);
+        // The bit, either side of the horse's mouth (its body frame), for the reins.
+        const bit = [-0.024, 0.024].map((bx): [number, number, number] => [world[0]! * bx + world[4]! * 0.38 + world[8]! * 0.31 + world[12]!, world[1]! * bx + world[5]! * 0.38 + world[9]! * 0.31 + world[13]!, world[2]! * bx + world[6]! * 0.38 + world[10]! * 0.31 + world[14]!]);
         let same = true;
         for (let i = 0; same && i < 96; i++) same = g.horse.last[i] === world[i];
         if (!same) {
@@ -244,7 +277,11 @@ export default defineSystem<State>({
         g.rider.fig ??= newFigure(ctx.stage, g.rider.look, `${g.key}-rider`);
         if (r.riding) {
           const drop = sitDrop(g.rider.rig, 0);
-          rigMatrices(g.rider.look, { ...RIDE_POSE, lean: r.gait === 'trot' ? 0.1 : 0.04 }, local, drop, g.rider.rig);
+          const pose = { ...RIDE_POSE, lean: r.gait === 'trot' ? 0.1 : 0.04 };
+          // The lance in the right hand, the reins gathered in the left over the horse's withers.
+          applyHold(pose, g.rider.rig, { tool: 'lance', load: null, hold: null, anchor: null });
+          aimArm(pose, g.rider.rig, -1, REINS_HAND);
+          rigMatrices(g.rider.look, pose, local, drop, g.rider.rig);
           straddle(local, 0.55);
           // Origin on the saddle: the seat moves with the horse's spring.
           const sx = r.x + Math.sin(r.heading) * SADDLE.z, sz = r.z + Math.cos(r.heading) * SADDLE.z;
@@ -254,11 +291,19 @@ export default defineSystem<State>({
           const side = 0.16, fwd = 0.2;
           const cx = r.x + Math.sin(r.heading) * fwd + Math.cos(r.heading) * side, cz = r.z + Math.cos(r.heading) * fwd - Math.sin(r.heading) * side;
           const pose = poseOf('stand', signals.time.seconds, 0.3);
-          pose.armR = 0.3;
+          applyHold(pose, g.rider.rig, { tool: 'lance', load: null, hold: null, anchor: null });
           rigMatrices(g.rider.look, pose, local, 0, g.rider.rig);
           place(5, cx, r.y, cz, r.heading - Math.PI / 2, g.rider.look.scale, local, world);
         }
         drawFigure(ctx.stage, g.rider.fig, world, 'lance', g.colour);
+        // The reins from the left hand to the bit, while riding.
+        g.rider.reins ??= ctx.stage.spawnMesh((reinsMesh ??= buildReins()), IDENTITY);
+        g.rider.reins.setVisible(r.riding);
+        if (r.riding) {
+          const y = -handReach(g.rider.rig), k = 3 * 16;
+          const hand: [number, number, number] = [world[k + 4]! * y + world[k + 12]!, world[k + 5]! * y + world[k + 13]!, world[k + 6]! * y + world[k + 14]!];
+          g.rider.reins.setMatrix(reinsMatrix(hand, bit[0]!, bit[1]!));
+        }
       }
     }
   },

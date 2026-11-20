@@ -166,10 +166,12 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
     case 'balls-a':
     case 'balls-b': {
       // L56: three juggling balls over the hands, in two drawings shown in turn.
-      const up = tool === 'balls-a' ? [[-0.05, 0.42], [0.0, 0.52], [0.05, 0.36]] : [[-0.05, 0.36], [0.0, 0.45], [0.05, 0.5]];
+      // Just over the hands (hands.ts JUGGLE puts them): one ball leaving the throwing hand, one high over the
+      // middle, one coming down into the catching hand.
+      const up = tool === 'balls-a' ? [[-0.045, 0.34], [0.0, 0.47], [0.045, 0.37]] : [[-0.045, 0.37], [0.0, 0.47], [0.045, 0.34]];
       ['#e0543e', '#f2c230', '#4f8fd6'].forEach((colour, i) => {
         b.setInk(`ball${i}`).setColor(colour).setPattern(PATTERN.none);
-        b.at(translation(up[i]![0]!, up[i]![1]!, 0.13), () => b.lathe([[0, -0.022], [0.016, -0.016], [0.022, 0], [0.016, 0.016], [0, 0.022]], { segments: 6 }));
+        b.at(translation(up[i]![0]!, up[i]![1]!, 0.09), () => b.lathe([[0, -0.022], [0.016, -0.016], [0.022, 0], [0.016, 0.016], [0, 0.022]], { segments: 6 }));
       });
       break;
     }

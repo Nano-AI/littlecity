@@ -212,11 +212,11 @@ export function costumeLook(base: Look, costume: Person['costume']): Look {
 
 /** The tool in a person's hands now, from their pose and their job, or null. */
 export function toolOf(p: Person, pose: string): Tool | null {
-  if (pose === 'hammer') return 'hammer';
   if (pose === 'mow') return 'scythe';
-  if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
-  // An errand's load fills their hands (loads.ts draws it).
+  // An errand's load fills their hands (loads.ts draws it): no other tool while it does.
   if (p.load) return null;
+  if (pose === 'hammer') return 'hammer';
+  if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
   const job = p.work?.job;
   const atWork = p.mode === 'linger' && p.goal?.haunt?.type === 'workplace';
   if (pose === 'sweep') return 'broom';
@@ -303,7 +303,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   }
   // Hands on what they hold (hands.ts): the thing is placed, then the arms are posed onto it.
   const tool = toolOf(p, name);
-  const holding = p.load !== null && name !== 'mow' && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave' || name === 'tend');
+  // A load is in the hands whatever the pose (a cheer, a turn to look, a flinch): only the scythe leaves them, to mow.
+  const holding = p.load !== null && name !== 'mow';
   const longTool = applyHold(pose, d.rig, {
     tool: tool ?? (walking && p.carrying && !p.load ? (p.work?.job === 'baker' ? 'tray' : 'sack') : null),
     load: holding ? p.load : null,

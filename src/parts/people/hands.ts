@@ -204,6 +204,31 @@ export interface Holding {
   anchor: Vec3 | null;
 }
 
+/**
+ * Tools drawn on the body piece along a shaft in the right hand (body frame, as extras.ts draws them): the
+ * L36 soldier's pike and sentry's torch, the L37 rider's lance. [foot, top] of the shaft.
+ */
+export const SHAFTS: Readonly<Record<string, [Vec3, Vec3]>> = {
+  pike: [[0.085, 0.0, 0.05], [0.085, 0.66, 0.05]],
+  torch: [[0.085, 0.12, 0.07], [0.085, 0.32, 0.09]],
+  lance: [[0.09, 0.06, 0.06], [0.09, 0.8, 0.07]],
+};
+
+/** Where the right hand closes on a shaft: where the shaft passes at arm's length, the lower crossing. */
+export function shaftGrip(rig: Rig, [a, b]: [Vec3, Vec3]): Vec3 {
+  const t = Math.max(0, Math.min(1, onLine(a, b, shoulderOf(rig, 1), handReach(rig), 0)));
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/**
+ * L56: the juggler's hands under the balls (extras.ts draws the balls over them, body frame): in each drawing
+ * one hand is up, throwing, and the other down, catching. [right, left].
+ */
+export const JUGGLE: Readonly<Record<string, [Vec3, Vec3]>> = {
+  'balls-a': [[0.045, 0.29, 0.085], [-0.045, 0.25, 0.085]],
+  'balls-b': [[0.045, 0.25, 0.085], [-0.045, 0.29, 0.085]],
+};
+
 /** Tools held at the chest in both arms (the L23 miller's sack, the baker's tray): where the hands go. */
 export const CHEST_TOOLS: Readonly<Record<string, [Vec3, Vec3]>> = {
   sack: [[0.05, 0.2, 0.085], [-0.05, 0.2, 0.085]],
@@ -215,6 +240,17 @@ export const CHEST_TOOLS: Readonly<Record<string, [Vec3, Vec3]>> = {
  * null when the thing rides on a piece of the figure (a small tool in a hand, a load on the body).
  */
 export function applyHold(pose: Pose, rig: Rig, h: Holding): number[] | null {
+  const shaft = h.tool ? SHAFTS[h.tool] : undefined;
+  if (shaft) {
+    aimArm(pose, rig, 1, shaftGrip(rig, shaft));
+    return null;
+  }
+  const balls = h.tool ? JUGGLE[h.tool] : undefined;
+  if (balls) {
+    aimArm(pose, rig, 1, balls[0]);
+    aimArm(pose, rig, -1, balls[1]);
+    return null;
+  }
   if (h.tool === 'broom' || h.tool === 'scythe' || h.tool === 'rod') {
     const [from, to] = longToolLine(h.tool, pose);
     const held = holdLong(pose, rig, from, to);
