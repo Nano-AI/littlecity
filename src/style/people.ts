@@ -182,3 +182,25 @@ export const RIDER = defineStyle(
   },
   { trot: [0.5, 3, 0.05], walk: [0.2, 1.2, 0.02], crowd: [0.4, 3, 0.05], rides: [0, 8, 1], walkSteps: [1, 6, 0.1], trotSteps: [0.6, 4, 0.1] },
 );
+
+/** People are solid: how walkers step round each other (crowd.ts, "stepping aside"). Lengths in world units. */
+export const AVOID = defineStyle(
+  'avoid',
+  {
+    /** How far ahead a walker looks for somebody in the way, and how far apart two centres keep side by side. */
+    look: 1.2,
+    clear: 0.21,
+    /** How far aside a walker may step from their line: in open cells, and in a cell with something in it. */
+    room: 0.22,
+    roomCluttered: 0.08,
+    /** The step aside comes back to the line over this much walk before a doorway, a single-file stretch or the walk's end. */
+    settle: 0.5,
+    /** How fast a walker moves aside (units a second: about a third of a stroll, so it reads as deliberate). */
+    rate: 0.3,
+    /** Nobody steps closer than this to the side of their cell. */
+    margin: 0.1,
+    /** Somebody this close ahead whom there is no room to pass is waited for. */
+    wait: 0.32,
+  },
+  { look: [0.3, 3, 0.05], clear: [0.1, 0.4, 0.01], room: [0, 0.4, 0.01], roomCluttered: [0, 0.2, 0.01], settle: [0.1, 1, 0.05], rate: [0.05, 1, 0.01], margin: [0.02, 0.3, 0.01], wait: [0.15, 0.8, 0.01] },
+);

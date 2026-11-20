@@ -427,7 +427,8 @@ describe('children (L28)', () => {
     const children = crowd.people.filter((p) => p.child);
     expect(children.length).toBeGreaterThan(1);
     expect(children.every((p) => p.speed > PEOPLE.speed * 1.2)).toBe(true);
-    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThan(5); // two children, five minutes
+    // Two children, five minutes (fewer than before people were solid: they wait for each other now).
+    expect(w.byHaunt.get('haunt-play') ?? 0).toBeGreaterThanOrEqual(4);
     expect(crowd.haunts.filter((h) => h.type === 'haunt-play' && h.user).every((h) => h.user!.child)).toBe(true);
     expect(flying).toBeGreaterThan(300);
     expect(fliers.size).toBeGreaterThan(0);

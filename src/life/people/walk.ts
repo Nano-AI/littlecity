@@ -74,6 +74,8 @@ const STOOP_RUN = 0.34;
 /** How far inside the wall a person goes before they are hidden, and how far a hatch swallows them. */
 const DOOR_DEPTH = 0.24;
 const HATCH_DEPTH = 0.5;
+/** How far straight out from a door's threshold a walk goes before it turns (its leaf swings beside that). */
+const DOOR_SQUARE = 0.36;
 /** A floor lies a little above the top it rests on. */
 const FLOOR_LIFT = 0.015;
 
@@ -166,6 +168,17 @@ export interface WalkOptions {
 }
 
 const doorSides = new WeakMap<NavGraph, Map<number, Dir4[]>>();
+/** True if a door opens onto this node (its leaf swings out over part of the cell). */
+export function hasDoor(nav: NavGraph, node: number): boolean {
+  return doorDirs(nav, node).length > 0;
+}
+
+/** The directions of the doors that open onto this node (each points out of its building, into the node). */
+export function doorDirs(nav: NavGraph, node: number): readonly Dir4[] {
+  towardDoor(nav, node, 0, 0);
+  return doorSides.get(nav)?.get(node) ?? [];
+}
+
 /** True if an offset (ox, oz) from a node's middle leans toward the wall of a door that opens onto it. */
 function towardDoor(nav: NavGraph, node: number, ox: number, oz: number): boolean {
   let sides = doorSides.get(nav);
@@ -263,10 +276,20 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
   const { nodes, links } = route;
   let entry: Point = opts.from ?? nodeCentre(nav, nodes[0]!);
   let entryOnEdge = false;
+  /** The door the walk comes out of into this cell, and the one it goes in at from it: square to the wall. */
+  let entryDoor: Dir4 | undefined;
   if (opts.startDoor) {
     doorPiece(opts.startDoor, false);
     entry = place(opts.startDoor);
     entryOnEdge = opts.startDoor.dir !== undefined;
+    entryDoor = opts.startDoor.dir;
+  } else if (opts.from) {
+    // Setting off from a doorstep (turned back on the way in): square to the wall first, too.
+    for (const d of nav.doors) {
+      if (d.node !== nodes[0] || d.dir === undefined) continue;
+      const t = place(d);
+      if (Math.hypot(t.x - opts.from.x, t.z - opts.from.z) < 0.3) entryDoor = d.dir;
+    }
   }
   let startRamp: Ramp | null = opts.startDoor ? doorRamp(opts.startDoor) : null;
 
@@ -279,10 +302,12 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
     let ramp: Ramp | null = startRamp;
     startRamp = null;
     let after: (() => void) | null = null;
+    let exitDoor: Dir4 | undefined;
 
     if (last) {
       if (opts.endDoor) {
         exit = place(opts.endDoor);
+        exitDoor = opts.endDoor.dir;
         exitOnEdge = opts.endDoor.dir !== undefined;
         ramp = doorRamp(opts.endDoor) ?? ramp;
         const door = opts.endDoor;
@@ -293,6 +318,7 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       const there = nav.doors[link!.a === node ? link!.doorB! : link!.doorA!]!;
       exit = place(here);
       exitOnEdge = here.dir !== undefined;
+      exitDoor = here.dir;
       ramp = doorRamp(here) ?? ramp;
       const seconds = link!.seconds ?? 1;
       after = () => {
@@ -328,13 +354,33 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
     const c = nodeCentre(nav, node);
     const side = (p: Point): number => (Math.abs(p.x - c.x) > 0.45 ? 0 : Math.abs(p.z - c.z) > 0.45 ? 1 : -1);
     const turn = entryOnEdge && exitOnEdge && side(entry) !== -1 && side(exit) !== -1 && side(entry) !== side(exit);
-    move(node, entry, exit, turn, last || link!.via === 'interior' ? -1 : links[i]!, ramp);
+    const endLink = last || link!.via === 'interior' ? -1 : links[i]!;
+    if (entryDoor === undefined && exitDoor === undefined) move(node, entry, exit, turn, endLink, ramp);
+    else {
+      // Out of a door, or in at one: square to the wall for the first or last stretch, clear of where its
+      // leaf swings (L29), then straight across the cell.
+      let a = entry;
+      if (entryDoor !== undefined) {
+        const [dx, dz] = DIR4[entryDoor]!;
+        const a2 = { x: a.x + dx * DOOR_SQUARE, z: a.z + dz * DOOR_SQUARE };
+        move(node, a, a2, false, -1, ramp);
+        a = a2;
+      }
+      if (exitDoor !== undefined) {
+        const [dx, dz] = DIR4[exitDoor]!;
+        const b2 = { x: exit.x + dx * DOOR_SQUARE, z: exit.z + dz * DOOR_SQUARE };
+        if (Math.hypot(b2.x - a.x, b2.z - a.z) > 0.02) move(node, a, b2, false, -1, ramp);
+        move(node, Math.hypot(b2.x - a.x, b2.z - a.z) > 0.02 ? b2 : a, exit, false, endLink, ramp);
+      } else move(node, a, exit, false, endLink, ramp);
+    }
+    entryDoor = undefined;
     after?.();
     if (!last) {
       if (link!.via === 'interior') {
         const there = nav.doors[link!.a === node ? link!.doorB! : link!.doorA!]!;
         entry = place(there);
         entryOnEdge = there.dir !== undefined;
+        entryDoor = there.dir;
         startRamp = doorRamp(there);
       } else {
         entry = exit;

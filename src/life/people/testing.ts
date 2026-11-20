@@ -23,6 +23,7 @@ import type { Terrain, World } from '@/core/world';
 import { emptyWorld } from '@/world/world';
 import { createCrowd, type Crowd, type CrowdOptions, type Person } from './crowd';
 
+
 export interface TestTown {
   world: World;
   terrain: Terrain;
@@ -131,9 +132,12 @@ export function watch(crowd: Crowd, opts: { maxStuck?: number } = {}): Watch {
             if (d > 1e-4) {
               if (d > 0.2) say(p, `jumped ${d.toFixed(2)} in one step`);
               const dot = (Math.sin(p.heading) * dx + Math.cos(p.heading) * dz) / d;
-              w.moving++;
-              if (dot > 0.5) w.facing++;
-              if (dot < 0) say(p, 'is walking backwards');
+              // (Facing is judged on steps, not on a shuffle of a few millimetres while held up.)
+              if (d > 0.004) w.moving++;
+              if (d > 0.004 && dot > 0.5) w.facing++;
+              // A step aside while held up is sideways (and turned into); only going back is wrong. (A shuffle
+              // of a few millimetres while held up is not a step.)
+              if (dot < -0.35 && d > 0.004) say(p, `is walking backwards (${dot.toFixed(2)})`);
             }
           }
         }
