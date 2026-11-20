@@ -267,6 +267,34 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('two clouds\' shadows crossing on open sea make one soft shade, not a star of streaks', async () => {
+    // The shadows lie in one plane. When each wrote its depth, the one drawn second was hidden wherever
+    // the first's triangles rounded a hair nearer: wedges cut out of the shade, ragged at their edges.
+    await look(`window.__look.open('look-primitives', { ink: 'full' })`);
+    await look(`window.__look.camera({ pitch: 32, yaw: 45, zoom: 3, target: [39, 0, 39] })`);
+    await settled();
+    const box = '230, 110, 200, 130';
+    const w = 200, h = 130;
+    /** Share of pixels that stand out from their four neighbours: the sea's own wave marks, and any streak. */
+    const rough = (l: number[]): number => {
+      let n = 0;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        if (Math.abs(l[i]! - (l[i - 1]! + l[i + 1]! + l[i - w]! + l[i + w]!) / 4) > 4) n++;
+      }
+      return n / ((w - 2) * (h - 2));
+    };
+    const mean = (l: number[]): number => l.reduce((a, b) => a + b, 0) / l.length;
+    const bare = await look<number[]>(`window.__look.luminance(${box})`);
+    await look(`window.__look.cloudShadows([[38.2, 39, 4.6], [39.8, 39.5, 5.4]])`);
+    await settled();
+    const shaded = await look<number[]>(`window.__look.luminance(${box})`);
+    // The shade is there, and it is no rougher than the open sea under it.
+    expect(mean(bare) - mean(shaded)).toBeGreaterThan(8);
+    expect(rough(shaded)).toBeLessThan(rough(bare) * 1.25);
+    expect(errors).toEqual([]);
+  });
+
   test('turning the camera round a town does not make the ink flicker, and the pen does not crawl', async () => {
     // A third of a pixel of motion a frame (src/render/testing/flicker.ts), so anything that blinks or
     // pops, or a block of the picture that jumps in tone, is not the motion. Before steady ink (scores

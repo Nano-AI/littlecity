@@ -383,6 +383,12 @@ void main(){
 #if defined(OVERLAY)
   // A shaft of light, drawn over the finished page: edge runs 0 at the source to 1 at the tip.
   if (gl_FragCoord.z > texture(tDepth, gl_FragCoord.xy / uCanvas).x + 0.00003) discard;
+  // A soft patch lying flat (a cloud's shadow, param d below) leaves no depth behind. Two clouds' shadows
+  // lie in one plane, and where they cross each would otherwise hide the other wherever its own triangles
+  // (a fan of twenty) round a hair nearer: a dark star of streaks over the sea that flickers as they drift.
+  // Written as the far plane it passes the overlay's depth test wherever nothing nearer has been drawn,
+  // as before, and never stops another from drawing. Puffs and beams keep their depth.
+  gl_FragDepth = pat == 28 && vParams.w > 0.0 ? 1.0 : gl_FragCoord.z;
   vec3 vn = normalize(vVN);
   if (pat == 28) {
     // Mist (smoke, cloud): a watercolour wash, thick where the puff faces you and thinning to
