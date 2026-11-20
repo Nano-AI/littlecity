@@ -248,8 +248,8 @@ export default defineSystem<State>({
 
     // ── the pump cart ──────────────────────────────────────────────────
     if (pump) {
-      if (!st.cart) st.cart = st.own.stage.spawnMesh(pumpCartMesh(), HIDDEN);
-      if (!st.handle) st.handle = st.own.stage.spawnMesh(pumpHandle(), HIDDEN);
+      if (!st.cart) st.cart = st.own.fixture(st.own.stage.spawnMesh(pumpCartMesh(), HIDDEN));
+      if (!st.handle) st.handle = st.own.fixture(st.own.stage.spawnMesh(pumpHandle(), HIDDEN));
       const { x, y, z, face } = pump.at;
       const rolling = pump.state === 'wheel' || pump.state === 'return';
       // A little bounce over the cobbles while it rolls.

@@ -300,6 +300,11 @@ function endNuke(st: State, n: Nuke): void {
 }
 
 function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent): void {
+  if (e.type === 'undo') {
+    // A nuke over the sea leaves nothing in the town for undo to take back; its cloud goes with the undo all the same.
+    for (const n of st.nukes.filter((n) => n.water)) endNuke(st, n);
+    return;
+  }
   if (e.type === 'reset') {
     // Called off (undo while it is going on, or a different town): nothing of it stays, falling or showing.
     for (const f of st.falling.values()) f.h.release();

@@ -72,7 +72,9 @@ export type MischiefEvent =
   | { type: 'knock'; structure: StructureId; cell: CellKey }
   | { type: 'mend'; structure: StructureId; cell: CellKey }
   /** Everything going on was called off (undo mid-act, or a different town): drop whatever is still showing. */
-  | { type: 'reset' };
+  | { type: 'reset' }
+  /** The player pressed undo (after any act was over): a show tied to nothing in the town (a nuke over the sea) ends. */
+  | { type: 'undo' };
 
 export class Director {
   readonly engine: MischiefEngine;
@@ -369,6 +371,11 @@ export class Director {
       this.act = false;
       this.host?.abort();
     }
+  }
+
+  /** The player is undoing (nothing of mischief is going on): see the 'undo' event. */
+  undoing(): void {
+    this.emit({ type: 'undo' });
   }
 
   /** How many things the mischief systems have drawn and not given back (the debug handle, browser tests). */

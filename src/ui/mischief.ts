@@ -236,7 +236,10 @@ export function createMischiefTools(host: {
       return ok;
     },
     undo() {
-      if (!director.active) return false;
+      if (!director.active) {
+        director.undoing();
+        return false;
+      }
       director.cancel();
       return true;
     },
