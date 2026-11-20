@@ -1043,3 +1043,16 @@ the default whole-island view and the piece stays in hand; desktop only.
 Street-level walk mode is dropped. → agent `a118f47399afb0a2a` on
 `swarm/fly` (Opus), porting the flying parts of `swarm/walk`.
 Running: short-links, fly.
+
+**Derek, 2026-11-20 midday.** Better destruction: stilt buildings
+topple, boats take damage (scorched, dismasted, sunk), bombs too, people
+react → mischief agent (`ac4e8c4f1f7628058`), resumed. Birds tied to
+houses "glitch out like crazy… weird loops" when houses are destroyed;
+he wants all creature behaviour consistent under nukes → new agent
+`a7b9d547cb60ccbd2` on `swarm/life-under-fire` (Opus): reproduce the
+birds, find whether the cause is in the shared life sync or per
+behaviour, audit every actor type with one stress harness, fix, and make
+the harness a gate test.
+Running: short-links, fly, mischief (destruction), life-under-fire.
+Four agents at once on a 10-core machine: expect load timeouts; rerun
+failing files serially before believing a failure.
