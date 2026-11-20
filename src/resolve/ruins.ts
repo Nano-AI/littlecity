@@ -36,6 +36,8 @@ export function withoutRuinedDressing(shape: ShapePlan, dressing: DressingPlan):
   for (const s of shape.sockets) sockets.set(s.id, s);
   for (const s of dressing.sockets) sockets.set(s.id, s);
   const gone = new Set<string>();
+  // Features of a ruined structure (its chimney, its sign) take what hangs on them along.
+  for (const f of shape.features) if (ruined.has(f.structure)) gone.add(f.id);
   const socketGone = (id: string): boolean => {
     const s = sockets.get(id);
     if (!s) return false;
