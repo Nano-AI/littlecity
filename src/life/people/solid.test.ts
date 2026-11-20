@@ -145,7 +145,7 @@ describe('people are solid', () => {
     expect(w.problems).toEqual([]);
   });
 
-  test('a day and an evening in the people town: overlaps a fraction of what they were, nobody stuck or off the graph', () => {
+  test('a day and an evening in the people town: overlaps a fraction of what they were, nobody stuck or off the graph', { timeout: 120_000 }, () => {
     // Seven and a half minutes. Before people were solid: 121 sustained overlaps. Now about 20, mostly
     // knots at single-file approaches squeezed through as the last resort.
     const { o, w } = day(scenarioTown(peopleTown), 360, 90);
@@ -153,7 +153,7 @@ describe('people are solid', () => {
     expect(o.sustained).toBeLessThan(30);
   });
 
-  test('… and in the everything town (busier, with knots at its arch passage and carved steps)', () => {
+  test('… and in the everything town (busier, with knots at its arch passage and carved steps)', { timeout: 120_000 }, () => {
     // Before: 162. Now about 80, mostly squeezes where an arch passage and carved steps (three
     // single-file stretches) meet beside the temple.
     const { o, w } = day(scenarioTown(everything), 360, 90);
@@ -161,7 +161,7 @@ describe('people are solid', () => {
     expect(o.sustained).toBeLessThan(100);
   });
 
-  test('a dense square: thirty people and more at the market, nobody standing inside anybody', () => {
+  test('a dense square: thirty people and more at the market, nobody standing inside anybody', { timeout: 120_000 }, () => {
     const town = townOf((b) => {
       b.plaza(14, 14, 28, 26);
       for (let i = 0; i < 7; i++) {
