@@ -52,10 +52,8 @@ const ALLOWED: Record<string, number> = {
   'house / prop woodpile': 1,
   'path / prop lamp': 1,
   'prop goods-stack / prop goods-stack': 2,
-  // A front garden's corner post (U03) where a placed fence run (an edge piece) or a retaining wall's
-  // pier ends at the same grid corner: two posts in one place. Known, not yet fixed: U03 would need the
-  // edge pieces' post positions.
-  'fence / prop garden-fence': 6,
+  // A front garden's corner post (U03) where a retaining wall's end pier (U07) stands at the same grid
+  // corner: two posts in one place (U03 runs before U07 and cannot see it).
   'prop garden-fence / prop retaining-wall': 2,
 };
 

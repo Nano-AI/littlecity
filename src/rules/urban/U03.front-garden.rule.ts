@@ -9,10 +9,10 @@
 // Which cells are front gardens is decided by the landUse fact, so that the
 // decoration rules that run earlier leave them alone.
 //
-// Reads: landUse.frontGardens. Claims: every floor slot of the garden cell
+// Reads: landUse.frontGardens, placed edge pieces (no garden fence where one stands). Claims: every floor slot of the garden cell
 // except its centre (the walk).
 
-import { neighbor, opposite, type Dir4 } from '@/core/grid';
+import { edgeOf, neighbor, NO_CELL, opposite, type Dir4 } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule, slot } from '@/resolve/engine/api';
 import type { CellPos } from '@/resolve/plan';
@@ -38,12 +38,19 @@ export default defineRule<FrontGarden>({
     // street (its +X end, a quarter turn on from its side) has a fence on the same line, that garden's
     // post stands there already: two would stand in one another.
     const next = landUse(ctx.facts).frontGardens.some((o) => o.cell === neighbor(cell, plus) && o.dir === g.dir);
-    out.prop({ type: 'garden-fence', variant: 'gate', at: { cell, pos: edgePos(g.dir), face: opposite(g.dir) }, params: { from: 1, to: next ? 0 : 1, look } });
+    // No piece on a side where the player placed a fence or a wall: the two would stand in one another
+    // (white pickets in one plane: the face filled with scribble as the camera moved).
+    const edges = ctx.plan.world.edges;
+    const placed = (d: Dir4): boolean => edges.has(edgeOf(cell, d));
+    // A placed fence or wall meeting the street fence's corner has its own post there.
+    const at = (c: number, d: Dir4): boolean => c !== NO_CELL && edges.has(edgeOf(c, d));
+    const meets = (side: Dir4): boolean => placed(side) || at(neighbor(cell, g.dir), side) || at(neighbor(cell, side), g.dir);
+    if (!placed(g.dir)) out.prop({ type: 'garden-fence', variant: 'gate', at: { cell, pos: edgePos(g.dir), face: opposite(g.dir) }, params: { from: meets(minus) ? 0 : 1, to: next || meets(plus) ? 0 : 1, look } });
     // The flanks: from the street corner (no post: the street fence drew it) back into the house wall.
     // A flank piece's own +X is a quarter turn on from its side, so the street end is its −X end on
     // the +X flank and its +X end on the −X flank.
-    if (g.closed[1]) out.prop({ type: 'garden-fence', variant: 'picket', at: { cell, pos: edgePos(plus), face: opposite(plus) }, params: { from: 0, to: 2, look: look + 1 } });
-    if (g.closed[0]) out.prop({ type: 'garden-fence', variant: 'picket', at: { cell, pos: edgePos(minus), face: opposite(minus) }, params: { from: 2, to: 0, look: look + 2 } });
+    if (g.closed[1] && !placed(plus)) out.prop({ type: 'garden-fence', variant: 'picket', at: { cell, pos: edgePos(plus), face: opposite(plus) }, params: { from: 0, to: 2, look: look + 1 } });
+    if (g.closed[0] && !placed(minus)) out.prop({ type: 'garden-fence', variant: 'picket', at: { cell, pos: edgePos(minus), face: opposite(minus) }, params: { from: 2, to: 0, look: look + 2 } });
     // A bed either side of the walk, running the way the walk does.
     const house = ctx.plan.structures.get(g.house);
     const flowers = hash(house?.seed ?? 1, 'flowers') % 5;
