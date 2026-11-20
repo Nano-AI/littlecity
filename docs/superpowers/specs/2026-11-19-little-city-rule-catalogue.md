@@ -579,8 +579,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   and cafés, at the door; with none, the bakery's own door). The miller (the
   L23 miller if any, else whoever lives nearest the mill) goes into the mill,
   comes out hugging a sack of flour, carries it to the bakery and sets it
-  against the wall by the door, where up to 4 stack (a trip every 18 s at
-  most). The baker (the bakery's L23 baker, else whoever lives there or
+  against the wall by the door, where up to 6 heap up (three, two, one); a
+  helper (whoever else lives nearest) carries too, and both shuttle briskly
+  while the heap has room. The baker (the bakery's L23 baker, else whoever lives there or
   nearest) picks up a sack, takes it in, bakes 5 s, comes out with a tray of
   loaves, walks it to the selling place with the most room and sets up to 3
   loaves out on the counter or by the door, then goes back in. Residents

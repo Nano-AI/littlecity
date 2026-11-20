@@ -18,7 +18,7 @@ import { waterChain } from './chains/water';
 
 /** Every chain, in the order they are offered a person (the first that wants them has them). */
 export function allChains(): Chain[] {
-  return [weddingChain(), buildChain(), watchChain(), marketChain(), breadChain(), fishChain(), waterChain()];
+  return [weddingChain(), buildChain(), watchChain(), breadChain(), fishChain(), marketChain(), waterChain()];
 }
 
 export interface LivingTown {

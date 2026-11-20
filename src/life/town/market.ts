@@ -10,6 +10,9 @@ import type { Load } from '../people/errand';
 import { heapSpots, type Board, type Chain, type Plan, type Post, type Spot, type Store } from './board';
 import { reaches, standAt } from './hands';
 
+/** A delivery is never sent further than this walk (a stall a few steps off as the crow flies but far round by the streets). */
+const FAR = 30;
+
 export interface Outlet {
   post: Post;
   store: Store;
@@ -46,8 +49,8 @@ export function outletsOf(board: Board, chain: string, before: readonly Outlet[]
 export function roomiest(board: Board, p: Person, outlets: readonly Outlet[], from: number, room = 2): Outlet | null {
   return (
     outlets
-      .filter((o) => o.store.items.filter((x) => x === null).length >= Math.min(room, o.store.spots.length) && reaches(board, p, o.post.cell))
-      .sort((x, y) => board.count(x.store) - board.count(y.store) || board.dist(x.post.cell, from) - board.dist(y.post.cell, from))[0] ?? null
+      .filter((o) => o.store.items.filter((x) => x === null).length >= Math.min(room, o.store.spots.length) && reaches(board, p, o.post.cell) && board.walk(from, o.post.cell) <= FAR)
+      .sort((x, y) => board.count(x.store) - board.count(y.store) || board.walk(from, x.post.cell) - board.walk(from, y.post.cell))[0] ?? null
   );
 }
 
@@ -76,8 +79,8 @@ export function buyerPlan(board: Board, chain: Chain, p: Person, outlets: readon
   if (rand(p.seed, tag, p.trips) >= chance) return null;
   const here = p.cell;
   const to = outlets
-    .filter((o) => board.count(o.store, item) > o.coming && board.dist(o.post.cell, here) <= reach && reaches(board, p, o.post.cell))
-    .sort((x, y) => board.dist(x.post.cell, here) - board.dist(y.post.cell, here) || x.post.cell - y.post.cell)[0];
+    .filter((o) => board.count(o.store, item) > o.coming && board.dist(o.post.cell, here) <= reach && reaches(board, p, o.post.cell) && board.walk(here, o.post.cell) <= reach * 1.5)
+    .sort((x, y) => board.walk(here, x.post.cell) - board.walk(here, y.post.cell) || x.post.cell - y.post.cell)[0];
   if (!to) return null;
   const home = board.homeStep(p, { tag: `${tag}:home`, load: item });
   if (!home) return null;

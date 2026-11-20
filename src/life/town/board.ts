@@ -126,6 +126,8 @@ export interface Board {
   homeStep(p: Person, opts: Partial<PlanStep> & { tag: string }): PlanStep | null;
   /** Grid steps between two cells on the ground plan. */
   dist(a: CellKey, b: CellKey): number;
+  /** What walking from one cell to another costs (about the steps, more for stairs and grass); Infinity if it cannot be walked. */
+  walk(a: CellKey, b: CellKey): number;
   /** The town changed. With no dressing yet (just after an edit) only the shape is taken. */
   sync(shape: ShapePlan, dressing: DressingPlan | null): void;
   step(dt: number, time: TimeSignal): void;
@@ -302,6 +304,13 @@ export function createBoard(opts: BoardOptions): Board {
       return s;
     },
     dist: (a, b) => Math.abs(keyX(a) - keyX(b)) + Math.abs(keyZ(a) - keyZ(b)),
+    walk(a, b) {
+      const nav = board.nav, router = opts.crowd.router;
+      const na = nav?.nodeAt.get(a), nb = nav?.nodeAt.get(b);
+      if (!nav || !router || na === undefined || nb === undefined) return Infinity;
+      if (na === nb) return 0;
+      return router.find(na, nb)?.cost ?? Infinity;
+    },
     sync(nextShape, nextDressing) {
       shape = nextShape;
       if (!nextDressing) return;
