@@ -1267,3 +1267,12 @@ doorstep and a celebration at the square, bystanders watching, a
 findable cue, and the cadence (including what a held time of day does
 to it). Told to keep clear of the soft-ink agent's people parts.
 Running: soft-ink, wedding.
+
+**Length note (orchestrator, Derek 2026-11-20).** The first times a
+piece with a length (or a land tool's brush) is picked, a small note
+over the stepper says "Scroll to make it longer or shorter" (taller /
+the brush wider; on touch "Tap − and + …"). `Stepper.hint()`,
+`lengthHint()` and `offerLengthHint` in `src/ui/interface.ts`; stored
+under `little-city.length-hint` (a count, or `learned` once a length is
+changed; three showings at most). Test `tests/e2e/length-hint.e2e.test.ts`.
+Gate: 2,189 passed, 10 skipped, clean.
