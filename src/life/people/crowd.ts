@@ -741,8 +741,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.seat = -1;
     p.stuck = 0;
     p.flying = false;
-    // An errand's load is in their hands on the way; whatever else they hold goes home with them, or is lost to no one.
-    p.load = goal.errand ? goal.errand.load : goal.kind === 'home' ? p.load : null;
+    // An errand's load is in their hands on the way; whatever else they hold stays in their hands (nothing
+    // vanishes in view) until they are home with it (nextGoal sends them there next).
+    p.load = goal.errand ? goal.errand.load : p.load;
     p.carrying = p.load !== null || (goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker'));
     p.brisk = (goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter') || goal.errand?.brisk === true;
     enterPiece(p);
