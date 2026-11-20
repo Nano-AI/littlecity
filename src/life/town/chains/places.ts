@@ -22,7 +22,7 @@ import { PLACES } from '@/style/town-life';
 import { fxOf } from '../../fx/fx';
 import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
-import type { Board, Chain, Plan, PlanStep, Post } from '../board';
+import { DIR_HEADING, type Board, type Chain, type Plan, type PlanStep, type Post } from '../board';
 import { canWork, homeCell, keepHand, reaches, standAt } from '../hands';
 import { harvestTime } from './harvest';
 
@@ -151,6 +151,23 @@ export interface ShowChain extends Chain {
   readonly on: ReadonlySet<number>;
 }
 
+/**
+ * Where player `i` of a band stands on a bandstand's floor (R-M11): in a row across the way in, a little
+ * back from the open bay, facing out through it; on a 2 × 2 octagon (two ways in) in the middle of its
+ * front half. Null for any other venue.
+ */
+function bandPlace(board: Board, venue: number, stage: readonly Post[], i: number): { post: Post; place: { spot: { x: number; z: number }; face: number } } | null {
+  if (board.shape?.roles.get(venue)?.role !== 'bandstand' || stage.length === 0 || stage[0]!.dir === undefined) return null;
+  const dir = stage[0]!.dir;
+  const [dx, dz] = DIR4[dir]!;
+  const cx = stage.reduce((a, p) => a + keyX(p.cell) + 0.5, 0) / stage.length, cz = stage.reduce((a, p) => a + keyZ(p.cell) + 0.5, 0) / stage.length;
+  const back = stage.length > 1 ? 0.2 : 0.05, gap = stage.length > 1 ? 0.3 : 0.2;
+  const side = (i - 1) * gap;
+  const spot = { x: cx - dx * back - dz * side, z: cz - dz * back + dx * side };
+  const post = stage.find((p) => keyX(p.cell) === Math.floor(spot.x) && keyZ(p.cell) === Math.floor(spot.z)) ?? stage[0]!;
+  return { post, place: { spot, face: DIR_HEADING[dir] } };
+}
+
 export function showChain(): ShowChain {
   let venues: { id: number; stage: Post[]; seats: Post[]; players: (Person | null)[]; taken: Set<string> }[] = [];
   const on = new Set<number>();
@@ -183,9 +200,11 @@ export function showChain(): ShowChain {
         const i = v.players.indexOf(p);
         if (i >= 0) {
           if (!s.on || s.left < 4) return null;
-          const at = v.stage[i % v.stage.length]!;
+          const band = bandPlace(board, v.id, v.stage, i);
+          const at = band?.post ?? v.stage[i % v.stage.length]!;
+          const where = band?.place ?? standAt(board, at, 0.1, (i - 1) * 0.2);
           // Playing: gestures, a bow at the end.
-          return { chain, at: 0, steps: [board.stepAt(at.cell, { ...standAt(board, at, 0.1, (i - 1) * 0.2), pose: i === 0 ? 'wave' : 'chat', linger: s.left - 2, tag: 'show:play' }), board.stepAt(at.cell, { ...standAt(board, at, 0.1, (i - 1) * 0.2), pose: 'tend', linger: 1.5, tag: 'show:bow' })] };
+          return { chain, at: 0, steps: [board.stepAt(at.cell, { ...where, pose: i === 0 ? 'wave' : 'chat', linger: s.left - 2, tag: 'show:play' }), board.stepAt(at.cell, { ...where, pose: 'tend', linger: 1.5, tag: 'show:bow' })] };
         }
         if (!s.on || s.left < 25 || board.claimedBy(p) || !canWork(p) || rand(p.seed, 'show', p.trips) >= PLACES.audience) continue;
         const seat = v.seats.find((x) => !v.taken.has(x.id) && reaches(board, p, x.cell) && board.dist(x.cell, p.cell) <= PLACES.showReach);

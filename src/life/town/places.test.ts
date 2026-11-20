@@ -61,6 +61,61 @@ describe('L62 the structures builder’s buildings at work', () => {
     expect(n(r, 'show:play')).toBeGreaterThanOrEqual(1);
     expect(n(r, 'show:watch')).toBeGreaterThanOrEqual(1);
   });
+  test('the bandstand: the band plays on its floor facing out of the open bay; nobody crosses its rail', () => {
+    // The fixture's bandstand: a 2 × 2 at x 12–13, z 11–12 on ground level 1, its way in on the north
+    // (toward the path). The octagon's rail runs 0.85 out from the middle; columns stand on it.
+    const town = scenarioTown(bandstand);
+    const c = clock(town.world.seed, 'day');
+    const t = createLivingTown({ seed: town.world.seed });
+    t.sync(town.shape, town.dressing, c.time);
+    const mx = 13, mz = 12, ring = 0.85;
+    const columns: [number, number][] = [];
+    for (let k = 0; k < 8; k++) {
+      const a = Math.PI / 8 + (k * Math.PI) / 4, r = ring / Math.cos(Math.PI / 8);
+      columns.push([mx + Math.cos(a) * r, mz + Math.sin(a) * r]);
+    }
+    /** Inside the octagon's rail (its inradius, along all eight faces). */
+    const inside = (x: number, z: number): boolean => {
+      for (let k = 0; k < 8; k++) {
+        const a = (k * Math.PI) / 4;
+        if ((x - mx) * Math.cos(a) + (z - mz) * Math.sin(a) > ring) return false;
+      }
+      return true;
+    };
+    const was = new Map<string, boolean>();
+    const crossings: string[] = [], clips: string[] = [];
+    let played = 0, watched = 0, floorY = Infinity;
+    for (let i = 0; i < 260 * 30; i++) {
+      t.step(c.tick(1 / 30), c.time);
+      if (i % 3 !== 0) continue;
+      for (const p of t.crowd.people) {
+        if (!p.visible) continue;
+        const now = inside(p.x, p.z);
+        const before = was.get(p.id);
+        // In or out only on the north side, between the open bay's outer columns.
+        if (before !== undefined && before !== now && !(p.z < mz - 0.3 && Math.abs(p.x - mx) < 0.75)) crossings.push(`${p.id} at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`);
+        was.set(p.id, now);
+        for (const [x, z] of columns) if (Math.hypot(p.x - x, p.z - z) < 0.09) clips.push(`${p.id} ${p.mode} ${p.goal?.errand?.tag} at ${p.x.toFixed(2)}, ${p.z.toFixed(2)} col ${x.toFixed(2)}, ${z.toFixed(2)}`);
+        const tag = p.goal?.errand?.tag;
+        if (p.mode !== 'linger') continue;
+        if (tag === 'show:play') {
+          played++;
+          expect(inside(p.x, p.z), 'the band is on the floor').toBe(true);
+          floorY = Math.min(floorY, p.y);
+        }
+        if (tag === 'show:watch') {
+          watched++;
+          expect(inside(p.x, p.z), 'the audience is outside').toBe(false);
+          expect(p.z, 'in front of the open bay').toBeLessThan(mz - 0.5);
+        }
+      }
+    }
+    expect(played).toBeGreaterThan(0);
+    expect(watched).toBeGreaterThan(0);
+    expect(floorY, 'standing on the plinth, not in it').toBeGreaterThan(0.8 + 0.1);
+    expect(crossings).toEqual([]);
+    expect(clips).toEqual([]);
+  });
   test('the theatre: nothing goes wrong (in its fixture the stage cannot be walked to from the houses: no show)', () => {
     expect(tally(theatre, 120).problems).toEqual([]);
   });

@@ -162,10 +162,9 @@ export default defineGenerator({
 
     if (role === 'bandstand') {
       // R-M11: the marble is the pavilion's roof, entablature and plinth; its pillars draw its columns.
-      const tags = plan.tags.get(s.id);
-      const door = tags?.has('bandstand:n') ? 0 : tags?.has('bandstand:e') ? 1 : tags?.has('bandstand:w') ? 3 : tags?.has('bandstand:s') ? 2 : -1;
+      const entries = features.filter((f) => f.type === 'pavilion-floor' && f.dir !== undefined && f.cell !== undefined).map((f) => ({ cell: [keyX(f.cell!), keyZ(f.cell!)] as [number, number], dir: f.dir as Dir4 }));
       const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
-      drawPavilion(b, pavilionOf(s, plan), { stone, shade: PALETTE.stoneShade, roof }, door);
+      drawPavilion(b, pavilionOf(s, plan), { stone, shade: PALETTE.stoneShade, roof }, entries);
       return { mesh: b.build(), anchors };
     }
 

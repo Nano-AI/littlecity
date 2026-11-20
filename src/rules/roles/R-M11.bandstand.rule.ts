@@ -23,9 +23,10 @@
 //
 // Priority 5995: before the temple (5990).
 
-import { above, below, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
+import { above, below, CELL_H, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
 import { defineRule, slot } from '@/resolve/engine/api';
 import type { ShapePlan, Structure, StructureId } from '@/resolve/plan';
+import { pavilionEntries, pavilionLayout } from './pavilion.lib';
 import { pillarsUnder } from './R-M01.temple.rule';
 
 export function isBandstand(s: Structure, plan: ShapePlan): boolean {
@@ -111,6 +112,7 @@ export default defineRule<{ pillars: StructureId[] }>({
     const s = plan.structures.get(c.structure!)!;
     out.role(s.id, 'bandstand');
     out.tag(s.id, (['bandstand:n', 'bandstand:e', 'bandstand:s', 'bandstand:w'] as const)[doorSide(s, plan)]);
+    // Each pillar draws its columns (it needs the footprint); each floor cell is pinned for the walking graph.
     // The footprint, as the pillars need it to work out the same layout.
     const xs = s.cells.map(keyX), zs = s.cells.map(keyZ);
     const x0 = Math.min(...xs), z0 = Math.min(...zs);
@@ -121,10 +123,17 @@ export default defineRule<{ pillars: StructureId[] }>({
       ground = Math.max(ground, h);
       low = Math.min(low, h);
     }
+    const door = doorSide(s, plan);
+    const cells = s.cells.map((cell) => [keyX(cell), keyZ(cell)] as [number, number]);
+    const pv = pavilionLayout({ cells, ground, low, level: Math.min(...s.cells.map(keyY)) });
+    const entries = pavilionEntries(cells, door);
     for (const id of c.data.pillars) {
       const p = plan.structures.get(id)!;
-      const top = p.cells[p.cells.length - 1]!;
+      const top = p.cells[p.cells.length - 1]!, bottom = p.cells[0]!;
       out.feature({ type: 'pavilion-bay', structure: id, cell: top, params: { mask, x0, z0, ground, low } });
+      // The floor, where people stand: in the pillar's foot cell, up on the plinth.
+      const entry = entries.some(([x, z]) => x === keyX(bottom) && z === keyZ(bottom));
+      out.feature({ type: 'pavilion-floor', structure: s.id, cell: bottom, ...(entry ? { dir: door } : {}), params: { lift: pv.floor - keyY(bottom) * CELL_H } });
     }
   },
 });

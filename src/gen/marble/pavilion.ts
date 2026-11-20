@@ -21,200 +21,17 @@
 // Everything else (the plinth's steps, the column ring, the entablature, the
 // eave) is the same outline offset in or out, so it all follows the plan.
 
-import { CELL_H, DIR4, type Dir4 } from '@/core/grid';
+
+import { DIR4, type Dir4 } from '@/core/grid';
 import { rotationY, translation } from '@/core/mat4';
 import { PATTERN, type ColorInput, type MeshBuilder } from '@/gen/mesh';
+import { normalOf, offset, TAN8, type Pavilion, type V2 } from '@/rules/roles/pavilion.lib';
 import { PALETTE } from '@/style/palette';
 
-type V2 = [number, number];
+export { cellOf, offset, pavilionLayout, type Pavilion } from '@/rules/roles/pavilion.lib';
+import { cellOf } from '@/rules/roles/pavilion.lib';
+
 type V3 = [number, number, number];
-
-const TAN8 = Math.tan(Math.PI / 8);
-
-export interface PavilionInput {
-  /** The footprint: (x, z) of each cell. */
-  cells: readonly (readonly [number, number])[];
-  /** Terrain height (in cells) under the footprint: the highest and the lowest. */
-  ground: number;
-  low: number;
-  /** The level (keyY) of the marble cells: the roof's storey. */
-  level: number;
-}
-
-export interface Pavilion {
-  /** The plan outline at the cell edges (corners cut), counter-clockwise in (x, z). */
-  outline: V2[];
-  /** The footprint's own outline (square corners): the lowest step follows it, so the plinth fills its cells. */
-  cellsOutline: V2[];
-  /** True for the 2 × 2 octagon. */
-  round: boolean;
-  /** Centre of the plan (of its bounding box). */
-  centre: V2;
-  /** Roof hubs: the octagon's centre, or each cell's centre of a one-wide plan. */
-  hubs: Hub[];
-  /** World heights: foot of the plinth, each step's top (the last is the floor), the architrave's foot, the eave line. */
-  foot: number;
-  steps: { offset: number; top: number }[];
-  floor: number;
-  architrave: number;
-  eave: number;
-  /** Offsets of the outline (negative is inward). */
-  ring: number;
-  eaveOut: number;
-  /** Column positions (x, z) round the ring, in order, and their radius. */
-  columns: V2[];
-  radius: number;
-  pitch: number;
-  storeys: number;
-  /** Over a taller stack, a second tier: a drum set in by `inset` and `drum` tall, under a roof with eaves `eave` out from it. */
-  tier: { inset: number; drum: number; eave: number } | null;
-}
-
-interface Hub {
-  c: V2;
-  r: number;
-  /** For a one-wide plan: which sides of the cell join another cell (N, E, S, W). */
-  joined: boolean[];
-}
-
-/** The signed area (positive: counter-clockwise in x, z). */
-function area(p: readonly V2[]): number {
-  let a = 0;
-  for (let i = 0; i < p.length; i++) {
-    const q = p[i]!, r = p[(i + 1) % p.length]!;
-    a += q[0] * r[1] - r[0] * q[1];
-  }
-  return a / 2;
-}
-
-/** The outward normal of edge i (from p[i] to p[i + 1]) of a counter-clockwise polygon. */
-function normalOf(p: readonly V2[], i: number): V2 {
-  const a = p[i]!, b = p[(i + 1) % p.length]!;
-  const dx = b[0] - a[0], dz = b[1] - a[1];
-  const l = Math.hypot(dx, dz) || 1;
-  return [dz / l, -dx / l];
-}
-
-/** The polygon with every edge moved out by d (in by −d), corners mitred. */
-export function offset(p: readonly V2[], d: number): V2[] {
-  const n = p.length;
-  return p.map((v, i) => {
-    const n1 = normalOf(p, (i + n - 1) % n), n2 = normalOf(p, i);
-    const k = d / (1 + n1[0] * n2[0] + n1[1] * n2[1]);
-    return [v[0] + (n1[0] + n2[0]) * k, v[1] + (n1[1] + n2[1]) * k];
-  });
-}
-
-/** The outline of a set of unit cells, counter-clockwise, collinear points merged. */
-function traceCells(cells: readonly (readonly [number, number])[]): V2[] {
-  const has = new Set(cells.map(([x, z]) => `${x},${z}`));
-  const next = new Map<string, V2>();
-  const k = (p: V2): string => `${p[0]},${p[1]}`;
-  for (const [x, z] of cells) {
-    if (!has.has(`${x},${z - 1}`)) next.set(k([x, z]), [x + 1, z]);
-    if (!has.has(`${x + 1},${z}`)) next.set(k([x + 1, z]), [x + 1, z + 1]);
-    if (!has.has(`${x},${z + 1}`)) next.set(k([x + 1, z + 1]), [x, z + 1]);
-    if (!has.has(`${x - 1},${z}`)) next.set(k([x, z + 1]), [x, z]);
-  }
-  const start = [...next.keys()].sort()[0]!;
-  const loop: V2[] = [];
-  let at = start;
-  for (let guard = 0; guard < 64; guard++) {
-    const [x, z] = at.split(',').map(Number) as V2;
-    loop.push([x, z]);
-    at = k(next.get(at)!);
-    if (at === start) break;
-  }
-  // Drop points in the middle of a straight run.
-  return loop.filter((v, i) => {
-    const a = loop[(i + loop.length - 1) % loop.length]!, b = loop[(i + 1) % loop.length]!;
-    return (v[0] - a[0]) * (b[1] - v[1]) - (v[1] - a[1]) * (b[0] - v[0]) !== 0;
-  });
-}
-
-/** Cuts every convex corner at 45°, `cut` along each side. */
-function chamfer(p: readonly V2[], cut: number): V2[] {
-  const out: V2[] = [];
-  const n = p.length;
-  for (let i = 0; i < n; i++) {
-    const a = p[(i + n - 1) % n]!, v = p[i]!, b = p[(i + 1) % n]!;
-    const d1: V2 = [v[0] - a[0], v[1] - a[1]], d2: V2 = [b[0] - v[0], b[1] - v[1]];
-    const l1 = Math.hypot(d1[0], d1[1]), l2 = Math.hypot(d2[0], d2[1]);
-    if (d1[0] * d2[1] - d1[1] * d2[0] > 0) {
-      out.push([v[0] - (d1[0] / l1) * cut, v[1] - (d1[1] / l1) * cut], [v[0] + (d2[0] / l2) * cut, v[1] + (d2[1] / l2) * cut]);
-    } else out.push(v);
-  }
-  return out;
-}
-
-export function pavilionLayout(input: PavilionInput): Pavilion {
-  const cells = input.cells;
-  const has = new Set(cells.map(([x, z]) => `${x},${z}`));
-  const xs = cells.map((c) => c[0]), zs = cells.map((c) => c[1]);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, z0 = Math.min(...zs), z1 = Math.max(...zs) + 1;
-  const round = cells.length === 4 && x1 - x0 === 2 && z1 - z0 === 2;
-  const r = round ? 1 : 0.5;
-  const cellsOutline = traceCells(cells);
-  if (area(cellsOutline) < 0) cellsOutline.reverse();
-  const outline = chamfer(cellsOutline, r * (1 - TAN8));
-  const hubs: Hub[] = round
-    ? [{ c: [x0 + 1, z0 + 1], r: 1, joined: [false, false, false, false] }]
-    : cells.map(([x, z]) => ({
-        c: [x + 0.5, z + 0.5] as V2,
-        r: 0.5,
-        joined: [has.has(`${x},${z - 1}`), has.has(`${x + 1},${z}`), has.has(`${x},${z + 1}`), has.has(`${x - 1},${z}`)],
-      }));
-
-  // Heights. A taller stack stands the pavilion on a higher plinth and gives it longer columns.
-  const storeys = Math.max(2, input.level - input.ground);
-  const nSteps = storeys >= 3 ? 3 : 2;
-  const rise = storeys >= 4 ? 0.1 : storeys === 3 ? 0.085 : 0.075;
-  const foot = input.low * CELL_H;
-  const g = input.ground * CELL_H;
-  const back = round ? 0.07 : 0.05;
-  const steps = Array.from({ length: nSteps }, (_, i) => ({ offset: -0.03 - back * i, top: g + rise * (i + 1) }));
-  const floor = steps[steps.length - 1]!.top;
-  // The columns grow by less than the stack does (a pavilion, not a birdcage); what is left of the height
-  // goes into a second tier of roof over a clerestory drum.
-  const extra = Math.min(storeys - 2, 3);
-  const architrave = floor + (round ? 1.1 : 1.0) + 0.3 * extra;
-  const eave = architrave + 0.15;
-  const tier = storeys >= 3 ? { inset: round ? 0.56 : 0.27, drum: (round ? 0.2 : 0.15) + 0.07 * (extra - 1), eave: round ? 0.1 : 0.07 } : null;
-  const ring = round ? -0.2 : -0.15;
-  const radius = (round ? 0.05 : 0.042) + 0.006 * Math.min(storeys - 2, 3);
-
-  // Columns: one at every corner of the ring, and more along its long sides so no bay is wider than ~0.8.
-  const ringPoly = offset(outline, ring);
-  const columns: V2[] = [];
-  for (let i = 0; i < ringPoly.length; i++) {
-    const a = ringPoly[i]!, b = ringPoly[(i + 1) % ringPoly.length]!;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const n = Math.max(1, Math.round(len / 0.72));
-    for (let j = 0; j < n; j++) columns.push([a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]);
-  }
-  return {
-    outline,
-    cellsOutline,
-    round,
-    centre: [(x0 + x1) / 2, (z0 + z1) / 2],
-    hubs,
-    foot,
-    steps,
-    floor,
-    architrave,
-    eave,
-    ring,
-    eaveOut: 0.1,
-    columns,
-    radius,
-    pitch: round ? 0.82 : 1.05,
-    storeys,
-    tier,
-  };
-}
-
-/** The cell (x, z) a point lies in. */
-export const cellOf = (p: V2): V2 => [Math.floor(p[0] + 1e-6), Math.floor(p[1] + 1e-6)];
 
 // ─────────────────────────────────────────────────────────── columns ──
 
@@ -256,7 +73,33 @@ export interface PavilionColours {
 }
 
 /** The plinth, floor, rail, entablature, ceiling, roof, lantern and finials: drawn by the marble. */
-export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours, door: Dir4 | -1): void {
+/** A way in: a floor cell (x, z) and the side people step in across. */
+export interface PavilionEntry {
+  cell: V2;
+  dir: Dir4;
+}
+
+/**
+ * The bays left open: every bay the walk in crosses (the line from an entry cell's middle out through its
+ * side, as src/resolve/nav.ts and src/life/people/walk.ts walk it), and any closed bay between two open ones.
+ */
+export function doorBays(pv: Pavilion, entries: readonly PavilionEntry[]): Set<number> {
+  const cols = pv.columns, n = cols.length;
+  const open = new Set<number>();
+  const cross = (p: V2, q: V2, a: V2, c: V2): boolean => {
+    const s = (u: V2, v: V2, w: V2): number => (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0]);
+    return s(p, q, a) * s(p, q, c) < 0 && s(a, c, p) * s(a, c, q) < 0;
+  };
+  for (const e of entries) {
+    const [dx, dz] = DIR4[e.dir]!;
+    const p: V2 = [e.cell[0] + 0.5, e.cell[1] + 0.5], q: V2 = [p[0] + dx, p[1] + dz];
+    for (let i = 0; i < n; i++) if (cross(p, q, cols[i]!, cols[(i + 1) % n]!)) open.add(i);
+  }
+  for (let i = 0; i < n; i++) if (open.has((i + n - 1) % n) && open.has((i + 1) % n)) open.add(i);
+  return open;
+}
+
+export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours, entries: readonly PavilionEntry[]): void {
   const P = pv.outline;
   const up = (pts: readonly V2[], y: number): V3[] => pts.map((p) => [p[0], y, p[1]] as V3);
 
@@ -271,31 +114,13 @@ export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours,
     });
   });
 
-  // ── a low rail between the columns, open in the doorway ──
+  // ── a low rail between the columns, open where people come in ──
   const cols = pv.columns;
-  const dir = door >= 0 ? DIR4[door]! : null;
-  // The doorway: the bay whose outward normal points most nearly at the door, nearest the middle of that side.
-  let open = -1;
-  if (dir) {
-    let best = -Infinity;
-    for (let i = 0; i < cols.length; i++) {
-      const a = cols[i]!, c = cols[(i + 1) % cols.length]!;
-      const m: V2 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
-      const dx = c[0] - a[0], dz = c[1] - a[1], l = Math.hypot(dx, dz) || 1;
-      const face = (dz / l) * dir[0] + (-dx / l) * dir[1];
-      const side = (m[0] - pv.centre[0]) * dir[0] + (m[1] - pv.centre[1]) * dir[1];
-      const across = Math.abs((m[0] - pv.centre[0]) * dir[1] - (m[1] - pv.centre[1]) * dir[0]);
-      const score = face * 10 + side - across * 0.6;
-      if (score > best) {
-        best = score;
-        open = i;
-      }
-    }
-  }
+  const open = doorBays(pv, entries);
   const railH = 0.24, railW = 0.05;
   b.with({ color: col.stone, pattern: PATTERN.none, ink: 'rail' }, () => {
     for (let i = 0; i < cols.length; i++) {
-      if (i === open) continue;
+      if (open.has(i)) continue;
       const a = cols[i]!, c = cols[(i + 1) % cols.length]!;
       const dx = c[0] - a[0], dz = c[1] - a[1], len = Math.hypot(dx, dz);
       const span = len - pv.radius * 2 + 0.01;

@@ -18,7 +18,11 @@ export default scenario({
       b.path(9 + i * 3, 7, 9 + i * 3, 7).path(9 + i * 3, 17, 9 + i * 3, 17);
     }
   },
-  cameras: [{ name: 'square', yaw: 35, pitch: 32, zoom: 3.4, target: [13, 1.5, 12] }],
+  cameras: [
+    { name: 'square', yaw: 35, pitch: 32, zoom: 3.4, target: [13, 1.5, 12] },
+    // The band on the floor, facing out of the open bay (north, toward the path) at its listeners.
+    { name: 'band', yaw: 215, pitch: 24, zoom: 15, target: [13, 1.3, 11.6] },
+  ],
   expect(plan, dressing, check) {
     check.role(12, 3, 11, 'bandstand');
     const posts = dressing.sockets.filter((s) => s.type === 'errand' && (s.name ?? '').startsWith('show|'));

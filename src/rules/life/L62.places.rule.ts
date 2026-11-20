@@ -5,14 +5,15 @@
 //   school|yard|<id>       the walkable cell of its hopscotch court
 //   smith|anvil|<chimney>  the walkable cell beside the smithy's anvil (R-H19); ref the forge chimney
 //   show|stage|<id>        where the players or the band stand: the theatre's stage (the backdrop's cell
-//                          and its neighbours on the paving, R-M09), or the cells at the bandstand's foot
-//                          (R-M11)
-//   show|seat|<id>         where the audience sits or stands: the theatre's tiers, the cells round the bandstand
+//                          and its neighbours on the paving, R-M09), or the bandstand's floor at its way
+//                          in, facing out through the open bay (R-M11)
+//   show|seat|<id>         where the audience sits or stands: the theatre's tiers, the cells in front of
+//                          the bandstand's open bay
 //   vend|door|<id>         outside a bridge shop's door (R-H20), for its shopkeeper
 //
 // Warehouses (R-H17) are read by L58: their loading doors take what the carters bring.
 
-import { above, DIR4, key, keyX, keyY, keyZ, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { above, DIR4, inColumnBounds, key, keyX, keyY, keyZ, NO_CELL, opposite, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import { navOf, steps, toward } from './people.lib';
 import { doorPlace } from './town.lib';
@@ -65,7 +66,36 @@ export default defineRule<Data>({
         const chimney = all.find((t) => plan.roles.get(t.id)?.role === 'forge-chimney' && t.cells.some((x) => s.cells.some((y) => steps(x, y) <= 1)));
         const at = anvil !== null ? walkable(anvil) : null;
         if (at !== null) add(at, `smith:${s.id}`, { name: `smith|anvil|${chimney?.id ?? ''}`, structure: s.id, ...(anvil !== null && at !== anvil ? { dir: toward(at, anvil) } : {}) });
-      } else if (role === 'theatre' || role === 'bandstand') {
+      } else if (role === 'bandstand') {
+        // The band plays on the pavilion's floor, at its way in (R-M11 'pavilion-floor' with a side), facing
+        // out; the listeners gather outside in front of the open bay, nearest first.
+        const ways = (plan.featuresByStructure.get(s.id) ?? []).filter((f) => f.type === 'pavilion-floor' && f.dir !== undefined && f.cell !== undefined && nav.nodeAt.has(f.cell));
+        if (ways.length === 0) continue;
+        const dir = ways[0]!.dir as Dir4;
+        const [dx, dz] = DIR4[dir]!;
+        const fronts = ways.map((f) => key(keyX(f.cell!) + dx, keyY(f.cell!), keyZ(f.cell!) + dz)).filter((c) => nav.nodeAt.has(c));
+        if (fronts.length === 0) continue;
+        const fx = fronts.reduce((a, c) => a + keyX(c), 0) / fronts.length, fz = fronts.reduce((a, c) => a + keyZ(c), 0) / fronts.length;
+        const floor = new Set((plan.featuresByStructure.get(s.id) ?? []).filter((f) => f.type === 'pavilion-floor').map((f) => f.cell!));
+        const y = keyY(fronts[0]!);
+        const seats: CellKey[] = [];
+        for (let a = 0; a <= 3; a++) {
+          for (let b = -3; b <= 3; b++) {
+            const x = Math.round(fx) + dx * a - dz * b, z = Math.round(fz) + dz * a + dx * b;
+            if (!inColumnBounds(x, z)) continue;
+            const c = key(x, y, z);
+            if ( floor.has(c) || !nav.nodeAt.has(c) || seats.includes(c)) continue;
+            // In front of the bay, not beside the pavilion.
+            if ((x - fx) * dx + (z - fz) * dz < 0) continue;
+            seats.push(c);
+          }
+        }
+        for (const c of fronts) if (!seats.includes(c)) seats.push(c);
+        const near = (c: CellKey): number => Math.hypot(keyX(c) - fx, keyZ(c) - fz);
+        seats.sort((a, b) => near(a) - near(b) || a - b);
+        ways.forEach((f, i) => add(f.cell!, `stage:${s.id}:${i}`, { name: `show|stage|${s.id}`, dir, structure: s.id }));
+        seats.slice(0, SHOW_SEATS).forEach((c, i) => add(c, `seat:${s.id}:${i}`, { name: `show|seat|${s.id}`, dir: opposite(dir), structure: s.id }));
+      } else if (role === 'theatre') {
         // The stage: the backdrop's cell and its neighbours (theatre), else the walkable cells on and round the bandstand.
         const backdrop = role === 'theatre' ? propCell('structure-prop', 'backdrop', (c) => s.cells.some((x) => steps(x, c) <= 1)) : null;
         const tops = s.cells.map((c) => above(c)).filter((c) => c !== NO_CELL && nav.nodeAt.has(c) && !s.cells.includes(c));
