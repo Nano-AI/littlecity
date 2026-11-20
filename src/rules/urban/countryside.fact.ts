@@ -10,9 +10,10 @@
 // street cells on the ground are out of town; where RUN_MIN or more of them
 // run on connected along one street, that run is a country lane and its
 // cells are country. A shorter stretch (the last cells of a village street,
-// a few cells between two hamlets) stays in town. With no building anywhere
-// there is no town to be out of: nothing is country (a first path laid on an
-// empty island still gets its lamps).
+// a few cells between two hamlets) stays in town. A lane leads out of town:
+// a street with no cell in town at all (a path laid alone in a field) is not
+// one, and with no building anywhere there is no town to be out of; both
+// keep their lamps (a first path still gets them, as the guide promises).
 //
 // Stability: a cell's answer depends on what stands within FRONTAGE of it
 // and on the out-of-town cells connected to it along its street.
@@ -72,6 +73,9 @@ export const countryside = defineFact<Countryside>('countryside', (f) => {
       if (near.at(x, z) <= FRONTAGE || toDock.at(x, z) <= APPROACH) continue;
       out.add(c);
     }
+    // A country lane leads out of town: a street with no cell in town at all (a path laid alone out
+    // in a field) is not one, and keeps its lamps.
+    if (!street.cells.some((c) => onGround(f, c) && !out.has(c))) continue;
     const seen = new Set<CellKey>();
     for (const c of street.cells) {
       if (!out.has(c) || seen.has(c)) continue;

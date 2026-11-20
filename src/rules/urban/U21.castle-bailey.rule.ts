@@ -11,7 +11,8 @@
 // Dressing: packed earth underfoot; a well near the middle
 // ('activity'/'fetch-water'); a lean-to stable against the curtain wall with
 // a horse looking out over the half door; hay against the wall; a practice
-// dummy and an archery butt in the open.
+// dummy and an archery butt in corners against the wall (corner slots are
+// on no walking line, so a busy bailey does not jam).
 //
 // Stability: seeded by the bailey's own cells.
 //
@@ -23,7 +24,7 @@ import { hash } from '@/core/rand';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
 import { DIRS } from '@/resolve/facts/lib';
 import type { Slot } from '@/resolve/plan';
-import { clearways, edgePos } from '../decoration/clearways.fact';
+import { clearways, cornerPos, edgePos } from '../decoration/clearways.fact';
 import { landUse } from './land-use.fact';
 import { claimsOf, emit, placer, plotOf, sidesWith, type Placed } from './plots';
 
@@ -66,12 +67,14 @@ export default defineRule<{ items: Placed[]; cells: readonly CellKey[] }>({
         else if (!hay) hay = p.put({ type: 'hay', cell: c, pos: edgePos(dir), face: opposite(dir), params: { look: look('hay', c) } });
         if (stable && hay) break;
       }
-      // In the open: the practice dummy and the archery butt, a little apart.
-      const open = plot.shuffled('yard').filter((c) => sidesWith(plot, c, 'in').length === 4);
+      // The practice dummy and the archery butt stand in the corner of a cell against the wall, out of
+      // everyone's way (a corner slot is on no walking line), the butt facing back into the yard.
       let dummy = false;
-      for (const c of open) {
-        if (!dummy) dummy = p.put({ type: 'practice-dummy', cell: c, pos: 'c', params: { look: look('dummy', c) } });
-        else if (p.put({ type: 'archery-butt', cell: c, pos: 'c', face: ((hash(seed, RULE, 'butt', c) % 4) as 0 | 1 | 2 | 3) })) break;
+      for (const [c, d] of walled) {
+        const dir = d as 0 | 1 | 2 | 3;
+        const corner = cornerPos(dir, ((dir + 1) % 4) as 0 | 1 | 2 | 3);
+        if (!dummy) dummy = p.put({ type: 'practice-dummy', cell: c, pos: corner, params: { look: look('dummy', c) } });
+        else if (p.put({ type: 'archery-butt', cell: c, pos: corner, face: opposite(dir) })) break;
       }
       out.push({ anchor: bailey.cells[0]!, data: { items: p.items, cells: bailey.cells } });
     }
