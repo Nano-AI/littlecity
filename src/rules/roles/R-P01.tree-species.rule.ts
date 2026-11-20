@@ -4,6 +4,7 @@
 //   terrain level ≥ 4                → pine
 //   on or beside a plaza             → clipped tree in a planter
 //   on a garden floor                → fruit tree
+//   on a grid of spacing 2 (orchard) → fruit tree (the orchards fact, U18)
 //   part of 5+ touching trees        → grove tree with undergrowth
 //   otherwise                        → the seeded mix of round, cypress and bush
 //
@@ -19,6 +20,7 @@ import { defineRule, type Candidate } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
 import { openWater } from '@/resolve/facts/lib';
 import { TREE } from '@/style/ground';
+import { orchards } from '../urban/orchards.fact';
 
 type TreeRole = RolesOf<'tree'>;
 const DIRS: readonly Dir4[] = [0, 1, 2, 3];
@@ -75,6 +77,7 @@ export function treeSpecies(f: Facts, cell: CellKey, groves: ReadonlyMap<CellKey
   if (rooted && ground >= TREE.pineLevel) return 'pine';
   if (f.world.floors.get(cell) === 'plaza' || DIRS.some((d) => f.world.floors.get(neighbor(cell, d)) === 'plaza')) return 'planter-tree';
   if (f.world.floors.get(cell) === 'garden') return 'fruit-tree';
+  if (orchards(f).byTree.has(cell)) return 'fruit-tree'; // planted on a grid: an orchard (U18)
   if ((groves.get(cell) ?? 1) >= TREE.grove) return 'grove-tree';
   const roll = rand(f.seed, 'R-P01', cell);
   return roll < TREE.mixRound ? 'round-tree' : roll < TREE.mixRound + TREE.mixCypress ? 'cypress' : 'bush';
