@@ -24,6 +24,7 @@ import { MEND_STEPS } from '@/world/damage';
 /** A click of the Mend tool: a quarter of the way. */
 const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
+import type { Brigade } from './response';
 import { createMischiefEngine, type BlastEvent, type Env, type MischiefEngine } from './engine';
 
 export interface MischiefHost {
@@ -37,6 +38,8 @@ export interface MischiefHost {
   abort(): void;
   /** Applies edits as one undo step of their own (a mend outside an act). */
   edit(edits: readonly Edit[]): void;
+  /** Applies edits without an undo step of their own (the town mending itself: undo goes back past the damage). */
+  amend(edits: readonly Edit[]): void;
 }
 
 export interface Bomb {
@@ -63,6 +66,10 @@ export class Director {
   readonly bombs: Bomb[] = [];
   private nextBomb = 1;
   private listeners: ((e: MischiefEvent) => void)[] = [];
+  /** The fire brigades at work (set by the fire chain, src/life/mischief/response.ts; drawn by brigade.system.ts). */
+  brigades: ReadonlyMap<StructureId, Brigade> | null = null;
+  /** The town mends its own damage when things are quiet (the menu's Rebuild switch). */
+  rebuild = true;
   /** Where the reader looks from (degrees; the app sets it each frame): flames are drawn turned toward them. */
   camera = { yaw: 45, pitch: 35 };
 
@@ -159,6 +166,17 @@ export class Director {
     if (!this.act) {
       this.host?.edit(this.engine.takeEdits());
     }
+    return true;
+  }
+
+  /** The town's builders: one step of mending on a whole building, no undo step of its own. */
+  autoMend(cell: CellKey): boolean {
+    let any = false;
+    for (const c of this.cellsOf(cell)) any = this.engine.repair(c, 1) || any;
+    if (!any) return false;
+    const edits = this.engine.takeEdits();
+    if (this.act) this.host?.apply(edits);
+    else this.host?.amend(edits);
     return true;
   }
 

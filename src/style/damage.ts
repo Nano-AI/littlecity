@@ -43,6 +43,8 @@ export const DAMAGE_COLORS = defineStyle('damage-colors', {
   flameMid: '#ffb347',
   flameTip: '#ffe58a',
   ember: '#ff8a4a',
+  /** A fire hose. */
+  hose: '#9c4a3c',
   /** Smoke: a warm grey puff near the fire, paler as it rises. */
   smokeDark: '#7b706a',
   smokeMid: '#9e958e',

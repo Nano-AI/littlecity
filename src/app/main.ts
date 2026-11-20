@@ -127,6 +127,7 @@ mischief.connect({
   end: () => game.end(),
   abort: () => void game.abort(),
   edit: (edits) => void game.editAll(edits),
+  amend: (edits) => void game.amend(edits),
 });
 
 /** A different town: life and the signals start over with its seed; the held time of day carries across. */

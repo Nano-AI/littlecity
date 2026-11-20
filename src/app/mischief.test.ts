@@ -26,6 +26,7 @@ function setup() {
     end: () => game.end(),
     abort: () => void game.abort(),
     edit: (edits) => void game.editAll(edits),
+    amend: (edits) => void game.amend(edits),
   });
   // One edit of the player's own first, so there is something to undo past.
   game.edit({ type: 'placeBlock', cell: key(24, 1, 10), kind: 'tree', color: 'auto', from: null });
