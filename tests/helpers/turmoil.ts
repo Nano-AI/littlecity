@@ -44,7 +44,10 @@ import { createGame, type Game, type GameStart } from '@/app/game';
 import { ruinStage } from '@/world/damage';
 import type { Behaviour, InstanceHandle, LifeContext, LifeStage, Signals, System } from '@/life/api';
 import { allBehaviours, allSystems } from '@/life/discover';
+import { crowdOf } from '@/life/doors/table';
 import { fxOf } from '@/life/fx/fx';
+import type { Person } from '@/life/people/crowd';
+import { dogsOf } from '@/life/town/chains/dogs';
 import { mischiefOf, type Director } from '@/life/mischief/director';
 import { createLife, type Life } from '@/life/runtime';
 import { createSignals, type TownSignals } from '@/life/signals';
@@ -89,6 +92,8 @@ interface Track {
   shrinking: boolean;
   still: number;
   had: boolean;
+  /** Spawned through the stage (not a behaviour's own item). */
+  spawned: boolean;
 }
 
 export interface Turmoil {
@@ -131,13 +136,14 @@ export function createTurmoil(start: GameStart, opts: { fps?: number; part?: 'da
     return s;
   };
   const track = (kind: string, read: Track['read']): Track => {
-    const t: Track = { kind, read, px: 0, py: 0, pz: 0, vx: 0, vz: 0, scale: 0, shrinking: false, still: 0, had: false };
+    const t: Track = { kind, read, px: 0, py: 0, pz: 0, vx: 0, vz: 0, scale: 0, shrinking: false, still: 0, had: false, spawned: false };
     tracks.push(t);
     return t;
   };
 
   const spawnedTrack = (r: Recorded, kind: string): void => {
-    track(kind, () => (r.released ? null : { m: r.matrix, visible: r.visible }));
+    track(kind, () => (r.released ? null : { m: r.matrix, visible: r.visible })).spawned = true;
+    if (counting) statOf(kind).created++;
   };
   const base = rec.stage;
   const stage: LifeStage = {
@@ -300,11 +306,83 @@ export function createTurmoil(start: GameStart, opts: { fps?: number; part?: 'da
   };
 
   let t = 0;
+  // Every resident as a whole (the people system draws each as five pieces): where they are, drawn at
+  // their fade (a person coming ashore or going grows or shrinks; the pulse is what must never happen).
+  const persons = new Map<Person, { m: number[]; visible: boolean; gone: boolean }>();
+  const watchPeople = (): void => {
+    const crowd = crowdOf(stage);
+    if (!crowd) return;
+    const here = new Set<Person>();
+    for (const p of crowd.people) {
+      here.add(p);
+      let v = persons.get(p);
+      if (!v) {
+        const view = { m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], visible: false, gone: false };
+        persons.set(p, (v = view));
+        track('person', () => (view.gone ? null : view));
+        if (counting) statOf('person').created++;
+      }
+      const f = p.mode === 'gone' ? 0 : Math.max(0, Math.min(1, p.fade));
+      v.visible = p.visible && p.mode !== 'gone' && f > 0;
+      v.m[0] = v.m[5] = v.m[10] = f;
+      v.m[12] = p.x;
+      v.m[13] = p.y;
+      v.m[14] = p.z;
+    }
+    for (const [p, v] of persons) {
+      if (here.has(p)) continue;
+      // Taken off the list while still drawn at full size: gone in a frame.
+      if (counting) {
+        statOf('person').disposed++;
+        if (v.visible && v.m[5]! > 0.5) statOf('person').vanished++;
+      }
+      v.gone = true;
+      persons.delete(p);
+    }
+  };
+
+  // The dogs (L61), each as a whole, the same way: one dog per house it keeps (the chain hands on a copy
+  // of each dog at every change, handles and all).
+  const dogs = new Map<string, { m: number[]; visible: boolean; gone: boolean }>();
+  const watchDogs = (): void => {
+    const here = new Set<string>();
+    for (const d of dogsOf(stage)) {
+      const k = `${d.post.structure ?? d.post.cell}`;
+      here.add(k);
+      let v = dogs.get(k);
+      if (!v) {
+        const view = { m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], visible: true, gone: false };
+        dogs.set(k, (v = view));
+        track('dog', () => (view.gone ? null : view));
+        if (counting) statOf('dog').created++;
+      }
+      v.m[12] = d.x;
+      v.m[13] = d.y;
+      v.m[14] = d.z;
+    }
+    for (const [k, v] of dogs) {
+      if (here.has(k)) continue;
+      if (counting) {
+        statOf('dog').disposed++;
+        statOf('dog').vanished++;
+      }
+      v.gone = true;
+      dogs.delete(k);
+    }
+  };
+
   const measure = (dt: number): void => {
+    watchPeople();
+    watchDogs();
     for (let i = 0; i < tracks.length; i++) {
       const tr = tracks[i]!;
       const s = tr.read();
       if (!s) {
+        // A spawned thing let go while it was drawn: gone in a frame (a behaviour's own item is counted at dispose).
+        if (tr.spawned && counting) {
+          statOf(tr.kind).disposed++;
+          if (tr.had) statOf(tr.kind).vanished++;
+        }
         tracks[i] = tracks[tracks.length - 1]!;
         tracks.pop();
         i--;

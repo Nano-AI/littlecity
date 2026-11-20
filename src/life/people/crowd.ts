@@ -1358,8 +1358,17 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (dy === 0 || terrain.height[col] === 0) return -1;
     return nav!.nodeAt.get(p.cell + dy * (1 << 12)) ?? -1;
   };
+  /** How far a hop may carry somebody (cells): it is a step up, down or across onto ground close by. */
+  const HOP_REACH = 2.5;
   const hopTo = (p: Person, node: number): void => {
     const c = nodeCentre(nav!, node);
+    if (Math.hypot(p.x - c.x, p.z - c.z) > HOP_REACH) {
+      // A hop is a step onto ground close by. From further (somebody indoors since the town opened has
+      // never stood anywhere: they flew across the map from its corner) they are simply there.
+      p.x = c.x;
+      p.z = c.z;
+      p.y = nodeHeight(nav!, node);
+    }
     clearWalk(p);
     leaveHaunt(p);
     p.hop = { x0: p.x, y0: p.y, z0: p.z, x1: c.x, y1: nodeHeight(nav!, node), z1: c.z, t: 0 };
