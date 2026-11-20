@@ -18,4 +18,9 @@ export const FOLIAGE = {
   shrub: 205,
   /** The branches drawn inside a crown, hidden by it until the leaves fall. */
   branch: 206,
+  /**
+   * Not foliage: a festival bulb (PATTERN.glow, a lump round its centre with true normals). The
+   * vertex shader swells it so it never draws smaller than a couple of pixels, seen from far off.
+   */
+  bulb: 207,
 } as const;

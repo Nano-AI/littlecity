@@ -283,6 +283,11 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M11.2 15.6 L13.6 18.4 M24 9.6 L24 13.4 M36.8 15.6 L34.4 18.4 M6.6 26 L10 26.8 M41.4 26 L38 26.8"/>` +
     `<path d="M13.4 31.6 A10.6 10.6 0 0 1 34.6 31.6 Z" fill="${C.orange}"/>` +
     `<path d="M5.6 31.6 L42.4 31.4"/><path ${thin} d="M12 36.6 L24 36.4 M28 36.6 L36 36.4 M18 40.8 L31 40.6"/>`,
+  // Dawn: the sun half up over the line of the sea, pink.
+  'time-dawn':
+    `<path d="M11.4 22.8 L13.6 25.2 M24 15.4 L24 19 M36.6 22.8 L34.4 25.2"/>` +
+    `<path d="M14 33.4 A10 10 0 0 1 34 33.4 Z" fill="${C.pink}"/>` +
+    `<path d="M5.6 33.4 L42.4 33.2"/><path ${thin} d="M13 38.4 L23 38.2 M27.6 38.4 L35 38.2"/>`,
   'time-night':
     `<path d="M28.6 7.6 A15.4 15.4 0 1 0 40.6 31.4 A12.6 12.6 0 0 1 28.6 7.6 Z" fill="${C.moon}"/>` +
     sparkle(37, 13, 4.4, `fill="${C.white}" stroke-width="1.5"`) +
@@ -321,6 +326,13 @@ const DRAWINGS: Record<string, string> = {
     [0, 60, 120]
       .map((a) => `<path transform="rotate(${a} 24 24)" d="M24 8.4 L24 39.6 M19.8 11.6 L24 15.4 L28.2 11.6 M19.8 36.4 L24 32.6 L28.2 36.4"/>`)
       .join(''),
+  // The midwinter festival: a little fir with coloured lights and a star.
+  'season-festival':
+    `<path d="M24 9.6 L36.4 36.4 L11.6 36.4 Z" fill="${C.leafDark}"/>` +
+    `<path d="M21.6 36.4 L21.8 41.6 L26.4 41.6 L26.2 36.4" fill="${C.trunk}"/>` +
+    `<circle cx="19.6" cy="30.4" r="2" fill="${C.red}" stroke-width="1.2"/><circle cx="27.6" cy="27.2" r="2" fill="${C.yellow}" stroke-width="1.2"/>` +
+    `<circle cx="22.4" cy="21.4" r="1.8" fill="${C.sea}" stroke-width="1.2"/><circle cx="30.4" cy="33" r="1.9" fill="${C.pink}" stroke-width="1.2"/>` +
+    sparkle(24, 7.6, 4.4, `fill="${C.yellow}" stroke-width="1.4"`),
   // Weather by itself: sun behind a cloud.
   'weather-auto':
     sun(18.4, 17.4, 6, C.yellow, 7) +

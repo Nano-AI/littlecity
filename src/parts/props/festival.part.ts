@@ -9,6 +9,7 @@ import { definePart } from '@/gen/api';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { wallInSocket } from '@/parts/openings/door-leaf';
 import { pine } from '@/gen/tree/species';
+import { FOLIAGE } from '@/gen/foliage';
 import { PALETTE } from '@/style/palette';
 import { lump, mixColor, rngOf, tube } from './kit';
 
@@ -35,7 +36,7 @@ function string(b: MeshBuilder, a: Vec3, c: Vec3, sag: number, gap: number, firs
   b.setPattern(PATTERN.glow).setInk('bulbs');
   for (let i = 0; i < n; i++) {
     const [x, y, z] = at((i + 0.5) / n);
-    b.with({ color: colors[(first + i) % colors.length]! }, () => lump(b, x, y - 0.034, z, 0.038, 0.044, 0.038, { seg: 6, rings: 3 }));
+    b.with({ color: colors[(first + i) % colors.length]!, edge: FOLIAGE.bulb }, () => lump(b, x, y - 0.034, z, 0.038, 0.044, 0.038, { seg: 6, rings: 3 }));
   }
 }
 
@@ -146,7 +147,7 @@ export const festivalTree = definePart({
       const y = y0 + (y1 - y0) * t;
       const rad = 0.6 * (1 - t) + 0.1;
       const a = t * Math.PI * 2 * 4.3 + r('turn') * 6;
-      b.with({ color: colors[i % colors.length]! }, () => lump(b, Math.cos(a) * rad, y, Math.sin(a) * rad, 0.045, 0.045, 0.045, { seg: 6, rings: 3 }));
+      b.with({ color: colors[i % colors.length]!, edge: FOLIAGE.bulb }, () => lump(b, Math.cos(a) * rad, y, Math.sin(a) * rad, 0.045, 0.045, 0.045, { seg: 6, rings: 3 }));
     }
     // Glass baubles.
     for (let i = 0; i < 9; i++) {
@@ -161,6 +162,39 @@ export const festivalTree = definePart({
     // The star, two crossed so it reads from every side.
     b.with({ color: PALETTE.yellow, pattern: PATTERN.glow, ink: 'star' }, () => {
       for (const a of [0, Math.PI / 2]) b.at(compose(translation(0, top + 0.06, 0), rotationY(a)), () => star(b, 0.12));
+    });
+    b.pop();
+    return { mesh: b.build() };
+  },
+});
+
+/**
+ * The children's snowman: three balls of snow, coal eyes and buttons, a carrot nose, twig arms and a
+ * red scarf. Frame: the top of a square's cell (a festival-anchor); it stands in the middle of it.
+ */
+export const snowman = definePart({
+  prop: 'snowman',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 13));
+    b.push(compose(translation(0, -0.8, 0), rotationY(r('turn') * 6.28)));
+    b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'snow' }, () => {
+      lump(b, 0, 0.1, 0, 0.13, 0.11, 0.13, { seg: 12, rings: 6 });
+      lump(b, 0, 0.27, 0, 0.095, 0.085, 0.095, { seg: 10, rings: 5 });
+    });
+    b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'head' }, () => lump(b, 0, 0.4, 0, 0.068, 0.064, 0.068, { seg: 10, rings: 5 }));
+    b.with({ color: PALETTE.ink, pattern: PATTERN.none, ink: 'coal' }, () => {
+      for (const x of [-0.024, 0.024]) lump(b, x, 0.415, 0.06, 0.009, 0.009, 0.009, { seg: 4, rings: 2 });
+      for (const y of [0.24, 0.29]) lump(b, 0, y, 0.09, 0.01, 0.01, 0.01, { seg: 4, rings: 2 });
+    });
+    b.with({ color: PALETTE.yellow, pattern: PATTERN.none, ink: 'carrot' }, () => tube(b, [[0, 0.4, 0.06], [0, 0.395, 0.13]], [0.012, 0.002], { seg: 4 }));
+    b.with({ color: PALETTE.red, pattern: PATTERN.cloth, ink: 'scarf' }, () => {
+      b.lathe([[0.075, 0.335], [0.08, 0.35], [0.072, 0.365]], { segments: 10 });
+      tube(b, [[0.05, 0.345, 0.05], [0.07, 0.28, 0.09]], 0.014, { seg: 4 });
+    });
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'arms' }, () => {
+      tube(b, [[0.085, 0.29, 0], [0.2, 0.36, 0.02], [0.24, 0.4, 0.03]], 0.006, { seg: 3 });
+      tube(b, [[-0.085, 0.29, 0], [-0.19, 0.33, -0.02], [-0.23, 0.38, -0.03]], 0.006, { seg: 3 });
     });
     b.pop();
     return { mesh: b.build() };

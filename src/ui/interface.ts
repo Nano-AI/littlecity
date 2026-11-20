@@ -16,7 +16,9 @@ import { columnIndex, edgeOf, key, keyX, keyY, keyZ, NO_CELL, type CellKey } fro
 import type { Edit, Terrain, World } from '@/core/world';
 import type { DressingPlan } from '@/resolve/plan';
 import type { TimeHold } from '@/life/api';
-import type { SeasonHold, WeatherHold } from '@/life/season';
+import { holdYear, type SeasonHold, type WeatherHold } from '@/life/season';
+import { partPhases } from '@/life/signals';
+import { createSlider, type SliderStop } from './slider';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
 import { brushAt, copyLook, landColumn, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
@@ -42,12 +44,19 @@ import { INPUT } from '@/style/input';
 export interface InterfaceHost {
   view: TownView;
   game: Game;
-  /** The time-of-day control (the signals driver). */
-  time: { readonly holding: TimeHold; hold(mode: TimeHold): void };
+  /**
+   * The time-of-day control (the signals driver). Added by Seasons: `phase`, `glide` and `scrub` (the
+   * slider eases the clock instead of jumping it); without them the slider holds parts at once.
+   */
+  time: { readonly holding: TimeHold; hold(mode: TimeHold): void; readonly phase?: number; glide?(mode: TimeHold): void; scrub?(phase: number): void };
   /** Added by Seasons: the season and weather controls (the signals driver). Without them, no buttons. */
   seasons?: {
     readonly seasonHolding: SeasonHold;
     holdSeason(mode: SeasonHold): void;
+    /** Where the year is, 0 to 1 from the start of spring; eased moves (the slider's). */
+    readonly year?: number;
+    glideSeason?(mode: SeasonHold): void;
+    scrubYear?(year: number): void;
     readonly weatherHolding: WeatherHold;
     holdWeather(mode: WeatherHold): void;
   };
@@ -107,35 +116,58 @@ export interface GhostSummary {
   refuse: CellKey | null;
 }
 
-const TIME_ORDER: readonly TimeHold[] = ['run', 'day', 'dusk', 'night'];
-const TIME_LABEL: Record<TimeHold, string> = {
-  run: 'Time of day: passing. Press to hold the day',
-  day: 'Holding day. Press for dusk',
-  dusk: 'Holding dusk. Press for night',
-  night: 'Holding night. Press to let time pass',
-  dawn: 'Holding dawn. Press to let time pass',
-};
-// Seasons (design section 13a): the season button cycles like the sun button; the weather button
-// steps through the kinds, auto first.
-const SEASON_ORDER: readonly SeasonHold[] = ['run', 'spring', 'summer', 'autumn', 'winter'];
-const SEASON_LABEL: Record<SeasonHold, string> = {
-  run: 'Seasons: the year is turning. Press to hold spring',
-  spring: 'Holding spring. Press for summer',
-  summer: 'Holding summer. Press for autumn',
-  autumn: 'Holding autumn. Press for winter',
-  winter: 'Holding winter, with the festival lights. Press to let the year turn',
-};
-const WEATHER_ORDER: readonly WeatherHold[] = ['auto', 'clear', 'cloudy', 'rain', 'storm', 'snow', 'fog', 'wind'];
-const WEATHER_LABEL: Record<WeatherHold, string> = {
-  auto: 'Weather: comes and goes. Press for a clear sky',
-  clear: 'Holding a clear sky. Press for cloud',
-  cloudy: 'Holding cloud. Press for rain',
-  rain: 'Holding rain. Press for a thunderstorm',
-  storm: 'Holding a thunderstorm. Press for snow',
-  snow: 'Holding snow. Press for mist',
-  fog: 'Holding mist. Press for wind',
-  wind: 'Holding a windy day. Press to let the weather change by itself',
-};
+// The time, season and weather sliders (design section 7; src/ui/slider.ts). Each button shows what
+// is held and opens its slider; a "running" or "auto" stop lets the clock, the year or the sky go on.
+const TIME_STOPS: readonly SliderStop[] = [
+  { id: 'run', label: 'Running', icon: 'time-run' },
+  { id: 'dawn', label: 'Dawn', icon: 'time-dawn' },
+  { id: 'day', label: 'Day', icon: 'time-day' },
+  { id: 'dusk', label: 'Dusk', icon: 'time-dusk' },
+  { id: 'night', label: 'Night', icon: 'time-night' },
+];
+const SEASON_STOPS: readonly SliderStop[] = [
+  { id: 'run', label: 'Running', icon: 'season-run' },
+  { id: 'spring', label: 'Spring', icon: 'season-spring' },
+  { id: 'summer', label: 'Summer', icon: 'season-summer' },
+  { id: 'autumn', label: 'Autumn', icon: 'season-autumn' },
+  { id: 'winter', label: 'Winter', icon: 'season-winter' },
+  { id: 'festival', label: 'Festival', icon: 'season-festival' },
+];
+const WEATHER_STOPS: readonly SliderStop[] = [
+  { id: 'auto', label: 'Auto', icon: 'weather-auto' },
+  { id: 'clear', label: 'Clear', icon: 'weather-clear' },
+  { id: 'cloudy', label: 'Cloudy', icon: 'weather-cloudy' },
+  { id: 'wind', label: 'Wind', icon: 'weather-wind' },
+  { id: 'fog', label: 'Mist', icon: 'weather-fog' },
+  { id: 'rain', label: 'Rain', icon: 'weather-rain' },
+  { id: 'storm', label: 'Storm', icon: 'weather-storm' },
+  { id: 'snow', label: 'Snow', icon: 'weather-snow' },
+];
+/** Where along a slider's held stops a value falls: `marks` rise round a loop (the day, the year). */
+function along(value: number, marks: readonly number[]): number {
+  const n = marks.length;
+  let best = 0, bestD = Infinity;
+  for (let i = 0; i < n - 1; i++) {
+    const span = (((marks[i + 1]! - marks[i]!) % 1) + 1) % 1;
+    const into = (((value - marks[i]!) % 1) + 1) % 1;
+    if (into <= span) return i + into / Math.max(1e-6, span);
+  }
+  // Outside the stretch the stops cover (between the last stop and the first): the nearer end.
+  for (const [i, m] of [[0, marks[0]!], [n - 1, marks[n - 1]!]] as const) {
+    const d = Math.min((((value - m) % 1) + 1) % 1, (((m - value) % 1) + 1) % 1);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+/** The value at a position along the stops, going forward round the loop between two marks. */
+function valueAt(pos: number, marks: readonly number[]): number {
+  const i = Math.min(marks.length - 2, Math.max(0, Math.floor(pos)));
+  const span = (((marks[i + 1]! - marks[i]!) % 1) + 1) % 1;
+  return (marks[i]! + span * Math.min(1, Math.max(0, pos - i))) % 1;
+}
 const SOUND_KEY = 'little-city.sound';
 
 function readSound(): boolean {
@@ -218,9 +250,80 @@ export function createInterface(host: InterfaceHost): Interface {
 
   const guide = createGuide({ shape: () => game.shape });
 
-  const timeButton = iconButton('time-run', 'Time of day', { class: 'lc-round', attrs: { 'data-ui': 'time' } });
-  const seasonButton = iconButton('season-run', 'Season', { class: 'lc-round', attrs: { 'data-ui': 'season' } });
-  const weatherButton = iconButton('weather-auto', 'Weather', { class: 'lc-round', attrs: { 'data-ui': 'weather' } });
+  const timeButton = iconButton('time-run', 'Time of day', { class: 'lc-round', attrs: { 'data-ui': 'time', 'aria-haspopup': 'true', 'aria-expanded': 'false' } });
+  const seasonButton = iconButton('season-run', 'Season', { class: 'lc-round', attrs: { 'data-ui': 'season', 'aria-haspopup': 'true', 'aria-expanded': 'false' } });
+  const weatherButton = iconButton('weather-auto', 'Weather', { class: 'lc-round', attrs: { 'data-ui': 'weather', 'aria-haspopup': 'true', 'aria-expanded': 'false' } });
+  // ── the sliders ─────────────────────────────────────────────────────────
+  const dayMarks = (): number[] => {
+    const ph = partPhases();
+    return [ph.dawn.mid, ph.day.mid, ph.dusk.mid, ph.night.mid];
+  };
+  const timeSlider = createSlider({
+    name: 'time',
+    label: 'Time of day',
+    stops: TIME_STOPS,
+    position: () => (host.time.holding === 'run' ? 0 : 1 + (host.time.phase === undefined ? Math.max(0, TIME_STOPS.findIndex((s) => s.id === host.time.holding) - 1) : along(host.time.phase, dayMarks()))),
+    scrub(pos) {
+      if (pos < 0.5) return;
+      if (host.time.scrub) host.time.scrub(valueAt(pos - 1, dayMarks()));
+      else host.time.hold(TIME_STOPS[Math.round(pos)]!.id as TimeHold);
+      showTime();
+    },
+    choose(i) {
+      const mode = TIME_STOPS[i]!.id as TimeHold;
+      (host.time.glide ?? host.time.hold)(mode);
+      showTime();
+    },
+  });
+  const yearMarks = (): number[] => (['spring', 'summer', 'autumn', 'winter', 'festival'] as const).map((s) => holdYear(s));
+  const seasonSlider = createSlider({
+    name: 'season',
+    label: 'Season',
+    stops: SEASON_STOPS,
+    position: () => {
+      const s = host.seasons;
+      if (!s || s.seasonHolding === 'run') return 0;
+      return 1 + (s.year === undefined ? Math.max(0, SEASON_STOPS.findIndex((x) => x.id === s.seasonHolding) - 1) : along(s.year, yearMarks()));
+    },
+    scrub(pos) {
+      const s = host.seasons;
+      if (!s || pos < 0.5) return;
+      if (s.scrubYear) s.scrubYear(valueAt(pos - 1, yearMarks()));
+      else s.holdSeason(SEASON_STOPS[Math.round(pos)]!.id as SeasonHold);
+      showSeasons();
+    },
+    choose(i) {
+      const s = host.seasons;
+      if (!s) return;
+      const mode = SEASON_STOPS[i]!.id as SeasonHold;
+      if (s.glideSeason) s.glideSeason(mode);
+      else s.holdSeason(mode);
+      showSeasons();
+    },
+  });
+  const weatherSlider = createSlider({
+    name: 'weather',
+    label: 'Weather',
+    stops: WEATHER_STOPS,
+    position: () => Math.max(0, WEATHER_STOPS.findIndex((x) => x.id === host.seasons?.weatherHolding)),
+    scrub(pos) {
+      // The sky follows the thumb kind by kind; each change eases in (clouds gather, rain begins).
+      const k = Math.round(pos);
+      if (k > 0 && host.seasons && WEATHER_STOPS[k]!.id !== host.seasons.weatherHolding) {
+        host.seasons.holdWeather(WEATHER_STOPS[k]!.id as WeatherHold);
+        showSeasons();
+      }
+    },
+    choose(i) {
+      host.seasons?.holdWeather(WEATHER_STOPS[i]!.id as WeatherHold);
+      showSeasons();
+    },
+  });
+  const sliders = [timeSlider, seasonSlider, weatherSlider];
+  const openSlider = (which: typeof timeSlider, button: HTMLElement): void => {
+    for (const s of sliders) if (s !== which) s.close();
+    which.toggle(button);
+  };
   const undoButton = iconButton('undo', 'Undo', { class: 'lc-round', title: 'Undo (⌘Z)', attrs: { 'data-ui': 'undo' } });
   const redoButton = iconButton('redo', 'Redo', { class: 'lc-round', title: 'Redo (⇧⌘Z)', attrs: { 'data-ui': 'redo' } });
   root.append(
@@ -234,6 +337,7 @@ export function createInterface(host: InterfaceHost): Interface {
     menu.file,
     feedback.el,
     guide.el,
+    ...sliders.map((s) => s.el),
   );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
   tray.el.style.setProperty('--lc-slots', String(slots));
@@ -242,41 +346,38 @@ export function createInterface(host: InterfaceHost): Interface {
   // ── time, undo, redo ───────────────────────────────────────────────────
   const showTime = (): void => {
     const mode = host.time.holding;
-    setIcon(timeButton, `time-${mode === 'dawn' ? 'run' : mode}`);
-    timeButton.title = TIME_LABEL[mode];
-    timeButton.setAttribute('aria-label', TIME_LABEL[mode]);
+    const label = TIME_STOPS.find((x) => x.id === mode)?.label ?? 'Dawn';
+    setIcon(timeButton, `time-${mode}`);
+    const title = mode === 'run' ? 'Time of day: passing' : `Time of day: holding ${label.toLowerCase()}`;
+    timeButton.title = title;
+    timeButton.setAttribute('aria-label', title);
     timeButton.setAttribute('data-time', mode);
   };
-  timeButton.addEventListener('click', () => {
-    const next = TIME_ORDER[(TIME_ORDER.indexOf(host.time.holding) + 1) % TIME_ORDER.length]!;
-    host.time.hold(next);
-    showTime();
-  });
+  timeButton.addEventListener('click', () => openSlider(timeSlider, timeButton));
+  let shownSeason = '', shownWeather = '';
   const showSeasons = (): void => {
     const s = host.seasons;
     if (!s) return;
     const season = s.seasonHolding, weather = s.weatherHolding;
-    setIcon(seasonButton, `season-${season}`);
-    seasonButton.title = SEASON_LABEL[season];
-    seasonButton.setAttribute('aria-label', SEASON_LABEL[season]);
-    seasonButton.setAttribute('data-season', season);
-    setIcon(weatherButton, `weather-${weather}`);
-    weatherButton.title = WEATHER_LABEL[weather];
-    weatherButton.setAttribute('aria-label', WEATHER_LABEL[weather]);
-    weatherButton.setAttribute('data-weather', weather);
+    if (season !== shownSeason) {
+      shownSeason = season;
+      setIcon(seasonButton, `season-${season}`);
+      const t = season === 'run' ? 'Season: the year is turning' : `Season: holding ${SEASON_STOPS.find((x) => x.id === season)!.label.toLowerCase()}`;
+      seasonButton.title = t;
+      seasonButton.setAttribute('aria-label', t);
+      seasonButton.setAttribute('data-season', season);
+    }
+    if (weather !== shownWeather) {
+      shownWeather = weather;
+      setIcon(weatherButton, `weather-${weather}`);
+      const t = weather === 'auto' ? 'Weather: comes and goes' : `Weather: holding ${WEATHER_STOPS.find((x) => x.id === weather)!.label.toLowerCase()}`;
+      weatherButton.title = t;
+      weatherButton.setAttribute('aria-label', t);
+      weatherButton.setAttribute('data-weather', weather);
+    }
   };
-  seasonButton.addEventListener('click', () => {
-    const s = host.seasons;
-    if (!s) return;
-    s.holdSeason(SEASON_ORDER[(SEASON_ORDER.indexOf(s.seasonHolding) + 1) % SEASON_ORDER.length]!);
-    showSeasons();
-  });
-  weatherButton.addEventListener('click', () => {
-    const s = host.seasons;
-    if (!s) return;
-    s.holdWeather(WEATHER_ORDER[(WEATHER_ORDER.indexOf(s.weatherHolding) + 1) % WEATHER_ORDER.length]!);
-    showSeasons();
-  });
+  seasonButton.addEventListener('click', () => openSlider(seasonSlider, seasonButton));
+  weatherButton.addEventListener('click', () => openSlider(weatherSlider, weatherButton));
   showSeasons();
   undoButton.addEventListener('click', () => game.undo());
   redoButton.addEventListener('click', () => game.redo());
@@ -735,6 +836,7 @@ export function createInterface(host: InterfaceHost): Interface {
     guide,
     dressed: (dressing) => guide.dressed(dressing),
     frame() {
+      for (const s of sliders) s.refresh();
       flushStroke();
       growth.tick(performance.now());
       markers.update(tray.state.item === 'change', game.world, game.terrain);

@@ -14,7 +14,7 @@ import { DIR4, keyX, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SignalsDriver } from '@/life/api';
 import type { MeshData } from '@/gen/mesh';
-import { bubbleMesh, kiteMesh, lineMesh, TOOL_PIECE, toolMesh, type Tool } from '@/parts/people/extras';
+import { bubbleMesh, kiteMesh, lineMesh, TOOL_PIECE, toolMesh, UMBRELLAS, type Tool } from '@/parts/people/extras';
 import { buildPerson, DESIGN_HEIGHT, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, sitDrop } from '@/parts/people/pose';
 import type { NavDoor } from '@/resolve/plan';
@@ -183,6 +183,19 @@ interface Drawn {
   costume: Person['costume'];
   /** L50: the hat knocked askew in a scuffle, drawn on its own. */
   askew: InstanceHandle | null;
+  /** Seasons: wrapped up for the cold (a coat and a woolly hat). */
+  wrapped?: boolean;
+}
+
+/** Seasons: what the sky is doing, read once a frame in update (draw() has no signals). */
+const sky = { rain: 0, cold: 0 };
+
+/** Seasons: wrapped up for the cold: most put on a woolly hat, many a long coat. Each by their own seed. */
+export function wrapLook(look: Look, id: string): Look {
+  const r = (k: string): number => rand(0, id, 'wrap', k);
+  const warm = ['#c8524a', '#e3b04b', '#5f8f6a', '#4f6fa8', '#8a5a8f'];
+  const hat = look.hat === 'helmet' || look.hat === 'cap' ? look.hat : r('hat') < 0.78 ? 'bobble' : look.hat === 'straw' ? 'none' : look.hat;
+  return { ...look, hat, hatColor: hat === 'bobble' ? warm[Math.floor(r('colour') * warm.length)]! : look.hatColor, dress: look.dress || (!look.child && r('coat') < 0.5) };
 }
 
 const loadM = new Float32Array(16);
@@ -274,10 +287,13 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.askew = null;
     return;
   }
-  if (d.costume !== p.costume) {
+  // Seasons: each puts on (or takes off) their winter things at their own point as it turns cold.
+  const wrapped = sky.cold > 0.4 + 0.3 * rand(0, p.id, 'wrap-at') && p.costume === null;
+  if (d.costume !== p.costume || (d.wrapped ?? false) !== wrapped) {
     // L57: dressed for the wedding (or back in everyday clothes): drawn afresh.
     d.costume = p.costume;
-    d.look = costumeLook(d.base, p.costume);
+    d.wrapped = wrapped;
+    d.look = wrapped ? wrapLook(d.base, p.id) : costumeLook(d.base, p.costume);
     d.rig = rigOf(d.look);
     if (d.handles) for (const h of d.handles) h.release();
     d.handles = null;
@@ -365,7 +381,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     }
   }
   // The tool of their trade, in the hand that holds it.
-  const tool = toolOf(p, name);
+  // Seasons: in the rain, an umbrella for anyone walking or standing about with their hands free.
+  const tool = toolOf(p, name) ?? (sky.rain > 0.25 && !p.load && rand(0, p.id, 'umbrella') < 0.75 && (walking || name === 'stand' || name === 'look' || name === 'chat') ? UMBRELLAS[Math.floor(rand(0, p.id, 'umbrella-colour') * UMBRELLAS.length)]! : null);
   if (d.tool && d.tool.kind !== tool) {
     d.tool.handle.release();
     d.tool = null;
@@ -546,6 +563,8 @@ export default defineSystem<State>({
     // Whatever else touches the plan's instances (pop-in, a re-sync), the stand-ins stay hidden.
     for (const h of state.standIns) h.setVisible(false);
     state.town.board.setSky(seasonOf(signals), weatherOf(signals));
+    sky.rain = weatherOf(signals).rain;
+    sky.cold = seasonOf(signals).cold;
     state.town.step(dt, signals.time);
     // L50: the scuffle's cloud, its pop-outs, its swearing and the dazed stars.
     const sc = state.crowd.scuffles.now;

@@ -96,6 +96,15 @@ vec3 seasonLeaves(vec3 col, float fol){
   }
   // Spring: a fresher, lighter green.
   col = mix(col, col * ratio(uSpringGreen, uLeafRef), uSeason.x * uSpringMix);
+  if (uTrees.z > 0.0 && fol > 0.5 && fol < 1.5 && treeSeed(8.2) < 0.38) {
+    // About a third of the broadleaves flower: a pale wash over the crown, thick with blossom.
+    vec3 bl = treeSeed(6.1) < 0.5 ? uBlossomA : mix(uBlossomB, uBlossomA, 0.35);
+    vec2 bp = vW.xz * 11.0 + vW.y * 7.0; vec2 bc = floor(bp); vec2 bf = fract(bp) - 0.5;
+    bf -= (vec2(h1(bc + 1.3), h1(bc + 4.1)) - 0.5) * 0.5;
+    float flower = lineAA(length(bf), 0.2) * step(0.35, h1(bc + 2.7)) * fade(0.09);
+    col = mix(col, bl * mix(0.82, 1.0, step(0.9, lumOf(col) / max(lumOf(uLeafRef), 1e-3))), uTrees.z * (0.45 + 0.5 * flower));
+    return col;
+  }
   float turn = treeTurn();
   if (fol > 3.5 && fol < 4.5) {
     // A willow: yellow in autumn, then bare golden whips through winter.
@@ -122,6 +131,15 @@ vec3 seasonGrass(vec3 g){
   g = mix(g, g * ratio(uSpringGreen, uGrassRef), uSeason.x * uSpringMix);
   g = mix(g, g * ratio(uAutumnGrass, uGrassRef), uSeason.z * uAutumnGrassMix * (0.5 + 0.5 * spots));
   g = mix(g, g * ratio(uFrost, uGrassRef), uWet.w * (0.75 + 0.25 * spots));
+  if (uSeason.x > 0.0) {
+    // Spring meadows: many more flowers, in drifts.
+    vec2 fp = vW.xz * 3.1 + 5.7; vec2 fc = floor(fp); vec2 ff = fract(fp) - 0.5;
+    float r = h1(fc + 31.0);
+    ff -= (vec2(h1(fc + 6.4), h1(fc + 2.2)) - 0.5) * 0.7;
+    float drift = smoothstep(0.4, 0.7, n2(vW.xz * 0.27 + 61.0));
+    float bloom = lineAA(length(ff), max(0.075, 1.0 / uPx)) * step(1.0 - uSeason.x * (0.08 + 0.3 * drift), r);
+    g = mix(g, r > 0.97 ? uFlowerB : (r > 0.93 ? uFlowerA : uFlowerC), bloom);
+  }
   return g;
 }
 
@@ -198,14 +216,22 @@ vec3 seasonSurface(vec3 col, vec3 n, float s, int pat, bool top, inout float pen
     if (fol > 1.5 && fol < 2.5) face *= 0.6;
     if (face > 0.0 && open > 0.0) {
       float corner = smoothstep(0.1, 0.5, texture(tShade, (vW.xz + jit - uMap.xy) * uMap.z).r);
-      float eave = 0.0;
-      if (n.y > 0.3 && n.y < 0.95) eave = smoothstep(0.2, 0.5, vW.y - heightOver(vW.xz + normalize(n.xz) * 0.16));
+      float eave = 0.0, lip = 0.0;
+      if (n.y > 0.3 && n.y < 0.95) {
+        vec2 down = normalize(n.xz);
+        eave = smoothstep(0.2, 0.5, vW.y - heightOver(vW.xz + down * 0.16));
+        // The very edge of a roof keeps a thin strip of its own colour under the snow's lip, so the
+        // eave line still draws the house.
+        lip = smoothstep(0.25, 0.45, vW.y - heightOver(vW.xz + down * 0.045));
+      }
       float drift = n2(vW.xz * 1.1 + vW.y * 0.7) * 0.6 + n2(vW.xz * 4.3 + vW.y * 2.0 + 3.0) * 0.4;
       // Melting: the sunny faces first.
       float sun = uSnow.y * smoothstep(0.85, 1.0, s) * 0.25;
-      // Trodden paths and plazas keep less.
-      float trod = (pat == 5 || pat == 14 || pat == 23) ? 0.16 * n2(vW.xz * vec2(0.8, 2.6) + 7.0) : 0.0;
-      float e = uSnow.x * 1.3 * face * open + (drift - 0.5) * 0.45 + corner * 0.22 + eave * 0.18 - sun - trod;
+      // Streets and squares are trodden and swept: the paving shows down the middle, the snow banked
+      // against the walls and kerbs (the contact shade says where they are) and in a few heaps.
+      bool paved = top && (pat == 5 || pat == 14 || pat == 23);
+      float swept = paved ? (0.92 + 0.3 * n2(vW.xz * vec2(0.7, 2.3) + 7.0)) * smoothstep(0.15, 0.6, uSnow.x) : 0.0;
+      float e = uSnow.x * 1.3 * face * open + (drift - 0.5) * 0.45 + corner * (paved ? 0.62 : 0.22) + eave * 0.18 - sun - swept - lip * 0.7;
       float fw = max(fwidth(e), 1e-4);
       float cov = smoothstep(0.5 - fw, 0.5 + fw, e);
       // Before it lies, a dusting: flecks that thicken.
@@ -213,9 +239,14 @@ vec3 seasonSurface(vec3 col, vec3 n, float s, int pat, bool top, inout float pen
       df -= (vec2(h1(dc + 2.0), h1(dc + 9.0)) - 0.5) * 0.6;
       float dust = lineAA(length(df), 0.16) * step(1.0 - smoothstep(0.0, 0.6, uSnow.x) * 0.8, h1(dc + 5.0)) * face * open * fade(0.12);
       snowAmt = max(cov, dust * 0.85);
+      // Swept paving is wet and dark with slush.
+      if (paved) col *= mix(vec3(1.0), vec3(0.86, 0.88, 0.94), swept * (1.0 - cov));
       // The paper, toned like any surface but cooler in the shade.
       float st = mix(s, 1.0, 0.55);
-      vec3 sc = uSnowCol * st * mix(vec3(1.0), uSnowShade / max(uSnowCol, vec3(1e-3)), clamp((1.0 - s) * 2.6, 0.0, 1.0));
+      vec3 cool = uSnowShade / max(uSnowCol, vec3(1e-3));
+      vec3 sc = uSnowCol * st * mix(vec3(1.0), cool, clamp((1.0 - s) * 2.6, 0.0, 1.0));
+      // Form: the drifts rise and fall, their hollows a little cool, and the snow thins to blue at its edge.
+      sc *= mix(vec3(1.0), cool, (1.0 - drift) * 0.32 + (1.0 - smoothstep(0.5, 0.75, e)) * 0.35);
       col = mix(col, sc, snowAmt);
       pen *= 1.0 - cov * 0.85;
       // A soft inked edge where the snow ends, and faint drift lines on wide snow.

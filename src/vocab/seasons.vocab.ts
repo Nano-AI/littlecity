@@ -30,6 +30,10 @@ declare module '@/core/vocab' {
     // The big decorated tree with a star, on the town's main square (from a festival-anchor on a paving
     // cell, standing at its north-west corner between four cells: nobody's way is changed by it).
     'festival-tree': true;
+    // A snowman on the main square, there only while deep snow lies (from a festival-anchor; stands at
+    // the middle of that cell).
+    'snowman': true;
+    'snowman.look': number;
     'festival-tree.look': number;
   }
 }

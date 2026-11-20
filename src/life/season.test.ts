@@ -1,10 +1,80 @@
 import { describe, expect, test } from 'vitest';
 import { SEASON, WEATHER } from '@/style/season';
 import { TIME } from '@/style/time';
-import { createSignals } from './signals';
+import { createSignals, partPhases } from './signals';
 import { CLEAR, flashAt, holdYear, parseSeason, parseWeather, rollWeather, seasonAt, seasonOf, SEASONS, SUMMER, weatherOf, yearSeconds } from './season';
 
 const loop = TIME.day + TIME.dusk + TIME.night + TIME.dawn;
+
+describe('easing (the sliders): nothing switches at once', () => {
+  test('a time glide runs the clock forward through the hours between, quickly, and lands', () => {
+    const s = createSignals(3);
+    s.hold('day');
+    const from = s.time.phase;
+    s.glideTime('night');
+    const goal = partPhases().night.mid;
+    let last = from, steps = 0;
+    while (s.time.phase !== goal && steps < 600) {
+      s.advance(1 / 60);
+      const d = (((s.time.phase - last) % 1) + 1) % 1;
+      expect(d).toBeLessThan(0.05); // never a jump
+      last = s.time.phase;
+      steps++;
+    }
+    expect(s.time.phase).toBe(goal);
+    expect(steps / 60).toBeLessThan(4);
+    expect(steps / 60).toBeGreaterThan(0.5);
+    // From night back to day it goes on through dawn, not backwards through dusk.
+    s.glideTime('day');
+    const seen = new Set<string>();
+    for (let i = 0; i < 600; i++) {
+      s.advance(1 / 60);
+      seen.add(s.time.part);
+    }
+    expect(seen.has('dawn')).toBe(true);
+    expect(seen.has('dusk')).toBe(false);
+    expect(s.holding).toBe('day');
+  });
+
+  test('scrubbing follows the thumb back and forth smoothly and holds where it stops', () => {
+    const s = createSignals(3);
+    s.scrubTime(0.3);
+    for (let i = 0; i < 120; i++) s.advance(1 / 60);
+    let last = s.time.phase;
+    for (let i = 0; i < 240; i++) {
+      s.scrubTime(0.3 + 0.25 * Math.sin(i / 20));
+      s.advance(1 / 60);
+      const d = Math.abs((((s.time.phase - last) % 1) + 1.5) % 1 - 0.5);
+      expect(d).toBeLessThan(0.03);
+      last = s.time.phase;
+    }
+    s.scrubTime(0.4);
+    for (let i = 0; i < 120; i++) s.advance(1 / 60);
+    expect(s.time.phase).toBeCloseTo(0.4, 6);
+  });
+
+  test('a season glide takes a few seconds, the short way round; winter snows in as it arrives', () => {
+    const s = createSignals(4);
+    s.glideSeason('winter');
+    let last = s.season.year, t = 0;
+    while (Math.abs(s.season.year - holdYear('winter')) > 1e-9 && t < 20) {
+      s.advance(1 / 30);
+      t += 1 / 30;
+      const d = Math.abs((((s.season.year - last) % 1) + 1.5) % 1 - 0.5);
+      expect(d).toBeLessThan(0.03);
+      last = s.season.year;
+    }
+    expect(t).toBeGreaterThan(1);
+    expect(t).toBeLessThan(10);
+    expect(s.seasonHolding).toBe('winter');
+    for (let i = 0; i < 300; i++) s.advance(1 / 30);
+    expect(s.weather.cover).toBeGreaterThan(0.5);
+    // And back to summer: the snow melts in seconds, not minutes.
+    s.glideSeason('summer');
+    for (let i = 0; i < 600; i++) s.advance(1 / 30);
+    expect(s.weather.cover).toBe(0);
+  });
+});
 
 describe('the year', () => {
   test('a season is SEASON.days loops of the dusk cycle', () => {
@@ -36,9 +106,10 @@ describe('the year', () => {
     expect(SUMMER).toMatchObject({ turn: 0, bare: 0, blossom: 0, festival: 0, cold: 0 });
   });
 
-  test('the festival is in the last third of winter and is fully up where winter is held', () => {
+  test('the festival is in the last third of winter and is fully up where it is held; winter itself is before it', () => {
     expect(seasonAt(0.75 + 0.25 * 0.5).festival).toBe(0);
-    expect(seasonAt(holdYear('winter')).festival).toBe(1);
+    expect(seasonAt(holdYear('festival')).festival).toBe(1);
+    expect(seasonAt(holdYear('winter')).festival).toBe(0);
     expect(seasonAt(0.75 + 0.25 * 0.7).festival).toBeGreaterThan(0);
     expect(seasonAt(0.1).festival).toBe(0);
   });
@@ -69,9 +140,9 @@ describe('the year', () => {
     const s = createSignals(5);
     s.holdSeason('winter');
     expect(s.seasonHolding).toBe('winter');
-    expect(s.season.year).toBe(holdYear('winter'));
+    expect(s.season.year).toBeCloseTo(holdYear('winter'), 9);
     for (let i = 0; i < 3000; i++) s.advance(0.1);
-    expect(s.season.year).toBe(holdYear('winter'));
+    expect(s.season.year).toBeCloseTo(holdYear('winter'), 9);
     expect(s.weather.cover).toBeGreaterThan(0.5);
     // And when spring comes the snow melts away.
     s.holdSeason('spring');
@@ -145,7 +216,7 @@ describe('the year', () => {
 
   test('the URL and scenario words', () => {
     expect(parseSeason('winter')).toEqual({ hold: 'winter' });
-    expect(parseSeason('festival')).toEqual({ hold: 'winter' });
+    expect(parseSeason('festival')).toEqual({ hold: 'festival' });
     expect(parseSeason('0.6')).toEqual({ hold: 'autumn', year: 0.6 });
     expect(parseSeason('nonsense')).toBeNull();
     expect(parseWeather('thunderstorm')).toBe('storm');

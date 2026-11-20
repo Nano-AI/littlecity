@@ -19,11 +19,12 @@ export const SEASON = defineStyle(
     blend: 0.6,
     /** Where a new town starts its year: the second day of summer, so a town opens as it always has. */
     start: 1 / 3,
-    /** Where the season button holds each season (0 to 1 through that season). Winter holds inside the festival. */
+    /** Where the season slider holds each season (0 to 1 through that season), and the festival. */
     holdSpring: 0.45,
     holdSummer: 0.5,
     holdAutumn: 0.58,
-    holdWinter: 0.84,
+    holdWinter: 0.35,
+    holdFestival: 0.84,
     /** The midwinter festival: from this far through winter (its last third), the lights go up over `festivalUp`, and come down from `festivalEnd` over `festivalDown` (both shares of a season). */
     festivalStart: 0.667,
     festivalUp: 0.08,
@@ -38,6 +39,7 @@ export const SEASON = defineStyle(
     holdSummer: [0, 1, 0.01],
     holdAutumn: [0, 1, 0.01],
     holdWinter: [0, 1, 0.01],
+    holdFestival: [0, 1, 0.01],
     festivalStart: [0, 1, 0.01],
     festivalUp: [0.01, 0.3, 0.01],
     festivalEnd: [0, 1, 0.01],

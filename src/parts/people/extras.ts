@@ -85,15 +85,28 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe' | 'umbrella-a' | 'umbrella-b' | 'umbrella-c';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe', 'umbrella-a', 'umbrella-b', 'umbrella-c'];
 /** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0, 'umbrella-a': 0, 'umbrella-b': 0, 'umbrella-c': 0 };
+/** Seasons: the umbrellas residents put up in the rain, in three colours. */
+export const UMBRELLAS: readonly Tool[] = ['umbrella-a', 'umbrella-b', 'umbrella-c'];
 
 export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   const b = new MeshBuilder({ ink: `tool-${tool}` });
   b.setInk('tool').setPattern(PATTERN.none);
   switch (tool) {
+    case 'umbrella-a':
+    case 'umbrella-b':
+    case 'umbrella-c': {
+      // Seasons: held up in the right hand, the canopy over the head, a little forward into the rain.
+      const cloth = tool === 'umbrella-a' ? PALETTE.red : tool === 'umbrella-b' ? PALETTE.glass : PALETTE.ink;
+      b.setColor(PALETTE.metal);
+      tube(b, [[0.07, 0.2, 0.05], [0.02, 0.6, 0.03]], 0.005, { seg: 4 });
+      b.setInk('canopy').setColor(cloth).setPattern(PATTERN.cloth);
+      b.at(translation(0.02, 0.56, 0.03), () => b.lathe([[0.2, 0], [0.15, 0.05], [0, 0.085]], { segments: 8, smooth: false, capBottom: true }));
+      break;
+    }
     case 'broom':
       b.setColor(PALETTE.wood);
       tube(b, [[0.01, 0.2, 0.09], [-0.01, 0.015, 0.25]], 0.006, { seg: 4 });
