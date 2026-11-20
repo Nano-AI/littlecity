@@ -609,3 +609,36 @@ export function wreckPieceMesh(kind: number): MeshData {
   return m;
 }
 const RAMPS_WOOD_DARK = '#7a5434';
+
+// ── swimmers (crew off a ship going down, people off a pier going over) ──
+
+const SWIM_SKIN = ['#f6d2b4', '#eebd97', '#d9a078', '#b97f58', '#8f5f44'];
+const SWIM_SHIRT = ['#e8e2d4', '#4f6fa8', '#b5473c', '#e3b04b', '#5f8a5a', '#7d5a8c'];
+const SWIM_HAIR = ['#3b2a20', '#6b4a2e', '#d9b56a', '#1f1b18', '#8a3b22'];
+const swimmers = new Map<string, MeshData>();
+/**
+ * Someone in the water, swimming: head and shoulders above the surface (y = 0 the waterline), one arm
+ * forward over the water in each of two drawings (`stroke` 0 or 1), facing +Z. About a figure's own size.
+ */
+export function swimmerMesh(look: number, stroke: number): MeshData {
+  const k = `${look}:${stroke & 1}`;
+  let m = swimmers.get(k);
+  if (m) return m;
+  const b = new MeshBuilder({ ink: `swimmer${look}` });
+  const skin = SWIM_SKIN[look % SWIM_SKIN.length]!, shirt = SWIM_SHIRT[(look >> 1) % SWIM_SHIRT.length]!, hair = SWIM_HAIR[(look >> 2) % SWIM_HAIR.length]!;
+  b.setColor(shirt).setPattern(PATTERN.none).setInk('shoulders');
+  ball(b, 0, 0.0, 0, 0.085, 0.05, 0.06, 10, 5);
+  b.setColor(skin).setInk('head');
+  ball(b, 0, 0.1, 0.01, 0.052, 0.058, 0.052, 10, 6);
+  b.setColor(hair).setInk('hair');
+  ball(b, 0, 0.13, -0.004, 0.054, 0.04, 0.052, 10, 4);
+  // The arms: one reaching forward over the water, the other back under it (two drawings).
+  b.setColor(shirt).setInk('arm');
+  const side = stroke & 1 ? 1 : -1;
+  b.at(compose(translation(side * 0.075, 0.02, 0.03), rotationY(0)), () => b.box([-0.02, -0.02, 0], [0.02, 0.02, 0.13]));
+  b.setColor(skin).setInk('hand');
+  ball(b, side * 0.075, 0.02, 0.17, 0.022, 0.018, 0.026, 6, 3);
+  m = b.build();
+  swimmers.set(k, m);
+  return m;
+}

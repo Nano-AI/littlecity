@@ -6,6 +6,8 @@
 import { describe, expect, test } from 'vitest';
 import { SEA_Y } from '@/core/grid';
 import { resolveScenario } from '@/scenario';
+import bargeScn from '../../../scenarios/rules/L41.river-barge.scenario';
+import passScn from '../../../scenarios/rules/L42.passing-sails.scenario';
 import scn from '../../../scenarios/rules/L38.galleon.scenario';
 import { createLife } from '../runtime';
 import { createSignals, partPhases } from '../signals';
@@ -87,5 +89,42 @@ describe('a ship in a blast', () => {
       called ||= ships.some((s) => s.phase !== 'idle' && s.berth.key === berth);
     });
     expect(called).toBe(true);
+  }, 240_000);
+
+  test('a barge broken goes down, its bargeman over the side; one only scorched poles on', () => {
+    const town = resolveScenario(bargeScn);
+    const rec = recordingStage(town);
+    const signals = createSignals(bargeScn.seed);
+    const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem] });
+    life.sync(town);
+    const harbour = harbourOf(rec.stage)!;
+    for (let t = 0; t < 10; t += 1 / 20) life.update(signals.advance(1 / 20));
+    const b = harbour.barges[0]!;
+    const hits = harbour.strike(b.x, b.z, 0.9, 1.6, 2.7);
+    expect(hits.map((h) => [h.kind, h.stage, h.crew])).toEqual([['barge', 3, 1]]);
+    for (let t = 0; t < 10; t += 1 / 20) life.update(signals.advance(1 / 20));
+    expect(b.gone).toBe(true);
+  });
+
+  test('a tall ship passing out at sea, broken, goes down; its next crossing comes in its time', () => {
+    const town = resolveScenario(passScn);
+    const rec = recordingStage(town);
+    const signals = createSignals(passScn.seed);
+    signals.setPhase(partPhases().day.start + 0.02);
+    const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem] });
+    life.sync(town);
+    const harbour = harbourOf(rec.stage)!;
+    const p = harbour.passers[0]!;
+    for (let t = 0; t < 600 && !(p.phase === 'crossing' && p.s > 10); t += 1 / 20) life.update(signals.advance(1 / 20));
+    expect(p.phase).toBe('crossing');
+    const hits = harbour.strike(p.m[12]!, p.m[14]!, 0.9, 1.6, 2.7);
+    expect(hits.map((h) => h.stage)).toEqual([3]);
+    expect(p.phase).toBe('sinking');
+    let back = false;
+    for (let t = 0; t < 900; t += 1 / 20) {
+      life.update(signals.advance(1 / 20));
+      back ||= p.phase === 'crossing';
+    }
+    expect(back).toBe(true);
   }, 240_000);
 });
