@@ -992,3 +992,13 @@ clean. Not measured: the small cost of the mist pass losing early depth
 rejection.
 Running: nothing. Unmerged experiments: walk, big-islands. Separate
 session: `capture/promo` in the workspace folder.
+
+**Derek, 2026-11-20 late morning (orchestrator).** Cloud shadows removed
+entirely ("they look kinda ugly"): clouds no longer spawn a shadow
+(`src/life/sky/cloud.behaviour.ts`; catalogue L31 says do not add it
+back); the crossing-shadows browser test and its probe helper are gone;
+the shadow part variant and the shader line that kept one shadow from
+hiding another are still in the code, unused. The grow chooser's two
+choices are bare labels, no subtitles. Gate: 2,123 passed, 8 skipped,
+clean. Repair crew standing in place shrinking and growing (screenshot
+`/tmp/lc-crew-pulse.png`) → mischief agent, running.
