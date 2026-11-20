@@ -20,7 +20,9 @@ import { defineGenerator, placeFeatures } from '@/gen/api';
 import { MeshBuilder } from '@/gen/mesh';
 import { rngOf } from '@/parts/ground/kit';
 import { FLOOR } from '@/style/ground';
-import { churchyardLawn, flowerGarden, herbGarden, kitchenGarden, parkLawn, reedBed, roundBed, scarecrow, sundial, wheatField, type GardenCtx } from './gardens';
+import { churchyardLawn, flowerGarden, herbGarden, kitchenGarden, parkLawn, reedBed, roundBed, scarecrow, sundial, wheatField, type GardenCtx, type WheatState } from './gardens';
+import type { CellKey } from '@/core/grid';
+import type { ShapePlan, Structure } from '@/resolve/plan';
 import { linksOf } from './sheet';
 
 export type GardenRole = RolesOf<'garden'>;
@@ -36,23 +38,32 @@ const PLANT: Record<GardenRole, (c: GardenCtx, cell: number) => void> = {
 };
 export const GARDEN_ROLES = Object.keys(PLANT) as GardenRole[];
 
+/**
+ * A garden's planting and its pieces (scarecrow, sundial, round beds) into a builder: everything the generator
+ * draws but the features that parts draw. `wheat` gives a wheat field's cells their state (L59: life's harvest
+ * draws a field being cut with this, in place of the baked one).
+ */
+export function plantGarden(b: MeshBuilder, s: Structure, plan: ShapePlan, wheat?: (cell: CellKey) => WheatState): void {
+  const given = plan.roles.get(s.id)?.role;
+  const role: GardenRole = given !== undefined && given in PLANT ? (given as GardenRole) : 'flower-garden';
+  const ctx: GardenCtx = { b, plan, s, cells: new Set(s.cells), links: linksOf(s, plan), ...(wheat ? { wheat } : {}) };
+  for (const cell of s.cells) PLANT[role](ctx, cell);
+  for (const f of plan.featuresByStructure.get(s.id) ?? []) {
+    if (f.type !== 'garden-piece' || f.cell === undefined) continue;
+    const x = keyX(f.cell) + 0.5, y = keyY(f.cell) * CELL_H + FLOOR.gardenLift, z = keyZ(f.cell) + 0.5;
+    const seed = hash(s.seed, f.cell, 'piece');
+    if (f.variant === 'scarecrow') scarecrow(b, x, y, z, rngOf(seed));
+    else if (f.variant === 'sundial') sundial(b, x, y, z);
+    else roundBed(b, x, y, z, seed);
+  }
+}
+
 export default defineGenerator({
   kind: 'garden',
   build(s, plan, parts) {
     const anchors: Record<string, Mat4Like> = {};
     const b = new MeshBuilder({ ink: s.id });
-    const given = plan.roles.get(s.id)?.role;
-    const role: GardenRole = given !== undefined && given in PLANT ? (given as GardenRole) : 'flower-garden';
-    const ctx: GardenCtx = { b, plan, s, cells: new Set(s.cells), links: linksOf(s, plan) };
-    for (const cell of s.cells) PLANT[role](ctx, cell);
-    for (const f of plan.featuresByStructure.get(s.id) ?? []) {
-      if (f.type !== 'garden-piece' || f.cell === undefined) continue;
-      const x = keyX(f.cell) + 0.5, y = keyY(f.cell) * CELL_H + FLOOR.gardenLift, z = keyZ(f.cell) + 0.5;
-      const seed = hash(s.seed, f.cell, 'piece');
-      if (f.variant === 'scarecrow') scarecrow(b, x, y, z, rngOf(seed));
-      else if (f.variant === 'sundial') sundial(b, x, y, z);
-      else roundBed(b, x, y, z, seed);
-    }
+    plantGarden(b, s, plan);
     placeFeatures(b, anchors, s, plan, parts, (f) => (f.type === 'floor-link' || f.type === 'garden-piece' ? null : undefined));
     return { mesh: b.build(), anchors };
   },

@@ -24,10 +24,21 @@ import { rand } from '@/core/rand';
 import { TIME } from '@/style/time';
 import { WIND } from '@/style/wind';
 import type { DayPart, SignalEvent, SignalEvents, SignalsDriver, TimeHold, TimeSignal, Wind } from './api';
-import { createCalendar, type SeasonControls, type SeasonSignal, type WeatherSignal } from './season';
+import { createCalendar, wrapDelta, type SeasonControls, type SeasonSignal, type WeatherSignal } from './season';
 
-/** The signals driver with the season and weather (src/life/season.ts) and their controls. */
-export type TownSignals = SignalsDriver & SeasonControls & { readonly season: SeasonSignal; readonly weather: WeatherSignal };
+/** The interface's eased time of day (Seasons): nothing it sets switches at once. */
+export interface TimeGlide {
+  /**
+   * Holds a part of the day (or lets the cycle run) and eases there over a second or two. A long way
+   * is swept forward through the hours in between, quickly, rather than cross-faded.
+   */
+  glideTime(mode: TimeHold): void;
+  /** Follows a slider's thumb: eases quickly to this phase and holds the part it falls in. */
+  scrubTime(phase: number): void;
+}
+
+/** The signals driver with the season and weather (src/life/season.ts), their controls, and the eased time. */
+export type TownSignals = SignalsDriver & SeasonControls & TimeGlide & { readonly season: SeasonSignal; readonly weather: WeatherSignal };
 
 const PARTS: readonly DayPart[] = ['day', 'dusk', 'night', 'dawn'];
 /** Half the map's diagonal plus a margin: a front starts and ends this far from the centre. */
@@ -136,6 +147,10 @@ export function createSignals(seed: number): TownSignals {
   const listeners = new Map<SignalEvent, Set<(payload: never) => void>>();
   const calendar = createCalendar(seed);
   const controls = calendar.controls(() => seconds, () => time);
+  /** Where a glide or a scrub is taking the time of day, how quickly, and whether it may go back. */
+  let goal: number | null = null;
+  let ease = 0.45;
+  let back = false;
 
   return {
     get time() {
@@ -167,13 +182,25 @@ export function createSignals(seed: number): TownSignals {
       // Review Focus 4: a sleeping tab or a frame that takes seconds never jumps time.
       const step = Math.min(Math.max(Number.isFinite(dt) ? dt : 0, 0), TIME.maxStep);
       seconds += step;
-      if (holding === 'run') phase = (phase + step / loopSeconds()) % 1;
+      if (goal !== null) {
+        let d = wrapDelta(phase, goal);
+        // A glide runs the clock forward through the hours between (it never runs the sun backwards a
+        // long way); a scrub follows the thumb either way.
+        if (!back && d < -0.04) d += 1;
+        const move = d * (1 - Math.exp(-step / ease)) + Math.sign(d) * Math.min(Math.abs(d), step * 0.03);
+        phase = (((phase + move) % 1) + 1) % 1;
+        if (Math.abs(wrapDelta(phase, goal)) < 1e-4) {
+          phase = goal;
+          goal = null;
+        }
+      } else if (holding === 'run') phase = (phase + step / loopSeconds()) % 1;
       time = timeAt(phase, seconds);
       field = null;
       calendar.advance(step, seconds, time, holding === 'run');
       return step;
     },
     hold(mode) {
+      goal = null;
       holding = mode;
       if (mode !== 'run') phase = partPhases()[mode].mid;
       time = timeAt(phase, seconds);
@@ -182,10 +209,25 @@ export function createSignals(seed: number): TownSignals {
       return holding;
     },
     setPhase(p) {
+      goal = null;
       phase = ((p % 1) + 1) % 1;
       time = timeAt(phase, seconds);
     },
+    glideTime(mode) {
+      holding = mode;
+      goal = mode === 'run' ? null : partPhases()[mode].mid;
+      ease = 0.45;
+      back = false;
+    },
+    scrubTime(p) {
+      goal = ((p % 1) + 1) % 1;
+      ease = 0.12;
+      back = true;
+      holding = timeAt(goal, seconds).part;
+    },
     holdSeason: (mode) => controls.holdSeason(mode),
+    glideSeason: (mode) => controls.glideSeason(mode),
+    scrubYear: (y) => controls.scrubYear(y),
     get seasonHolding() {
       return controls.seasonHolding;
     },

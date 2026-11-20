@@ -9,7 +9,7 @@ import type { Actor, Anchor, DressingPlan, Prop, ShapePlan, Socket, Structure, S
 import { structureStyle } from '../structures';
 
 const KIND_CODE = new Map<string, number>(
-  [...ALL_KINDS, 'path', 'plaza', 'garden'].map((k, i) => [k, i + 1] as const),
+  [...ALL_KINDS, 'path', 'plaza', 'garden', 'field'].map((k, i) => [k, i + 1] as const),
 );
 
 function hashParams(params: object | undefined): number {

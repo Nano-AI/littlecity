@@ -669,3 +669,88 @@ clean: 1,950 tests. NP-01 hedge not built (needs frozen core kinds).
 - Bug: the sweeper's broom is not in her hands → living-town agent.
 - New: Field ground piece (basketball, tennis, grass pitch by shape) with
   people playing → new Opus agent `swarm/field`.
+
+**Orchestrator: nothing-in-hand state** (Derek): clicking the selected
+tray piece again, or Escape, puts it down (`TrayState.idle`): no ghost, no
+placing or erasing, wheel zooms; test `tests/e2e/idle.e2e.test.ts`. Not yet
+committed or published: the full check was still running under load.
+**Derek: harvest must really cut the wheat** (no flat overlay, no smoke) →
+living-town agent (after the broom fix).
+**Derek: bigger islands** (3–4× the map, size chosen at New island, varied
+regions) → new Opus agent `swarm/big-islands`, PREVIEW: study, prototype
+and measurements first; do not merge without his say.
+Running: mischief (preview), seasons, landshaping, living-town, field,
+big-islands (preview).
+**Nothing-in-hand state committed and published.** Test helpers in three
+e2e files no longer re-click a selected piece (that now deselects). New
+tests by other agents must do the same. `traffic.test.ts` timeout 300 s
+(machine at load 32). Full run under load: only load timeouts; affected
+files pass serially. Mischief preview server (5175) hit its two-hour limit.
+
+**Land shaping fixes merged** (`619e367`): with a land tool held a plain
+drag on land shapes it (drag on the sea turns the camera); Level brings
+every column to the start height in one stroke; soft-edged brush; foam
+rushes into dug columns; real-mouse tests on slopes and six play-throughs.
+Conflict in `src/ui/interface.ts` resolved (both hints kept; idle respected).
+**Seasons follow-up merged** (`ca6d5bb`): festival props no longer shown by
+the pop-in out of season (cause: F05 pop-in called setVisible(true));
+`src/ui/slider.ts` sliders for time, season, weather; eased transitions;
+swept streets in snow; bulbs ≥ 2 px; spring blossom; coats, hats,
+umbrellas; a snowman. Unit tests 1,890 green; all e2e green serially (two
+load failures passed alone). Published.
+Running: mischief (preview), living-town (broom, harvest, tool audit),
+field, big-islands (preview).
+
+**Mischief revision ready as a PREVIEW** (`swarm/mischief` at `786a5e6`,
+NOT merged; merged with main; ruins use save-section bit 1): rooted layered
+flames, fused smoke and dust, whole-part chunks, 32-step mending with crews
+that rebuild on their own (Rebuild switch), fire brigade with pump cart,
+hoses and a bucket chain, people fleeing and watching, falling windmill
+sails, sounds. Served at http://127.0.0.1:5175/?seed=4242&mischief.
+Raid not started. Waiting on Derek.
+**Test diet launched** (`swarm/test-diet`, Opus): Derek asked to cut the
+bloated suite: profile, shrink sweeps, drop duplicates and wall-clock
+assertions, fast `check` and `check:full` tiers.
+**Source is NOT pushed:** the working branch on GitHub is still the old
+spike commit; only `gh-pages` (built site) is pushed. Derek asked to see
+the code; offered to push the branch and open a PR: awaiting his word.
+Running: living-town, field (finishing), big-islands (preview), test-diet.
+
+**Bigger islands: first report (PREVIEW, `swarm/big-islands` at `a11ddd6`,
+NOT merged).** Sizes 48 / 72 / 96 as a world property; key packing extended
+above bit 16 so 48-column keys are numerically unchanged (digest of 281
+scenarios, 40 islands ×2 generators, 12 grown towns identical to base);
+save section bit for size. Drawing holds: 96 with 9,861 blocks runs 56–60
+fps (frame cost ~14 ms). Editing does not: shape stage 43–45 ms and
+dressing 109 ms per edit at 96 (20 / 44 ms at 72), because every edit
+re-resolves the whole town; grown towns are smaller (1,288 blocks at 96:
+edits 22–31 ms, worst frame 83–100 ms). Recommendation: offer 72 on
+desktop; hold 96 until town logic resolves by region. Served at
+http://127.0.0.1:5176/?seed=5&size=96 (or size=72).
+CONFLICT TO SETTLE BEFORE ANY MERGE: big-islands takes save-section bit 1
+for size; the mischief preview also took bit 1 for ruins.
+
+**Playing field merged** (`ebedee4`): Field floor kind; shape table in
+`src/rules/roles/field.lib.ts`; basketball, tennis, football, bowls,
+boules, croquet, races, kickabout. **Living town merged** (`1eb67dd`):
+broom held in both hands (`src/parts/people/hands.ts`), wheat really cut
+row by row with stooks, all tools and loads in hand. Conflicts in
+`extras.ts` and `people.system.ts` resolved by hand. Unit tests 1,966
+green; core browser tests green serially. Published (`42a072d`).
+**SOURCE PUSHED to GitHub** at Derek's word: branch
+`yaoderek/bloom-s-monkey-city-builder` → origin at `42a072d` (fast-forward
+from the old spike commit). `main` untouched. No PR opened.
+**Derek's decisions:** mischief: one more local iteration (cart and hose
+arrive physically, continuous water jet, mending on every damaged building
+by itself, a nuke with mushroom cloud and crater), then merge and push;
+bigger islands and walk mode stay experimental (unmerged previews).
+Running: mischief (final iteration), test-diet.
+
+**Derek: Grow a town must choose and have flavour** (it still builds the
+old stair-and-temple and ignores the new buildings) → grow-town agent
+resumed for pass 4: town characters (great harbour, marble city, castle
+town, market and townhouse town, river town, farming village, hill town,
+games and gardens), a budgeted plan that drops districts instead of
+squeezing them, composed marble ensembles, coverage across seeds rather
+than within one town, no wall-clock test assertions.
+Running: mischief (final iteration), test-diet, grow-town pass 4.

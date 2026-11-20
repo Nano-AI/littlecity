@@ -70,14 +70,15 @@ const debug = <T>(page: Page, field: string): Promise<T> => js(page, `window.__l
 async function pick(page: Page, item: string, tap = false): Promise<void> {
   const drawer = ['change', 'paint', 'erase'].includes(item)
     ? 'tools'
-    : ['path', 'plaza', 'fence', 'wall', 'stall'].includes(item)
+    : ['path', 'plaza', 'field', 'fence', 'wall', 'stall'].includes(item)
       ? 'ground'
       : ['tree', 'garden', 'fountain'].includes(item)
         ? 'nature'
         : 'build';
   const press = (selector: string): Promise<void> => (tap ? page.tap(selector) : page.click(selector));
   await press(`[data-drawer="${drawer}"]`);
-  await press(`[data-item="${item}"]`);
+  // Clicking the piece already in hand puts it down, so only press one that is not selected.
+  if ((await page.getAttribute(`[data-item="${item}"]`, 'aria-pressed')) !== 'true') await press(`[data-item="${item}"]`);
   expect(await debug(page, 'item')).toBe(item);
 }
 
@@ -254,7 +255,7 @@ describe('desktop: mouse and keys', () => {
     expect(await items()).toEqual(['auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar', 'stairs', 'windmill']);
 
     await page.click('[data-drawer="ground"]');
-    expect(await items()).toEqual(['path', 'plaza', 'fence', 'wall', 'stall']);
+    expect(await items()).toEqual(['path', 'plaza', 'field', 'fence', 'wall', 'stall']);
     // Opening a drawer does not change the tool in hand.
     expect(await debug(page, 'item')).toBe('auto');
     await page.click('[data-drawer="nature"]');
@@ -374,34 +375,73 @@ describe('desktop: mouse and keys', () => {
     expect(errors).toEqual([]);
   });
 
-  test('the time button: running, hold day, hold dusk, hold night, running', async () => {
-    const { page, errors } = await open(TOWN);
-    const seen: string[] = [await js(page, 'window.__lc.signals.holding')];
-    for (let i = 0; i < 4; i++) {
-      await page.click('[data-ui="time"]');
-      seen.push(await js(page, 'window.__lc.signals.holding'));
-      expect(await page.getAttribute('[data-ui="time"]', 'data-time')).toBe(seen.at(-1));
-    }
-    expect(seen).toEqual(['run', 'day', 'dusk', 'night', 'run']);
+  test('the time, season and weather sliders: open beside their button, scrub, settle on a stop, step with arrows, close', async () => {
+    // The helper holds summer and clear; this town lets everything run.
+    const { page, errors } = await open(`${TOWN}&season=run&weather=auto`);
+    const signals = (k: string) => js(page, `window.__lc.signals.${k}`);
+    // Time: click the sun; a slider opens with five stops, the running one chosen.
+    await page.click('[data-ui="time"]');
+    const time = '[data-ui="slider-time"]';
+    await page.waitForSelector(`${time}:not([hidden])`);
+    expect(await page.locator(`${time} .lc-slider-stop`).count()).toBe(5);
+    expect(await page.getAttribute(`${time} [role="slider"]`, 'aria-valuetext')).toBe('Running');
+    // Drag along the track to dusk: the town follows while dragging, and settles on dusk when let go.
+    const rail = (await page.locator(`${time} .lc-slider-rail`).boundingBox())!;
+    const y = rail.y + rail.height / 2;
+    await page.mouse.move(rail.x + rail.width * 0.25, y);
+    await page.mouse.down();
+    await page.mouse.move(rail.x + rail.width * 0.5, y, { steps: 6 });
+    expect(await signals('holding')).not.toBe('run');
+    await page.mouse.move(rail.x + rail.width * 0.74, y, { steps: 6 });
+    await page.mouse.up();
+    expect(await signals('holding')).toBe('dusk');
+    expect(await page.getAttribute('[data-ui="time"]', 'data-time')).toBe('dusk');
+    // Arrows step stop by stop; Escape closes.
+    await page.keyboard.press('ArrowRight');
+    expect(await signals('holding')).toBe('night');
+    await page.keyboard.press('Home');
+    expect(await signals('holding')).toBe('run');
+    await page.keyboard.press('Escape');
+    expect(await page.isHidden(time)).toBe(true);
+
+    // Season: six stops ending in the festival; clicking a stop goes there, the year easing.
+    await page.click('[data-ui="season"]');
+    const season = '[data-ui="slider-season"]';
+    await page.waitForSelector(`${season}:not([hidden])`);
+    expect(await page.locator(`${season} .lc-slider-stop`).count()).toBe(6);
+    await page.click(`${season} [data-stop="winter"]`);
+    expect(await signals('seasonHolding')).toBe('winter');
+    const y0 = await signals('season.year');
+    await page.waitForTimeout(300);
+    const y1 = await signals('season.year');
+    expect(y1).not.toBe(y0); // still easing, not jumped
+    // A click elsewhere closes it.
+    await page.mouse.click(640, 500);
+    expect(await page.isHidden(season)).toBe(true);
+
+    // Weather: eight stops, auto first.
+    await page.click('[data-ui="weather"]');
+    const weather = '[data-ui="slider-weather"]';
+    await page.waitForSelector(`${weather}:not([hidden])`);
+    expect(await page.locator(`${weather} .lc-slider-stop`).count()).toBe(8);
+    await page.keyboard.press('End');
+    expect(await signals('weatherHolding')).toBe('snow');
+    await page.keyboard.press('ArrowLeft');
+    expect(await signals('weatherHolding')).toBe('storm');
+    // Opening another slider closes this one.
+    await page.click('[data-ui="time"]');
+    expect(await page.isHidden(weather)).toBe(true);
+    expect(await page.isVisible('[data-ui="slider-time"]')).toBe(true);
     expect(errors).toEqual([]);
   });
 
-  test('the season and weather buttons (Seasons): the year held season by season, the weather kind by kind', async () => {
-    // The helper opens the app held in summer under a clear sky; a URL that names neither runs.
-    const { page, errors } = await open(`${TOWN}&season=run&weather=auto`);
-    const seasons: string[] = [await js(page, 'window.__lc.signals.seasonHolding')];
-    for (let i = 0; i < 5; i++) {
-      await page.click('[data-ui="season"]');
-      seasons.push(await js(page, 'window.__lc.signals.seasonHolding'));
-      expect(await page.getAttribute('[data-ui="season"]', 'data-season')).toBe(seasons.at(-1));
-    }
-    expect(seasons).toEqual(['run', 'spring', 'summer', 'autumn', 'winter', 'run']);
-    const kinds: string[] = [await js(page, 'window.__lc.signals.weatherHolding')];
-    for (let i = 0; i < 8; i++) {
-      await page.click('[data-ui="weather"]');
-      kinds.push(await js(page, 'window.__lc.signals.weatherHolding'));
-    }
-    expect(kinds).toEqual(['auto', 'clear', 'cloudy', 'rain', 'storm', 'snow', 'fog', 'wind', 'auto']);
+  test('on a phone the slider is a strip across the screen with a thumb a finger can hold', async () => {
+    const { page, errors } = await open(TOWN, { width: 390, height: 844, hasTouch: true, isMobile: true });
+    await page.tap('[data-ui="weather"]');
+    const card = (await page.locator('[data-ui="slider-weather"]').boundingBox())!;
+    expect(card.width).toBeGreaterThan(360);
+    const thumb = (await page.locator('[data-ui="slider-weather"] .lc-slider-thumb').boundingBox())!;
+    expect(thumb.width).toBeGreaterThanOrEqual(43);
     expect(errors).toEqual([]);
   });
 

@@ -19,7 +19,8 @@
 
 import type { Mat4Like, Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
-import { buildPerson, lookOf, PIECES, type Look } from '@/parts/people/person';
+import { aimArm } from '@/parts/people/hands';
+import { buildPerson, lookOf, PIECES, rigOf, type Look, type Rig } from '@/parts/people/person';
 import { poseOf, rigMatrices, type PoseName } from '@/parts/people/pose';
 import { PERSON } from '@/style/people';
 import { PALETTE, RAMPS } from '@/style/palette';
@@ -63,8 +64,14 @@ export interface Pile {
 
 type Leg = 'idle' | 'to-cargo' | 'cargo' | 'deck' | 'up' | 'plank' | 'quay' | 'drop' | 'back-quay' | 'back-plank' | 'down' | 'back-deck' | 'stow' | 'home';
 
+/** Cargo carried in front at the chest: forward of the feet and up off the ground (world units, its bottom's middle). */
+export const CARGO_AT = [0.13, 0.16] as const;
+/** Where the hands go to hold it, body frame (figure units): either side of it, as far round as the arms reach. */
+export const CARGO_GRIP: Vec3 = [0.1, 0.24, 0.1];
+
 interface Sailor {
   look: Look;
+  rig: Rig;
   pieces: InstanceHandle[];
   /** Where it stands between jobs (ship frame). */
   place: Vec3;
@@ -115,7 +122,7 @@ export class Crew {
       const base = lookOf(rand(seed, 'sailor', i) * 1e9 >>> 0);
       const look: Look = { ...base, dress: false, top: i % 2 === 0 ? PALETTE.white : RAMPS.roof[1]!, bottom: PALETTE.metal, hat: i === 0 ? 'cap' : base.hat === 'straw' ? 'none' : base.hat, hatColor: PALETTE.redDark, child: false };
       const meshes = buildPerson(look, `sailor-${seed}-${i}`);
-      this.sailors.push({ look, pieces: PIECES.map((p) => stage.spawnMesh(meshes[p], HIDDEN)), place: at, leg: 'idle', t: 1, len: 1, stride: rand(seed, 'stride', i), wait: 1.5 + i * 2.2, loading: false, spot: -1, slot: -1, item: null, heading: rand(seed, 'face', i) * Math.PI * 2 });
+      this.sailors.push({ look, rig: rigOf(look), pieces: PIECES.map((p) => stage.spawnMesh(meshes[p], HIDDEN)), place: at, leg: 'idle', t: 1, len: 1, stride: rand(seed, 'stride', i), wait: 1.5 + i * 2.2, loading: false, spot: -1, slot: -1, item: null, heading: rand(seed, 'face', i) * Math.PI * 2 });
     });
   }
 
@@ -294,14 +301,9 @@ export class Crew {
   private draw(s: Sailor, x: number, y: number, z: number, heading: number, pose: PoseName): void {
     const phase = pose === 'walk' || pose === 'carry' ? s.stride : this.time;
     const p = poseOf(pose === 'carry' ? 'walk' : pose, phase);
-    if (pose === 'carry') {
-      const c = poseOf('carry', this.time);
-      p.armL = c.armL;
-      p.armR = c.armR;
-      p.outL = c.outL;
-      p.outR = c.outR;
-    }
-    rigMatrices(s.look, p, this.local);
+    // Carrying: the arms round the cargo, a hand on either side of it (hands.ts; the cargo is placed below).
+    if (pose === 'carry') for (const side of [1, -1] as const) aimArm(p, s.rig, side, [side * CARGO_GRIP[0], CARGO_GRIP[1], CARGO_GRIP[2]]);
+    rigMatrices(s.look, p, this.local, 0, s.rig);
     const c = Math.cos(heading) * s.look.scale, sn = Math.sin(heading) * s.look.scale;
     for (let i = 0; i < 5; i++) {
       const k = i * 16, m = this.world;
@@ -316,7 +318,7 @@ export class Crew {
       s.pieces[i]!.setMatrix(m);
     }
     // Carried in front at the chest, at its own size.
-    if (s.item) s.item.setMatrix(place(x + Math.sin(heading) * 0.12, y + 0.16, z + Math.cos(heading) * 0.12, heading));
+    if (s.item) s.item.setMatrix(place(x + Math.sin(heading) * CARGO_AT[0], y + CARGO_AT[1], z + Math.cos(heading) * CARGO_AT[0], heading));
   }
 
   /** The crew and the cargo aboard leave with the ship (it is out beyond the edge of the map). */

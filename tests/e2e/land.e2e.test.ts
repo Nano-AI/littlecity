@@ -45,7 +45,8 @@ async function top(page: Page, x: number, z: number, fx = 0.5, fz = 0.5): Promis
 async function pick(page: Page, item: 'raise' | 'dig' | 'level', tap = false): Promise<void> {
   const press = (selector: string): Promise<void> => (tap ? page.tap(selector) : page.click(selector));
   await press('[data-drawer="nature"]');
-  await press(`[data-item="${item}"]`);
+  // Clicking the piece already in hand puts it down, so only press one that is not selected.
+  if ((await page.getAttribute(`[data-item="${item}"]`, 'aria-pressed')) !== 'true') await press(`[data-item="${item}"]`);
   expect(await debug(page, 'item')).toBe(item);
 }
 
@@ -127,7 +128,7 @@ describe('desktop: shaping the land', () => {
     await page.mouse.move(b[0], b[1], { steps: 10 });
     await page.mouse.up();
     await page.keyboard.up('Shift');
-    await page.waitForFunction(`window.__lc.terrain().height[${25 + 20 * 48}] === 2`); // one step per stroke
+    await page.waitForFunction(`window.__lc.terrain().height[${25 + 20 * 48}] === 1`); // all the way, in one stroke
     expect(errors).toEqual([]);
   });
 });
@@ -144,7 +145,8 @@ describe('phone: shaping the land', () => {
     expect(await page.isDisabled('[data-ui="length-more"]')).toBe(true); // a brush goes no wider than 3
     const p = await top(page, 22, 22);
     await page.touchscreen.tap(p[0], p[1]);
-    await page.waitForFunction(`window.__lc.terrain().height[${22 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 23 * 48}] === 2`);
+    // The widest brush has a soft edge: the middle and its four sides rise, the corners wait a dab.
+    await page.waitForFunction(`window.__lc.terrain().height[${22 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 23 * 48}] === 1`);
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(SHOTS, 'land-phone-raise.png') });
     await page.tap('[data-ui="undo"]');

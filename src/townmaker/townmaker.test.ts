@@ -27,6 +27,8 @@ const ROLES = [
   'picket-fence', 'rope-fence', 'iron-railing', 'stone-balustrade', 'low-wall', 'garden-wall', 'curtain-wall',
   // discovery round 1, structures (src/vocab/structures.vocab.ts)
   'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk', 'folly-tower', 'bridge-shop', 'bandstand', 'stoa', 'schoolhouse',
+  // the playing field (src/vocab/field.vocab.ts)
+  'basketball-court', 'tennis-court', 'football-pitch', 'bowling-green', 'croquet-lawn', 'boules-court', 'running-track', 'kickabout-green',
 ] as const satisfies readonly Role[];
 type Unlisted = Exclude<Role, (typeof ROLES)[number]>;
 const allListed: Unlisted extends never ? true : Unlisted = true;
@@ -133,6 +135,8 @@ describe('grow a town', () => {
     const PENDING: readonly string[] = [
       // discovery round 1, structures: the generator does not build these yet
       'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk', 'folly-tower', 'bridge-shop', 'bandstand', 'stoa', 'schoolhouse',
+      // the playing field: the generator does not paint fields yet
+      'basketball-court', 'tennis-court', 'football-pitch', 'bowling-green', 'croquet-lawn', 'boules-court', 'running-track', 'kickabout-green',
     ];
     const missing = ROLES.filter((r) => !PENDING.includes(r) && !seen.has(r) && terrains.some((t) => impossible(r, t) === null));
     expect(missing, `never reached on seeds 1–5:\n${table}`).toEqual([]);

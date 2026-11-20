@@ -16,7 +16,7 @@ import type { Kind } from '@/core/kinds';
 import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
 
-export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'events';
+export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
 export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'auto', title: 'The Auto block' },
@@ -27,6 +27,7 @@ export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'waterfront', title: 'Waterfront' },
   { id: 'green', title: 'Green' },
   { id: 'town', title: 'Town' },
+  { id: 'play', title: 'Playing fields' },
   { id: 'events', title: 'Days the town earns' },
 ];
 
@@ -87,6 +88,18 @@ const seaSouth = (t: TerrainBuilder): void => {
   t.water(4, 21, 43, 43);
 };
 const FRONT = { yaw: 40, pitch: 30 };
+
+/**
+ * A playing field (R-G03) of x0..x1 × z0..z1 south of a little street of family houses, so there are
+ * residents to come and play (children too).
+ */
+function playingField(b: TownBuilder, x0: number, z0: number, x1: number, z1: number): void {
+  b.path(12, 17, 30, 17);
+  for (let i = 0; i < 5; i++) b.house(13 + i * 4, 14, { w: 2, d: 3, floors: 2, color: (i * 3) % 8 });
+  b.floor('field', x0, z0, x1, z1);
+}
+/** The play pictures: a game going on (residents kept, life run until it is). */
+const PLAY_VIEW = { yaw: 30, pitch: 38 };
 
 /** A small walled castle: a ring of walls with a gatehouse (two marble blocks and an arch) on a path. */
 function smallCastle(b: TownBuilder): void {
@@ -1157,6 +1170,115 @@ export const ENTRIES: readonly GuideEntry[] = [
     },
     view: { yaw: 30, pitch: 32 },
     pad: -0.1,
+  },
+
+  // ── playing fields (R-G03, D40, src/life/field) ───────────────────────
+  {
+    id: 'basketball-court',
+    group: 'play',
+    name: 'Basketball court',
+    how: 'Paint a field three by two, three by three or four by three: a basketball court with a hoop at each end. Residents come and play two or three a side.',
+    proof: { role: 'basketball-court' },
+    seed: 8801,
+    build: (b) => playingField(b, 19, 18, 22, 20),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [18, 17, 23, 21, 2],
+  },
+  {
+    id: 'tennis-court',
+    group: 'play',
+    name: 'Tennis court',
+    how: 'Paint a field two wide and four to six long (or three wide and five or six long, for doubles): a tennis court with a net, clay or grass beside a garden. Residents come and play.',
+    proof: { role: 'tennis-court' },
+    seed: 8802,
+    build: (b) => playingField(b, 18, 18, 22, 19),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [17, 17, 23, 20, 2],
+  },
+  {
+    id: 'football-pitch',
+    group: 'play',
+    name: 'Football pitch',
+    how: 'Paint a field four by six or bigger (three wide will do if it is seven long): a grass pitch with goals and corner flags. Residents come and play a few a side.',
+    proof: { role: 'football-pitch' },
+    seed: 8803,
+    build: (b) => playingField(b, 17, 18, 23, 21),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 80, residents: true },
+    frame: [16, 17, 24, 22, 2],
+  },
+  {
+    id: 'bowling-green',
+    group: 'play',
+    name: 'Bowling green',
+    how: 'Paint a field four by four: a close-cut bowling green. Grown-ups come and roll bowls at the jack, slowly.',
+    proof: { role: 'bowling-green' },
+    seed: 8804,
+    build: (b) => playingField(b, 19, 18, 22, 21),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [18, 17, 23, 22, 2],
+  },
+  {
+    id: 'croquet-lawn',
+    group: 'play',
+    name: 'Croquet lawn',
+    how: 'Paint a field four by five: a croquet lawn with six hoops and a peg. Grown-ups come and knock their balls through the hoops in turn.',
+    proof: { role: 'croquet-lawn' },
+    seed: 8805,
+    build: (b) => playingField(b, 18, 18, 22, 21),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [17, 17, 23, 22, 2],
+  },
+  {
+    id: 'boules-court',
+    group: 'play',
+    name: 'Boules court',
+    how: 'Paint a field one wide and three or four long: a gravel boules court. Grown-ups come and toss their boules at the little jack.',
+    proof: { role: 'boules-court' },
+    seed: 8806,
+    build: (b) => playingField(b, 18, 18, 21, 18),
+    view: PLAY_VIEW,
+    pad: 0.3,
+    life: { settle: 70, residents: true },
+    frame: [17, 17, 22, 19, 2],
+  },
+  {
+    id: 'running-track',
+    group: 'play',
+    name: 'Running track',
+    how: 'Paint a field one wide and five or more long (or two wide and seven or more): a running track. Children come and race.',
+    proof: { role: 'running-track' },
+    seed: 8807,
+    build: (b) => playingField(b, 16, 18, 22, 18),
+    view: PLAY_VIEW,
+    pad: 0.3,
+    life: { settle: 70, residents: true },
+    frame: [15, 17, 23, 19, 2],
+  },
+  {
+    id: 'kickabout-green',
+    group: 'play',
+    name: 'Kickabout green',
+    how: 'Paint a small or odd-shaped patch of field (two by two, an L): a plain green with jumpers for goalposts. Children come and kick a ball about.',
+    proof: { role: 'kickabout-green' },
+    seed: 8808,
+    build: (b) => {
+      playingField(b, 19, 18, 21, 18);
+      b.floor('field', 19, 19, 19, 20);
+    },
+    view: PLAY_VIEW,
+    pad: 0.3,
+    life: { settle: 70, residents: true },
+    frame: [18, 17, 22, 21, 2],
   },
 
   // ── days the town earns (L56, L57) ────────────────────────────────────

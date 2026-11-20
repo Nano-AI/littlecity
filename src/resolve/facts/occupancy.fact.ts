@@ -8,7 +8,7 @@ import { defineFact } from './api';
 /** Codes in `Occupancy.kind`: 0 = no block, else ALL_KINDS.indexOf(kind) + 1. */
 export const KIND_CODES: readonly Kind[] = ALL_KINDS;
 /** Codes in `Occupancy.floor`: 0 = no floor. */
-export const FLOOR_CODES: readonly (FloorKind | null)[] = [null, 'path', 'plaza', 'garden'];
+export const FLOOR_CODES: readonly (FloorKind | null)[] = [null, 'path', 'plaza', 'garden', 'field'];
 
 export interface Occupancy {
   /** Resolved kind code per cell (0 = none; see KIND_CODES, offset by one). */

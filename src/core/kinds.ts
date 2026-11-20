@@ -20,7 +20,7 @@ export type Kind =
   | 'wall';
 /** What is stored in the save: a kind, or 'auto' ("decide for me"). */
 export type PlacedKind = Kind | 'auto';
-export type FloorKind = 'path' | 'plaza' | 'garden';
+export type FloorKind = 'path' | 'plaza' | 'garden' | 'field';
 export type EdgeKind = 'fence' | 'wall';
 /**
  * What a Structure can be. Floor regions are structures of a FloorKind;
@@ -97,11 +97,11 @@ export function placedInfo(kind: PlacedKind): KindInfo {
 export const ALL_KINDS = Object.keys(KINDS) as Kind[];
 /** The kinds Auto can become, in Change-tool order (Auto → these → Auto). */
 export const AUTO_KINDS: readonly Kind[] = ['house', 'tower', 'lighthouse', 'arch', 'dock'];
-export const FLOOR_KINDS: readonly FloorKind[] = ['path', 'plaza', 'garden'];
+export const FLOOR_KINDS: readonly FloorKind[] = ['path', 'plaza', 'garden', 'field'];
 export const EDGE_KINDS: readonly EdgeKind[] = ['fence', 'wall'];
 /** Number of colours in every palette ramp; Block.color is 0 … PALETTE_SIZE − 1. */
 export const PALETTE_SIZE = 8;
 
 export function isFloorKind(k: StructureKind): k is FloorKind {
-  return k === 'path' || k === 'plaza' || k === 'garden';
+  return k === 'path' || k === 'plaza' || k === 'garden' || k === 'field';
 }

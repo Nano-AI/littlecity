@@ -22,7 +22,8 @@ import type { Signals, TimeSignal } from './api';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export const SEASONS: readonly Season[] = ['spring', 'summer', 'autumn', 'winter'];
-export type SeasonHold = 'run' | Season;
+/** 'festival' is winter with the lights up (the last third of winter); 'winter' is early winter. */
+export type SeasonHold = 'run' | Season | 'festival';
 
 export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'storm' | 'fog' | 'wind' | 'snow';
 export const WEATHER_KINDS: readonly WeatherKind[] = ['clear', 'cloudy', 'rain', 'storm', 'fog', 'wind', 'snow'];
@@ -82,10 +83,18 @@ declare module './api' {
 
 /** The controls the season and weather buttons (and the URL, scenarios and screenshots) use. */
 export interface SeasonControls {
+  /** Jumps to a season at once (tools, screenshots, tests). */
   holdSeason(mode: SeasonHold): void;
   readonly seasonHolding: SeasonHold;
   /** Jumps the year to a position (0 to 1 from the start of spring). Holds it there unless running. */
   setYear(year: number): void;
+  /**
+   * The interface's way: holds a season and eases the year to it over a few seconds, the short way
+   * round, the leaves turning and the snow building or melting as it goes.
+   */
+  glideSeason(mode: SeasonHold): void;
+  /** Follows a slider's thumb: eases quickly to this position in the year and holds there. */
+  scrubYear(year: number): void;
   holdWeather(mode: WeatherHold): void;
   readonly weatherHolding: WeatherHold;
   /** Brings every amount to where the weather is heading at once, settled snow and wetness included (screenshots). */
@@ -103,10 +112,18 @@ export function yearSeconds(): number {
   return (TIME.day + TIME.dusk + TIME.night + TIME.dawn) * Math.max(0.01, SEASON.days) * 4;
 }
 
-/** The year position at which a hold parks each season. */
-export function holdYear(season: Season): number {
+/** The year position at which a hold parks each season ('festival': winter with the lights up). */
+export function holdYear(season: Season | 'festival'): number {
+  if (season === 'festival') return (3 + SEASON.holdFestival) / 4;
   const at = { spring: SEASON.holdSpring, summer: SEASON.holdSummer, autumn: SEASON.holdAutumn, winter: SEASON.holdWinter }[season];
   return (SEASONS.indexOf(season) + at) / 4;
+}
+
+/** The signed shortest way round the year (or the day) from a to b, in (-0.5, 0.5]. */
+export function wrapDelta(a: number, b: number): number {
+  let d = (((b - a) % 1) + 1) % 1;
+  if (d > 0.5) d -= 1;
+  return d;
 }
 
 /** Festival lights by how far through winter (1 and beyond run on into spring). */
@@ -250,6 +267,8 @@ export interface WeatherState {
   /** A new spell starts now (the season was changed by hand), forced to a kind if given. */
   restart(seconds: number, season: SeasonSignal, kind?: WeatherKind): void;
   settle(season: SeasonSignal, time: TimeSignal): void;
+  /** 0 normally; up to 1 while the season is being moved by hand: snow settles and melts in seconds. */
+  hurry: number;
 }
 
 /** The weather for one town. Deterministic: the same seed and the same steps give the same weather. */
@@ -281,21 +300,25 @@ export function createWeather(seed: number): WeatherState {
   };
   const approach = (from: number, to: number, rate: number): number => (from < to ? Math.min(to, from + rate) : Math.max(to, from - rate));
 
-  return {
+  const state = {
     get signal() {
       return s;
     },
     get holding() {
       return holding;
     },
-    step(dt, seconds, season, time) {
+    hurry: 0,
+    step(dt: number, seconds: number, season: SeasonSignal, time: TimeSignal) {
       if (holding === 'auto') {
         // Spells follow one another on the life clock (a held time of day still has weather).
         let guard = 0;
         while (seconds >= end && guard++ < 64) next(end, season);
       }
       const t = targetOf(current(), strength());
-      const rate = dt / Math.max(0.1, WEATHER.ease);
+      // Moving the season by hand hurries what lies on the ground (and the sky with it), so a winter
+      // chosen on the slider snows in in a few seconds rather than a minute.
+      const fast = 1 + 14 * state.hurry;
+      const rate = (dt * Math.min(fast, 4)) / Math.max(0.1, WEATHER.ease);
       precip = approach(precip, t.precip, rate);
       const share = snowShare(season);
       s.rain = precip * (1 - share);
@@ -307,23 +330,23 @@ export function createWeather(seed: number): WeatherState {
       // What falls stays: snow builds where it is cold enough; rain soaks.
       const warm = holding === 'snow' ? 0 : 1 - smooth((season.cold - 0.4) / 0.2);
       const before = s.cover;
-      if (s.snow > 0.02) s.cover = Math.min(1, s.cover + (s.snow * dt) / Math.max(1, WEATHER.settle));
-      else if (warm > 0) s.cover = Math.max(0, s.cover - ((warm + s.rain * 2) * dt) / Math.max(1, WEATHER.melt));
+      if (s.snow > 0.02) s.cover = Math.min(1, s.cover + (s.snow * dt * fast) / Math.max(1, WEATHER.settle));
+      else if (warm > 0) s.cover = Math.max(0, s.cover - ((warm + s.rain * 2) * dt * fast) / Math.max(1, WEATHER.melt));
       const melting = s.cover < before ? 1 : 0;
       s.thaw = approach(s.thaw, melting, dt / 6);
       const soaking = s.rain + (melting ? 0.3 : 0);
-      if (soaking > 0.02) s.wet = Math.min(1, s.wet + (soaking * dt) / Math.max(1, WEATHER.soak));
-      else s.wet = Math.max(0, s.wet - ((1 - 0.6 * s.cloud) * dt) / Math.max(1, WEATHER.dry));
+      if (soaking > 0.02) s.wet = Math.min(1, s.wet + (soaking * dt * fast) / Math.max(1, WEATHER.soak));
+      else s.wet = Math.max(0, s.wet - ((1 - 0.6 * s.cloud) * dt * fast) / Math.max(1, WEATHER.dry));
       s.flash = current() === 'storm' ? flashAt(seed, seconds, precip) : 0;
     },
-    hold(mode, seconds, season) {
+    hold(mode: WeatherHold, seconds: number, season: SeasonSignal) {
       holding = mode;
       if (mode === 'auto') next(seconds, season);
     },
-    restart(seconds, season, forced) {
+    restart(seconds: number, season: SeasonSignal, forced?: WeatherKind) {
       if (holding === 'auto') next(seconds, season, forced);
     },
-    settle(season, time) {
+    settle(season: SeasonSignal, time: TimeSignal) {
       const t = targetOf(current(), strength());
       precip = t.precip;
       const share = snowShare(season);
@@ -340,6 +363,7 @@ export function createWeather(seed: number): WeatherState {
       s.flash = 0;
     },
   };
+  return state;
 }
 
 /** The year and the weather for one town, as one piece the signals driver owns. */
@@ -356,6 +380,9 @@ export function createCalendar(seed: number): Calendar {
   let holding: SeasonHold = 'run';
   let season = seasonAt(year);
   const weather = createWeather(seed);
+  /** Where a glide or a scrub is taking the year, and how quickly (seconds of easing). */
+  let goal: number | null = null;
+  let ease = 0.9;
   return {
     get season() {
       return season;
@@ -364,7 +391,23 @@ export function createCalendar(seed: number): Calendar {
       return weather.signal;
     },
     advance(step, seconds, time, cycling = true) {
-      if (holding === 'run' && cycling) year = (year + step / yearSeconds()) % 1;
+      if (goal !== null) {
+        // Ease toward the chosen point, the short way round; a little speed is always kept so it lands.
+        const d = wrapDelta(year, goal);
+        const move = d * (1 - Math.exp(-step / ease)) + Math.sign(d) * Math.min(Math.abs(d), step * 0.004);
+        year = (((year + move) % 1) + 1) % 1;
+        if (Math.abs(wrapDelta(year, goal)) < 1e-4) {
+          year = goal;
+          goal = null;
+        }
+        weather.hurry = 1;
+        // Moved by hand into (or out of) a season: its weather starts now; winter opens with snow.
+        const now = seasonAt(year).season;
+        if (now !== season.season) weather.restart(seconds, seasonAt(year), now === 'winter' ? 'snow' : undefined);
+      } else {
+        if (holding === 'run' && cycling) year = (year + step / yearSeconds()) % 1;
+        weather.hurry = Math.max(0, weather.hurry - step / 4);
+      }
       season = seasonAt(year);
       weather.step(step, seconds, season, time);
     },
@@ -373,15 +416,34 @@ export function createCalendar(seed: number): Calendar {
         holdSeason(mode) {
           const was = season.season;
           holding = mode;
+          goal = null;
           if (mode !== 'run') year = holdYear(mode);
           season = seasonAt(year);
           // Choosing a season by hand starts its weather now: winter opens with a snowfall.
-          if (mode !== 'run' && mode !== was) weather.restart(seconds(), season, mode === 'winter' ? 'snow' : undefined);
+          const now = mode === 'festival' ? 'winter' : mode;
+          if (now !== 'run' && now !== was) weather.restart(seconds(), season, now === 'winter' ? 'snow' : undefined);
+        },
+        glideSeason(mode) {
+          holding = mode;
+          if (mode === 'run') {
+            goal = null;
+            return;
+          }
+          goal = holdYear(mode);
+          // (A change of season on the way starts that season's weather: see advance.)
+          ease = 0.9;
+        },
+        scrubYear(y) {
+          goal = ((y % 1) + 1) % 1;
+          ease = 0.18;
+          const s = seasonAt(goal);
+          holding = s.festival > 0.5 ? 'festival' : s.season;
         },
         get seasonHolding() {
           return holding;
         },
         setYear(y) {
+          goal = null;
           year = ((y % 1) + 1) % 1;
           season = seasonAt(year);
         },
@@ -408,7 +470,7 @@ export function parseSeason(v: string | number | null | undefined): { hold: Seas
     return Number.isFinite(y) ? { hold: seasonAt(y).season, year: y } : null;
   }
   if (v === 'run' || v === 'auto') return { hold: 'run' };
-  if (v === 'festival' || v === 'midwinter') return { hold: 'winter' };
+  if (v === 'festival' || v === 'midwinter') return { hold: 'festival' };
   return (SEASONS as readonly string[]).includes(v) ? { hold: v as Season } : null;
 }
 export function parseWeather(v: string | null | undefined): WeatherHold | null {

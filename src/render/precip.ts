@@ -151,7 +151,8 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
         if (!on) continue;
         any = true;
         const n = tiles * tiles * PER;
-        const want = Math.min(cap, n) * Math.min(1, 0.25 + amount);
+        // From the first few drops to a downpour: how many fall follows the amount from nothing.
+        const want = Math.min(cap, n) * Math.min(1, amount * 1.25);
         const keep = Math.min(1, want / n);
         shown += Math.round(n * keep);
         // The wind carries what falls (snow much less hurriedly); followed smoothly, so a gust does
@@ -169,7 +170,7 @@ export function createPrecip(shared: PrecipTargets, phone: boolean, pixelRatio: 
         u.uTime.value = input.seconds;
         u.uDrift.value.set(d[0]!, d[1]!);
         u.uView.value.copy(shared.uCanvas.value);
-        u.uAmount.value = Math.min(1, 0.45 + amount * 0.8);
+        u.uAmount.value = Math.min(1, 0.6 + amount * 0.5);
         u.uRainInk.value = WEATHER.rainInk * (1 - 0.35 * input.night);
         u.uFlakeInk.value = WEATHER.flakeInk;
         // Graphite by day; at night, pale strokes and flakes against the dark page.

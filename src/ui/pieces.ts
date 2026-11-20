@@ -45,6 +45,7 @@ const PIECE_INFO: Partial<Record<PieceId, { label: string; hint: string; drawer:
   windmill: { label: 'Mill', hint: 'Windmill', drawer: 'build', order: 9 },
   path: { label: 'Path', hint: 'Path', drawer: 'ground', order: 0 },
   plaza: { label: 'Plaza', hint: 'Plaza', drawer: 'ground', order: 1 },
+  field: { label: 'Field', hint: 'Playing field: its shape makes the court, and people come to play', drawer: 'ground', order: 1.5 },
   fence: { label: 'Fence', hint: 'Fence: the middle of a square, or along its edge', drawer: 'ground', order: 2 },
   wall: { label: 'Wall', hint: 'Low wall: the middle of a square, or along its edge', drawer: 'ground', order: 3 },
   stall: { label: 'Stall', hint: 'Market stall', drawer: 'ground', order: 4 },

@@ -28,6 +28,7 @@ const row = (label, value, budget) => console.log(`  ${label.padEnd(46)} ${Strin
     console.log(`\nShaping the land: bench-2000 (${r.blocks} blocks), ${r.shapeMs.length} single-column edits\n`);
     row('resolveShape() after one raise or dig', `${ms(median(r.shapeMs))} / ${ms(p95(r.shapeMs))}`, 'budget ≤ 8 ms');
     row('resolveDressing() after it', `${ms(median(r.dressingMs))} / ${ms(p95(r.dressingMs))}`, 'budget ≤ 30 ms');
+    console.log('  slowest shape rules: ' + r.slowest.join(', '));
     row('terrain chunks rebuilt per edit', `${median(r.chunks)} (max ${Math.max(...r.chunks)})`);
     row('their build time (Node)', `${ms(median(r.chunkMs))} / ${ms(p95(r.chunkMs))}`);
     row(`steep island (seed ${r.steepSeed}): slowest chunk`, `${ms(Math.max(...r.steepChunkMs))} (median ${ms(median(r.steepChunkMs))})`);

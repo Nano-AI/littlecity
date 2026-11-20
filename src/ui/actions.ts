@@ -12,6 +12,8 @@ import { AUTO_KINDS, KINDS, PALETTE_SIZE, placedInfo, type Kind, type PlacedKind
 import type { Vec3 } from '@/core/mat4';
 import type { Edit, Rot, Terrain, World } from '@/core/world';
 import { houseStyle } from '@/style/houses';
+import { islandOf, LAND_MAX } from '@/terrain/land';
+import { applyEdit, canApply } from '@/world/world';
 import { faceZone, type Pick } from './pick';
 import { isEdgePiece, isFloorPiece, isLandTool, isToolId, type ItemId, type LandId } from './pieces';
 
@@ -46,6 +48,11 @@ export interface Plan {
   refusal?: string;
   /** The Change tool on a piece that cannot change: nothing happens and the block wiggles. */
   wiggle?: boolean;
+  /**
+   * Level: every step to the target height, in order (tries[0] is the first). Applied together as
+   * one undo step; the ghost shows where they end.
+   */
+  steps?: Edit[];
 }
 
 const nothing = (at: CellKey = NO_CELL): Plan => ({ tries: [], at });
@@ -213,13 +220,63 @@ function planLand(item: LandId, tool: ToolState, pick: Pick, ctx: ActionContext)
   const h = ctx.terrain.height[columnIndex(x, z)]!;
   const at = key(x, Math.min(SIZE_Y - 1, h), z);
   const cols = brushAt(pick, tool.brush ?? 1);
-  if (item === 'raise') return { tries: [{ type: 'land', up: cols, down: [] }], at };
-  if (item === 'dig') return { tries: [{ type: 'land', up: [], down: cols }], at };
+  if (item === 'raise' || item === 'dig') {
+    const moved = tapered(cols, x, z, ctx.terrain.height, item === 'raise' ? 1 : -1);
+    return { tries: [item === 'raise' ? { type: 'land', up: moved, down: [] } : { type: 'land', up: [], down: moved }], at };
+  }
   const to = tool.levelTo ?? h;
-  const up = cols.filter((c) => ctx.terrain.height[c]! < to);
-  const down = cols.filter((c) => ctx.terrain.height[c]! > to);
-  if (up.length === 0 && down.length === 0) return nothing(at);
-  return { tries: [{ type: 'land', up, down }], at };
+  const level = levelSteps(ctx.world, ctx.terrain, cols, to);
+  if (level.edits.length === 0) {
+    const flat = cols.every((c) => ctx.terrain.height[c] === to);
+    return { tries: [], at, refusal: flat ? 'Level brings the ground to the height where you press: drag from there across the ground' : level.reason };
+  }
+  return { tries: [level.edits[0]!], at, steps: level.edits };
+}
+
+/**
+ * A wide brush has a soft edge (shaping the land): with the 3-across brush, the corners of the square
+ * move only once they have fallen behind the middle, and the sides only while level with it or behind,
+ * so dab after dab builds a rounded mound or bowl instead of a square step. Narrower brushes move whole.
+ */
+export function tapered(cols: readonly number[], x: number, z: number, h: ArrayLike<number>, dy: 1 | -1): number[] {
+  if (cols.length < 9) return [...cols];
+  const mid = h[columnIndex(x, z)]!;
+  return cols.filter((c) => {
+    const dx = Math.abs((c % 48) - x), dz = Math.abs(Math.floor(c / 48) - z);
+    if (dx === 0 && dz === 0) return true;
+    const behind = dy > 0 ? mid - h[c]! : h[c]! - mid;
+    return dx + dz === 2 ? behind >= 1 : behind >= 0;
+  });
+}
+
+/**
+ * Level, all the way (design section 6): the land edits that bring every column to height `to`, one
+ * level at a time, carrying what stands on them. A column that cannot move further stays where it
+ * got to; `reason` says why the first one stopped. `world` is the town after them all.
+ */
+export function levelSteps(world: World, terrain: Terrain, cols: readonly number[], to: number): { edits: Edit[]; world: World; reason: string } {
+  const edits: Edit[] = [];
+  let w = world;
+  let reason = '';
+  for (let i = 0; i <= LAND_MAX; i++) {
+    const t = islandOf(w, terrain);
+    const up = cols.filter((c) => t.height[c]! < to);
+    const down = cols.filter((c) => t.height[c]! > to);
+    if (up.length === 0 && down.length === 0) break;
+    const e: Edit = { type: 'land', up, down };
+    const v = canApply(w, terrain, e);
+    if (!v.ok) {
+      reason = v.reason;
+      break;
+    }
+    const next = applyEdit(w, terrain, e);
+    // Columns that were refused this time will be refused again: note why, and go on with the rest.
+    const moved = islandOf(next, terrain);
+    if (!reason && [...up, ...down].some((c) => moved.height[c] === t.height[c])) reason = 'some of the ground cannot move: something on it would be in the way';
+    edits.push(e);
+    w = next;
+  }
+  return { edits, world: w, reason: reason || 'the ground cannot move here' };
 }
 
 /**

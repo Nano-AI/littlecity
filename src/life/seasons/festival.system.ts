@@ -15,9 +15,9 @@ import { MOTION } from '@/style/animation';
 import { defineSystem, type InstanceHandle } from '../api';
 import { canGlow, glowOf, litParam } from '../dusk/glow';
 import { clamp01, easeIn, pop } from '../motion/ease';
-import { seasonOf } from '../season';
+import { seasonOf, weatherOf } from '../season';
 
-export const FESTIVAL_TYPES: ReadonlySet<PropType> = new Set<PropType>(['festival-lights', 'wreath', 'festival-tree']);
+export const FESTIVAL_TYPES: ReadonlySet<PropType> = new Set<PropType>(['festival-lights', 'wreath', 'festival-tree', 'snowman']);
 /** Seconds a thing takes to go up or come down. */
 const RISE = 0.6;
 /** The eave strings hang at this height in their frame; they grow out from there. */
@@ -30,6 +30,8 @@ interface Item {
   at: number;
   /** How it appears: 'line' unrolls along +X, the rest grow from a point. */
   how: 'line' | 'eave' | 'point';
+  /** Up with the festival, or (the snowman) while deep snow lies. */
+  snow: boolean;
   /** 0 down, 1 up; moves toward `want` over RISE seconds. */
   shown: number;
   want: number;
@@ -77,6 +79,7 @@ export default defineSystem<State>({
         handle: ctx.stage.instance(p.id),
         at: festivalOrder(ctx.seed, p, 'socket' in p.at ? owner.get(p.at.socket) : undefined),
         how,
+        snow: p.type === 'snowman',
         shown: old?.shown ?? NaN,
         want: old?.want ?? 0,
         param: NaN,
@@ -87,26 +90,35 @@ export default defineSystem<State>({
       state.items.push(item);
     }
     // The view shows every prop it is given: put each back the way it was (the first time, at once).
-    const f = seasonOf(ctx.signals).festival;
+    const f = seasonOf(ctx.signals).festival, cover = weatherOf(ctx.signals).cover;
     for (const it of state.items) {
-      if (Number.isNaN(it.shown)) it.shown = it.want = f > it.at ? 1 : 0;
+      if (Number.isNaN(it.shown)) it.shown = it.want = (it.snow ? cover > 0.65 : f > it.at) ? 1 : 0;
       it.scale = NaN;
       place(it, state.m);
     }
   },
   update(state, dt, signals) {
     if (state.items.length === 0) return;
+    // (Runs after the feedback system, order 10, so its pop-ins are overruled in the same frame.)
     const f = seasonOf(signals).festival;
+    const cover = weatherOf(signals).cover;
     const glow = glowOf(signals.time);
     const lit = canGlow(glow);
     const seconds = signals.time.seconds;
     for (const it of state.items) {
-      it.want = f > it.at ? 1 : 0;
+      it.want = (it.snow ? cover > 0.65 : f > it.at) ? 1 : 0;
       if (it.shown !== it.want) {
         it.shown = it.want > it.shown ? Math.min(1, it.shown + dt / RISE) : Math.max(0, it.shown - dt / RISE);
         place(it, state.m);
       }
-      if (it.shown <= 0 || !it.handle) continue;
+      if (!it.handle) continue;
+      // Down is down, whoever else touched it this frame: other systems show props they think are new
+      // (the pop-in after an edit, F05), and a festival thing must never appear out of season. Cheap: a
+      // hidden slot returns at once.
+      if (it.shown <= 0) {
+        it.handle.setVisible(false);
+        continue;
+      }
       // Lit from dusk, with a twinkle redrawn on twos: each string breathes at its own pace.
       let a = 0;
       if (lit) {

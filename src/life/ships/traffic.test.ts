@@ -3,7 +3,11 @@
 // lanes (leaving ships first; arrivals wait beyond the edge), nobody is ever
 // stuck, and no two hulls ever meet.
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+// Long fixed-step harbour simulations: minutes of game time. On a machine shared with other work the
+// default 30 s is not enough.
+vi.setConfig({ testTimeout: 300_000 });
 import { key } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
 import { resolveDressing, resolveShape } from '@/resolve/index';

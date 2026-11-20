@@ -34,9 +34,20 @@ export type PoseName =
   | 'shake' //   L50: the right hand out, pumping up and down
   | 'hammer' // L54: the right arm up and down, striking
   | 'juggle' // L56: both hands up in front, tossing in turn
-  | 'mow'; //   L59: a wide swing of the scythe, low across the front, and back
+  | 'mow' //   L59: a wide swing of the scythe, low across the front, and back
+  // The playing field (src/life/field): `phase` is seconds since the move began, so a move plays once.
+  | 'ready' //  knees bent, arms a little out: waiting for the ball
+  | 'dribble' // bent over the ball, the right hand slapping it down
+  | 'shoot' //  both arms up over the head, the ball going off the fingertips
+  | 'pass' //   both arms pushed out in front
+  | 'swing' //  a racket stroke: back, then through and across
+  | 'serve' //  the ball tossed up, the racket high, then down through it
+  | 'kick' //   the right leg swung through
+  | 'dive' //   arms and legs flung out sideways (a goalkeeper)
+  | 'bowl' //   down low, a long step, the arm swinging through
+  | 'clap'; //  hands together in front, again and again
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow', 'ready', 'dribble', 'shoot', 'pass', 'swing', 'serve', 'kick', 'dive', 'bowl', 'clap'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -176,14 +187,22 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       break;
     }
     case 'sweep': {
-      const k = beat(4, 2.5);
-      const sw = [0.25, 0, -0.25, 0][k]!;
+      // A few short strokes side to side (the body turns into each; the broom goes with it: hands.ts puts it in
+      // the hands), then a step on, then more strokes.
+      const k = beat(8, 3);
+      const sw = [0.3, 0, -0.3, 0, 0.3, 0, -0.3, 0][k]!;
+      p.lean = 0.3;
+      p.twist = sw;
+      if (k === 7) {
+        p.legL = 0.32;
+        p.legR = -0.1;
+        p.lift = 0.008;
+      }
+      // (The arms are posed onto the broom by hands.ts; these are for a figure drawn without it.)
       p.armL = 0.95 + sw;
       p.armR = 1.15 + sw;
       p.outL = -0.3;
       p.outR = -0.3;
-      p.lean = 0.2;
-      p.twist = sw;
       break;
     }
     case 'cheer': {
@@ -245,6 +264,128 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       p.armL = 1.0;
       p.outL = -0.2;
       p.lean = 0.15;
+      break;
+    }
+    // ── the playing field: moves held on twos, played once from phase 0 ──
+    case 'ready':
+      p.lean = 0.2;
+      p.lift = -0.012;
+      p.legL = 0.18;
+      p.legR = -0.12;
+      p.armL = p.armR = 0.55;
+      p.outL = p.outR = 0.35;
+      break;
+    case 'dribble': {
+      const k = beat(2, 5);
+      p.lean = 0.22;
+      p.lift = -0.008;
+      p.armR = k === 0 ? 0.75 : 0.35;
+      p.outR = 0.2;
+      p.armL = 0.6;
+      p.outL = 0.35;
+      break;
+    }
+    case 'shoot': {
+      // Crouch, then up on the toes with the arms stretched over the head, then the follow-through.
+      const k = phase < 0.12 ? 0 : phase < 0.45 ? 1 : 2;
+      if (k === 0) {
+        p.lift = -0.02;
+        p.lean = 0.12;
+        p.armL = p.armR = 1.6;
+        p.outL = p.outR = -0.15;
+      } else {
+        p.armL = p.armR = k === 1 ? 2.75 : 2.45;
+        p.outL = p.outR = -0.08;
+        p.legL = p.legR = -0.1;
+        p.lean = -0.06;
+      }
+      break;
+    }
+    case 'pass': {
+      const k = phase < 0.1 ? 0 : 1;
+      p.armL = p.armR = k === 0 ? 0.9 : 1.5;
+      p.outL = p.outR = -0.2;
+      p.lean = k === 0 ? 0.02 : 0.14;
+      p.legL = 0.25;
+      break;
+    }
+    case 'swing': {
+      // Back with the racket, then through and across the body.
+      const k = phase < 0.14 ? 0 : phase < 0.3 ? 1 : 2;
+      p.legL = 0.3;
+      p.legR = -0.2;
+      p.lean = 0.12;
+      p.armL = 0.5;
+      p.outL = 0.35;
+      if (k === 0) {
+        p.twist = 0.75;
+        p.armR = 0.7;
+        p.outR = 1.0;
+      } else if (k === 1) {
+        p.twist = 0;
+        p.armR = 1.45;
+        p.outR = 0.55;
+      } else {
+        p.twist = -0.7;
+        p.armR = 1.85;
+        p.outR = -0.35;
+      }
+      break;
+    }
+    case 'serve': {
+      // The toss (left hand up, racket back), then up and through.
+      const k = phase < 0.45 ? 0 : phase < 0.6 ? 1 : 2;
+      if (k === 0) {
+        p.armL = 2.8;
+        p.armR = 0.6;
+        p.outR = 0.9;
+        p.lean = -0.1;
+      } else if (k === 1) {
+        p.armR = 3.0;
+        p.armL = 1.6;
+        p.lift = 0.015;
+        p.lean = -0.08;
+      } else {
+        p.armR = 1.2;
+        p.outR = -0.3;
+        p.armL = 0.4;
+        p.lean = 0.3;
+        p.legR = -0.3;
+      }
+      break;
+    }
+    case 'kick': {
+      const k = phase < 0.1 ? 0 : 1;
+      p.legR = k === 0 ? -0.55 : 0.95;
+      p.legL = -0.1;
+      p.armL = k === 0 ? -0.3 : 0.7;
+      p.armR = k === 0 ? 0.6 : -0.4;
+      p.outL = p.outR = 0.3;
+      p.lean = k === 0 ? 0.08 : -0.08;
+      break;
+    }
+    case 'dive':
+      p.armL = p.armR = 2.4;
+      p.outL = p.outR = 1.1;
+      p.legL = 0.45;
+      p.legR = -0.45;
+      p.lean = 0.3;
+      break;
+    case 'bowl': {
+      const k = phase < 0.25 ? 0 : 1;
+      p.lean = 0.6;
+      p.lift = -0.01;
+      p.legL = 0.75;
+      p.legR = -0.35;
+      p.armR = k === 0 ? -0.6 : 1.1;
+      p.armL = 0.4;
+      p.outL = 0.4;
+      break;
+    }
+    case 'clap': {
+      const k = beat(2, 4);
+      p.armL = p.armR = 1.25;
+      p.outL = p.outR = k === 0 ? -0.36 : -0.1;
       break;
     }
   }

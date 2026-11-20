@@ -23,7 +23,24 @@ export interface GardenCtx {
   s: Structure;
   cells: ReadonlySet<CellKey>;
   links: ReadonlyMap<CellKey, ReadonlyMap<Dir4, LinkVariant>>;
+  /** A wheat field's state per cell (life's harvest, src/life/town/chains/harvest.ts); standing ripe when absent. */
+  wheat?: (cell: CellKey) => WheatState;
 }
+
+/**
+ * How a cell of a wheat field stands (L59, the harvest; the seasons):
+ *   growth  0 ploughed earth, about 0.3 green shoots, up to 1 ripe and golden, full height
+ *   cut     rows mown, 0 to WHEAT_ROWS: the swathe falls row by row from the `from` side (0: the cell's north
+ *           edge, 2: its south edge), leaving short stubble on bare earth
+ */
+export interface WheatState {
+  growth: number;
+  cut: number;
+  from: 0 | 2;
+}
+/** Half-rows of wheat across a cell (the crests and furrows): what `cut` counts. */
+export const WHEAT_ROWS = 10;
+export const STANDING: WheatState = Object.freeze({ growth: 1, cut: 0, from: 0 });
 
 type Pt = readonly [number, number];
 type Color = string | Rgb;
@@ -168,9 +185,13 @@ function wheatTop(seed: number, x: number, z: number): number {
  */
 export function wheatField(c: GardenCtx, cell: CellKey): void {
   const { b, s } = c;
-  const gold = mixColor(PALETTE.yellow, PALETTE.dirt, 0.28);
-  ground(c, cell, mixColor(PALETTE.dirt, PALETTE.yellow, 0.2), PATTERN.crops);
-  if (occupied(c, cell)) return;
+  const state = c.wheat?.(cell) ?? STANDING;
+  const growth = Math.max(0, Math.min(1, state.growth));
+  // Ripe gold; green while it grows.
+  const ripe = mixColor(PALETTE.yellow, PALETTE.dirt, 0.28);
+  const gold = growth >= 0.85 ? ripe : mixColor('#7fae4e', ripe, Math.max(0, (growth - 0.3) / 0.55));
+  ground(c, cell, mixColor(PALETTE.dirt, PALETTE.yellow, growth > 0 ? 0.2 : 0.05), PATTERN.crops);
+  if (occupied(c, cell) || growth <= 0) return;
   const x = keyX(cell), z = keyZ(cell), y = groundY(cell);
   // The wheat stands in from the field's edge, and stops round anything that stands in a cell.
   const stands = (d: Dir4): boolean => {
@@ -183,13 +204,24 @@ export function wheatField(c: GardenCtx, cell: CellKey): void {
   // Grid lines sit at fixed places in the cell, so neighbours share their edge points; only the outer lines stand in.
   const px = (i: number): number => (i === 0 && !open[3] ? x + inset : i === NX && !open[1] ? x + 1 - inset : x + i / NX);
   const pz = (j: number): number => (j === 0 && !open[0] ? z + inset : j === NZ && !open[2] ? z + 1 - inset : z + j / NZ);
+  // Mown rows: from the north edge (j counting up) or from the south (counting down).
+  const cut = Math.max(0, Math.min(NZ, Math.round(state.cut)));
+  const isCut = (j: number): boolean => (state.from === 0 ? j < cut : j >= NZ - cut);
   // Odd lines are the crests of the rows, even lines the furrows between them.
-  const top = (i: number, j: number): Vec3 => [px(i), y + wheatTop(s.seed, px(i), pz(j)) + (j % 2 === 1 ? 0.013 : -0.013), pz(j)];
+  const height = (i: number, j: number): number => wheatTop(s.seed, px(i), pz(j)) * growth;
+  const top = (i: number, j: number): Vec3 => [px(i), y + height(i, j) + (j % 2 === 1 ? 0.013 : -0.013) * growth, pz(j)];
   // Only the ears move: the foot of the wheat is rooted.
   const sway: SwayInput = (_x, yy) => (yy > y + 0.1 ? 0.55 : 0);
   b.with({ color: gold, pattern: PATTERN.crops, ink: 'wheat', sway }, () => {
-    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) b.quad(top(i, j + 1), top(i + 1, j + 1), top(i + 1, j), top(i, j));
+    for (let j = 0; j < NZ; j++) if (!isCut(j)) for (let i = 0; i < NX; i++) b.quad(top(i, j + 1), top(i + 1, j + 1), top(i + 1, j), top(i, j));
   });
+  // Stubble where it is mown: short stalks in rows on the bare earth.
+  if (cut > 0) {
+    const stub = (i: number, j: number): Vec3 => [px(i), y + (j % 2 === 1 ? 0.045 : 0.012), pz(j)];
+    b.with({ color: mixColor(ripe, PALETTE.dirt, 0.35), pattern: PATTERN.crops, ink: 'stubble' }, () => {
+      for (let j = 0; j < NZ; j++) if (isCut(j)) for (let i = 0; i < NX; i++) b.quad(stub(i, j + 1), stub(i + 1, j + 1), stub(i + 1, j), stub(i, j));
+    });
+  }
   b.with({ color: gold, pattern: PATTERN.thatch, ink: 'wheat', sway }, () => {
     const wall = (p: Vec3, q: Vec3): void => {
       const mid: Pt = [x + 0.5, z + 0.5];
@@ -199,22 +231,40 @@ export function wheatField(c: GardenCtx, cell: CellKey): void {
       if (out) b.quad(bb, a, p, q);
       else b.quad(a, bb, q, p);
     };
+    // The standing edge facing where it is mown: the face the next swing takes.
+    const facing = (j: number, outward: 1 | -1): void => {
+      for (let i = 0; i < NX; i++) {
+        const p = top(i, j), q = top(i + 1, j);
+        const a: Vec3 = [p[0], y, p[2]], bb: Vec3 = [q[0], y, q[2]];
+        if (outward < 0) b.quad(bb, a, p, q);
+        else b.quad(a, bb, q, p);
+      }
+    };
+    if (cut > 0 && cut < NZ) {
+      if (state.from === 0) facing(cut, -1);
+      else facing(NZ - cut, 1);
+    }
     for (let i = 0; i < NX; i++) {
-      if (!open[0]) wall(top(i, 0), top(i + 1, 0));
-      if (!open[2]) wall(top(i, NZ), top(i + 1, NZ));
+      if (!open[0] && !isCut(0)) wall(top(i, 0), top(i + 1, 0));
+      if (!open[2] && !isCut(NZ - 1)) wall(top(i, NZ), top(i + 1, NZ));
     }
     for (let j = 0; j < NZ; j++) {
-      if (!open[3]) wall(top(0, j), top(0, j + 1));
-      if (!open[1]) wall(top(NX, j), top(NX, j + 1));
+      if (isCut(j)) continue;
+      // Sides: at the field's edge, and where the cell beside is mown.
+      if (!open[3] || (c.wheat && c.wheat(neighbor(cell, 3)).cut >= NZ)) wall(top(0, j), top(0, j + 1));
+      if (!open[1] || (c.wheat && c.wheat(neighbor(cell, 1)).cut >= NZ)) wall(top(NX, j), top(NX, j + 1));
     }
   });
-  // Poppies in the corn.
+  // Poppies in the ripe corn.
+  if (growth < 0.85) return;
   const r = cellRng(s, cell);
   b.with({ color: PALETTE.red, pattern: PATTERN.none, ink: 'wheat', sway: 0.55 }, () => {
     for (let i = 0; i < 2; i++) {
       if (r('poppy', i) < 0.5) continue;
       const fx = x + 0.2 + r('fx', i) * 0.6, fz = z + 0.2 + r('fz', i) * 0.6;
-      dab(b, fx, y + wheatTop(s.seed, fx, fz) + 0.02, fz, 0.04);
+      const j = Math.min(NZ - 1, Math.floor((fz - z) * NZ));
+      if (isCut(j)) continue;
+      dab(b, fx, y + wheatTop(s.seed, fx, fz) * growth + 0.02, fz, 0.04);
     }
   });
 }
