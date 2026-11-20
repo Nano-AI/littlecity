@@ -17,7 +17,8 @@
 //                        corner, and an edge piece on a side of a cell piece
 //   tree, fountain, stall  never merge
 // Floors: connected cells of one floor kind, side by side at one level, or
-// one level apart where both lie on terrain (a path up a terrace is one path).
+// one level apart where both lie on terrain (a path up a terrace is one path;
+// a playing field is the exception: it stays on one level, see R-G03).
 //
 // Ids (see StructureId in ./plan.ts): the lowest seq among member blocks, so
 // growing a structure never re-rolls it and a split-off part takes the id of
@@ -266,7 +267,8 @@ export function buildStructures(w: World, t: Terrain, kinds: ReadonlyMap<CellKey
       const n = neighbor(cell, d);
       if (n === NO_CELL) continue;
       if (w.floors.get(n) === kind) fu.union(i, findex.get(n)!);
-      if (!onTerrain(cell)) continue;
+      // A playing field never climbs a step: each level is a field of its own (a court must be flat).
+      if (!onTerrain(cell) || kind === 'field') continue;
       // One terrain level up or down: a path climbing a terrace.
       for (const dy of [1, -1]) {
         const y = keyY(n) + dy;

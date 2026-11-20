@@ -208,6 +208,16 @@ const DRAWINGS: Record<string, string> = {
       `<circle cx="31.6" cy="27.6" r="2.1" fill="${C.pink}"/><circle cx="18.6" cy="28.6" r="2.1" fill="${C.yellow}"/></g>`,
   ),
 
+  // Field: a hard court in chalk, a hoop at one end and the ball on it.
+  field: tile(
+    '#93c3c3',
+    `<path ${thin} stroke="${C.white}" fill="none" d="M24.1 14.5 L39.7 24 L24 33.3 L8.3 24 Z M14.3 18.1 L33.8 29.8"/>` +
+      `<ellipse ${thin} stroke="${C.white}" fill="#efb27f" cx="24" cy="24" rx="4.2" ry="2.5"/>` +
+      `<g stroke-width="1.3"><path d="M11 25.2 L11.2 9.6" stroke-width="1.8"/><path d="M8.6 7.4 L14.4 6.4 L14.4 12.2 L8.6 13.2 Z" fill="${C.white}"/>` +
+      `<ellipse cx="14.6" cy="13.6" rx="2.6" ry="1.1" fill="none" stroke="#e8743f" stroke-width="1.4"/>` +
+      `<circle cx="31" cy="21.2" r="2.6" fill="#e8743f"/><path ${thin} d="M28.6 20.6 Q31 22.2 33.4 20.6 M31 18.6 L31 23.8"/></g>`,
+  ),
+
   // ── shaping the land (the Land group of the Nature drawer) ───────────
   // Raise: a grassy terrace lifted out of the ground, an arrow going up.
   raise:

@@ -218,7 +218,8 @@ export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
   const found = new Map<CellKey, NavNode>();
   const surfaceOn = (c: CellKey): NavSurface => {
     const floor = world.floors.get(c);
-    if (floor) return floor;
+    // A playing field is walked like a garden: open ground, a little dearer than a street.
+    if (floor) return floor === 'field' ? 'garden' : floor;
     if (trails.has(c)) return 'trail';
     const under = below(c);
     if (under !== NO_CELL && keyY(under) < heightAt(under)) {
