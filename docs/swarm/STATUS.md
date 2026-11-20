@@ -535,3 +535,16 @@ watchman; L-* ids from L50). The fill builder dropped its life events and
 emits sockets for it.
 Running: ships (several at once), seasons, disc1-structures, disc1-fill,
 living-town. Walk preview awaiting Derek.
+
+**Several big ships at once merged** (`31871fd`): a quay is split into
+berths a galleon long; every berth gets ships (cap 8 desktop, 4 phone;
+rowboats 24/12; sailboats up to 5); lanes shared by a look-ahead check,
+arrivals wait beyond the edge, leavers go first; sailors, goods and
+gangplank no longer vanish; new rowboats, sailboats and the fishing boat
+come in from the edge. Full run under load (five agents): 8 timeouts; all
+8 files pass when run serially (91 tests). Published.
+Open: in the app the "already moored at open" fill does not happen, so a
+big harbour shows 3–5 big ships in its first minutes; a ship whose quay is
+erased can hold ~40 s before leaving; dressing p95 39.7 ms (budget 30) when
+an edit changes the sea; rower and barge still appear in place.
+Running: seasons, disc1-structures, disc1-fill, living-town.
