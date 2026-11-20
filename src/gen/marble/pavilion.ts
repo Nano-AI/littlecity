@@ -33,7 +33,7 @@ const TAN8 = Math.tan(Math.PI / 8);
 
 export interface PavilionInput {
   /** The footprint: (x, z) of each cell. */
-  cells: readonly V2[];
+  cells: readonly (readonly [number, number])[];
   /** Terrain height (in cells) under the footprint: the highest and the lowest. */
   ground: number;
   low: number;
@@ -106,7 +106,7 @@ export function offset(p: readonly V2[], d: number): V2[] {
 }
 
 /** The outline of a set of unit cells, counter-clockwise, collinear points merged. */
-function traceCells(cells: readonly V2[]): V2[] {
+function traceCells(cells: readonly (readonly [number, number])[]): V2[] {
   const has = new Set(cells.map(([x, z]) => `${x},${z}`));
   const next = new Map<string, V2>();
   const k = (p: V2): string => `${p[0]},${p[1]}`;
@@ -204,7 +204,7 @@ export function pavilionLayout(input: PavilionInput): Pavilion {
     architrave,
     eave,
     ring,
-    eaveOut: 0.11,
+    eaveOut: 0.1,
     columns,
     radius,
     pitch: round ? 0.82 : 1.05,
@@ -307,10 +307,10 @@ export function drawPavilion(b: MeshBuilder, pv: Pavilion, col: PavilionColours,
           const y = pv.floor;
           b.box([-span / 2, y, -0.035], [span / 2, y + 0.035, 0.035], { skip: ['bottom'] }); // the sill
           b.box([-span / 2, y + railH - 0.04, -railW / 2], [span / 2, y + railH, railW / 2]); // the handrail
-          const n = Math.max(1, Math.round(span / 0.13));
+          const n = Math.max(1, Math.round(span / 0.16));
           for (let j = 0; j < n; j++) {
             const x = -span / 2 + (span * (j + 0.5)) / n;
-            b.box([x - 0.017, y + 0.035, -0.017], [x + 0.017, y + railH - 0.04, 0.017], { skip: ['top', 'bottom'] });
+            b.box([x - 0.021, y + 0.035, -0.021], [x + 0.021, y + railH - 0.04, 0.021], { skip: ['top', 'bottom'] });
           }
         }),
       );
