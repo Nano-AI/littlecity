@@ -1071,3 +1071,18 @@ its section to `codec5.ts` as well. Orchestrator checked in a browser:
 six old links (versions 1–4) open with the right block counts; a link
 from the Share button (1148 characters with the address) reopens the
 identical town. Gate: 2,131 passed, 9 skipped, clean.
+
+**Destruction round 1 merged** (`5f1d906`, Opus). Anything standing on
+a dock or pier (and the deck itself): a stage 3 blast topples it whole,
+away from the blast, into the water, half sunk (the fall direction is
+saved); stage 2 leans over a snapped leg; mending rebuilds it upright. A
+bomb in water now hits piers and what stands on them. Big ships through
+a narrow hook (`harbour.strike`; `src/life/mischief/shipwreck.system.ts`):
+scorched (sails torn, fire, leaves early), dismasted (the mast falls
+and floats), or broken (goes down in about 9 s, wreckage drifts 40 s,
+berth freed). Gate: 2,135 passed, 9 skipped, clean. Orchestrator saw the
+toppled stilt house in frames; did NOT see a ship hit (no ship was in
+berth in my sequence). Not done (agent's list): crew on a sinking ship
+still vanish (breaks the nothing-vanishes rule); barges, small boats and
+passing ships take no damage; no lightning on sails; dockers do not
+react; night frames and ships under way not checked.
