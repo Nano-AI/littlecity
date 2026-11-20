@@ -54,6 +54,26 @@ export interface MischiefHost {
   amend(edits: readonly Edit[]): void;
 }
 
+/**
+ * The Lightning tool's strike (the owner: "it summons a little storm cloud and then strikes it with
+ * lightning"): a cloud gathers over the building, the bolt comes down at `STRIKE.at` seconds and the block
+ * catches then (if it can; a stone one only flashes), and the cloud thins and drifts off.
+ */
+export interface Strike {
+  id: number;
+  cell: CellKey;
+  /** Where the bolt lands (where the building was clicked). */
+  point: [number, number, number];
+  age: number;
+  /** It will catch. */
+  ok: boolean;
+  /** The bolt has come down. */
+  struck: boolean;
+}
+
+/** The strike's clock: the cloud gathers, the bolt at `at`, the cloud gone by `gone` (seconds from the click). */
+export const STRIKE = { at: 0.6, flash: 0.22, bolt: 0.28, linger: 1.4, gone: 4.2, height: 3.2 } as const;
+
 export interface Bomb {
   id: number;
   point: [number, number, number];
@@ -68,6 +88,10 @@ export interface Bomb {
 export type MischiefEvent =
   | { type: 'lit'; cell: CellKey }
   | { type: 'drop'; bomb: Bomb }
+  /** A storm cloud gathering over a building (the bolt comes down STRIKE.at later). */
+  | { type: 'cloud'; strike: Strike }
+  /** The bolt comes down (the building catches now, if it can). */
+  | { type: 'strike'; strike: Strike }
   | { type: 'blast'; bomb: number; blast: BlastEvent; nuke?: boolean }
   | { type: 'knock'; structure: StructureId; cell: CellKey }
   | { type: 'mend'; structure: StructureId; cell: CellKey }
@@ -110,7 +134,7 @@ export class Director {
 
   /** Burning, a fuse fizzing, or chunks in the air. */
   get busy(): boolean {
-    return this.engine.busy || this.bombs.length > 0 || this.waves.length > 0;
+    return this.engine.busy || this.bombs.length > 0 || this.waves.length > 0 || this.strikes.length > 0;
   }
 
   on(fn: (e: MischiefEvent) => void): () => void {
@@ -155,6 +179,20 @@ export class Director {
     else this.settleSoon();
     return ok;
   }
+
+  /** Lightning: a storm cloud over the building and, a moment later, a bolt that sets it alight. True if it will catch. */
+  strike(cell: CellKey, point: readonly [number, number, number]): boolean {
+    if (!this.shape?.world.blocks.has(cell)) return false;
+    this.open();
+    const ok = this.engine.canLight(cell);
+    const s: Strike = { id: this.nextBomb++, cell, point: [point[0], point[1], point[2]], age: 0, ok, struck: false };
+    this.strikes.push(s);
+    this.emit({ type: 'cloud', strike: s });
+    return ok;
+  }
+
+  /** Strikes on their way (a cloud gathering, the bolt not yet down). */
+  readonly strikes: Strike[] = [];
 
   dropBomb(point: readonly [number, number, number], fall = 0.7): Bomb {
     this.open();
@@ -243,6 +281,17 @@ export class Director {
   }
 
   update(dt: number, env: Env): void {
+    // Lightning: the bolt comes down, and the block catches.
+    for (let i = this.strikes.length - 1; i >= 0; i--) {
+      const s = this.strikes[i]!;
+      s.age += dt;
+      if (s.age < STRIKE.at) continue;
+      this.strikes.splice(i, 1);
+      s.struck = true;
+      this.emit({ type: 'strike', strike: s });
+      if (s.ok && this.engine.ignite(s.cell)) this.emit({ type: 'lit', cell: s.cell });
+      else this.settleSoon();
+    }
     for (let i = this.bombs.length - 1; i >= 0; i--) {
       const b = this.bombs[i]!;
       b.age += dt;
@@ -391,6 +440,7 @@ export class Director {
     this.engine.cancel();
     this.mendOwed.clear();
     this.bombs.length = 0;
+    this.strikes.length = 0;
     this.quietFrames = 0;
   }
 

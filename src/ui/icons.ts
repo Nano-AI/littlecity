@@ -271,11 +271,11 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M7.6 41.6 L31.4 41.4"/><path ${thin} d="M34.6 41.4 L37 41.4 M9.4 36.6 L11.4 37.6 M6.8 33 L8.6 34"/>`,
 
   // ── mischief (design section 13b) ────────────────────────────────────
+  // Lightning (the tool's id is still `torch`): a little storm cloud and a bolt out of it.
   torch:
-    `<path d="M14.6 41.4 L25.4 24.6 L28.6 26.6 L17.8 43.4 Z" fill="${C.wood}"/>` +
-    `<path d="M24.2 23.4 L30.2 27.2 L31.8 24.6 L25.8 20.8 Z" fill="${C.woodDark}"/>` +
-    `<path d="M26.4 21.2 Q21.6 15.4 26.8 9.8 Q27 13.6 29.8 14.6 Q30.2 8.6 34.4 5.2 Q33.4 10.8 37.4 13.6 Q40.2 19.4 33.6 24.2 Z" fill="${C.orange}"/>` +
-    `<path ${thin} d="M29 20.6 Q27.4 17.4 29.8 15.8 Q31 18 32.4 17.2 Q32.6 14.2 34.6 12.6 Q35 17.6 36 18.6 Q35.6 21.6 32.8 22.4 Z" fill="${C.yellow}"/>`,
+    `<path d="M22.6 24.4 L17.4 34.2 L22.8 33.6 L18.6 44.2 L30.6 29.6 L24.8 30.2 L28.4 24.4 Z" fill="${C.yellow}"/>` +
+    `<path d="M10.4 25.6 Q5.4 25.2 6.4 20.2 Q7.4 16 11.8 16.8 Q12.6 10.2 19.4 10.4 Q23.4 5 30 7.6 Q35.2 6.4 37.6 11.6 Q43.4 12 42.6 18.2 Q42.2 24.6 35.6 25.4 Z" fill="#6c7287"/>` +
+    `<path ${thin} d="M14.2 19.8 Q16.4 16.2 20.6 17.6 M27.4 13.4 Q31.2 12.2 33.4 15.2" stroke="${C.white}" fill="none"/>`,
 
   bomb:
     `<circle cx="21.6" cy="28.4" r="12.6" fill="${PALETTE.metal}"/>` +

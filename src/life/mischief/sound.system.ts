@@ -156,6 +156,30 @@ function nukeBang(a: Audio): void {
   src.stop(boomAt + 14.1);
 }
 
+/** Thunder with a lightning strike: a sharp crack, then a short rolling rumble. */
+function thunder(a: Audio): void {
+  const { ac, master } = a;
+  const t = ac.currentTime;
+  const burst = (at: number, type: BiquadFilterType, f0: number, f1: number, peak: number, attack: number, len: number, offset: number): void => {
+    const src = ac.createBufferSource();
+    src.buffer = a.noise;
+    src.loop = true;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.setValueAtTime(f0, at);
+    f.frequency.exponentialRampToValueAtTime(f1, at + len);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    src.connect(f).connect(g).connect(master);
+    src.start(at, offset);
+    src.stop(at + len + 0.05);
+  };
+  burst(t, 'highpass', 3000, 1200, 0.45, 0.003, 0.14, 0.05);
+  burst(t + 0.05, 'lowpass', 900, 80, 0.5, 0.06, 1.9, 0.4);
+}
+
 /** The nuke coming: a siren rising and falling, a whistle dropping in pitch, then a beat of silence before the bang. */
 function nukeWarning(a: Audio, fall: number): void {
   const { ac, master } = a;
@@ -221,6 +245,7 @@ export default defineSystem<State>({
         const a = st.audio;
         if (!a || !st.wanted) return;
         if (e.type === 'drop' && e.bomb.nuke) nukeWarning(a, e.bomb.fall);
+        else if (e.type === 'strike') thunder(a);
         else if (e.type === 'lit') st.bellUntil = Math.max(st.bellUntil, a.ac.currentTime + 4);
         else if (e.type === 'blast') {
           if (e.nuke) nukeBang(a);

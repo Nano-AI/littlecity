@@ -4,6 +4,7 @@
 // each shape, self-lit where it burns. Owner: Mischief.
 
 import { compose, rotationY, scaling, translation, type Vec3 } from '@/core/mat4';
+import { rand } from '@/core/rand';
 import { airborne, MIST } from '@/gen/airborne';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { ball } from '@/parts/actors/kit';
@@ -488,4 +489,85 @@ export function ashMesh(): MeshData {
   sheet(b, d, 0, 0);
   sheet(b, d, 0, Math.PI / 2);
   return (ash = b.build());
+}
+
+// ── lightning (the Lightning tool: a little storm cloud gathers and strikes) ──
+
+/** All the storm cloud's puffs share this ink: one cloud, one outline. */
+export const STORM_INK = 0x5a12;
+const STORM_SHADES = ['#9a9fb0', '#6c7287', '#474c61'];
+const storms = new Map<string, MeshData>();
+/** A puff of the little storm cloud: shade 0 pale grey (gathering) to 2 thundery slate; `mist` the wash it thins to. */
+export function stormPuffMesh(look: number, shade: number, mist = false): MeshData {
+  const k = `${look % 3}${shade}${mist}`;
+  let m = storms.get(k);
+  if (m) return m;
+  const b = new MeshBuilder();
+  if (mist) b.setColor('#8d92a3').setPattern(MIST).setInk('storm-mist');
+  else b.setColor(STORM_SHADES[shade] ?? STORM_SHADES[2]!).setPattern(airborne(PATTERN.none)).setInkId(STORM_INK);
+  cloudPuff(b, look);
+  storms.set(k, (m = mist ? b.build() : cloudNormals(b.build(), 0.3)));
+  return m;
+}
+
+const bolts = new Map<number, MeshData>();
+/**
+ * A lightning bolt: a jagged ribbon from the cloud (y = 1) down to where it strikes (y = 0), with a short
+ * fork, in the XY plane facing +Z (turned to the camera), drawn both sides, self-lit, pale yellow-white with
+ * a pen line. About 0.14 wide at the top; scaled in y to its length.
+ */
+export function boltMesh(look: number): MeshData {
+  const l = look % 3;
+  let m = bolts.get(l);
+  if (m) return m;
+  const b = new MeshBuilder({ ink: `bolt${l}` });
+  b.setColor('#fffbe0').setPattern(GLOW).setInk('bolt');
+  const seed = 0xb017 + l * 31;
+  // The zigzag: a few kinks, swinging left and right, narrowing to the strike.
+  const n = 7;
+  const pts: [number, number][] = [[0, 1]];
+  for (let i = 1; i < n; i++) {
+    const y = 1 - i / n + (rand(seed, 'y', i) - 0.5) * 0.05;
+    pts.push([(i % 2 ? 1 : -1) * (0.08 + rand(seed, 'x', i) * 0.12), y]);
+  }
+  pts.push([0, 0]);
+  const ribbon = (line: [number, number][], w0: number, w1: number): void => {
+    for (let i = 0; i + 1 < line.length; i++) {
+      const [x0, y0] = line[i]!, [x1, y1] = line[i + 1]!;
+      const t0 = i / (line.length - 1), t1 = (i + 1) / (line.length - 1);
+      const a = w0 + (w1 - w0) * t0, c = w0 + (w1 - w0) * t1;
+      // Across the segment, in x (the bolt is mostly vertical).
+      sheet(b, [[x0 - a, y0], [x1 - c, y1], [x1 + c, y1], [x0 + a, y0]], 0, 0);
+    }
+  };
+  ribbon(pts, 0.07, 0.025);
+  // The fork: off the third kink, a short branch falling away.
+  const [fx, fy] = pts[3]!;
+  const s = fx > 0 ? 1 : -1;
+  ribbon([[fx, fy], [fx + s * 0.16, fy - 0.1], [fx + s * 0.12, fy - 0.2]], 0.035, 0.012);
+  m = b.build();
+  bolts.set(l, m);
+  return m;
+}
+
+let strikeFlash: MeshData | null = null;
+/** The flash where the bolt lands: a white-hot little star (a ball with spikes), radius about 1. */
+export function strikeFlashMesh(): MeshData {
+  if (strikeFlash) return strikeFlash;
+  const b = new MeshBuilder({ ink: 'strike-flash' });
+  b.setColor('#ffffff').setPattern(GLOW).setInk('flash');
+  ball(b, 0, 0, 0, 0.45, 0.45, 0.45, 10, 6);
+  for (let i = 0; i < 6; i++) sheet(b, [[-0.08, 0], [0, 1], [0.08, 0]], 0, (i / 6) * Math.PI * 2);
+  for (let i = 0; i < 6; i++) sheet(b, [[-0.08, 0], [0, -0.8], [0.08, 0]], 0, (i / 6) * Math.PI * 2 + 0.5);
+  return (strikeFlash = b.build());
+}
+
+let boltLight: MeshData | null = null;
+/** The bolt's light on the town round it: nested shells of a cold white wash, fading to nothing at the rim. */
+export function boltLightMesh(): MeshData {
+  if (boltLight) return boltLight;
+  const b = new MeshBuilder({ ink: 'bolt-light' });
+  b.setColor('#e8eeff').setPattern(MIST).setInk('bolt-light');
+  for (const r of [1, 0.86, 0.72, 0.58, 0.44, 0.3]) ball(b, 0, 0, 0, r, r * 0.7, r, 14, 7);
+  return (boltLight = b.build());
 }
