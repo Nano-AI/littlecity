@@ -19,7 +19,7 @@ import type { Column, Profile } from './field';
 const OUT = 0.17; // poles stand this far outside the cell edge (just past a 0.12 eave)
 const POLE = 0.045;
 
-interface Side {
+export interface Side {
   col: Column;
   /** Outward direction. */
   dx: number;
@@ -27,7 +27,7 @@ interface Side {
 }
 
 /** The outside faces of the mending columns. */
-function outsideSides(prof: Profile): Side[] {
+export function outsideSides(prof: Profile): Side[] {
   const sides: Side[] = [];
   for (const col of prof.columns.values()) {
     if (!col.mending) continue;
@@ -40,7 +40,7 @@ function outsideSides(prof: Profile): Side[] {
 }
 
 /** The ends of a side's run of poles: [left corner, right corner] at the base, looking out. */
-function sideEnds(s: Side): [Vec3, Vec3] {
+export function sideEnds(s: Side): [Vec3, Vec3] {
   const { col, dx, dz } = s;
   const cx = col.x + 0.5 + dx * (0.5 + OUT);
   const cz = col.z + 0.5 + dz * (0.5 + OUT);
@@ -51,6 +51,26 @@ function sideEnds(s: Side): [Vec3, Vec3] {
     [cx - tx * half, col.base, cz - tz * half],
     [cx + tx * half, col.base, cz + tz * half],
   ];
+}
+
+/** Where the ladder stands: its side, the middle of its foot line, its rails' half-spacing, its top and how far its foot is out. */
+export function ladderOf(prof: Profile, sides: Side[] = outsideSides(prof)): { side: Side; mx: number; mz: number; ux: number; uz: number; topY: number; foot: number } | null {
+  if (sides.length === 0) return null;
+  const seed = prof.s.seed;
+  const side = sides[Math.floor(rand(seed, 'ladder') * sides.length)]!;
+  const [a, c] = sideEnds(side);
+  const t = 0.3 + rand(seed, 'ladder-at') * 0.4;
+  const tx = c[0] - a[0], tz = c[2] - a[2];
+  const tl = Math.hypot(tx, tz) || 1;
+  return {
+    side,
+    mx: a[0] + tx * t,
+    mz: a[2] + tz * t,
+    ux: (tx / tl) * 0.12,
+    uz: (tz / tl) * 0.12,
+    topY: side.col.base + CELL_H + 0.25,
+    foot: 0.42,
+  };
 }
 
 export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly number[] | null): void {
@@ -100,16 +120,10 @@ export function scaffold(b: MeshBuilder, prof: Profile, roofColor: readonly numb
   });
 
   // A ladder up one side, leaning out from the first plank walk.
-  const ls = sides[Math.floor(rand(seed, 'ladder') * sides.length)]!;
+  const lad = ladderOf(prof, sides)!;
+  const ls = lad.side;
   {
-    const [a, c] = sideEnds(ls);
-    const t = 0.3 + rand(seed, 'ladder-at') * 0.4;
-    const mx = a[0] + (c[0] - a[0]) * t, mz = a[2] + (c[2] - a[2]) * t;
-    const tx = (c[0] - a[0]), tz = (c[2] - a[2]);
-    const tl = Math.hypot(tx, tz) || 1;
-    const ux = (tx / tl) * 0.12, uz = (tz / tl) * 0.12;
-    const topY = ls.col.base + CELL_H + 0.25;
-    const foot = 0.42;
+    const { mx, mz, ux, uz, topY, foot } = lad;
     b.setColor(rgb(DAMAGE_COLORS.fresh)).setPattern(PATTERN.none).setInk('ladder');
     const lo1: Vec3 = [mx - ux + ls.dx * foot, ls.col.base, mz - uz + ls.dz * foot];
     const lo2: Vec3 = [mx + ux + ls.dx * foot, ls.col.base, mz + uz + ls.dz * foot];
