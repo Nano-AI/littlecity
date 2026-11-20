@@ -196,6 +196,8 @@ export interface Person {
   inCloud: boolean;
   /** In an event's party (a wedding, a parade): never drawn into a scuffle. */
   party: boolean;
+  /** Dressed for an event (L57: the bride and the groom), else null. */
+  costume: 'bride' | 'groom' | null;
 }
 
 export interface CrowdEvents {
@@ -1562,7 +1564,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       inside: null, hop: null, leaving: false, startled: 0, startledFace: 0, edgeX: 0, edgeZ: 0, fadeTime: PEOPLE.fade,
       jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
       dodge: 0, dodgeTo: 0, dodgeV: 0, offX: 0, offZ: 0, rethought: false,
-      scuffle: null, inCloud: false, party: false,
+      scuffle: null, inCloud: false, party: false, costume: null,
     };
   };
 

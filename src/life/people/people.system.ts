@@ -168,6 +168,16 @@ interface Drawn {
   tool: { kind: Tool; handle: InstanceHandle } | null;
   /** What they carry on an errand (L51 and up). */
   load: { kind: Load; handle: InstanceHandle } | null;
+  /** Their everyday look, and the costume the drawing is in now (L57). */
+  base: Look;
+  costume: Person['costume'];
+}
+
+/** L57: a bride in white with her hair up, a groom in a dark coat and top hat. */
+export function costumeLook(base: Look, costume: Person['costume']): Look {
+  if (costume === 'bride') return { ...base, top: '#fbf8f2', bottom: '#fbf8f2', dress: true, hat: 'none', hairStyle: 'bun', girth: base.girth * 1.08 };
+  if (costume === 'groom') return { ...base, top: '#2c2b38', bottom: '#2c2b38', dress: false, hat: 'cap', hatColor: '#24232e' };
+  return base;
 }
 
 /** The tool in a person's hands now, from their pose and their job, or null. */
@@ -234,6 +244,14 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.load?.handle.release();
     d.load = null;
     return;
+  }
+  if (d.costume !== p.costume) {
+    // L57: dressed for the wedding (or back in everyday clothes): drawn afresh.
+    d.costume = p.costume;
+    d.look = costumeLook(d.base, p.costume);
+    d.rig = rigOf(d.look);
+    if (d.handles) for (const h of d.handles) h.release();
+    d.handles = null;
   }
   if (!d.handles) {
     // Built the first time they are seen, so a town of sixty does not mesh sixty people in one frame.
@@ -382,7 +400,7 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null, base: look, costume: null });
         },
         removed(p) {
           const d = drawn.get(p);

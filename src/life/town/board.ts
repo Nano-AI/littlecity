@@ -111,6 +111,8 @@ export interface Board {
   /** People on the board's plans, and people a chain holds as its hands. */
   busy(p: Person): boolean;
   claim(p: Person, chain: Chain): void;
+  /** Ends a person's plan now (as a failure: its `fail` runs). */
+  drop(p: Person): void;
   unclaim(p: Person): void;
   claimedBy(p: Person): Chain | null;
   /** A step at a cell: standing at `spot` facing `face`, or going in at a door. */
@@ -267,6 +269,9 @@ export function createBoard(opts: BoardOptions): Board {
     busy: (p) => plans.has(p) || claimed.has(p),
     claim(p, chain) {
       claimed.set(p, chain);
+    },
+    drop(p) {
+      end(p, true);
     },
     unclaim(p) {
       claimed.delete(p);

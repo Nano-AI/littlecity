@@ -642,6 +642,22 @@ its carrier. Nothing is ever left floating or vanishes in view.
   stall nobody packs folds by itself 20 s after closing. A pitch built over
   folds its stall at once. **Must not:** put a pitch where people must pass
   single file, on a doorstep, or beside a stall.
+- **L57 · 2 · A wedding** (LF-01) — a chapel (R-H01) whose door opens onto
+  the walking graph, with a square (else a street) within 12 steps that can
+  be walked to → posts outside the chapel door (`wedding|door`) and at the
+  square cell nearest its middle within reach (`wedding|square`); the chapel
+  nearest the heart if several. On the first day the town is seen (25–45 s
+  in) and then 70% of days (seeded, early in the day): the two grown-ups
+  living nearest the chapel from different houses walk there and go in; up
+  to 8 guests (children too) within 22 steps gather in a loose half-ring
+  outside the door looking at it; 4 s after enough are there (or 40 s) the
+  couple comes out, she in white with flowers, he in a dark coat and hat;
+  every bell in the town peals (L29) and petals burst over the doorstep;
+  they walk to the square, the guests following, children running ahead,
+  and everybody stands about cheering and chatting 14 s, then goes home,
+  where the couple change back. Everybody in it is in the party (L50 never
+  takes them). **Must not:** happen at night; the chapel erased or the
+  couple gone calls it off and everybody goes about their day.
 
 ### Animals and small motion
 

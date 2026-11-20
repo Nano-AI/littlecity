@@ -11,6 +11,8 @@ import breadTown from '../../../scenarios/life/L51.bread.scenario';
 import fishTown from '../../../scenarios/life/L53.fish.scenario';
 import watchTown from '../../../scenarios/life/L55.watchman.scenario';
 import marketTown from '../../../scenarios/life/L56.market-day.scenario';
+import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
+import type { WeddingChain } from './chains/wedding';
 import { MARKET } from '@/style/town-life';
 import type { MarketChain } from './chains/market-day';
 import type { Person } from '../people/crowd';
@@ -178,6 +180,30 @@ describe('L51 bread and L52 water', () => {
     } finally {
       MARKET.close = close;
     }
+  });
+
+  test('L57: a wedding: the couple go in, guests gather at the door, the couple come out dressed, all walk to the square, then home', () => {
+    const phases: string[] = [];
+    const waited = new Set<string>();
+    let dressed = 0;
+    const { w, ledger, t } = run(240, 'day', town.dressing, (t) => {
+      const wed = t.board.chains.find((c) => c.id === 'wedding') as WeddingChain;
+      if (phases[phases.length - 1] !== wed.phase) phases.push(wed.phase);
+      for (const p of t.crowd.people) {
+        if (p.mode === 'linger' && p.goal?.errand?.tag === 'wedding:wait') waited.add(p.id);
+        if (p.costume && p.visible) dressed++;
+      }
+    }, scenarioTown(weddingTown));
+    const wed = t.board.chains.find((c) => c.id === 'wedding') as WeddingChain;
+    expect(w.problems).toEqual([]);
+    expect(ledger.lost).toEqual([]);
+    expect(wed.held).toBeGreaterThanOrEqual(1);
+    expect(phases).toContain('gather');
+    expect(phases).toContain('procession');
+    expect(waited.size).toBeGreaterThanOrEqual(3);
+    expect(dressed).toBeGreaterThan(5);
+    // Over: nobody is left dressed up out in the street or in the party.
+    if (wed.phase === 'none') for (const p of t.crowd.people) expect(p.party).toBe(false);
   });
 
   test('the same town stepped the same way tells the same story', () => {

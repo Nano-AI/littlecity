@@ -146,3 +146,25 @@ export const MARKET = defineStyle(
   },
   { chance: [0, 1, 0.01], close: [0, 0.56, 0.01], buy: [0, 1, 0.01], watch: [0, 1, 0.01], reach: [4, 48, 1], abandon: [0, 120, 1] },
 );
+
+/** L57: the wedding. */
+export const WEDDING = defineStyle(
+  'wedding',
+  {
+    /** Share of days with a wedding (the first day the town is seen always has one), and how far into the day it may start (phase). */
+    chance: 0.7,
+    latest: 0.2,
+    /** Seconds after the town is first seen that the first day's wedding starts, at least. */
+    first: 25,
+    /** Guests at most, and the farthest (grid steps) they come from. */
+    guests: 8,
+    reach: 22,
+    /** Seconds the guests gather before the couple comes out regardless; seconds the couple is inside. */
+    gather: 40,
+    vows: 4,
+    /** Seconds on the doorstep (petals, bells) and at the square. */
+    step: 3.5,
+    square: 14,
+  },
+  { chance: [0, 1, 0.01], latest: [0, 0.5, 0.01], first: [0, 300, 1], guests: [0, 16, 1], reach: [4, 48, 1], gather: [5, 120, 1], vows: [0, 30, 0.5], step: [0, 10, 0.5], square: [0, 60, 1] },
+);
