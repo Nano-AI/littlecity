@@ -668,6 +668,11 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   ground (no water, block, floor or other use, at the stair's foot level) →
   stone paving; where a path or plaza lies straight ahead within 4, the
   paving runs on to meet it.
+- **U20 · 2 · Quay apron** (UF-09) — a straight run of bare ground (grass or
+  sand, no block, floor or other use) of up to 4 cells from a street to a
+  quay (R-D01) or quay wall (R-M05) → cobbled flush with the street; on its
+  water side a net rack or a stack of barrels or crates now and then. Not a
+  beach with no quay, not a pier's or jetty's foot.
 
 ---
 
