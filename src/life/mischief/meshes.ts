@@ -349,3 +349,143 @@ export function fireballMesh(): MeshData {
   ball(b, 0.15, 0.1, 0.35, 0.68, 0.62, 0.68, 12, 6);
   return (fireball = b.build());
 }
+
+// ── the nuke (design section 13b, the owner's nuke) ─────────────────────
+
+let casing: MeshData | null = null;
+/**
+ * The nuke itself, as it falls: a fat drab casing with a rounded nose, a yellow nose band and black-and-
+ * yellow stripes, a tail cone with four broad fins in a ring. Nose down at the origin, about 1.3 long.
+ */
+export function nukeCasingMesh(): MeshData {
+  if (casing) return casing;
+  const b = new MeshBuilder({ ink: 'nuke' });
+  const drab = '#7b8063';
+  b.setColor(drab).setPattern(PATTERN.metal).setInk('body');
+  // Nose (bottom) round, body fat, then tapering to the tail.
+  b.lathe([[0, 0], [0.12, 0.03], [0.2, 0.11], [0.25, 0.24], [0.26, 0.62], [0.24, 0.78], [0.15, 0.98], [0.08, 1.04]], { segments: 16 });
+  b.setColor(PALETTE.yellow).setPattern(PATTERN.none).setInk('band');
+  b.at(translation(0, 0.13, 0), () => b.lathe([[0.215, 0], [0.235, 0.09]], { segments: 16 }));
+  // Stripes round the middle.
+  for (let i = 0; i < 3; i++) {
+    b.setColor(i % 2 ? PALETTE.ink : PALETTE.yellow).setInk(`stripe${i}`);
+    b.at(translation(0, 0.42 + i * 0.05, 0), () => b.lathe([[0.263, 0], [0.263, 0.05]], { segments: 16 }));
+  }
+  // The fins: four broad plates round the tail, and a ring through them.
+  b.setColor(drab).setPattern(PATTERN.metal).setInk('fins');
+  for (let k = 0; k < 4; k++) {
+    b.at(rotationY((k * Math.PI) / 2), () => {
+      b.polygon([[0.06, 0.82, 0.012], [0.36, 0.98, 0.012], [0.36, 1.3, 0.012], [0.06, 1.2, 0.012]]);
+      b.polygon([[0.06, 1.2, -0.012], [0.36, 1.3, -0.012], [0.36, 0.98, -0.012], [0.06, 0.82, -0.012]]);
+    });
+  }
+  b.setColor(PALETTE.metal).setPattern(PATTERN.none).setInk('ring');
+  b.at(translation(0, 1.16, 0), () => {
+    b.lathe([[0.36, 0], [0.36, 0.1]], { segments: 16 });
+    b.lathe([[0.33, 0.1], [0.33, 0]], { segments: 16 });
+  });
+  return (casing = b.build());
+}
+
+/** Fire lobes share one ink: the fireball and the fire in the cloud are one drawn shape. */
+export const FIRE_INK = 0x5a11;
+const FIRE_TONES = ['#b8352b', '#f06a32', '#ffb648', '#fff1b8'];
+const fireLobes = new Map<string, MeshData>();
+/** A lobe of fire for the fireball and the cap: the puff shape, self-lit. Tone 0 deep red … 3 yellow-white. */
+export function fireLobeMesh(look: number, tone: number): MeshData {
+  const k = `${look % 3}${tone}`;
+  let m = fireLobes.get(k);
+  if (m) return m;
+  const b = new MeshBuilder();
+  b.setColor(FIRE_TONES[tone] ?? FIRE_TONES[1]!).setPattern(airborne(PATTERN.glow)).setInkId(FIRE_INK);
+  cloudPuff(b, look);
+  fireLobes.set(k, (m = cloudNormals(b.build())));
+  return m;
+}
+
+let shockRing: MeshData | null = null;
+/** The shockwave on the ground: a bright flat ring of radius 1 (inner 0.86), self-lit, never shaded. */
+/** Arcs the ring and the dust wall are drawn in, each spanning this share of the circle from angle 0. */
+export const ARCS = 24;
+export function shockRingMesh(): MeshData {
+  if (shockRing) return shockRing;
+  const b = new MeshBuilder({ ink: 'shock' });
+  b.setColor('#fffbe6').setPattern(airborne(PATTERN.glow)).setInk('ring');
+  const n = 4;
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n / ARCS) * Math.PI * 2, a1 = ((i + 1) / n / ARCS) * Math.PI * 2;
+    b.quad([Math.cos(a0) * 0.94, 0, Math.sin(a0) * 0.94], [Math.cos(a1) * 0.94, 0, Math.sin(a1) * 0.94], [Math.cos(a1), 0, Math.sin(a1)], [Math.cos(a0), 0, Math.sin(a0)]);
+  }
+  return (shockRing = b.build());
+}
+
+const walls = new Map<string, MeshData>();
+/**
+ * The low wall of dust behind the shockwave: one lumpy ring of radius 1 (lumps about 0.06 of it wide
+ * and up to 0.5 tall in world units, so it is scaled by the ring's radius across and not up), drawn as
+ * one fused shape with one outline. `mist`: the same as a wash, for when it thins and settles.
+ */
+export function dustWallMesh(kind: 'dust' | 'spray' | 'mist', look: number): MeshData {
+  const k = `${kind}${look % 3}`;
+  let m = walls.get(k);
+  if (m) return m;
+  const b = new MeshBuilder();
+  if (kind === 'mist') b.setColor(DAMAGE_COLORS.smokePale).setPattern(MIST).setInk('mist');
+  else if (kind === 'spray') b.setColor(PALETTE.foam).setPattern(airborne(PATTERN.foam)).setInkId(DUST_INK);
+  else b.setColor(DAMAGE_COLORS.dust).setPattern(airborne(PATTERN.none)).setInkId(DUST_INK);
+  // One arc (1/ARCS of the circle): lumps of two sizes, overlapping, a little in and out of the line.
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const j = i + (look % 3) * n;
+    const a = ((i + 0.5) / n / ARCS) * Math.PI * 2;
+    const k2 = (Math.sin(j * 2.3) + Math.sin(j * 0.7 + 1)) * 0.25;
+    const h = 0.38 + 0.18 * k2;
+    const rr = 0.985 + 0.012 * Math.sin(j * 1.7);
+    ball(b, Math.cos(a) * rr, h * 0.4, Math.sin(a) * rr, 0.07 + 0.015 * Math.sin(j), h, 0.07, 8, 4);
+  }
+  walls.set(k, (m = kind === 'mist' ? b.build() : cloudNormals(b.build(), 0.22)));
+  return m;
+}
+
+let shockBand: MeshData | null = null;
+/** The front of the shockwave standing up off the ground: a pale wash band of radius 1, 1 tall (it brightens what it passes). */
+export function shockBandMesh(): MeshData {
+  if (shockBand) return shockBand;
+  const b = new MeshBuilder({ ink: 'shock-band' });
+  b.setColor(PALETTE.white).setPattern(MIST).setInk('band');
+  b.lathe([[1, 0], [1, 0.5], [0.97, 1]], { segments: 48 });
+  b.lathe([[0.97, 1], [1, 0.5], [1, 0]], { segments: 48 });
+  return (shockBand = b.build());
+}
+
+let core: MeshData | null = null;
+/** The instant of the flash: a white-hot ball, radius 1. */
+export function nukeCoreMesh(): MeshData {
+  if (core) return core;
+  const b = new MeshBuilder({ ink: 'nuke-core' });
+  b.setColor('#fffdf2').setPattern(airborne(PATTERN.glow)).setInk('core');
+  ball(b, 0, 0, 0, 1, 1, 1, 14, 8);
+  return (core = b.build());
+}
+
+let spray: MeshData | null = null;
+/** Spray the shockwave throws up off water: a white puff, fused like the dust. */
+export function sprayMesh(): MeshData {
+  if (spray) return spray;
+  const b = new MeshBuilder();
+  b.setColor(PALETTE.foam).setPattern(airborne(PATTERN.foam)).setInkId(DUST_INK);
+  cloudPuff(b, 1);
+  return (spray = cloudNormals(b.build(), 0.22));
+}
+
+let ash: MeshData | null = null;
+/** A fleck of falling ash: a tiny grey diamond, crossed. */
+export function ashMesh(): MeshData {
+  if (ash) return ash;
+  const b = new MeshBuilder({ ink: 'ash' });
+  b.setColor('#6f6964').setPattern(airborne(PATTERN.none)).setInk('ash');
+  const d: [number, number][] = [[0, -0.5], [0.4, 0], [0, 0.5], [-0.4, 0]];
+  sheet(b, d, 0, 0);
+  sheet(b, d, 0, Math.PI / 2);
+  return (ash = b.build());
+}

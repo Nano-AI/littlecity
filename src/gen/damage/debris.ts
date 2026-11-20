@@ -8,7 +8,8 @@
 // chunks there; the blast animation flies the very same chunks from where
 // they were to where they rest, so when they land they become the heap.
 
-import { CELL_H, SEA_Y } from '@/core/grid';
+import { CELL_H, DIR4, SEA_Y } from '@/core/grid';
+import { ruinFall } from '@/world/damage';
 import { hash, rand } from '@/core/rand';
 import type { Mat4 } from '@/core/mat4';
 import { RUIN } from '@/style/damage';
@@ -347,11 +348,16 @@ function toppleOf(removed: readonly Poly[], col: Column, prof: Profile): Chunk {
   const sides = [[1, 0], [0, 1], [-1, 0], [0, -1]] as const;
   const start = Math.floor(rand(seed, 'topple') * 4);
   let dir: readonly [number, number] = sides[start]!;
-  for (let i = 0; i < 4; i++) {
-    const d = sides[(start + i) % 4]!;
-    if (prof.openGround(col.x + d[0], col.z + d[1], col.wreckBase) !== null) {
-      dir = d;
-      break;
+  // Blown over by a blast: away from it (the ruin keeps the way). Otherwise toward open ground.
+  const fell = ruinFall(prof.plan.world.blocks.get(prof.s.cells[0]!)?.ruin);
+  if (fell >= 0) dir = DIR4[fell]!;
+  else {
+    for (let i = 0; i < 4; i++) {
+      const d = sides[(start + i) % 4]!;
+      if (prof.openGround(col.x + d[0], col.z + d[1], col.wreckBase) !== null) {
+        dir = d;
+        break;
+      }
     }
   }
   let lo = Infinity;

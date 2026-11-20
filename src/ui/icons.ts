@@ -284,11 +284,16 @@ const DRAWINGS: Record<string, string> = {
     `<path ${thin} d="M15 24 Q16.2 20.6 19.4 19.6" stroke="${C.white}"/>` +
     sparkle(40.6, 8.6, 4.6, `fill="${C.yellow}" stroke-width="1.4"`),
 
+  // The nuke's own casing (as in the town): fat and finned, drab, a yellow band at the nose, nose down.
   nuke:
-    `<path d="M20.4 42.4 L21.6 27.6 L26.4 27.6 L27.6 42.4 Z" fill="${C.stoneShade}"/>` +
-    `<path d="M10.6 24.6 Q8.2 15.4 16.4 12.4 Q19.4 5.6 26.6 7.6 Q35.6 6.4 37.6 14.4 Q42.4 18.6 38.4 24.4 Q34.6 29.8 24 28.4 Q14 30.2 10.6 24.6 Z" fill="${C.orange}"/>` +
-    `<path ${thin} d="M15.2 21.2 Q17.6 17.2 22 18.8 Q25.6 15.2 29.6 18.4 Q33.6 18 34.4 21.6" fill="none"/>` +
-    `<path stroke-width="1.6" d="M6.6 43 Q12 39.6 17.6 41.8 M30.4 41.8 Q36 39.6 41.4 43"/>`,
+    `<g transform="rotate(-45 24 24)">` +
+    `<path d="M35 20.4 L41.6 13.4 L44.4 15.6 L39.4 21.8 Z M35 27.6 L41.6 34.6 L44.4 32.4 L39.4 26.2 Z" fill="#5d6249"/>` +
+    `<path d="M33.6 19.4 L38.6 20.6 L38.6 27.4 L33.6 28.6 Z" fill="#5d6249"/>` +
+    `<path d="M5.4 24 Q5.6 15.6 16.4 15.4 L30.6 16 Q34.4 16.6 34.4 24 Q34.4 31.4 30.6 32 L16.4 32.6 Q5.6 32.4 5.4 24 Z" fill="#7b8063"/>` +
+    `<path d="M11.8 16.4 Q9.6 24 11.8 31.6 L15.2 32.4 Q13.2 24 15.2 15.6 Z" fill="${C.yellow}"/>` +
+    `<path ${thin} d="M24.6 16 L24.6 32 M27.4 16.2 L27.4 31.8"/>` +
+    `<path ${thin} d="M17.6 19.4 Q24 18.4 30.2 19.2" stroke="${C.white}"/>` +
+    `</g>`,
 
   mallet:
     `<path d="M22.6 24.2 L36.6 38.4 L33.6 41.4 L19.6 27.2 Z" fill="${C.wood}"/>` +

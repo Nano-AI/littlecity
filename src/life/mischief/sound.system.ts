@@ -99,6 +99,63 @@ function boom(a: Audio, big: number): void {
   src.stop(t + 1.7);
 }
 
+/**
+ * The nuke going off (after the beat of silence the warning leaves): a sharp crack with the flash, a deep
+ * rolling boom arriving with the shockwave a moment later, and a long low rumble under the rising cloud.
+ */
+function nukeBang(a: Audio): void {
+  const { ac, master } = a;
+  const t = ac.currentTime;
+  const burst = (at: number, filter: BiquadFilterType, f0: number, f1: number, peak: number, attack: number, len: number, offset: number): void => {
+    const src = ac.createBufferSource();
+    src.buffer = a.noise;
+    src.loop = true;
+    const f = ac.createBiquadFilter();
+    f.type = filter;
+    f.frequency.setValueAtTime(f0, at);
+    f.frequency.exponentialRampToValueAtTime(f1, at + len);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    src.connect(f).connect(g).connect(master);
+    src.start(at, offset);
+    src.stop(at + len + 0.05);
+  };
+  // The crack.
+  burst(t, 'highpass', 2400, 900, 0.7, 0.004, 0.18, 0.1);
+  // The boom, with the shockwave.
+  const boomAt = t + 0.22;
+  const osc = ac.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(72, boomAt);
+  osc.frequency.exponentialRampToValueAtTime(22, boomAt + 2.2);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, boomAt);
+  g.gain.exponentialRampToValueAtTime(1.1, boomAt + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, boomAt + 2.6);
+  osc.connect(g).connect(master);
+  osc.start(boomAt);
+  osc.stop(boomAt + 2.7);
+  burst(boomAt, 'lowpass', 1100, 70, 0.9, 0.03, 3.2, 0.3);
+  // The rumble under the cloud.
+  const src = ac.createBufferSource();
+  src.buffer = a.noise;
+  src.loop = true;
+  src.playbackRate.value = 0.5;
+  const low = ac.createBiquadFilter();
+  low.type = 'lowpass';
+  low.frequency.value = 130;
+  const rg = ac.createGain();
+  rg.gain.setValueAtTime(0.0001, boomAt);
+  rg.gain.exponentialRampToValueAtTime(0.45, boomAt + 1.2);
+  rg.gain.setValueAtTime(0.45, boomAt + 3);
+  rg.gain.exponentialRampToValueAtTime(0.0001, boomAt + 14);
+  src.connect(low).connect(rg).connect(master);
+  src.start(boomAt, 0.7);
+  src.stop(boomAt + 14.1);
+}
+
 /** The nuke coming: a siren rising and falling, a whistle dropping in pitch, then a beat of silence before the bang. */
 function nukeWarning(a: Audio, fall: number): void {
   const { ac, master } = a;
@@ -166,8 +223,8 @@ export default defineSystem<State>({
         if (e.type === 'drop' && e.bomb.nuke) nukeWarning(a, e.bomb.fall);
         else if (e.type === 'lit') st.bellUntil = Math.max(st.bellUntil, a.ac.currentTime + 4);
         else if (e.type === 'blast') {
-          if (e.blast.water) pop(a.ac, a.master, a.noise, 0.25, 0.3);
-          else if (e.nuke) boom(a, 2.2);
+          if (e.nuke) nukeBang(a);
+          else if (e.blast.water) pop(a.ac, a.master, a.noise, 0.25, 0.3);
           else boom(a, 1);
         } else if (e.type === 'knock') pop(a.ac, a.master, a.noise, 0.18, (st.n++ % 5) * 0.2);
         else if (e.type === 'mend') strike(a.ac, a.master, 330, 'plank', 0.06);

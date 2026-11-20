@@ -26,7 +26,7 @@ import type { MischiefToolId } from './pieces';
 export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how: string }[] = [
   { tool: 'torch', name: 'Torch', how: 'Click a building to set it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
   { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes BOOM. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
-  { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a flash, a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
+  { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a white flash, a shockwave racing out, a fireball rising into a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
   { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
   { tool: 'mend', name: 'Mend', how: 'Click something damaged: scaffolding goes up, and each click mends a stage until it is exactly as you built it. Shift-click mends it at once.' },
 ];
@@ -89,12 +89,13 @@ const CSS = `
   background: #fffdf4;
   pointer-events: none;
   z-index: 45;
-  animation: lc-whiteout 0.7s ease-out forwards;
+  animation: lc-whiteout 0.62s linear forwards;
 }
+/* Hard white for a frame or two, then the light coming back. */
 @keyframes lc-whiteout {
-  0% { opacity: 0; }
-  8% { opacity: 1; }
-  30% { opacity: 0.9; }
+  0% { opacity: 1; }
+  11% { opacity: 1; }
+  35% { opacity: 0.5; }
   100% { opacity: 0; }
 }
 @keyframes lc-boom {
@@ -196,10 +197,9 @@ export function createMischiefTools(host: {
   };
   const off = director.on((e: MischiefEvent) => {
     if (e.type !== 'blast') return;
-    if (e.nuke && !e.blast.water) {
-      whiteout();
-      boom(e.blast.point, 'KA-BOOM!');
-    } else boom(e.blast.point, e.blast.water ? 'SPLOOSH!' : 'BOOM!');
+    // The nuke says it with light, not a word.
+    if (e.nuke) whiteout();
+    else boom(e.blast.point, e.blast.water ? 'SPLOOSH!' : 'BOOM!');
   });
 
   const blockOf = (pick: Pick | null): CellKey | null => (pick && pick.hit === 'block' ? pick.cell : null);

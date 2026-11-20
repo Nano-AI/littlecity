@@ -5,7 +5,7 @@ import { key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain, World } from '@/core/world';
 import { resolveShape } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
-import { ruinCause, ruinMending, ruinProgress, ruinStage } from '@/world/damage';
+import { ruinCause, ruinFall, ruinMending, ruinProgress, ruinStage } from '@/world/damage';
 import { applyEdit, emptyWorld } from '@/world/world';
 import { createMischiefEngine, type Env, type MischiefEngine } from './engine';
 
@@ -153,6 +153,23 @@ describe('blast', () => {
     sim.engine.blast([10.5, 0.9, 10.5], 1);
     sim.flush();
     for (let y = 1; y <= 3; y++) expect(sim.stage(10, y, 10)).toBe(3);
+  });
+
+  test('a planned blast does nothing until each hit is done, nearest first; trees fall away from it', () => {
+    const sim = town((b) => {
+      b.house(10, 10, { color: 1 });
+      b.put('tree', 13, 10);
+    });
+    const plan = sim.engine.blastPlan([10.5, 0.85, 10.5], 2);
+    expect(plan.hits.length).toBeGreaterThan(1);
+    expect(plan.hits.every((h, i) => i === 0 || plan.hits[i - 1]!.d <= h.d)).toBe(true);
+    sim.flush();
+    expect(sim.stage(10, 1, 10)).toBe(0);
+    for (const h of plan.hits) sim.engine.hit(h);
+    sim.flush();
+    expect(sim.stage(10, 1, 10)).toBe(3);
+    // East of the blast: it fell east.
+    expect(ruinFall(sim.world.blocks.get(key(13, 1, 10))!.ruin)).toBe(1);
   });
 
   test('in the water it only soaks', () => {
