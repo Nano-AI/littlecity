@@ -23,7 +23,9 @@ const pickAt = (ctx: ActionContext, ray: Parameters<typeof pickCell>[0]): Pick =
 describe('the tray catalogue', () => {
   test('every piece of the kind table is in exactly one drawer, and the tools are in Tools', () => {
     const inDrawers = DRAWER_IDS.flatMap((d) => drawerItems(d).map((i) => i.id));
-    expect([...inDrawers].sort()).toEqual([...allPieceIds(), 'change', 'paint', 'erase'].sort());
+    expect([...inDrawers].sort()).toEqual([...allPieceIds(), 'change', 'paint', 'erase', 'raise', 'dig', 'level'].sort());
+    // Shaping the land: the Land group starts the Nature drawer.
+    expect(drawerItems('nature').slice(0, 3).map((i) => i.id)).toEqual(['raise', 'dig', 'level']);
     expect(drawerItems('tools').map((i) => i.id)).toEqual(['change', 'paint', 'erase']);
     expect(drawerItems('build')[0]!.id).toBe('auto');
     // No drawer is one long row: ten at most, so keys 1–9 and 0 reach every item.

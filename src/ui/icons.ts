@@ -208,6 +208,41 @@ const DRAWINGS: Record<string, string> = {
       `<circle cx="31.6" cy="27.6" r="2.1" fill="${C.pink}"/><circle cx="18.6" cy="28.6" r="2.1" fill="${C.yellow}"/></g>`,
   ),
 
+  // ── shaping the land (the Land group of the Nature drawer) ───────────
+  // Raise: a grassy terrace lifted out of the ground, an arrow going up.
+  raise:
+    `<path d="M4.2 31.6 L24 43.2 L24 46.4 L4.3 35.2 Z" fill="${C.dirt}"/>` +
+    `<path d="M24 43.2 L43.8 31.6 L43.8 35 L24 46.4 Z" fill="${C.dirtDark}"/>` +
+    `<path d="M24.1 19.8 L43.8 31.6 L24 43.2 L4.2 31.6 Z" fill="${C.grass}"/>` +
+    `<path d="M11.8 22.2 L24 29.4 L24.1 38 L12 30.8 Z" fill="${C.dirt}"/>` +
+    `<path d="M24 29.4 L36.4 22.1 L36.2 30.6 L24.1 38 Z" fill="${C.dirtDark}"/>` +
+    `<path d="M24.2 14.6 Q30.8 18 36.4 22.1 Q30 26 24 29.4 Q17.6 26 11.8 22.2 Q17.8 18 24.2 14.6 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M8.6 33.4 L9.2 31.8 M37.8 33 L38.4 31.4 M19.2 21.2 L19.8 19.6 M27.4 23.4 L28 21.8"/>` +
+    `<g stroke-width="2.6"><path d="M39.8 17.4 L40 4.6"/><path d="M35.6 8.8 L40 4 L44.2 8.6"/></g>`,
+
+  // Dig: a hole in the ground with water in the bottom, and a spade.
+  dig:
+    `<path d="M4.2 28 L24 39.6 L24 43.2 L4.3 31.8 Z" fill="${C.dirt}"/>` +
+    `<path d="M24 39.6 L43.8 28 L43.8 31.6 L24 43.2 Z" fill="${C.dirtDark}"/>` +
+    `<path d="M24.1 16.2 L43.8 28 L24 39.6 L4.2 28 Z" fill="${C.grass}"/>` +
+    `<path d="M12.4 27.8 Q18 24.4 24.2 21.6 Q30.4 24.6 35.8 27.6 L35.6 31 Q30 28.4 24.1 25.6 Q18.2 28.6 12.6 31.4 Z" fill="${C.dirtDark}"/>` +
+    `<path d="M12.6 31.4 Q18.2 28.6 24.1 25.6 Q30 28.4 35.6 31 Q30 34.4 24 36.6 Q18 34.4 12.6 31.4 Z" fill="${C.sea}"/>` +
+    `<path ${thin} stroke="${C.seaInk}" d="M18.4 31.6 q1.6 -1.3 3.2 0 t3.2 0 M24.6 33.6 q1.5 -1.2 3 0 t3 0"/>` +
+    `<path d="M33.8 3.6 L36.4 4.8 L31 16.4 L28.4 15.2 Z" fill="${C.wood}" stroke-width="1.6"/>` +
+    `<path d="M26.2 13.6 L33.2 16.8 L31.4 22.4 Q27.6 24.8 24.6 21.6 Z" fill="${C.metal}"/>`,
+
+  // Level: flat ground with a spirit level lying on it, its bubble in the middle.
+  level:
+    `<path d="M4.2 30.4 L24 42 L24 45.4 L4.3 34 Z" fill="${C.dirt}"/>` +
+    `<path d="M24 42 L43.8 30.4 L43.8 33.8 L24 45.4 Z" fill="${C.dirtDark}"/>` +
+    `<path d="M24.1 18.6 L43.8 30.4 L24 42 L4.2 30.4 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M11.4 31.6 L12 30 M35.4 32.8 L36 31.2 M27.6 37.4 L28.2 35.8"/>` +
+    `<path d="M6.4 14.4 L41.8 14 L41.9 22.2 L6.5 22.6 Z" fill="${C.yellow}"/>` +
+    `<path ${thin} d="M10.4 14.4 L10.5 22.5 M37.8 14.1 L37.8 22.2"/>` +
+    `<path stroke-width="1.6" d="M17.4 16.6 Q24 15.4 30.6 16.4 L30.6 20.2 Q24 21.4 17.4 20.4 Z" fill="${C.glass}"/>` +
+    `<ellipse cx="24" cy="18.4" rx="2.6" ry="1.4" fill="${C.white}" stroke-width="1.2"/>` +
+    `<path ${thin} d="M21.2 16.2 L21.2 20.6 M26.8 16.2 L26.8 20.6"/>`,
+
   // ── tools ────────────────────────────────────────────────────────────
   change:
     `<g stroke-width="2.4"><path d="M11.4 21.4 A13 13 0 0 1 35.6 16.6"/><path d="M36.2 9.4 L35.8 17 L28.4 15.8"/>` +

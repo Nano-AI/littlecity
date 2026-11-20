@@ -18,7 +18,7 @@
 //
 // Props fixed to a bouncing structure move with it (carry.ts).
 
-import { cellFloorCenter, CELL_H, type CellKey } from '@/core/grid';
+import { cellFloorCenter, CELL_H, SEA_Y, type CellKey } from '@/core/grid';
 import { identity, positionOf, type Mat4 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { registriesFor } from '@/render/registries';
@@ -31,7 +31,7 @@ import { mulInto, place, squash } from '../motion/pose';
 import { carryTable } from './carry';
 import { cellCentre, changedStructures, diffTowns, edgeCentre, footOf, isFloorStructure, type EditDiff } from './diff';
 
-type ActKind = 'land' | 'wobble' | 'morph' | 'vanish';
+type ActKind = 'land' | 'wobble' | 'morph' | 'vanish' | 'ride';
 
 interface Act {
   kind: ActKind;
@@ -48,6 +48,8 @@ interface Act {
   /** Wobble: the way its top leans first (unit vector on the ground). */
   dx: number;
   dz: number;
+  /** Ride (shaping the land): the column rose (1) or sank (-1) under it. */
+  dy?: number;
   /** Land: the dust has been thrown. */
   dusted: boolean;
   /** Its matrix now (published through carry.ts). */
@@ -119,6 +121,24 @@ export function morphAt(t: number): number {
   return t >= 1 ? 1 : lerp(FEEDBACK.morphSquash, 1, pop(t));
 }
 
+/**
+ * Shaping the land: how far (in levels) a thing riding a raised column is drawn from its new place at
+ * t (0..1). It starts a level down, is carried up past its place and settles.
+ */
+export function riseAt(t: number): number {
+  if (t >= 1) return 0;
+  if (t < 0.4) return -1 + 1.16 * easeOut(t / 0.4);
+  const u = (t - 0.4) / 0.6;
+  return 0.16 * Math.cos(u * Math.PI * 1.5) * (1 - u);
+}
+/** A thing riding a dug column: it starts a level up and comes down with the ground, landing softly. */
+export function sinkAt(t: number): { drop: number; tall: number } {
+  if (t >= 1) return { drop: 0, tall: 1 };
+  if (t < 0.5) return { drop: 1 - easeInOut(t / 0.5), tall: 1 };
+  const u = (t - 0.5) / 0.5;
+  return { drop: 0, tall: 1 - 0.06 * Math.sin(u * Math.PI) * (1 - u) };
+}
+
 /** Sideways scale that keeps a squashed thing's bulk about the same. */
 const bulge = (tall: number): number => 1 + (1 - tall) * 0.55;
 
@@ -137,6 +157,13 @@ function poseAct(a: Act): void {
   } else if (a.kind === 'wobble') {
     const lean = wobbleAt(t) * a.amp;
     squash(a.px, a.py, a.pz, 1, 1, 1, 0, lean * a.dz, -lean * a.dx, a.m);
+  } else if (a.kind === 'ride') {
+    if ((a.dy ?? 1) > 0) squash(a.px, a.py, a.pz, 1, 1, 1, riseAt(t) * CELL_H, 0, 0, a.m);
+    else {
+      const { drop, tall } = sinkAt(t);
+      const w = bulge(tall);
+      squash(a.px, a.py, a.pz, w, tall, w, drop * CELL_H, 0, 0, a.m);
+    }
   } else if (a.kind === 'morph') {
     const h = 1 + (morphAt(t) - 1) * Math.max(a.amp, 0.4);
     const w = bulge(h);
@@ -296,6 +323,7 @@ function shapeChanged(state: State, ctx: SystemContext, prev: ShapePlan, next: S
   if (d.count > FEEDBACK.quietAbove) return; // a different town, not an edit
   state.editAt = d.centre;
   const busy = new Set<StructureId>();
+  if (d.ground.size > 0) groundMoved(state, ctx, prev, next, d, busy);
 
   // F01: what was placed lands.
   const land = (cell: CellKey, time: number): void => {
@@ -385,6 +413,37 @@ function shapeChanged(state: State, ctx: SystemContext, prev: ShapePlan, next: S
     // It leans away from the edit first, as if nudged.
     const away: [number, number] = dist > 1e-3 ? [(foot[0] - ex) / dist, (foot[2] - ez) / dist] : [1, 0];
     start(state, ctx, next, 'wobble', s, foot, FEEDBACK.wobbleTime, away);
+  }
+}
+
+/**
+ * Shaping the land: what rode a raised or dug column is carried with it (up past its place and back, or
+ * down to a soft landing); the ground throws a little dust where it rose or sank, and water splashes
+ * where land went under or came up out of it.
+ */
+function groundMoved(state: State, ctx: SystemContext, prev: ShapePlan, next: ShapePlan, d: EditDiff, busy: Set<StructureId>): void {
+  for (const c of d.carried) {
+    const id = next.structureAt.get(c);
+    const s = id === undefined ? undefined : next.structures.get(id);
+    if (!s || busy.has(s.id)) continue;
+    busy.add(s.id);
+    const act = start(state, ctx, next, 'ride', s, footOf(s), FEEDBACK.landTime * 1.25);
+    if (act) {
+      act.dy = d.ground.get((c & 63) + ((c >> 6) & 63) * 48) ?? 1;
+      act.dusted = true;
+      poseAct(act);
+    }
+  }
+  // The ground itself: a puff per column, fewer in a big stroke.
+  let n = 0;
+  const most = d.ground.size > 9 ? 0.45 : 1;
+  for (const [i, dy] of d.ground) {
+    if (n++ > 24) break;
+    if (most < 1 && rand(ctx.seed, 'ground', state.n, i) > most) continue;
+    const x = (i % 48) + 0.5, z = Math.floor(i / 48) + 0.5;
+    const was = prev.terrain.height[i]!, now = next.terrain.height[i]!;
+    if (now === 0 || was === 0) burst(state, ctx, x, SEA_Y + 0.05, z, 4, 0.8); // a splash
+    else dust(state, ctx, x, Math.max(was, now) * CELL_H, z, dy > 0 ? 0.85 : 0.6);
   }
 }
 

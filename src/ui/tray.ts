@@ -7,7 +7,7 @@ import { RAMPS } from '@/style/palette';
 import { houseStyle, RANDOM_STYLE } from '@/style/houses';
 import { el, iconButton, setIcon } from './dom';
 import { icon, styleIcon } from './icons';
-import { DRAWER_IDS, DRAWER_LABELS, drawerItems, drawerOf, isFloorPiece, isToolId, type DrawerId, type ItemId } from './pieces';
+import { DRAWER_IDS, DRAWER_LABELS, drawerItems, drawerOf, isFloorPiece, isLandTool, isToolId, type DrawerId, type ItemId } from './pieces';
 import { createStyleFlyout, styleName, type StyleFlyout } from './styles';
 
 export interface TrayState {
@@ -45,7 +45,7 @@ export interface Tray {
 
 /** The colours the swatch offers for the selected piece: each kind maps the index onto its own ramp. */
 export function swatchColors(item: ItemId): readonly string[] {
-  const ramp = isToolId(item) || isFloorPiece(item) ? 'wall' : placedInfo(item as PlacedKind).ramp;
+  const ramp = isToolId(item) || isFloorPiece(item) || isLandTool(item) ? 'wall' : placedInfo(item as PlacedKind).ramp;
   return RAMPS[ramp === 'none' ? 'wall' : ramp];
 }
 
@@ -120,6 +120,9 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
         attrs: { 'data-item': item.id, 'aria-pressed': String(item.id === state.item) },
         on: { click: () => api.select(item.id) },
       });
+      // The Land group (Raise, Dig, Level) is set off from the pieces after it.
+      if (item.group === 'land') button.classList.add('lc-group-start');
+      if (index > 0 && item.drawer === 'nature' && isLandTool(drawerItems(state.drawer)[index - 1]!.id) && !isLandTool(item.id)) button.classList.add('lc-group-after');
       row.append(button);
       if (item.id === 'house') styles.attach(button);
     });

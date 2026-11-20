@@ -7,13 +7,13 @@
 // is only targeting: which cell, which edge, which way stairs face, what the
 // Change tool steps to next.
 
-import { columnIndex, DIR4, edgeOf, inBounds, key, keyX, keyY, keyZ, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { columnIndex, DIR4, edgeOf, inBounds, inColumnBounds, key, keyX, keyY, keyZ, NO_CELL, SIZE_Y, type CellKey, type Dir4 } from '@/core/grid';
 import { AUTO_KINDS, KINDS, PALETTE_SIZE, placedInfo, type Kind, type PlacedKind } from '@/core/kinds';
 import type { Vec3 } from '@/core/mat4';
 import type { Edit, Rot, Terrain, World } from '@/core/world';
 import { houseStyle } from '@/style/houses';
 import { faceZone, type Pick } from './pick';
-import { isEdgePiece, isFloorPiece, isToolId, type ItemId } from './pieces';
+import { isEdgePiece, isFloorPiece, isLandTool, isToolId, type ItemId, type LandId } from './pieces';
 
 export interface ToolState {
   /** The selected tray item: a piece or a tool. */
@@ -22,6 +22,10 @@ export interface ToolState {
   swatch: number | 'auto';
   /** The house style for a new house: 0 or absent = Random. */
   style?: number;
+  /** Raise, Dig and Level: the brush, 1 to 3 columns across (the held length). Default 1. */
+  brush?: number;
+  /** Level during a stroke: the height the stroke began at. Default: the height of the column pointed at. */
+  levelTo?: number;
 }
 
 export interface ActionContext {
@@ -138,6 +142,7 @@ export function planUse(tool: ToolState, pick: Pick, ctx: ActionContext): Plan {
     return { tries: [], at: pick.cell, wiggle: true };
   }
   if (isToolId(item)) return nothing();
+  if (isLandTool(item)) return planLand(item, tool, pick, ctx);
 
   if (isFloorPiece(item)) {
     const cell = floorCell(pick, ctx);
@@ -167,6 +172,54 @@ export function planUse(tool: ToolState, pick: Pick, ctx: ActionContext): Plan {
     if (style && tool.swatch === 'auto') edit.color = style.wall;
   }
   return { tries: [edit], at: target };
+}
+
+/** The column a land tool acts on: the ground, block or water pointed at. */
+export function landColumn(pick: Pick): { x: number; z: number } {
+  return { x: keyX(pick.cell), z: keyZ(pick.cell) };
+}
+
+/**
+ * The columns under a brush (design section 6: 1, 2 or 3 across). A brush of
+ * 2 covers the pointed column and the three toward the corner the pointer is
+ * nearest, so it follows the pointer the way a ground run does.
+ */
+export function brushAt(pick: Pick, size: number): number[] {
+  const { x, z } = landColumn(pick);
+  const n = Math.max(1, Math.min(3, Math.round(size)));
+  let xs: number[], zs: number[];
+  if (n === 1) {
+    xs = [x];
+    zs = [z];
+  } else if (n === 3) {
+    xs = [x - 1, x, x + 1];
+    zs = [z - 1, z, z + 1];
+  } else {
+    xs = [x, x + (pick.point[0] - x >= 0.5 ? 1 : -1)];
+    zs = [z, z + (pick.point[2] - z >= 0.5 ? 1 : -1)];
+  }
+  const out: number[] = [];
+  for (const cz of zs) for (const cx of xs) if (inColumnBounds(cx, cz)) out.push(columnIndex(cx, cz));
+  return out;
+}
+
+/**
+ * Raise, Dig or Level on the pointed column with the brush (design section 6).
+ * Level brings every column of the brush one step toward `tool.levelTo` (a
+ * stroke's starting height), or toward the pointed column's own height.
+ */
+function planLand(item: LandId, tool: ToolState, pick: Pick, ctx: ActionContext): Plan {
+  const { x, z } = landColumn(pick);
+  const h = ctx.terrain.height[columnIndex(x, z)]!;
+  const at = key(x, Math.min(SIZE_Y - 1, h), z);
+  const cols = brushAt(pick, tool.brush ?? 1);
+  if (item === 'raise') return { tries: [{ type: 'land', up: cols, down: [] }], at };
+  if (item === 'dig') return { tries: [{ type: 'land', up: [], down: cols }], at };
+  const to = tool.levelTo ?? h;
+  const up = cols.filter((c) => ctx.terrain.height[c]! < to);
+  const down = cols.filter((c) => ctx.terrain.height[c]! > to);
+  if (up.length === 0 && down.length === 0) return nothing(at);
+  return { tries: [{ type: 'land', up, down }], at };
 }
 
 /**
