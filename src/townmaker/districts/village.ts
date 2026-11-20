@@ -91,17 +91,29 @@ export function buildBarn(town: Town, n: number, near = 14): boolean {
 
 /** An orchard: twelve trees in rows two apart each way, on grass, a lane along it. */
 export function buildOrchard(town: Town, n: number, near = 13): boolean {
-  const { g } = town;
-  const found = place(town, `orchard${n}`, 6, 5, near, 7);
-  if (!found) return false;
-  const f = found.frame, h = found.data;
-  const O = new Local(g, f);
-  const d = startDistrict(town, `orchard${n}`, f.x(3, 2), f.z(3, 2));
-  O.claim(0, 0, 6, 4, CLAIM.built);
-  for (let v = 0; v <= 4; v += 2) for (let u = 0; u <= 6; u += 2) O.put('tree', u, h, v, 0);
-  for (let u = 0; u <= 6; u++) pave(g, f.x(u, 5), f.z(u, 5));
-  O.way(d, 0, 5);
-  return true;
+  const { g, site } = town;
+  // Twelve trees (4 × 3) where there is room, nine (3 × 3), else six (3 × 2): all on one level, on grass.
+  for (const [cols, rows] of [[4, 3], [3, 3], [3, 2]] as const) {
+    const u1 = (cols - 1) * 2, v1 = (rows - 1) * 2;
+    const found = place(town, `orchard${n}-${cols}${rows}`, u1, v1 + 1, near, 6, [0, 1, 2, 3], (f) => {
+      for (let v = 0; v <= v1; v += 2) for (let u = 0; u <= u1; u += 2) if (site.isSand(f.x(u, v), f.z(u, v))) return false;
+      return true;
+    });
+    if (!found) continue;
+    const f = found.frame, h = found.data;
+    const O = new Local(g, f);
+    const d = startDistrict(town, `orchard${n}`, f.x(u1 >> 1, v1 >> 1), f.z(u1 >> 1, v1 >> 1));
+    O.claim(0, 0, u1, v1, CLAIM.built);
+    // A clear ring round it: a tree planted right beside an orchard tree would make a grove, not an orchard (U18).
+    O.claim(-1, -1, u1 + 1, -1, CLAIM.keep);
+    O.claim(-1, 0, -1, v1, CLAIM.keep);
+    O.claim(u1 + 1, 0, u1 + 1, v1, CLAIM.keep);
+    for (let v = 0; v <= v1; v += 2) for (let u = 0; u <= u1; u += 2) O.put('tree', u, h, v, 0);
+    for (let u = 0; u <= u1; u++) pave(g, f.x(u, v1 + 1), f.z(u, v1 + 1));
+    O.way(d, 0, v1 + 1);
+    return true;
+  }
+  return false;
 }
 
 /** A smithy: a one-storey house against a tower two high (its forge chimney), on a street near the square. */

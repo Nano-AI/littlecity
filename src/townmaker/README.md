@@ -40,7 +40,9 @@ fill the land the town left bare (clumps by a seeded noise, so five or more
 touching trees make groves), tree lines run along the streets out of town
 (an avenue every other cell), and the character sets how much of each:
 the most in a garden town and a hill town, the least in a harbour or marble
-city. Orchards (trees two apart in rows) grow in the farming village, the
+city. Near the heart only the high ground is wooded (a copse on the hill
+above the town). The survey's floor: 35 trees in every town, and orchards
+(farming two, market, river and garden one). Orchards (12, 9 or 6 trees two apart in rows, with a clear ring round them so no other tree makes them a grove; U18 gives them ladders, baskets and hives) grow in the farming village (two or three, among the fields), the
 river town, the garden town, the market town's outskirts and the castle
 town.
 

@@ -206,6 +206,8 @@ export function buildGreatMarket(town: Town): boolean {
     for (let v = 0; v < D; v++) for (let u = 0; u < W; u++) M.floor('plaza', u, v, h);
     for (const v of [1, D - 2]) for (let u = 1; u < W - 1; u += 2) M.put('stall', u, h, v);
     M.put('marble', W >> 1, h, 2, 3);
+    // Planter trees at its corners.
+    for (const [u, v] of [[0, 0], [W - 1, 0], [0, D - 1], [W - 1, D - 1]] as const) M.put('tree', u, h, v, 0);
     const hall = M.color('marble', [[1, h + 2, -2]], 'market-hall');
     for (let u = 1; u <= W - 2; u++) M.stack('pillar', u, -2, 2, 0);
     for (let u = 1; u <= W - 2; u++) for (const v of [-2, -3]) M.put('marble', u, h + 2, v, hall);

@@ -54,7 +54,9 @@ export function buildWoods(town: Town, amount: number): void {
       if (!bare(g, x, z)) continue;
       const i = columnIndex(x, z);
       const d = fromSquare(town, x, z);
-      if (d < 7) continue;
+      // Near the heart only the high ground is wooded (a copse on the hill above the town).
+      const high = g.h(x, z) >= Math.max(3, site.maxH - 2);
+      if (d < 7 && !high) continue;
       // Keep the cells round buildings and beside streets open (doors, yards, carts).
       let ok = true;
       for (const [dx, dz] of D4) {
@@ -66,8 +68,8 @@ export function buildWoods(town: Town, amount: number): void {
       }
       if (!ok) continue;
       const n = woodsNoise(g.seed, x, z, 7);
-      const edge = Math.min(1, (d - 7) / 8);
-      const p = n > 0.55 ? 0.85 * amount : n > 0.42 ? 0.35 * amount : 0.06 * amount;
+      const edge = high ? 1 : Math.min(1, (d - 7) / 8);
+      const p = Math.max(high ? 0.5 * amount : 0, n > 0.55 ? 0.85 * amount : n > 0.42 ? 0.35 * amount : 0.06 * amount);
       if (!g.chance(p * (0.5 + 0.5 * edge), 'woods', x, z)) continue;
       if (site.waterDist[i]! < 1) continue;
       if (g.put('tree', x, g.h(x, z), z, 0)) g.mark(x, z, CLAIM.built);

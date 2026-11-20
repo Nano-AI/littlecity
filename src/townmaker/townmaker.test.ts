@@ -14,6 +14,7 @@ import { applyEdit, emptyWorld, type World } from '@/world/world';
 import { generateIsland2 } from '@/terrain/terrain2';
 import { ENTRIES as GUIDE } from '@/guide/entries';
 import { CHARACTERS, PROMISES, type Character } from './character';
+import { orchards } from '@/rules/urban/orchards.fact';
 import { growTown, planTown } from './index';
 import { sized } from '../../tests/helpers/tier';
 
@@ -126,7 +127,7 @@ interface Surveyed {
 }
 
 /** Counts of the things a character's emphasis is made of. */
-function emphasisCounts(w: World, roleCount: Map<string, number>): Record<string, number> {
+function emphasisCounts(w: World, roleCount: Map<string, number>, orchardCount = 0): Record<string, number> {
   const c: Record<string, number> = { trees: 0, walls: 0, marble: 0, stalls: 0, stairs: 0, gardens: 0 };
   for (const b of w.blocks.values()) {
     if (b.kind === 'tree') c.trees!++;
@@ -149,6 +150,7 @@ function emphasisCounts(w: World, roleCount: Map<string, number>): Record<string
   c.cliffs = n('cliff-house');
   c.parks = n('park-lawn') + n('herb-garden') + n('greenhouse') + n('walled-garden');
   c.turrets = n('castle-turret');
+  c.orchards = orchardCount;
   return c;
 }
 
@@ -168,6 +170,8 @@ const EMPHASIS: Record<Character, Record<string, number>> = {
 };
 /** Every town: woods and tree lines. */
 const TREES_EVERYWHERE = 35;
+/** Orchards for the characters that promise them. */
+const ORCHARDS: Partial<Record<Character, number>> = { farming: 2, river: 1, gardens: 1, market: 1 };
 let SURVEY: Surveyed[] | null = null;
 function survey(): Surveyed[] {
   if (SURVEY) return SURVEY;
@@ -192,7 +196,7 @@ function survey(): Surveyed[] {
         roles: new Set([...town.shape.roles.values()].map((r) => r.role)),
         props: new Set([...town.dressing.props.map((p) => `${p.rule.split('.')[0]}/${p.type}`), ...town.dressing.actors.map((a) => `${a.rule.split('.')[0]}/${a.type}`), ...town.dressing.sockets.map((k) => k.rule.split('.')[0]!)]),
         rivers,
-        counts: emphasisCounts(w, roleCount),
+        counts: emphasisCounts(w, roleCount, orchards(town.shape.facts).list.length),
       });
     }
   }
@@ -225,8 +229,18 @@ describe('grow a town: the survey (seeds 1 to 30, both generators)', () => {
       // A river town needs its river.
       if (s.character === 'river' && s.gen === 2 && s.rivers === 0) continue;
       for (const [k, min] of Object.entries(want)) if ((s.counts[k] ?? 0) < min) misses.push(`g${s.gen} s${s.seed} ${s.character}: ${k} ${s.counts[k]} < ${min}`);
+      const orchardFloor = ORCHARDS[s.character] ?? 0;
+      if ((s.counts.orchards ?? 0) < orchardFloor) misses.push(`g${s.gen} s${s.seed} ${s.character}: orchards ${s.counts.orchards} < ${orchardFloor}`);
       if (s.counts.trees! < TREES_EVERYWHERE) misses.push(`g${s.gen} s${s.seed} ${s.character}: trees ${s.counts.trees} < ${TREES_EVERYWHERE}`);
     }
+    const per = CHARACTERS.map((ch) => {
+      const ts = survey().filter((x) => x.character === ch);
+      if (!ts.length) return `${ch}: none`;
+      const avg = (k: string): string => (ts.reduce((a, x) => a + (x.counts[k] ?? 0), 0) / ts.length).toFixed(1);
+      const min = (k: string): number => Math.min(...ts.map((x) => x.counts[k] ?? 0));
+      return `${ch}: trees avg ${avg('trees')} min ${min('trees')}, orchards avg ${avg('orchards')} min ${min('orchards')}`;
+    });
+    console.log(`trees and orchards per character:\n${per.join('\n')}`);
     console.log(`emphasis per town:\n${lines.join('\n')}\nmisses (${misses.length}):\n${misses.join('\n')}`);
     expect(misses.length).toBeLessThanOrEqual(Math.ceil(survey().length * 0.15));
   });
