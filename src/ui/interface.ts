@@ -227,6 +227,8 @@ export function createInterface(host: InterfaceHost): Interface {
   let shown: Character[] = [];
   const grow = (avoid: readonly Character[] = []): void => {
     mischief.undo();
+    // A new town: nothing of the old one's mischief (a scorch, a cloud, a fire, a mend under way) stays.
+    mischiefOf(view.stage).reset();
     growth.stop();
     setGhost(null, '');
     const plan = planTown(game.terrain, game.world.seed, { avoid });

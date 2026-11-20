@@ -23,6 +23,7 @@ import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
 import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import type { Person } from '../people/crowd';
+import { ownStage, type Owned } from './owned';
 import { mischiefOf, type Director } from './director';
 import type { Brigade } from './response';
 
@@ -155,6 +156,8 @@ interface Steam {
 }
 interface State {
   d: Director;
+  /** Everything this draws (so dispose takes back all of it). */
+  own: Owned;
   cart: InstanceHandle | null;
   handle: InstanceHandle | null;
   helmets: Map<Person, InstanceHandle>;
@@ -215,9 +218,11 @@ export default defineSystem<State>({
   order: 11,
   create(ctx) {
     const d = mischiefOf(ctx.stage);
-    const pool = (m: () => MeshData): Pool => new Pool(ctx.stage, m);
+    const own = ownStage(ctx.stage);
+    const pool = (m: () => MeshData): Pool => new Pool(own.stage, m);
     return {
       d,
+      own,
       cart: null,
       handle: null,
       helmets: new Map(),
@@ -231,7 +236,7 @@ export default defineSystem<State>({
       steamIn: 0,
     };
   },
-  update(st, dt, signals, ctx) {
+  update(st, dt, signals) {
     st.time += dt;
     const P = st.pools;
     const twos = Math.floor(st.time * 12);
@@ -243,8 +248,8 @@ export default defineSystem<State>({
 
     // ── the pump cart ──────────────────────────────────────────────────
     if (pump) {
-      if (!st.cart) st.cart = ctx.stage.spawnMesh(pumpCartMesh(), HIDDEN);
-      if (!st.handle) st.handle = ctx.stage.spawnMesh(pumpHandle(), HIDDEN);
+      if (!st.cart) st.cart = st.own.stage.spawnMesh(pumpCartMesh(), HIDDEN);
+      if (!st.handle) st.handle = st.own.stage.spawnMesh(pumpHandle(), HIDDEN);
       const { x, y, z, face } = pump.at;
       const rolling = pump.state === 'wheel' || pump.state === 'return';
       // A little bounce over the cobbles while it rolls.
@@ -418,5 +423,6 @@ export default defineSystem<State>({
     for (const h of [...st.hoses, ...st.jet, ...st.drops, ...st.helmets.values(), ...st.buckets.values()]) h.release();
     for (const s of st.steam) s.h.release();
     for (const p of Object.values(st.pools)) p.dispose();
+    st.own.releaseAll();
   },
 });

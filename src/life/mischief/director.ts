@@ -69,7 +69,9 @@ export type MischiefEvent =
   | { type: 'drop'; bomb: Bomb }
   | { type: 'blast'; bomb: number; blast: BlastEvent; nuke?: boolean }
   | { type: 'knock'; structure: StructureId; cell: CellKey }
-  | { type: 'mend'; structure: StructureId; cell: CellKey };
+  | { type: 'mend'; structure: StructureId; cell: CellKey }
+  /** Everything going on was called off (undo mid-act, or a different town): drop whatever is still showing. */
+  | { type: 'reset' };
 
 export class Director {
   readonly engine: MischiefEngine;
@@ -366,6 +368,7 @@ export class Director {
 
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
+    this.emit({ type: 'reset' });
     this.extra = [];
     this.waves = [];
     this.engine.cancel();
