@@ -99,6 +99,40 @@ function boom(a: Audio, big: number): void {
   src.stop(t + 1.7);
 }
 
+/** The nuke coming: a siren rising and falling, a whistle dropping in pitch, then a beat of silence before the bang. */
+function nukeWarning(a: Audio, fall: number): void {
+  const { ac, master } = a;
+  const t = ac.currentTime;
+  const siren = ac.createOscillator();
+  siren.type = 'triangle';
+  for (let i = 0; i < 3; i++) {
+    siren.frequency.setValueAtTime(420, t + i * 0.9);
+    siren.frequency.linearRampToValueAtTime(780, t + i * 0.9 + 0.45);
+    siren.frequency.linearRampToValueAtTime(420, t + i * 0.9 + 0.9);
+  }
+  const sg = ac.createGain();
+  sg.gain.setValueAtTime(0.0001, t);
+  sg.gain.exponentialRampToValueAtTime(0.06, t + 0.2);
+  sg.gain.setValueAtTime(0.06, t + 2.4);
+  sg.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+  siren.connect(sg).connect(master);
+  siren.start(t);
+  siren.stop(t + 2.9);
+  // The whistle: from high to low over the fall, stopping short of the bang (the beat of silence).
+  const whistle = ac.createOscillator();
+  whistle.type = 'sine';
+  whistle.frequency.setValueAtTime(2200, t + 0.4);
+  whistle.frequency.exponentialRampToValueAtTime(380, t + fall + 0.5);
+  const wg = ac.createGain();
+  wg.gain.setValueAtTime(0.0001, t + 0.4);
+  wg.gain.exponentialRampToValueAtTime(0.05, t + 0.8);
+  wg.gain.setValueAtTime(0.05, t + fall + 0.4);
+  wg.gain.exponentialRampToValueAtTime(0.0001, t + fall + 0.55);
+  whistle.connect(wg).connect(master);
+  whistle.start(t + 0.4);
+  whistle.stop(t + fall + 0.6);
+}
+
 export default defineSystem<State>({
   id: 'mischief.sound',
   order: 101,
@@ -129,9 +163,11 @@ export default defineSystem<State>({
       st.d.on((e) => {
         const a = st.audio;
         if (!a || !st.wanted) return;
-        if (e.type === 'lit') st.bellUntil = Math.max(st.bellUntil, a.ac.currentTime + 4);
+        if (e.type === 'drop' && e.bomb.nuke) nukeWarning(a, e.bomb.fall);
+        else if (e.type === 'lit') st.bellUntil = Math.max(st.bellUntil, a.ac.currentTime + 4);
         else if (e.type === 'blast') {
           if (e.blast.water) pop(a.ac, a.master, a.noise, 0.25, 0.3);
+          else if (e.nuke) boom(a, 2.2);
           else boom(a, 1);
         } else if (e.type === 'knock') pop(a.ac, a.master, a.noise, 0.18, (st.n++ % 5) * 0.2);
         else if (e.type === 'mend') strike(a.ac, a.master, 330, 'plank', 0.06);

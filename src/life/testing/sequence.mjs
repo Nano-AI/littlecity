@@ -189,6 +189,7 @@ try {
         const m = lc.mischief;
         if (e.verb === 'fire') { done.push(m.ignite(cell) ? 'lit' : 'would not catch'); continue; }
         if (e.verb === 'bomb') { m.dropBomb([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('bomb'); continue; }
+        if (e.verb === 'nuke') { m.dropNuke([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('nuke'); continue; }
         if (e.verb === 'knock') { done.push(m.knock(cell) ? 'knocked' : 'no'); continue; }
         if (e.verb === 'mend' || e.verb === 'mendall') { done.push(m.mend(cell, e.verb === 'mendall') ? 'mended' : 'no'); continue; }
         if (e.verb === 'undo') { if (!(m.active && (m.cancel(), true))) lc.game.undo(); done.push('undone'); continue; }

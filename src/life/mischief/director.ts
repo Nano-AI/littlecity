@@ -25,6 +25,9 @@ import { rand } from '@/core/rand';
 /** The town mending itself: seconds of quiet after a building was hurt, a spread on top, seconds a step, a crew's speed. */
 export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2 };
 
+/** The nuke: its fall and fuse (seconds), its power against a bomb's, how near the middle chunks fly, the crater's radius. */
+export const NUKE = { fall: 2.4, fuse: 1.1, power: 7, fly: 2.2, crater: 2.6 };
+
 /** A click of the Mend tool: a quarter of the way. */
 const MEND_CLICK = MEND_STEPS / 4;
 import type { LifeStage } from '../api';
@@ -53,12 +56,14 @@ export interface Bomb {
   age: number;
   /** Seconds it falls before it lands. */
   fall: number;
+  /** The big one (design section 13b, the owner's nuke): a far bigger blast, a mushroom cloud, a crater. */
+  nuke?: boolean;
 }
 
 export type MischiefEvent =
   | { type: 'lit'; cell: CellKey }
   | { type: 'drop'; bomb: Bomb }
-  | { type: 'blast'; bomb: number; blast: BlastEvent }
+  | { type: 'blast'; bomb: number; blast: BlastEvent; nuke?: boolean }
   | { type: 'knock'; structure: StructureId; cell: CellKey }
   | { type: 'mend'; structure: StructureId; cell: CellKey };
 
@@ -148,6 +153,39 @@ export class Director {
     return bomb;
   }
 
+  /** The nuke: a longer fall with a whistle, a beat of silence, and the big one. */
+  dropNuke(point: readonly [number, number, number]): Bomb {
+    this.open();
+    const bomb: Bomb = { id: this.nextBomb++, point: [point[0], point[1], point[2]], age: 0, fall: NUKE.fall, nuke: true };
+    this.bombs.push(bomb);
+    this.emit({ type: 'drop', bomb });
+    return bomb;
+  }
+
+  /** Edits the director makes itself (the crater), handed to the game with the engine's on the next flush. */
+  private extra: Edit[] = [];
+
+  /** A crater: the ground goes down a level round the point, two at the middle (never below the sea, never at the map's edge). */
+  private crater(point: readonly [number, number, number]): void {
+    const shape = this.shape;
+    if (!shape) return;
+    const cx = point[0], cz = point[2];
+    for (const [r, pass] of [[NUKE.crater, 0], [NUKE.crater * 0.5, 1]] as const) {
+      const down: number[] = [];
+      for (let z = Math.floor(cz - r); z <= Math.ceil(cz + r); z++) {
+        for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+          if (x < 1 || z < 1 || x > 46 || z > 46) continue;
+          // A rough bowl: the rim wanders a little by the column.
+          const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) * (0.85 + rand(x, z, pass, 'rim') * 0.3);
+          if (d > r) continue;
+          if (shape.terrain.height[x + z * 48]! - pass <= 0) continue;
+          down.push(x + z * 48);
+        }
+      }
+      if (down.length > 0) this.extra.push({ type: 'land', up: [], down });
+    }
+  }
+
   /** The mallet: the whole building a stage worse. */
   knock(cell: CellKey): boolean {
     const s = this.shape;
@@ -195,10 +233,11 @@ export class Director {
     for (let i = this.bombs.length - 1; i >= 0; i--) {
       const b = this.bombs[i]!;
       b.age += dt;
-      if (b.age >= b.fall + BLAST.fuse) {
+      if (b.age >= b.fall + (b.nuke ? NUKE.fuse : BLAST.fuse)) {
         this.bombs.splice(i, 1);
-        const blast = this.engine.blast(b.point, 1);
-        this.emit({ type: 'blast', bomb: b.id, blast });
+        const blast = b.nuke ? this.engine.blast(b.point, NUKE.power, { fly: NUKE.fly, rim: true }) : this.engine.blast(b.point, 1);
+        if (b.nuke && !blast.water) this.crater(b.point);
+        this.emit({ type: 'blast', bomb: b.id, blast, ...(b.nuke ? { nuke: true } : {}) });
         for (const cell of blast.lit) this.emit({ type: 'lit', cell });
       }
     }
@@ -268,7 +307,8 @@ export class Director {
 
   /** The app, once a frame: hands the engine's edits to the game, and closes the act when all is quiet. */
   flush(): void {
-    const edits = this.engine.takeEdits();
+    const edits = [...this.engine.takeEdits(), ...this.extra];
+    this.extra = [];
     if (edits.length > 0) {
       if (this.act) this.host?.apply(edits);
       else this.host?.edit(edits);
@@ -294,6 +334,7 @@ export class Director {
 
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
+    this.extra = [];
     this.engine.cancel();
     this.mendOwed.clear();
     this.bombs.length = 0;

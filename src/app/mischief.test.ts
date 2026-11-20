@@ -110,6 +110,20 @@ describe('one act of mischief is one undo step', () => {
     expect(game.world.blocks.get(key(20, 1, 10))!.ruin).toBe(still);
   });
 
+  test('a nuke flattens far more than a bomb, leaves a crater, and one undo puts back the town and the land', () => {
+    const { game, d, run } = setup();
+    d.rebuild = false;
+    const before = game.world;
+    d.dropNuke([11.5, 0.8, 11.5]);
+    run(4);
+    // Far beyond a bomb's reach (the house at 20 is 8.5 cells off): wrecked.
+    expect(ruinStage(game.world.blocks.get(key(20, 1, 10))!.ruin)).toBeGreaterThanOrEqual(2);
+    expect(game.world.terrainEdits?.size ?? 0).toBeGreaterThan(0);
+    d.cancel();
+    same(game.world, before);
+    expect(game.world.terrainEdits?.size ?? 0).toBe(0);
+  });
+
   test('mending is a step of its own, and mending everything restores the town exactly', () => {
     const { game, d, run } = setup();
     const before = game.world;

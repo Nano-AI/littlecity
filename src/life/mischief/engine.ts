@@ -94,7 +94,11 @@ export interface MischiefEngine {
   /** The town changed (or first appeared). */
   sync(shape: ShapePlan): void;
   ignite(cell: CellKey): boolean;
-  blast(point: readonly [number, number, number], power?: number): BlastEvent;
+  /**
+   * A bang. `fly`: blocks further than this from the point change state without chunks in the air (a
+   * big blast flies only what is near its middle). `rim`: fires start round the edge rather than near.
+   */
+  blast(point: readonly [number, number, number], power?: number, opts?: { fly?: number; rim?: boolean }): BlastEvent;
   applyDamage(cell: CellKey, cause: DamageCause, amount?: number): boolean;
   repair(cell: CellKey, amount?: number | 'all'): boolean;
   douse(cell: CellKey, amount: number): void;
@@ -322,7 +326,7 @@ export function createMischiefEngine(seed: number): MischiefEngine {
     ignite(cell) {
       return light(cell);
     },
-    blast(point, power = 1) {
+    blast(point, power = 1, opts = {}) {
       const ev: BlastEvent = { point: [point[0], point[1], point[2]], power, water: false, hit: [], lit: [] };
       if (!world || !shape) return ev;
       const px = Math.floor(point[0]), pz = Math.floor(point[2]);
@@ -351,9 +355,10 @@ export function createMischiefEngine(seed: number): MischiefEngine {
       for (const { cell, d } of cells) {
         const k = stoneAt(cell) ? BLAST.stone : 1;
         const stage: DamageStage = d <= BLAST.rubble * power * k ? 3 : d <= BLAST.wreck * power * k ? 2 : 1;
-        if (worsen(cell, 'blast', stage, stage >= 2)) {
+        const fly = stage >= 2 && d <= (opts.fly ?? Infinity);
+        if (worsen(cell, 'blast', stage, fly)) {
           ev.hit.push({ cell, stage });
-          if (stage === 3) collapse(cell, 'blast', true);
+          if (stage === 3) collapse(cell, 'blast', fly);
         }
         // A blast puts out what it flattens.
         const f = fires.get(cell);
@@ -364,7 +369,9 @@ export function createMischiefEngine(seed: number): MischiefEngine {
         }
       }
       for (const { cell, d } of cells) {
-        if (d > BLAST.ignite * power || catchOf(cell) < 0.5 || ruinStage(ruinOf(cell)) >= 3) continue;
+        if (opts.rim && (d < BLAST.rubble * power || d > BLAST.wreck * power * 1.15)) continue;
+        if (!opts.rim && d > BLAST.ignite * power) continue;
+        if (catchOf(cell) < 0.5 || ruinStage(ruinOf(cell)) >= 3) continue;
         if (rand(seed, 'blast-fire', cell, tick) < BLAST.igniteChance && light(cell)) ev.lit.push(cell);
       }
       return ev;

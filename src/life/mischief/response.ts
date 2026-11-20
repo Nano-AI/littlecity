@@ -55,6 +55,8 @@ export const RESPONSE = {
   onlookers: 8,
   /** People within this many cells of a fire or a bomb get clear. */
   clear: 2.4,
+  /** Everyone within this many cells of a nuke runs. */
+  nukeClear: 12,
   /** Where they go to watch from. */
   watch: 4.5,
   /** Buildings with a crew at once, and hands to a crew. */
@@ -187,7 +189,7 @@ export function fireChain(given?: Director): FireChain {
   let off: (() => void) | null = null;
   let offOn: Director | null = null;
   /** Bomb drills: people sent clear of a bomb, and the time to go back and stare. */
-  const bombs = new Map<number, { x: number; z: number; people: Person[]; backAt: number | null }>();
+  const bombs = new Map<number, { x: number; z: number; people: Person[]; backAt: number | null; big: boolean }>();
 
   /** Every person in the town who is already somebody's answer to mischief. */
   const engaged = (p: Person): boolean => {
@@ -540,22 +542,24 @@ export function fireChain(given?: Director): FireChain {
     if (e.type === 'drop') {
       const [bx, , bz] = e.bomb.point;
       const cell = key(Math.floor(bx), Math.max(0, Math.floor(e.bomb.point[1] / CELL_H)), Math.floor(bz));
-      const safe = ringAround(board, [cell], RESPONSE.watch, RESPONSE.watch + 2.5);
+      // A nuke clears the whole neighbourhood (everyone looks up at the whistle and runs).
+      const big = e.bomb.nuke === true;
+      const safe = big ? ringAround(board, [cell], RESPONSE.nukeClear + 1, RESPONSE.nukeClear + 5) : ringAround(board, [cell], RESPONSE.watch, RESPONSE.watch + 2.5);
       const people: Person[] = [];
       for (const p of board.crowd.people) {
         if (p.mode === 'gone' || !p.visible || engaged(p)) continue;
-        if (Math.hypot(p.x - bx, p.z - bz) > RESPONSE.clear + 1.5) continue;
+        if (Math.hypot(p.x - bx, p.z - bz) > (big ? RESPONSE.nukeClear : RESPONSE.clear + 1.5)) continue;
         const to = safe[(people.length * 3 + (p.seed & 1023)) % Math.max(1, safe.length)];
         if (to === undefined || !reaches(board, p, to)) continue;
         const at = middle(board, to);
         // Duck, then run.
         board.assign(p, plan(board, [
-          board.stepAt(p.cell, { spot: { x: p.x, z: p.z }, face: facing(p, { x: bx, z: bz }), pose: 'cover', linger: 0.6, tag: 'bomb:duck' }),
+          board.stepAt(p.cell, { spot: { x: p.x, z: p.z }, face: facing(p, { x: bx, z: bz }), pose: 'cover', linger: 0.25, tag: 'bomb:duck' }),
           board.stepAt(to, { spot: { x: at.x, z: at.z }, face: facing(at, { x: bx, z: bz }), pose: 'cover', linger: 1e6, brisk: true, tag: 'bomb:clear' }),
         ]));
         people.push(p);
       }
-      bombs.set(e.bomb.id, { x: bx, z: bz, people, backAt: null });
+      bombs.set(e.bomb.id, { x: bx, z: bz, people, backAt: null, big });
     } else if (e.type === 'blast') {
       const b = bombs.get(e.bomb);
       if (b) b.backAt = board.now + 2.5;
@@ -598,7 +602,8 @@ export function fireChain(given?: Director): FireChain {
       for (const [id, b] of bombs) {
         if (b.backAt === null || board.now < b.backAt) continue;
         const cell = key(Math.floor(b.x), 1, Math.floor(b.z));
-        const ring = ringAround(board, [cell], 1.4, 2.6);
+        // Back to stare: at the crater's rim for the big one.
+        const ring = b.big ? ringAround(board, [cell], 3.5, 6) : ringAround(board, [cell], 1.4, 2.6);
         b.people.forEach((p, i) => {
           const to = ring[(i * 2 + (p.seed & 1023)) % Math.max(1, ring.length)];
           if (to === undefined || !reaches(board, p, to)) return sendHome(board, p);

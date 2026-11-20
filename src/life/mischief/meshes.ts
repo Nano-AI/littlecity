@@ -337,3 +337,15 @@ export function fallenSailsMesh(burnt: boolean): MeshData {
   sails.set(burnt, (m = b.build()));
   return m;
 }
+
+let fireball: MeshData | null = null;
+/** The nuke's fireball: a self-lit ball, a hotter core showing at one side. Radius 1. */
+export function fireballMesh(): MeshData {
+  if (fireball) return fireball;
+  const b = new MeshBuilder();
+  b.setColor(DAMAGE_COLORS.flameRoot).setPattern(GLOW).setInkId(0x5a10);
+  ball(b, 0, 0, 0, 1, 0.92, 1, 14, 8);
+  b.setColor(DAMAGE_COLORS.flameTip).setInkId(0x5a10);
+  ball(b, 0.15, 0.1, 0.35, 0.68, 0.62, 0.68, 12, 6);
+  return (fireball = b.build());
+}

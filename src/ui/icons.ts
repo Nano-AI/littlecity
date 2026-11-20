@@ -274,6 +274,12 @@ const DRAWINGS: Record<string, string> = {
     `<path ${thin} d="M15 24 Q16.2 20.6 19.4 19.6" stroke="${C.white}"/>` +
     sparkle(40.6, 8.6, 4.6, `fill="${C.yellow}" stroke-width="1.4"`),
 
+  nuke:
+    `<path d="M20.4 42.4 L21.6 27.6 L26.4 27.6 L27.6 42.4 Z" fill="${C.stoneShade}"/>` +
+    `<path d="M10.6 24.6 Q8.2 15.4 16.4 12.4 Q19.4 5.6 26.6 7.6 Q35.6 6.4 37.6 14.4 Q42.4 18.6 38.4 24.4 Q34.6 29.8 24 28.4 Q14 30.2 10.6 24.6 Z" fill="${C.orange}"/>` +
+    `<path ${thin} d="M15.2 21.2 Q17.6 17.2 22 18.8 Q25.6 15.2 29.6 18.4 Q33.6 18 34.4 21.6" fill="none"/>` +
+    `<path stroke-width="1.6" d="M6.6 43 Q12 39.6 17.6 41.8 M30.4 41.8 Q36 39.6 41.4 43"/>`,
+
   mallet:
     `<path d="M22.6 24.2 L36.6 38.4 L33.6 41.4 L19.6 27.2 Z" fill="${C.wood}"/>` +
     `<path d="M9.4 18.4 L20.8 7 L30.2 16.4 L18.8 27.8 Z" fill="${C.woodDark}"/>` +
