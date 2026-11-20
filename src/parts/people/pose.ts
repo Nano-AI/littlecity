@@ -27,9 +27,15 @@ export type PoseName =
   | 'hat' //     a hand on the hat in a gust
   | 'carry' //   arms forward, holding something (sack, watering can)
   | 'sweep' //   both hands on a broom, swinging
-  | 'kite'; //   an arm up holding a line, with a tug now and then
+  | 'kite' //    an arm up holding a line, with a tug now and then
+  | 'cheer' //   L50: both fists up, pumping one then the other
+  | 'cover' //   L50: an arm out across in front, low (over a child's eyes)
+  | 'dust' //    L50: bent a little, patting the dust off, one hand then the other
+  | 'shake' //   L50: the right hand out, pumping up and down
+  | 'hammer' // L54: the right arm up and down, striking
+  | 'juggle'; // L56: both hands up in front, tossing in turn
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -177,6 +183,55 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       p.outR = -0.3;
       p.lean = 0.2;
       p.twist = sw;
+      break;
+    }
+    case 'cheer': {
+      const k = beat(2, 3.5);
+      p.armL = k === 0 ? 2.9 : 2.3;
+      p.armR = k === 0 ? 2.3 : 2.9;
+      p.outL = 0.35;
+      p.outR = 0.35;
+      p.lift = k === 0 ? 0.012 : 0;
+      break;
+    }
+    case 'cover':
+      p.armR = 1.35;
+      p.outR = -0.55;
+      p.armL = 0.2;
+      p.lean = 0.12;
+      break;
+    case 'dust': {
+      const k = beat(4, 4);
+      p.lean = 0.35;
+      p.armL = k === 0 || k === 1 ? 0.75 : 0.35;
+      p.armR = k === 2 || k === 3 ? 0.75 : 0.35;
+      p.outL = -0.2;
+      p.outR = -0.2;
+      p.legR = 0.1;
+      break;
+    }
+    case 'shake': {
+      const k = beat(2, 4);
+      p.armR = k === 0 ? 1.15 : 0.85;
+      p.outR = -0.15;
+      p.lean = 0.06;
+      break;
+    }
+    case 'juggle': {
+      const k = beat(2, 6);
+      p.armL = k === 0 ? 1.9 : 1.3;
+      p.armR = k === 0 ? 1.3 : 1.9;
+      p.outL = -0.25;
+      p.outR = -0.25;
+      p.lean = -0.08;
+      break;
+    }
+    case 'hammer': {
+      const k = beat(2, 3);
+      p.armR = k === 0 ? 2.6 : 1.2;
+      p.armL = 1.0;
+      p.outL = -0.2;
+      p.lean = 0.15;
       break;
     }
   }

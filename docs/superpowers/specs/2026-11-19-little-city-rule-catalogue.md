@@ -535,6 +535,131 @@ L41 river barge, L42 passing sails.
   crowds. The horse stands tethered by the gate between rides, flicking its
   tail.
 
+### The living town (Derek's request, 2026-11-19)
+
+Things being done to and with the town, as at the quay when a ship is in:
+something made somewhere is carried by someone along real streets and used
+somewhere else, and the town answers what the player does. Run-time
+reactions have no rule file (like L26); everything else is a `*.rule.ts`
+under `src/rules/life/` with its fixture.
+
+- **L50 · 2 · Scuffle** (run time, `src/life/people/scuffle.ts`) — two
+  grown-up walkers who meet head on within 0.16 of each other's line
+  (p=0.3) or one of whom has been held up 4.5 s squeezing past the other
+  (p=0.5) → a cartoon scuffle: the two vanish into a rolling dust cloud
+  (fists, a shoe, a hat and stars popping out on twos, a balloon of
+  grawlix over it turned to the camera) for 4.2–5.8 s; up to 7 passers-by
+  within 3.2 cells stop and watch, 45% of grown-ups cheering, a grown-up
+  beside a watching child covering its eyes; pigeons within 3 scatter;
+  then the two sit dazed with stars round their heads (2.4 s), get up and
+  dust off (1.1 s) and either stomp off their own ways or (p=0.35) shake
+  hands and walk to the nearest inn together. One at a time in the town,
+  then a rest of 75–130 s. With sound on: a rumble of thumps and boings.
+  **Must not:** involve children, anybody on a job, a round or called home,
+  anybody carrying something, leaving, in a doorway or single-file
+  stretch, or in an event's party; happen on stairs, gates, docks, roofs,
+  bridges or any cell standing on a structure, or in a cluttered cell.
+  Building over the spot ends it at once; anybody in it taken off the
+  street ends it.
+
+The chains below share one engine (`src/life/town/`): a rule marks a
+chain's posts with `errand` sockets (name `<chain>|<role>|<ref>`), the
+chain picks its hands from the residents (no extra people: the population
+cap holds) and sends them on errands of a few steps; what they carry is
+drawn in their hands (`src/parts/people/loads.ts`, a little big and bright)
+and, set down, lies in a store at the post until somebody picks it up. A
+place erased mid-errand ends the errand: what is in the hands goes home with
+its carrier. Nothing is ever left floating or vanishes in view.
+
+- **L51 · 2 · Bread** — a bakery (a shop tagged shop:bakery, else one L23
+  gave a baker; else the inn) nearest the town's heart → posts: outside the
+  door of the nearest windmill that can be walked to (`bread|mill`), outside
+  the bakery door (`bread|bakery`), and up to three selling places within 22
+  steps (`bread|sell`: market stalls first, at their counter; then the inn
+  and cafés, at the door; with none, the bakery's own door). The miller (the
+  L23 miller if any, else whoever lives nearest the mill) goes into the mill,
+  comes out hugging a sack of flour, carries it to the bakery and sets it
+  against the wall by the door, where up to 4 stack (a trip every 18 s at
+  most). The baker (the bakery's L23 baker, else whoever lives there or
+  nearest) picks up a sack, takes it in, bakes 5 s, comes out with a tray of
+  loaves, walks it to the selling place with the most room and sets up to 3
+  loaves out on the counter or by the door, then goes back in. Residents
+  choosing what to do go for bread now and then (p=0.3 at dawn and the first
+  part of the day, 0.14 after) if loaves lie within 18 steps: they stop at
+  the counter 2 s and walk home with a loaf under the arm; the loaves go
+  down one by one. By day and dawn only. **Must not:** start at dusk or
+  night; send two buyers for one loaf.
+- **L52 · 2 · Water** — every well, basin and tiered fountain (not a
+  birdbath) → up to two posts beside it, facing it (`water|well`). A
+  grown-up living within 14 steps of one, choosing what to do by day, now
+  and then (p=0.1) walks there, bends to fill a bucket (2.6 s; it appears in
+  the hand) and carries it home at their side. **Must not:** send two to one
+  post at once.
+- **L53 · 2 · The catch comes in** (with LF-07) — a fisher's spot on a
+  dock (L23) with a fish stall or fish shop within 20 steps that can be
+  walked to → posts `fish|catch` at the spot and `fish|sell` at the nearest
+  one or two. The fisher fishes 16 s, lifts a basket of the catch and
+  carries it up the pier to the one with the most room, where three fish
+  are laid on the counter (or by the shop door); at most every 30 s.
+  Residents go for fish now and then (p=0.16 mornings, 0.08 after) and walk
+  home with one dangling from a hand. By day and dawn. **Must not:** give a
+  catch post to a fisher with nowhere to sell.
+- **L54 · 2 · Builders and onlookers** (run time, `chains/build.ts`) — a
+  piece of a house, tower, marble, lighthouse or windmill lands → the two
+  nearest free grown-ups within 12 steps hurry over, one with a ladder on
+  the shoulder and one with a hod of bricks; the ladder is leant against the
+  new wall, the hod set down; each hammers 4.5 s, picks up and goes home.
+  Something big (a tower, marble, a lighthouse, a windmill, or a house of 6+
+  cells) also draws up to 4 onlookers who stand a step back looking up at it
+  for 7 s. Anything erased → those within 4 cells turn and look (L26's
+  reaction, now for erasing too). **Must not:** start a job less than 6 s
+  after the last, run more than 2 at once, or (when more than 10 pieces
+  landed in 5 s: a paste, Grow a town's playback) start one less than 40 s
+  after the last; at night. A job nobody came to lapses after 25 s; a
+  building erased mid-job ends it and what was set down is picked up.
+- **L55 · 2 · Night watchman** (LF-05) — a town of 12+ house structures and
+  no garrison (L36) → a beat of up to 8 posts (`watch|beat|<order>`): the
+  middles of its squares and of streets 3+ long, in the part of the walking
+  graph round the town's heart, walked from the heart, always on to the
+  nearest not yet walked. At night one grown-up with no job (living nearest
+  the beat's start) walks it with a glowing lantern on a pole, stopping 2.5 s
+  at each post to look about, round and round until dawn, then home.
+  **Must not:** be kept where a garrison is; walk by day.
+- **L56 · 2 · Market day** (LF-02) — the biggest square (a plaza with a
+  full 3 × 3) with 2+ stalls on or beside it → up to 4 pitches (one per 6
+  cells: open plaza cells, not cluttered, not a doorstep, not beside a
+  stall, fountain or tree, 3+ steps apart, facing the square's middle,
+  each with seeded goods; `market|pitch|<goods>`) and a busker's spot near
+  the middle (`market|busk`). On market days (the first day the town is
+  seen, then 60% of days, seeded) from dawn to mid-afternoon (phase 0.4): a
+  trader per pitch brings a crate, and as they set it down a market stall
+  pops up and three baskets go out on its counter; they stand behind it
+  calling out, putting more out when it runs low; a busker juggles three
+  balls in the middle; residents choosing what to do go to buy (p=0.35,
+  within 26 steps) and walk home with a basket, or stop to watch the busker
+  (p=0.12), some cheering. At closing the traders pack the goods into the
+  crate, the stall folds away with a puff, and they carry the crate home; a
+  stall nobody packs folds by itself 20 s after closing. A pitch built over
+  folds its stall at once. **Must not:** put a pitch where people must pass
+  single file, on a doorstep, or beside a stall.
+- **L57 · 2 · A wedding** (LF-01) — a chapel (R-H01) whose door opens onto
+  the walking graph, with a square (else a street) within 12 steps that can
+  be walked to → posts outside the chapel door (`wedding|door`) and at the
+  square cell nearest its middle within reach (`wedding|square`); the chapel
+  nearest the heart if several. On the first day the town is seen (25–45 s
+  in) and then 70% of days (seeded, early in the day): two of the six
+  grown-ups living nearest the chapel, from different houses (seeded), walk
+  there and go in; up
+  to 8 guests (children too) within 22 steps gather in a loose half-ring
+  outside the door looking at it; 4 s after enough are there (or 40 s) the
+  couple comes out, she in white with flowers, he in a dark coat and hat;
+  every bell in the town peals (L29) and petals burst over the doorstep;
+  they walk to the square, the guests following, children running ahead,
+  and everybody stands about cheering and chatting 14 s, then goes home,
+  where the couple change back. Everybody in it is in the party (L50 never
+  takes them). **Must not:** happen at night; the chapel erased or the
+  couple gone calls it off and everybody goes about their day.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

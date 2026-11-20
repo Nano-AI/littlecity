@@ -16,7 +16,7 @@ import type { Kind } from '@/core/kinds';
 import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
 
-export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town';
+export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'events';
 
 export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'auto', title: 'The Auto block' },
@@ -27,6 +27,7 @@ export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'waterfront', title: 'Waterfront' },
   { id: 'green', title: 'Green' },
   { id: 'town', title: 'Town' },
+  { id: 'events', title: 'Days the town earns' },
 ];
 
 /** What shows the rules really made the building. */
@@ -38,7 +39,9 @@ export type Proof =
   /** A prop placed by this rule (dressing stage), optionally of one type. */
   | { prop: { rule: string; type?: PropType } }
   /** An actor placed by this rule (dressing stage), optionally of one type. */
-  | { actor: { rule: string; type?: ActorType } };
+  | { actor: { rule: string; type?: ActorType } }
+  /** A socket placed by this rule (dressing stage): the posts of the town's events (L56, L57). */
+  | { socket: { rule: string } };
 
 export interface Recipe {
   ground?: (t: TerrainBuilder) => void;
@@ -70,9 +73,10 @@ export interface GuideEntry {
   pad?: number;
   /**
    * Draw the picture with the castle's people (troop, rider) on, frozen after `settle` seconds of
-   * simulated day. Every other picture leaves people, birds and boats out.
+   * simulated day. Every other picture leaves people, birds and boats out. `residents` keeps the
+   * town's people in it too (the events).
    */
-  life?: { settle: number };
+  life?: { settle: number; residents?: boolean };
   /** Frame only these columns (inclusive), `top` levels high, instead of the whole recipe. */
   frame?: readonly [x0: number, z0: number, x1: number, z1: number, top: number];
 }
@@ -848,6 +852,47 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: 0.2,
     life: { settle: 64 },
     frame: [19, 20, 24, 22, 3],
+  },
+
+  // ── days the town earns (L56, L57) ────────────────────────────────────
+  {
+    id: 'market-day',
+    group: 'events',
+    name: 'Market day',
+    how: 'Lay a plaza at least three by three with two stalls on it, and houses round it. On market mornings traders set up stalls there, a busker juggles and the town comes to buy.',
+    proof: { socket: { rule: 'L56.market-day' } },
+    seed: 7801,
+    build(b) {
+      b.plaza(18, 18, 22, 22);
+      b.put('stall', 18, 18).put('stall', 22, 22);
+      b.house(18, 15, { floors: 2, w: 2, d: 2, color: 1 }).house(21, 15, { floors: 2, w: 2, d: 2, color: 3 });
+      b.house(15, 19, { floors: 2, w: 2, d: 2, color: 5 }).house(24, 19, { floors: 1, w: 2, d: 2, color: 6 });
+      b.path(18, 17, 22, 17).path(17, 18, 17, 22);
+    },
+    view: FRONT,
+    pad: 0.2,
+    life: { settle: 40, residents: true },
+    frame: [16, 17, 23, 23, 2],
+  },
+  {
+    id: 'wedding',
+    group: 'events',
+    name: 'A wedding',
+    how: 'Put a chapel (a house beside a tower) with its door on a path that runs to a plaza, and houses round about. Most mornings a couple is married there and the guests walk them to the plaza.',
+    proof: { socket: { rule: 'L57.wedding' } },
+    seed: 7802,
+    build(b) {
+      b.house(17, 16, { w: 2, d: 2, color: 5 });
+      b.tower(19, 16, { floors: 4 });
+      b.path(15, 18, 25, 18);
+      b.plaza(21, 19, 24, 21);
+      b.house(14, 16, { floors: 1, w: 2, d: 2, color: 1 }).house(22, 15, { floors: 1, w: 2, d: 2, color: 6 }).house(25, 15, { floors: 1, w: 2, d: 2, color: 2 });
+      b.path(23, 17, 23, 17).path(26, 17, 26, 17);
+    },
+    view: { yaw: 20, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [16, 16, 24, 21, 2],
   },
 ];
 

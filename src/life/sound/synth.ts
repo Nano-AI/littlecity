@@ -120,6 +120,44 @@ export function gullCall(ac: AudioContext, out: AudioNode, gain: number, cries: 
   }
 }
 
+/**
+ * L50: a cartoon scuffle, `seconds` long: a rumble of dusty thumps with a boing now and then (a springy
+ * pitch that wobbles down and up). `seed` places the boings.
+ */
+export function scuffleSound(ac: AudioContext, out: AudioNode, noise: AudioBuffer, gain: number, seconds: number, seed: number): void {
+  const t0 = ac.currentTime;
+  // The rumble: thumps of low noise, about seven a second.
+  for (let k = 0; k * 0.14 < seconds; k++) {
+    const t = t0 + k * 0.14 + (((seed + k * 37) % 9) / 9) * 0.05;
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 380 + ((seed + k * 13) % 5) * 60;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(gain * 0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    src.connect(lp).connect(g).connect(out);
+    src.start(t, ((seed + k) % 17) * 0.1, 0.14);
+  }
+  // Boings.
+  for (let k = 0; k < Math.max(1, Math.floor(seconds / 1.6)); k++) {
+    const t = t0 + 0.3 + k * 1.6 + ((seed + k * 7) % 5) * 0.12;
+    const osc = ac.createOscillator();
+    osc.type = 'triangle';
+    const f = 300 + ((seed + k * 11) % 4) * 60;
+    osc.frequency.setValueAtTime(f, t);
+    for (let i = 1; i <= 6; i++) osc.frequency.linearRampToValueAtTime(f * (i % 2 === 0 ? 1.6 : 0.7) * (1 - i * 0.06), t + i * 0.05);
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(gain * 0.6, t + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+    osc.connect(env).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.36);
+  }
+}
+
 /** Two seconds of soft noise, looped by the sea and the wind. */
 export function noiseBuffer(ac: AudioContext, seed: number): AudioBuffer {
   const n = ac.sampleRate * 2;
