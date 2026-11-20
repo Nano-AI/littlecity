@@ -323,7 +323,7 @@ seed and wall colour.
 
 ```
  ┌──────────────────────────────────────────────────────────┐
- │ ☰                                              ☀ ↶ ↷    │
+ │ ☰                                            ⟡ ☀ ↶ ↷    │
  │                                                          │
  │                    (the town)                            │
  │                                                          │
@@ -336,7 +336,7 @@ seed and wall colour.
 
 On a phone the tray is one row that scrolls sideways. ☰ holds new island,
 share link, postcard and sound (the dev tuning panel is only in the gallery, not in the game: Derek, 2026-11-20). ☀ cycles time of day:
-running → hold day → hold dusk → hold night.
+running → hold day → hold dusk → hold night. ⟡ (wings) is fly mode.
 
 **Targeting.** The pointer picks a face of terrain, a block, or the water
 surface. The target cell is the cell on the other side of that face. Water
@@ -355,6 +355,8 @@ targets `(x, 0, z)`.
 | Set the held piece's length (see "Held length") | scroll over the island, or the − / + stepper | the − / + stepper |
 | Undo / redo | ⌘Z / ⇧⌘Z or buttons | buttons |
 | Pick tool | keys 1–9, 0 | tap tray |
+| Fly (see "Fly mode") | F or the wings button | not yet |
+| Close what is open; with nothing open, back to the whole island | Escape | — |
 
 **Held length** (Derek's request, 2026-11-19). Pieces that usually come in
 runs can be stretched before they are placed.
@@ -448,41 +450,70 @@ player that a house beside a tower becomes a chapel. The guide does.
   when (dock on water; arch across a gap; tower when three stacked; a
   lighthouse when four stacked near the sea; otherwise a house).
 
-**Walk mode** (Derek's request, 2026-11-19). Drop yourself into the town
-and walk through it as one of its people.
+**Fly mode** (Derek, 2026-11-20; replaces the walk mode experiment: no
+street view, no walking, no dropping yourself into the town). Fly round
+the town Minecraft style from wherever you are looking, and come back.
 
-- **Getting in.** A small figure sits in the top bar. Drag it onto the town
-  (on touch: drag it, or tap it and then tap a spot). While dragging, the
-  ground under the pointer shows a footprint marker where you can stand
-  (any place a resident can walk) and nothing where you cannot. On release
-  the camera glides down from the builder's view to your eyes, in about a
-  second. Tapping the figure without dragging drops you at the main square,
-  or by the nearest door if there is no square.
-- **The view.** First person, at a little person's eye height, with
-  perspective, drawn in the same ink and paper. Looking up shows a paper sky
-  with the day's colour, clouds, the moon and stars at night. Your own body
-  is not drawn. A third-person toggle (V) pulls the camera back behind a
-  drawn figure of you.
-- **Moving.** Desktop: W A S D or the arrow keys to walk, Shift to run, drag
-  or pointer-lock mouse to look; click the view to capture the mouse, Escape
-  to release it. Touch: a thumb pad at lower left to walk, drag anywhere
-  else to look. You walk where residents can: paths, grass, stairs and
-  carved steps, bridges and decks, docks, roof terraces. You cannot pass
-  through walls, fences without a gate, or off a drop of two levels or more;
-  a one-level step down is a hop. Movement is smooth (you slide along what
-  blocks you) and never snaps between cells.
-- **Doors and insides.** Doors open for you as they do for residents.
-  Walking into a house takes you through it: the view fades for a moment
-  and you step out of its other door or onto its roof terrace if it has
-  one; a house with one door turns you back out. Interiors are not drawn.
-- **The town carries on.** Residents, the troop, birds, boats, smoke, the
-  dusk cycle and sound all continue around you; people step round you; a
-  resident you stand beside turns and shows a chat bubble.
-- **Getting out.** An Exit button (and Escape when the mouse is free, or B)
-  lifts the camera back to the builder's view where it was. Building tools
-  are hidden while walking; the time-of-day button stays.
-- **Limits.** Walk mode never changes the town or the save. On phones it
-  uses the same performance fallbacks as the builder.
+- **Getting in.** A wings button at the left of the top-right group (time,
+  season, weather, undo, redo), or F. The flight starts from exactly the
+  view on screen. The builder's camera is orthographic and the flying eye
+  is not, so the picture does not cut: a dolly zoom of 0.7 s runs from a
+  half-degree field of view (which draws the builder's picture to within a
+  pixel or two) out to the flying eye's 62°, the eye coming in along the
+  line it looks down while the plane through the point it looks at stays
+  where it was on screen. Zoomed right in, where a wide eye would end among
+  the houses, the flight keeps a narrower field of view (the widest whose
+  line in is clear). Whatever is open (menu, guide, pop-ups, sliders, the
+  grow chooser) closes; a town that is growing goes on growing; F in the
+  middle of a mouse drag does nothing.
+- **Looking and moving.** The mouse looks freely and the cursor is captured
+  (pointer lock) until you land. W and S fly the way the eye looks (up and
+  down with it), A and D sideways, Space straight up, Shift straight down
+  (the arrow keys work as W A S D). Speed eases in and out over about a
+  third of a second; no head bob, no gravity. Default speed is 6 cells a
+  second (the island in about 8 s); each notch of the wheel multiplies it by
+  1.25, from a quarter to four times. A small note shows the speed for a
+  moment.
+- **What is solid.** Buildings, towers, marble, pillars, windmills, docks,
+  arches (an open arch by its piers and the stone over the opening), fence
+  and wall pieces in a cell and on a cell's side (gates excepted), the roof
+  over a building's top storey (a box as high as that kind's tallest roof),
+  trees (trunk level and crown), stalls, fountains, props standing in a
+  cell (posts; parasols and awnings up at their canopy), the ground, and the
+  sea's surface. People, birds, boats, flower beds and flat things are
+  flown through; people and birds within arm's length of the eye are not
+  drawn, so nobody fills the screen. The eye is a small box (0.16 to a
+  side's middle): it stops short of what it meets and slides along it.
+- **Bounds.** 8 cells past the map's edge and 10 units over the tallest
+  thing. An eye that starts outside them (taking off from a far-out view)
+  may come in but not go farther out; once in, it stays in.
+- **Look only.** The tray and its pop-ups, the top bar, the ghost and the
+  markers are hidden; a layer over the town takes every click and the
+  wheel, so nothing is built or erased. Life carries on: people, ships,
+  weather, fires, the clock, a growing town. A small card in the bottom-left
+  corner says "Esc to land" and lists the keys. Fly mode never changes the
+  town or the save.
+- **Getting out.** Escape, or the cursor being let go (browsers take Escape
+  for themselves while the cursor is captured, so losing it counts the
+  same). In 0.9 s, eased in and out, the eye goes back to where the dolly
+  zoom ended along a way clear of everything (straight if the line is
+  clear; otherwise up over the town first, the way it faces if it can, out
+  through an opening if it is under something, across, and down), turning
+  to face as the builder did, and the dolly zoom runs backwards to the
+  builder's view exactly as it was. The tray returns with the same piece in
+  hand.
+- **Escape when not flying.** It closes whatever is open, as before; with
+  nothing open it glides (0.8 s) to the whole-island view a new island opens
+  on. The piece in hand stays in hand (it used to put it down; clicking the
+  selected piece again still does).
+- **Desktop only for now.** On a touch screen there is no wings button and F
+  does nothing.
+- **Code.** `src/ui/fly.ts` (input, the glides, the DOM, test hooks),
+  `src/fly/` (pure: `solid.ts` what is in the way, `flight.ts` the flying,
+  `glide.ts` the clear way out), `src/render/eyecam.ts` and the PERSP
+  variants of the renderer's materials (the flying eye: reversed float
+  depth, the paper sky, line weights by distance). Stills and frame times:
+  `node src/fly/testing/look.mjs`.
 
 **Time, season and weather sliders** (Derek, 2026-11-19; replaces the
 click-to-cycle buttons). Clicking the sun, season or weather button opens a
@@ -1124,6 +1155,7 @@ src/
   parts/     one file per feature, prop or actor mesh
   life/      signals, behaviours, birds, boats, people, walking graph
   render/    shaders, ink pipeline, chunks, instancing, camera, grading
+  fly/       fly mode: what is in the way, the flying, the way back out
   ui/        tray, pointer and touch input, ghost, menus, dev panel
   audio/
   app/       wiring and main loop

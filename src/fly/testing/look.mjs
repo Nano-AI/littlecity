@@ -217,12 +217,28 @@ try {
           out.sort((a, b) => a - b);
           return { frames: out.length, median: +out[out.length >> 1].toFixed(1), p95: +out[Math.floor(out.length * 0.95)].toFixed(1) };
         });
+      // The cost of drawing alone: 60 frames back to back, flushed with a one-pixel read (the rAF gaps
+      // are capped by the display and shared with whatever else the machine is doing).
+      const cost = () =>
+        page.evaluate(() => {
+          const gl = window.__lc.view.canvas.getContext('webgl2');
+          const px = new Uint8Array(4);
+          window.__lc.view.render(window.__lc.signals);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          const t0 = performance.now();
+          for (let i = 0; i < 60; i++) window.__lc.view.render(window.__lc.signals);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          const s = window.__lc.view.stats();
+          return { ms: +((performance.now() - t0) / 60).toFixed(2), drawCalls: s.drawCalls, triangles: s.triangles };
+        });
       const flying = await gaps();
       await fly(() => window.__lc.ui.fly.testKey('KeyW', false));
+      const flyingCost = await cost();
       await fly(() => window.__lc.ui.fly.exit({ instant: true }));
       await page.waitForTimeout(500);
       const builder = await gaps();
-      console.log(`bench ${time} ${width}x${height}: flying ${JSON.stringify(flying)} builder ${JSON.stringify(builder)}`);
+      const builderCost = await cost();
+      console.log(`bench ${time} ${width}x${height}: flying ${JSON.stringify(flying)} ${JSON.stringify(flyingCost)}; builder ${JSON.stringify(builder)} ${JSON.stringify(builderCost)}`);
       await page.keyboard.press('f');
       await waitPhase('flying');
     }
