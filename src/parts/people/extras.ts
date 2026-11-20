@@ -7,32 +7,23 @@ import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
 import { tube } from '@/parts/ground/kit';
+import { balloon, dot } from './balloon';
 
 /**
- * A squiggle chat bubble: a white blob with a tail and three dots, the dots
- * on all four sides so it reads from every orbit quarter. Origin at the tip
- * of the tail, just over the speaker's head.
+ * A chat bubble: a white rounded balloon and its tail cut from one outline (balloon.ts: one clean line
+ * round both), with three dots on its face and its back. Flat, in its XY plane facing +Z: the people
+ * system turns it to the camera. Origin at the tip of the tail, just over the speaker's head.
  */
 export function bubbleMesh(): MeshData {
   const b = new MeshBuilder({ ink: 'chat-bubble' });
-  const rx = 0.095, ry = 0.062, cy = 0.1;
-  const profile: [number, number][] = [];
-  for (let i = 6; i >= 0; i--) {
-    const a = (Math.PI * i) / 6;
-    profile.push([Math.max(0, rx * Math.sin(a)), cy + ry * Math.cos(a)]);
-  }
+  const rx = 0.1, ry = 0.064, cy = 0.105, t = 0.006;
   b.setInk('bubble').setColor(PALETTE.white).setPattern(PATTERN.none);
-  b.lathe(profile, { segments: 10 });
-  // The tail: a little cone down to the speaker.
-  b.lathe([[0, 0], [0.028, cy - ry * 0.8]], { segments: 6 });
-  // The squiggle: three dots, drawn on each side.
-  b.setColor(PALETTE.ink);
-  for (let side = 0; side < 4; side++) {
-    b.at(rotationY((side * Math.PI) / 2), () => {
-      for (const x of [-0.036, 0, 0.036]) {
-        const z = rx * Math.sqrt(Math.max(0, 1 - (x / rx) ** 2)) - 0.004;
-        b.at(translation(x, cy, z), () => b.box([-0.009, -0.009, 0], [0.009, 0.009, 0.008], { skip: ['n'] }));
-      }
+  balloon(b, { rx, ry, cy, t, left: -Math.PI / 2 - 0.42, right: -Math.PI / 2 - 0.02, tipX: -0.035, bow: 0.012, segments: 36 });
+  // The dots, a hair proud of each face.
+  b.setInk('dots').setColor(PALETTE.ink);
+  for (const side of [0, Math.PI]) {
+    b.at(rotationY(side), () => {
+      for (const x of [-0.042, 0, 0.042]) dot(b, x, cy, 0.0125, t + 0.0015, 10);
     });
   }
   return b.build();

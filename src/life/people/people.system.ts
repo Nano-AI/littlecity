@@ -111,6 +111,12 @@ function cameraAngles(): { yaw: number; pitch: number } {
   return c ? { yaw: c.yaw * deg, pitch: c.pitch * deg } : { yaw: 45 * deg, pitch: 35 * deg };
 }
 
+/** A flat drawing (a balloon) at (x, y, z) turned square to the camera, scaled by `sc`: Ry(yaw) · Rx(-pitch) · S. */
+function facing(x: number, y: number, z: number, cam: { yaw: number; pitch: number }, sc: number): Mat4Like {
+  const c = Math.cos(cam.yaw), sn = Math.sin(cam.yaw), ct = Math.cos(cam.pitch), st = Math.sin(cam.pitch);
+  return [c * sc, 0, -sn * sc, 0, -sn * st * sc, ct * sc, -c * st * sc, 0, sn * ct * sc, st * sc, c * ct * sc, 0, x, y, z, 1];
+}
+
 /** Poses the scuffle's drawings, on twos (SCUFFLE.drawRate). */
 function drawArt(a: ScuffleArt, s: Scuffle, seconds: number): void {
   const tick = Math.floor(seconds * SCUFFLE.drawRate);
@@ -585,11 +591,8 @@ export default defineSystem<State>({
       const talking = p.bubble && p.visible;
       if (talking) {
         d.bubble ??= ctx.stage.spawnMesh((state.bubbleMesh ??= bubbleMesh()), IDENTITY);
-        const m = Array.from(IDENTITY);
-        m[12] = p.x;
-        m[13] = p.y + (DESIGN_HEIGHT + 0.2) * d.look.scale;
-        m[14] = p.z;
-        d.bubble.setMatrix(m);
+        // A flat balloon, turned to the camera as the scuffle's swearing is.
+        d.bubble.setMatrix(facing(p.x, p.y + (DESIGN_HEIGHT + 0.2) * d.look.scale, p.z, cameraAngles(), 1));
       } else if (d.bubble) {
         d.bubble.release();
         d.bubble = null;
