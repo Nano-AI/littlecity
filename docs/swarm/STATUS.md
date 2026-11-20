@@ -961,3 +961,16 @@ X-shaped patch on the sea west of a castle town (screenshot
 `/tmp/lc-black-patch.png`) → a new agent to find the cause.
 
 Running: mischief (lightning), sea-patch agent (`a26d2645a4786eb14`, `swarm/sea-patch`, Opus).
+
+**Lightning merged** (`f3485c8`, Opus). The torch is Lightning (tool id
+still `torch`): puffs gather into a small dark cloud above the click
+(0.6 s), a jagged bolt strikes, the building catches through the same
+fire code, thunder, the cloud drifts off by 4.2 s
+(`src/life/mischief/lightning.system.ts`). On what cannot burn (only
+fountains) the bolt strikes and fizzles with the refusal note. Gate:
+2,123 passed, 8 skipped, clean. Orchestrator rendered the night strike
+after the agent softened its light: a small pale glow, a faint disc edge,
+acceptable. Weak spots (agent's): the cloud sits up and behind the
+building at the default angle so the bolt is long; the flash barely
+shows by day.
+Running: sea-patch agent.
