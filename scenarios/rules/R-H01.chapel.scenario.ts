@@ -1,6 +1,7 @@
 // Fixture for R-H01 (chapel): a house of 2+ cells touching a tower 3+ tall.
 // West to east: a chapel with its steeple beside it; a one-cell house by a
-// tower (too small: a cottage); a house by a two-cell tower (too short); a
+// tower (too small: a cottage); a house by a two-cell tower (too short: a
+// smithy, R-H19); a
 // chapel with the tower rising through its roof.
 import { scenario } from '@/scenario';
 import { houseDressing } from '../houses/standins';
@@ -30,7 +31,7 @@ export default scenario({
     check.role(13, 1, 10, 'steeple');
     check.hasTag(10, 1, 10, 'has-steeple');
     check.role(18, 1, 10, 'cottage');
-    check.role(22, 1, 10, 'cottage');
+    check.role(22, 1, 10, 'smithy'); // a tower of 2 is too short for a steeple: a smithy's chimney (R-H19)
     check.role(27, 1, 9, 'chapel');
     check.role(28, 2, 9, 'steeple');
     check.equal(check.applied('R-H01.chapel'), 2, 'chapels');
