@@ -12,11 +12,13 @@ import type { CameraSpec } from '@/scenario';
 import { scenario } from '@/scenario';
 import { generateTerrain } from '@/terrain/terrain';
 import { generateIsland2 } from '@/terrain/terrain2';
+import { CHARACTER_NAMES, PROMISES, type Character } from '@/townmaker/character';
 import { planTown } from '@/townmaker/index';
 
-export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
+/** A grown town: `n` names it grown-town-<n>, or a character name grown-<character>, grown on that character. */
+export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, character?: Character) {
   const terrain = generateTerrain(seed, gen);
-  const plan = planTown(terrain, seed);
+  const plan = planTown(terrain, seed, character ? { character } : {});
   const at = (name: string): [number, number] | null => {
     const d = plan.districts.find((x) => x.name === name);
     return d ? [d.x, d.z] : null;
@@ -47,6 +49,12 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
     ['manor', 'manor', 315, 4],
     ['mill', 'mill', 45, 4.5],
     ['lighthouse', 'lighthouse', 315, 4.5],
+    ['village-green', 'green', 45, 4],
+    ['fields', 'fields', 45, 4],
+    ['park', 'park', 45, 4.5],
+    ['riverside', 'riverside', 135, 3.6],
+    ['inhabited-bridge', 'bridge-shops', 45, 5],
+    ['hilltop', 'hilltop', 45, 3.4],
   ];
   for (const [district, name, yaw, zoom] of close) {
     const p = at(district);
@@ -85,9 +93,9 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
   );
 
   return scenario({
-    name: `grown-town-${n}`,
+    name: typeof n === 'number' ? `grown-town-${n}` : `grown-${n}`,
     seed,
-    about: `Grow a town on the generated island for seed ${seed}: the generator's whole town, every edit legal, district by district.`,
+    about: `Grow a town on generator ${gen}'s island for seed ${seed}: a ${CHARACTER_NAMES[plan.character]} (with a touch of ${CHARACTER_NAMES[plan.secondary]}), every edit legal, district by district.`,
     terrain: 'generated',
     terrainGen: gen, // generator 1 is pinned; generator 2's islands may shift a little while it is tuned
     build(b) {
@@ -96,10 +104,10 @@ export function grownTown(n: number, seed: number, gen: 1 | 2 = 1) {
     cameras,
     expect(shape, dressing, check) {
       const roles = new Set([...shape.roles.values()].map((r) => r.role));
-      check.ok(roles.size >= 30, `a grown town shows at least 30 roles (has ${roles.size})`);
-      const want = gen === 1 ? (['shop', 'chapel', 'steeple', 'clock-tower', 'tiered-fountain', 'lighthouse', 'windmill', 'keep', 'temple'] as const) : (['town-hall', 'shop', 'lighthouse'] as const);
-      for (const r of want) check.ok(roles.has(r), `a ${r}`);
-      check.ok(roles.has('pier') || roles.has('quay'), 'a pier or a quay');
+      // A coherent town, not a complete one: the character's promises, and the town basics.
+      check.ok(roles.size >= 25, `a grown town shows plenty (has ${roles.size} roles)`);
+      for (const group of PROMISES[plan.character]) check.ok(group.some((r) => roles.has(r)), `a ${CHARACTER_NAMES[plan.character]} has a ${group.join(' or ')}`);
+      check.ok(roles.has('chapel') || roles.has('town-hall'), 'a chapel or a town hall');
       check.ok(dressing.props.some((p) => p.rule.startsWith('D01')), 'street lamps');
     },
   });

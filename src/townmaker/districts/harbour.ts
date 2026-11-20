@@ -8,7 +8,7 @@
 import { columnIndex, key } from '@/core/grid';
 import { CLAIM, type Grower } from '../grower';
 import { search, type Frame } from '../frame';
-import { startDistrict, type District, type Town, Local } from '../town';
+import { rectFlat, rectFree, startDistrict, type District, type Town, Local } from '../town';
 import { pave } from '../route';
 
 /** Open water with no block at sea level. */
@@ -31,11 +31,11 @@ function near(a: readonly [number, number], f: Frame): number {
   return Math.abs(f.ox - a[0]) + Math.abs(f.oz - a[1]);
 }
 
-export function buildHarbour(town: Town): boolean {
+export function buildHarbour(town: Town, great = true): boolean {
   const { g } = town;
   // The quay first: it decides where the harbour is. Best is a berth for a big ship (a galleon wants
   // a straight run of 8 docks, open sea 3 wide alongside, a clear lane out to the map edge).
-  const berth = search(g, 'berth8', (f) => {
+  const berth = !great ? null : search(g, 'berth8', (f) => {
     let land = 0;
     for (let u = 0; u < 8; u++) {
       if (!openWater(g, f.x(u, 1), f.z(u, 1)) || besideSeaBlock(g, f.x(u, 1), f.z(u, 1))) return null;
@@ -45,6 +45,8 @@ export function buildHarbour(town: Town): boolean {
       land++;
     }
     if (land < 5) return null;
+    // Four in a row of them against the shore: the docks there are a quay (R-D01).
+    for (let u = 2; u <= 5; u++) if (g.h(f.x(u, 0), f.z(u, 0)) !== 1) return null;
     for (let v = 2; v <= 4; v++) for (let u = -1; u <= 8; u++) if (!openWater(g, f.x(u, v), f.z(u, v))) return null;
     for (const u of [0, 4, 7]) {
       for (let v = 5; ; v++) {
@@ -94,8 +96,17 @@ export function buildHarbour(town: Town): boolean {
   }
   const anchor: [number, number] = [qf.x(qlen / 2, 0), qf.z(qlen / 2, 0)];
 
+  // Warehouses behind the promenade, facing the docks across the harbour street (R-H17).
+  let stores = 0;
+  for (let u = 0; u + 2 < qlen && stores < (great ? 2 : 0); u += 4) {
+    if (!rectFree(g, qf, u, -3, u + 2, -2) || rectFlat(g, qf, u, -3, u + 2, -2) < 0) continue;
+    if (g.h(qf.x(u, -1), qf.z(u, -1)) !== rectFlat(g, qf, u, -3, u + 2, -2)) continue;
+    Lq.claim(u, -3, u + 2, -2, CLAIM.built);
+    Lq.house(u, -3, u + 2, -2, 2, `warehouse${u}`);
+    stores++;
+  }
   buildPier(town, d, anchor);
-  for (let i = 0; i < 2; i++) buildStiltHouse(town, d, anchor, i);
+  for (let i = 0; i < (great ? 2 : 1); i++) buildStiltHouse(town, d, anchor, i);
   buildBoathouse(town, d, anchor);
   buildQuayWall(town, anchor);
   shoreTrees(town, anchor);

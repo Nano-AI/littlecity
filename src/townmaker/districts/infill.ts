@@ -50,7 +50,7 @@ function streetSides(g: Grower, x: number, z: number): number {
  * shops), corner houses at junctions; farther out houses get one storey on
  * the street or two set back behind a front garden, and more gaps.
  */
-export function buildInfill(town: Town, ring: number): void {
+export function buildInfill(town: Town, ring: number, scale = 1): void {
   const { g, site } = town;
   const d = startDistrict(town, `infill${ring}`, town.square?.x ?? 24, town.square?.z ?? 24);
   const lo = ring * 7, hi = ring >= 3 ? 999 : lo + 7;
@@ -64,7 +64,7 @@ export function buildInfill(town: Town, ring: number): void {
     }
   }
   streets.sort((a, b) => a[2] - b[2]);
-  const density = [0.95, 0.8, 0.55, 0.3][Math.min(ring, 3)]!;
+  const density = [0.95, 0.8, 0.55, 0.3][Math.min(ring, 3)]! * scale;
   const heart = ring <= 1;
   let n = 0;
   const build = (hx: number, hz: number, floors: number): boolean => {

@@ -113,7 +113,43 @@ export function buildRiverside(town: Town): boolean {
     break;
   }
 
+  // A watermill: a two-storey house two long on the bank, its long wall on the river (R-H16).
+  buildWatermill(town);
+
   // A boathouse on a bank, its boat doors onto a landing stage.
   buildBoathouse(town, d, [mid.water[0], mid.water[1]]);
   return true;
+}
+
+/** A watermill: two bank columns side by side, both looking straight onto the river the same way. */
+export function buildWatermill(town: Town): boolean {
+  const { g, site } = town;
+  for (let z = 0; z < 48; z++) {
+    for (let x = 0; x < 48; x++) {
+      for (let d = 0; d < 4; d++) {
+        const [dx, dz] = D4[d]!;
+        // Along the bank: the second column is a quarter turn from the water side.
+        const [ax, az] = D4[(d + 1) % 4]!;
+        const x2 = x + ax, z2 = z + az;
+        const ok = (cx: number, cz: number): boolean =>
+          g.free(cx, cz) && !g.groundTaken(cx, cz) && g.h(cx, cz) > 0 && g.h(cx, cz) === g.h(x, z) && site.river[columnIndex(cx + dx, cz + dz)] === 1 && openWater(g, cx + dx, cz + dz);
+        if (!g.inMap(x2, z2) || !ok(x, z) || !ok(x2, z2)) continue;
+        // A street a step back from it on the land side.
+        const bx = x - dx, bz = z - dz;
+        if (g.h(bx, bz) === 0 || Math.abs(g.h(bx, bz) - g.h(x, z)) > 1) continue;
+        if (!g.free(bx, bz) && !g.claimed(bx, bz, CLAIM.street)) continue;
+        const h = g.h(x, z);
+        const d0 = startDistrict(town, 'watermill', x, z);
+        const color = g.colorFor('house', [[x, h, z], [x2, h, z2]], 'watermill');
+        for (const [cx, cz] of [[x, z], [x2, z2]] as const) {
+          g.put('house', cx, h, cz, color);
+          g.put('house', cx, h + 1, cz, color);
+          g.mark(cx, cz, CLAIM.built);
+        }
+        if (pave(g, bx, bz)) d0.ways.push([bx, bz]);
+        return true;
+      }
+    }
+  }
+  return false;
 }

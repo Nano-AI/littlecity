@@ -73,9 +73,18 @@ export function buildSquare(town: Town): boolean {
     // The clock tower in the corner.
     L.stack('tower', 0, 0, 5, L.color('tower', [[0, h, 0]], 'clock'));
     // The fountain (a town without fountains draws water at a pump instead), stalls and planter trees.
-    if (!town.pumps) L.put('fountain', mid, h, mid);
-    L.put('stall', k, h, 2);
-    L.put('stall', k, h, Math.max(3, k - 1));
+    if (town.marketCross && k >= 4) {
+      // A market cross in the middle with stalls round it; the fountain moves to a corner of the plaza.
+      // Off the middle, so a whole 3 × 3 of the plaza stays open and it is still a square.
+      L.put('marble', 2, h, 2, 3);
+      L.put('stall', 4, h, 2);
+      L.put('stall', 2, h, 4);
+      if (!town.pumps) L.put('fountain', k, h, k);
+    } else {
+      if (!town.pumps) L.put('fountain', mid, h, mid);
+      L.put('stall', k, h, 2);
+      L.put('stall', k, h, Math.max(3, k - 1));
+    }
     L.put('tree', 1, h, k);
     L.put('tree', 0, h, k);
     // Corner houses inside the ring road's corners (streets on two sides: U10 corner turrets).
