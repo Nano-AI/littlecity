@@ -1257,3 +1257,13 @@ single outline of the nuke/storm cloud (orchestrator's reading of "new
 color") on them and on small round things (faces, fruit, the dog) →
 new agent `ab27513c35386a432` on `swarm/soft-ink` (Opus).
 Running: soft-ink.
+
+**Wedding as an event (Derek, 2026-11-20).** "Events should be pretty
+obvious": bride and groom and the party in black and white, a whole
+procession, many more petals. → new agent `a7e07ea5e184a05e3` on
+`swarm/wedding` (Opus): costumes for the whole party, 14–20 guests, an
+ordered column on a longer route, petal showers and a trail, a staged
+doorstep and a celebration at the square, bystanders watching, a
+findable cue, and the cadence (including what a held time of day does
+to it). Told to keep clear of the soft-ink agent's people parts.
+Running: soft-ink, wedding.
