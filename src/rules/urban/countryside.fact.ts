@@ -5,7 +5,7 @@
 //
 // A street cell is in town when, within FRONTAGE column steps, there is a
 // building (a house, tower, lighthouse, marble or Auto block: not a windmill
-// out in its wheat), a plaza, a stall or a fountain; or within APPROACH steps
+// out in its wheat), a plaza, a village green (U15), a stall or a fountain; or within APPROACH steps
 // a dock or an arch (the way onto a pier or a bridge stays lit). The other
 // street cells on the ground are out of town; where RUN_MIN or more of them
 // run on connected along one street, that run is a country lane and its
@@ -23,6 +23,7 @@ import { defineFact } from '@/resolve/facts/api';
 import { columnDistance, NONE } from '@/resolve/facts/lib';
 import { streets, type Street } from '@/resolve/facts/streets.fact';
 import { onGround } from '../decoration/lib';
+import { landUse } from './land-use.fact';
 
 /** Column steps within which a building or a square makes a street cell part of the town. */
 export const FRONTAGE = 3;
@@ -55,6 +56,8 @@ export const countryside = defineFact<Countryside>('countryside', (f) => {
     else if (kind === 'dock' || kind === 'arch') approach[i] = 1;
   }
   for (const [cell, floor] of f.world.floors) if (floor === 'plaza') built[keyX(cell) + keyZ(cell) * SIZE_X] = 1;
+  // A village green is the village's square.
+  for (const g of landUse(f).greens) for (const c of g.cells) built[keyX(c) + keyZ(c) * SIZE_X] = 1;
   const country = new Set<CellKey>();
   const runs: CountryRun[] = [];
   if (!built.includes(1)) return { isCountry: () => false, runs, frontage: () => NONE };

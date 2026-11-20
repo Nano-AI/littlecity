@@ -622,6 +622,15 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   facing south), vegetable patches, a washing pole, a shed or compost heap,
   and a fruit tree at the far end. Before U02 (with 3+ trees it stays a park;
   with no house against it, a paddock); smaller patches stay U04 back yards.
+- **U15 · 2 · Village green** (UF-02) — bare grass with no other use, looked
+  across from opposite sides by the ground storeys of 2+ houses (each house
+  looks 8 cells out across three columns; trees do not block the view),
+  trimmed to open space (cells in some 3 × 3), 9–100 cells, 4+ houses in all,
+  touching a street, no square within 4 → a mown sward a shade lighter than
+  the meadow (no outline), a maypole near the middle clear of trees
+  ('activity'/'dance'), a ring bench round each tree on or beside it (four
+  seats), a village sign by the street. Not a single row's frontage, a gap
+  between houses, a square's lawn, or any ground with another use.
 
 ---
 

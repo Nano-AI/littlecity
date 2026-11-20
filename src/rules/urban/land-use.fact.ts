@@ -22,6 +22,9 @@
 //                        no street or square
 //   pocket park (U01)    a leftover of 2 to DRESSING.parkMax cells that
 //                        touches a street or a square
+//   village green (U15) open grass (after all the above) holding a 3 × 3,
+//                        looked across from opposite sides by a ring of 4+ houses,
+//                        touching a street; see below
 //
 // And the decoration rules, which run BEFORE the urban rules, must know
 // which ground is spoken for: wild grass (D24) does not grow in a front
@@ -34,6 +37,8 @@
 
 import { keyY, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { defineFact } from '@/resolve/facts/api';
+import { facades } from '@/resolve/facts/facades.fact';
+import { plazas } from '@/resolve/facts/plazas.fact';
 import { wildGrass } from '@/resolve/facts/grass.fact';
 import { leftovers } from '@/resolve/facts/leftovers.fact';
 import { edgeBetween } from '@/resolve/facts/lib';
@@ -82,9 +87,18 @@ export interface Burgage {
   houses: readonly { id: StructureId; along: readonly number[] }[];
 }
 
+/** U15 (discovery round 1, UF-02): the open grass a ring of houses looks across. */
+export interface Green {
+  /** Ascending. */
+  cells: readonly CellKey[];
+  /** The houses that look across it. */
+  houses: readonly StructureId[];
+}
+
 export type LandUse =
   | { use: 'front-garden'; garden: FrontGarden }
   | { use: 'burgage'; burgage: Burgage }
+  | { use: 'green'; green: Green }
   | { use: 'field'; field: Field }
   | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
@@ -99,7 +113,14 @@ export interface LandUses {
   courtyards: readonly Patch[];
   backYards: readonly Patch[];
   pocketParks: readonly Patch[];
+  greens: readonly Green[];
 }
+
+/** U15: how far a house looks across a green, and the green's size and ring of houses. */
+const GREEN_REACH = 8;
+const GREEN_MIN = 9;
+const GREEN_MAX = 100;
+const GREEN_HOUSES = 4;
 
 /** U14: the most cells a burgage patch may have (bigger fenced land is a field). */
 const BURGAGE_MAX = 80;
@@ -195,7 +216,91 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     }
   }
 
-  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks };
+  // ── U15 village greens: the open grass a ring of houses looks across ──
+  // Each ground-storey house facade looks straight out across bare grass with no other use, up to
+  // GREEN_REACH cells (stopping at anything else). Grass looked across from opposite sides by two or more houses is the
+  // heart of a green; a connected heart of GREEN_MIN to GREEN_MAX cells, looked at by GREEN_HOUSES
+  // or more houses and touching a street, is a green. Not near a square: that is the square's lawn.
+  const greens: Green[] = [];
+  const seers = new Map<CellKey, Set<StructureId>>();
+  const sides = new Map<CellKey, Set<Dir4>>();
+  const see = (c: CellKey, id: StructureId, d: Dir4): void => {
+    let set = seers.get(c);
+    if (!set) seers.set(c, (set = new Set()));
+    set.add(id);
+    let ds = sides.get(c);
+    if (!ds) sides.set(c, (ds = new Set()));
+    ds.add(d);
+  };
+  for (const fc of facades(f).list) {
+    if (fc.kind !== 'house' || fc.storey !== 1) continue;
+    // A house looks out across three columns: straight ahead, and a column either side.
+    for (const side of [0, 1, 3]) {
+      let c = side ? neighbor(fc.cell, ((fc.dir + side) % 4) as Dir4) : fc.cell;
+      if (c === NO_CELL) continue;
+      for (let k = 1; k <= GREEN_REACH; k++) {
+        const back = ((fc.dir + 2) % 4) as Dir4;
+        c = neighbor(c, fc.dir);
+        if (c === NO_CELL || edgeBetween(f, c, back)) break;
+        if (f.kinds.get(c) === 'tree') continue; // a tree does not block the view
+        if (!grass.has(c) || byCell.has(c)) break;
+        see(c, fc.structure, fc.dir);
+      }
+    }
+  }
+  const squares = plazas(f).list.filter((p) => p.square).flatMap((p) => p.cells);
+  // Looked across from two opposite sides, by two different houses.
+  const opposite = (ds: Set<Dir4>): boolean => (ds.has(0) && ds.has(2)) || (ds.has(1) && ds.has(3));
+  // Not a gap between two houses (a building on both sides across it): that is a passage, not the green.
+  const isHouse = (c: CellKey): boolean => c !== NO_CELL && f.kinds.get(c) === 'house';
+  const gap = (c: CellKey): boolean => (isHouse(neighbor(c, 0)) && isHouse(neighbor(c, 2))) || (isHouse(neighbor(c, 1)) && isHouse(neighbor(c, 3)));
+  const heart = new Set([...seers].filter(([c, s]) => s.size >= 2 && opposite(sides.get(c)!) && !gap(c)).map(([c]) => c));
+  const seen = new Set<CellKey>();
+  for (const start of [...heart].sort((a, b) => a - b)) {
+    if (seen.has(start)) continue;
+    const cells: CellKey[] = [];
+    const stack = [start];
+    seen.add(start);
+    while (stack.length) {
+      const c = stack.pop()!;
+      cells.push(c);
+      for (const d of [0, 1, 2, 3] as Dir4[]) {
+        const n = neighbor(c, d);
+        if (n !== NO_CELL && heart.has(n) && !seen.has(n) && !edgeBetween(f, c, d)) {
+          seen.add(n);
+          stack.push(n);
+        }
+      }
+    }
+    // Trim strips and tendrils (along the front of a row, down a passage between houses): keep the
+    // cells that lie in some 3 × 3 of the patch. What is left is open space.
+    const inPatch = new Set(cells);
+    const block = (x0: number, z0: number): boolean => {
+      for (let dz = 0; dz < 3; dz++) for (let dx = 0; dx < 3; dx++) if (!inPatch.has(cells[0]! - (cells[0]! & 63) - (((cells[0]! >> 6) & 63) << 6) + (x0 + dx) + ((z0 + dz) << 6))) return false;
+      return true;
+    };
+    const kept = cells.filter((c) => {
+      const x = c & 63, z = (c >> 6) & 63;
+      for (let oz = -2; oz <= 0; oz++) for (let ox = -2; ox <= 0; ox++) if (block(x + ox, z + oz)) return true;
+      return false;
+    });
+    cells.length = 0;
+    cells.push(...kept);
+    if (cells.length < GREEN_MIN || cells.length > GREEN_MAX) continue;
+    const houses = new Set<StructureId>();
+    for (const c of cells) for (const h of seers.get(c)!) houses.add(h);
+    if (houses.size < GREEN_HOUSES) continue;
+    const street = cells.some((c) => [0, 1, 2, 3].some((d) => f.world.floors.get(neighbor(c, d as Dir4)) === 'path'));
+    if (!street) continue;
+    const col = (c: CellKey): [number, number] => [c & 63, (c >> 6) & 63];
+    if (squares.some((q) => cells.some((c) => Math.abs(col(q)[0] - col(c)[0]) + Math.abs(col(q)[1] - col(c)[1]) <= 4))) continue;
+    cells.sort((a, b) => a - b);
+    const green: Green = { cells, houses: [...houses].sort((a, b) => a - b) };
+    greens.push(green);
+    for (const c of cells) byCell.set(c, { use: 'green', green });
+  }
+
+  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens };
 
   /** The row of houses whose backs (no main door) face the land on one side, if two or more. */
   function burgageOf(cells: readonly CellKey[]): Burgage | null {

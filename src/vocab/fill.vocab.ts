@@ -32,5 +32,20 @@ declare module '@/core/vocab' {
     'fruit-tree.look': number;
     'compost': true;
     'compost.look': number;
+
+    // U15 village green. Sward: one cell of mown lawn at the centre slot, square to the world; `mask`
+    // bit d set where the green runs on past side d; `stripe` 0 or 1 (the mown band). Maypole: at a
+    // floor slot; anchor 'dance' at its foot. Ring bench: at a tree cell's centre slot, round the
+    // trunk; sockets 'seat-0'…'seat-3'. Village sign: an edge slot, +Z toward the street.
+    'sward': true;
+    'sward.mask': number;
+    'sward.stripe': 0 | 1;
+    'sward.level': number; //          the terrain level it lies on (its grass colour and surface)
+    'maypole': true;
+    'maypole.look': number;
+    'ring-bench': true;
+    'ring-bench.look': number;
+    'village-sign': true;
+    'village-sign.look': number;
   }
 }

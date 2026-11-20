@@ -773,6 +773,22 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: -0.1,
   },
   {
+    id: 'village-green',
+    group: 'green',
+    name: 'Village green',
+    how: 'Leave a patch of grass between two rows of houses that face each other across it, with a path beside it: it becomes the village green, with a maypole.',
+    proof: { prop: { rule: 'U15.village-green', type: 'maypole' } },
+    seed: 7653,
+    build(b) {
+      b.path(15, 15, 15, 24);
+      for (const x of [17, 20]) b.house(x, 16, { color: x % 8 }).house(x, 23, { color: (x + 3) % 8 });
+      b.path(16, 15, 21, 15).path(16, 24, 21, 24);
+      b.put('tree', 21, 19);
+    },
+    view: { yaw: 40, pitch: 36 },
+    pad: -0.1,
+  },
+  {
     id: 'pocket-park',
     group: 'green',
     name: 'Pocket park',
