@@ -144,7 +144,8 @@ describe('phone: shaping the land', () => {
     expect(await page.isDisabled('[data-ui="length-more"]')).toBe(true); // a brush goes no wider than 3
     const p = await top(page, 22, 22);
     await page.touchscreen.tap(p[0], p[1]);
-    await page.waitForFunction(`window.__lc.terrain().height[${22 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 23 * 48}] === 2`);
+    // The widest brush has a soft edge: the middle and its four sides rise, the corners wait a dab.
+    await page.waitForFunction(`window.__lc.terrain().height[${22 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 23 * 48}] === 1`);
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(SHOTS, 'land-phone-raise.png') });
     await page.tap('[data-ui="undo"]');

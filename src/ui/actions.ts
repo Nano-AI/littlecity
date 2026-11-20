@@ -220,8 +220,10 @@ function planLand(item: LandId, tool: ToolState, pick: Pick, ctx: ActionContext)
   const h = ctx.terrain.height[columnIndex(x, z)]!;
   const at = key(x, Math.min(SIZE_Y - 1, h), z);
   const cols = brushAt(pick, tool.brush ?? 1);
-  if (item === 'raise') return { tries: [{ type: 'land', up: cols, down: [] }], at };
-  if (item === 'dig') return { tries: [{ type: 'land', up: [], down: cols }], at };
+  if (item === 'raise' || item === 'dig') {
+    const moved = tapered(cols, x, z, ctx.terrain.height, item === 'raise' ? 1 : -1);
+    return { tries: [item === 'raise' ? { type: 'land', up: moved, down: [] } : { type: 'land', up: [], down: moved }], at };
+  }
   const to = tool.levelTo ?? h;
   const level = levelSteps(ctx.world, ctx.terrain, cols, to);
   if (level.edits.length === 0) {
@@ -229,6 +231,22 @@ function planLand(item: LandId, tool: ToolState, pick: Pick, ctx: ActionContext)
     return { tries: [], at, refusal: flat ? 'Level brings the ground to the height where you press: drag from there across the ground' : level.reason };
   }
   return { tries: [level.edits[0]!], at, steps: level.edits };
+}
+
+/**
+ * A wide brush has a soft edge (shaping the land): with the 3-across brush, the corners of the square
+ * move only once they have fallen behind the middle, and the sides only while level with it or behind,
+ * so dab after dab builds a rounded mound or bowl instead of a square step. Narrower brushes move whole.
+ */
+export function tapered(cols: readonly number[], x: number, z: number, h: ArrayLike<number>, dy: 1 | -1): number[] {
+  if (cols.length < 9) return [...cols];
+  const mid = h[columnIndex(x, z)]!;
+  return cols.filter((c) => {
+    const dx = Math.abs((c % 48) - x), dz = Math.abs(Math.floor(c / 48) - z);
+    if (dx === 0 && dz === 0) return true;
+    const behind = dy > 0 ? mid - h[c]! : h[c]! - mid;
+    return dx + dz === 2 ? behind >= 1 : behind >= 0;
+  });
 }
 
 /**

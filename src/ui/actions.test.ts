@@ -203,3 +203,17 @@ describe('lineCells', () => {
     expect(lineCells(key(8, 1, 8), key(6, 1, 9))).toHaveLength(3);
   });
 });
+
+describe('the land brush (shaping the land)', () => {
+  test('the widest brush has a soft edge: corners move once they lag behind the middle, sides while level with it', async () => {
+    const { tapered } = await import('./actions');
+    const h = new Uint8Array(48 * 48).fill(1);
+    const cols: number[] = [];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) cols.push(20 + dx + (20 + dz) * 48);
+    const first = tapered(cols, 20, 20, h, 1);
+    expect(first.length).toBe(5); // the middle and its four sides
+    for (const c of first) h[c] = 2;
+    expect(tapered(cols, 20, 20, h, 1).length).toBe(9); // now the corners follow
+    expect(tapered(cols.slice(0, 4), 20, 20, h, 1).length).toBe(4); // a narrower brush moves whole
+  });
+});
