@@ -22,6 +22,19 @@
 // generator 1 is written exactly as before (version 1 or 2), so every old
 // link and file still opens on the island it was built on.
 //
+// Version 4 (2026-11-19, shaping the land) is version 3 (generator byte
+// included) followed by optional sections after the edges:
+//
+//   sections = flags (varint) | per set bit, lowest first: length (varint), bytes
+//   bit 0, the reshaped land (World.terrainEdits): count (varint), then per
+//          column in index order: index delta from the previous (varint, the
+//          first from -1), height (byte, 0–10)
+//
+// Each section is self-contained and length-prefixed, so another optional
+// section can take the next bit beside this one without touching it. A town
+// with no section to write is written as before (version 1, 2 or 3), byte for
+// byte; a flag bit this code does not know is "a different version".
+//
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
 // and the autosaver report storage trouble instead of failing (Focus 5).
@@ -30,6 +43,7 @@ import { inBounds, key, keyX, keyY, keyZ, NO_CELL, edgeCells, type CellKey, type
 import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 import type { Block, Rot, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
+import { LAND_MAX, landEditable } from '@/terrain/land';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
 export type DecodeResult = { ok: true; world: World } | { ok: false; reason: string };
@@ -42,6 +56,11 @@ const VERSION_1 = 1;
 const VERSION_2 = 2;
 /** Version 2 plus the island generator (a byte after the seed). */
 const VERSION_3 = 3;
+/** Version 3 plus optional sections after the edges (the reshaped land). */
+const VERSION_4 = 4;
+/** Section flags of version 4. Take the next free bit for a new section. */
+const SECTION_LAND = 1 << 0;
+const KNOWN_SECTIONS = SECTION_LAND;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -124,7 +143,7 @@ export function encodeTown(w: World): string {
   const version = codecVersion(w);
   const p = new Writer();
   p.u32(w.seed | 0);
-  if (version === VERSION_3) p.byte(w.terrainGen ?? 1);
+  if (version >= VERSION_3) p.byte(w.terrainGen ?? 1);
   p.varint(w.nextSeq);
   // Blocks in placement order, each relative to the one placed before it:
   // towns grow in stacks and rows, so the steps are small and repetitive.
@@ -161,6 +180,7 @@ export function encodeTown(w: World): string {
     prev = e;
     p.byte(EDGE_KINDS.indexOf(w.edges.get(e)!));
   }
+  if (version === VERSION_4) writeSections(p, w);
   const payload = Uint8Array.from(p.bytes);
   const head = new Writer();
   head.byte(0x4c);
@@ -174,8 +194,58 @@ export function encodeTown(w: World): string {
   return toBase64Url(all);
 }
 
-/** The codec version a town needs: 3 on generator 2's island, else 2 if any block has a house style, else 1. */
-export function codecVersion(w: World): 1 | 2 | 3 {
+/** Version 4's optional sections: the flags, then each present section with its length. */
+function writeSections(p: Writer, w: World): void {
+  let flags = 0;
+  const sections: number[][] = [];
+  if (w.terrainEdits && w.terrainEdits.size > 0) {
+    flags |= SECTION_LAND;
+    const s = new Writer();
+    const cols = sortedKeys(w.terrainEdits);
+    s.varint(cols.length);
+    let prev = -1;
+    for (const c of cols) {
+      s.varint(c - prev);
+      prev = c;
+      s.byte(w.terrainEdits.get(c)!);
+    }
+    sections.push(s.bytes);
+  }
+  p.varint(flags);
+  for (const bytes of sections) {
+    p.varint(bytes.length);
+    for (const b of bytes) p.byte(b);
+  }
+}
+
+/** Reads version 4's sections into the world's optional fields; a reason string if they are damaged. */
+function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }): string | null {
+  const flags = r.varint();
+  if (flags & ~KNOWN_SECTIONS) return OTHER_VERSION;
+  if (flags & SECTION_LAND) {
+    const length = r.varint();
+    const end = r.pos + length;
+    const edits = new Map<number, number>();
+    const n = r.varint();
+    if (n < 1 || n > 48 * 48) return DAMAGED;
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const c = prev + r.varint();
+      if (c === prev || c >= 48 * 48 || !landEditable(c % 48, (c / 48) | 0)) return DAMAGED;
+      prev = c;
+      const h = r.byte();
+      if (h > LAND_MAX) return DAMAGED;
+      edits.set(c, h);
+    }
+    if (r.pos !== end) return DAMAGED;
+    out.terrainEdits = edits;
+  }
+  return null;
+}
+
+/** The codec version a town needs: 4 with reshaped land, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+export function codecVersion(w: World): 1 | 2 | 3 | 4 {
+  if (w.terrainEdits && w.terrainEdits.size > 0) return VERSION_4;
   if (w.terrainGen === 2) return VERSION_3;
   for (const b of w.blocks.values()) if (b.style) return VERSION_2;
   return VERSION_1;
@@ -200,7 +270,7 @@ function decode(code: string): DecodeResult {
   if (!bytes || bytes.length < 2 || bytes[0] !== 0x4c || bytes[1] !== 0x43) return { ok: false, reason: NOT_A_TOWN };
   if (bytes.length < 3) return { ok: false, reason: DAMAGED };
   const version = bytes[2];
-  if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3) return { ok: false, reason: OTHER_VERSION };
+  if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3 && version !== VERSION_4) return { ok: false, reason: OTHER_VERSION };
   if (bytes.length < 8) return { ok: false, reason: DAMAGED };
   const head = new Reader(bytes.subarray(3, 7));
   const sum = head.u32();
@@ -215,7 +285,7 @@ function decode(code: string): DecodeResult {
   const r = new Reader(payload);
   const seed = r.u32() | 0;
   let terrainGen: 1 | 2 = 1;
-  if (version === VERSION_3) {
+  if (version === VERSION_3 || version === VERSION_4) {
     const g = r.byte();
     if (g !== 1 && g !== 2) return { ok: false, reason: OTHER_VERSION };
     terrainGen = g;
@@ -278,9 +348,16 @@ function decode(code: string): DecodeResult {
     if (!kind) return { ok: false, reason: DAMAGED };
     edges.set(e, kind);
   }
+  const extra: { terrainEdits?: Map<number, number> } = {};
+  if (version === VERSION_4) {
+    const bad = readSections(r, extra);
+    if (bad) return { ok: false, reason: bad };
+  }
   if (!r.done) return { ok: false, reason: DAMAGED };
-  const world: World = { version: 1, seed, nextSeq, blocks, floors, edges };
-  return { ok: true, world: terrainGen === 2 ? { ...world, terrainGen } : world };
+  let world: World = { version: 1, seed, nextSeq, blocks, floors, edges };
+  if (terrainGen === 2) world = { ...world, terrainGen };
+  if (extra.terrainEdits) world = { ...world, terrainEdits: extra.terrainEdits };
+  return { ok: true, world };
 }
 
 /** The share code, and whether it is short enough for a link (else offer the town file). */
