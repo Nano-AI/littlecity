@@ -111,7 +111,10 @@ uniform vec3 uStar;
 uniform float uGlow;
 uniform float uStars;
 uniform float uHalo;
-uniform float uFestive;    // Seasons: festival lights up; halos take each light's own colour
+uniform float uFestive;
+uniform float uFog;        // Seasons: mist, 0 to 1 (lying low, by the water)
+uniform vec3 uFogCol;      // its colour, graded (the paper's)
+uniform float uFogY;       // the waterline    // Seasons: festival lights up; halos take each light's own colour
 
 ${NOISE}
 ${COLOR}
@@ -307,7 +310,20 @@ void main(){
     }
   }
 
+  // Seasons: mist. It lies low, thickest at the water and thinning up the hills, in slow banks that
+  // drift; it is read at the world point under the pixel, so it stays put when the view turns.
+  float mist = 0.0;
+  if (uFog > 0.0) {
+    float dd = texture(tDepth, vUv).x;
+    vec2 ndc = vUv * 2.0 - 1.0;
+    vec3 wp = uEye + uRight * ndc.x + uUp * ndc.y + uForward * (uNear + dd * uDepthRange);
+    float banks = n2(wp.xz * 0.13 + uTime * vec2(0.025, 0.01)) * 0.65 + n2(wp.xz * 0.41 - uTime * 0.02) * 0.35;
+    float low = 1.0 - smoothstep(uFogY + 0.05, uFogY + 2.8, wp.y + (banks - 0.5) * 1.6);
+    mist = uFog * mix(low * (0.45 + 0.55 * banks), 0.35, bg) * (1.0 - glow * 0.7);
+    g = mix(g, uFogCol, clamp(mist, 0.0, 0.85));
+  }
   float dens = mix(1.0, 0.8 + 0.2 * pen.w, steady);
+  dens *= 1.0 - 0.55 * clamp(mist, 0.0, 1.0);
   // Seasons: a small light glowing is not swallowed by its own outline.
   if (uFestive > 0.0) dens *= 1.0 - glow * uFestive * 0.6;
   g = mix(g, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);

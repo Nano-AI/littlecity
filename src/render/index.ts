@@ -420,6 +420,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uStars: { value: 0 },
     uHalo: { value: 0 },
     uFestive: { value: 0 },
+    uFog: { value: 0 },
+    uFogCol: v3(),
+    uFogY: { value: SEA_Y },
   };
   const post = (defines: Record<string, number>): THREE.RawShaderMaterial =>
     new THREE.RawShaderMaterial({
@@ -1157,6 +1160,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const festive = seasonOf(signals).festival;
       cu.uHalo.value = LOOK.halo * (1 + 0.7 * sf.snow[0] + 0.6 * festive);
       cu.uFestive.value = festive;
+      cu.uFog.value = sf.fog;
+      if (sf.fog > 0) {
+        const paper = paperOf(sf);
+        cu.uFogCol.value.set(paper[0] * grade.tint[0] + grade.lift[0], paper[1] * grade.tint[1] + grade.lift[1], paper[2] * grade.tint[2] + grade.lift[2]);
+      }
       if (inkRT) {
         inkUniforms.uOut.value.set(inkRT.width, inkRT.height);
         inkUniforms.uPR.value = pixelRatio / 2;
