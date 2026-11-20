@@ -1768,7 +1768,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             }
             if (p.startled > 0) break;
             // Dusk calls everybody in, whatever they were doing.
-            if (p.timer > 0 && mustBeHome(p, time) && p.goal?.haunt?.type !== 'haunt-night') p.timer = 0;
+            if (p.timer > 0 && mustBeHome(p, time) && p.goal?.haunt?.type !== 'haunt-night' && p.goal?.kind !== 'errand') p.timer = 0;
             if (p.timer <= 0 && !p.want) {
               p.want = nextGoal(p, time, false);
               if (!p.want) p.timer = 4 + r(p, 'retry') * 4;

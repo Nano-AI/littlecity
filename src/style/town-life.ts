@@ -84,6 +84,8 @@ export const CHAINS = defineStyle(
     fishGap: 30,
     fishBuyMorning: 0.16,
     fishBuy: 0.08,
+    /** L55: seconds the watchman stops at each post of the beat. */
+    watchStop: 2.5,
   },
   {
     millGap: [0, 120, 1],
@@ -100,6 +102,7 @@ export const CHAINS = defineStyle(
     fishGap: [0, 300, 1],
     fishBuyMorning: [0, 1, 0.01],
     fishBuy: [0, 1, 0.01],
+    watchStop: [0, 10, 0.1],
   },
 );
 

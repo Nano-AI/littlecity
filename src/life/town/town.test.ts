@@ -9,6 +9,7 @@ import { keyX, keyZ } from '@/core/grid';
 import type { DressingPlan } from '@/resolve/plan';
 import breadTown from '../../../scenarios/life/L51.bread.scenario';
 import fishTown from '../../../scenarios/life/L53.fish.scenario';
+import watchTown from '../../../scenarios/life/L55.watchman.scenario';
 import type { Person } from '../people/crowd';
 import type { Load } from '../people/errand';
 import { clock, scenarioTown, watch, type TestTown } from '../people/testing';
@@ -24,7 +25,7 @@ interface Ledger {
   lost: string[];
 }
 
-function run(seconds: number, part: 'day' | 'dawn' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void, where: TestTown = town) {
+function run(seconds: number, part: 'day' | 'dawn' | 'night' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void, where: TestTown = town) {
   // (`then` is called once a second, before that second's steps' checks.)
   const c = clock(where.world.seed, part);
   const t = createLivingTown({ seed: where.world.seed });
@@ -126,6 +127,22 @@ describe('L51 bread and L52 water', () => {
     expect(ledger.pickedUp.get('fish@fish:fishing') ?? 0).toBeGreaterThanOrEqual(2);
     expect(ledger.setDown.get('fish@fish:deliver') ?? 0).toBeGreaterThanOrEqual(2);
     expect(ledger.pickedUp.get('fishes@fish:buy') ?? 0).toBeGreaterThanOrEqual(1);
+  });
+
+  test('L55: at night the watchman walks the beat with a lantern, post after post', () => {
+    const beats = new Set<string>();
+    let lantern = 0;
+    const { w, ledger } = run(150, 'night', town.dressing, (t) => {
+      for (const p of t.crowd.people) {
+        if (p.load === 'lantern' && p.visible) lantern++;
+        const tag = p.goal?.errand?.tag ?? '';
+        if (p.mode === 'linger' && tag.startsWith('watch:beat')) beats.add(tag);
+      }
+    }, scenarioTown(watchTown));
+    expect(w.problems).toEqual([]);
+    expect(ledger.lost).toEqual([]);
+    expect(lantern).toBeGreaterThan(30);
+    expect(beats.size).toBeGreaterThanOrEqual(3);
   });
 
   test('the same town stepped the same way tells the same story', () => {

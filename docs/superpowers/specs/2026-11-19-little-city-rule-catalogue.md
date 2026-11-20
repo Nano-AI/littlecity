@@ -617,6 +617,14 @@ its carrier. Nothing is ever left floating or vanishes in view.
   landed in 5 s: a paste, Grow a town's playback) start one less than 40 s
   after the last; at night. A job nobody came to lapses after 25 s; a
   building erased mid-job ends it and what was set down is picked up.
+- **L55 · 2 · Night watchman** (LF-05) — a town of 12+ house structures and
+  no garrison (L36) → a beat of up to 8 posts (`watch|beat|<order>`): the
+  middles of its squares and of streets 3+ long, in the part of the walking
+  graph round the town's heart, walked from the heart, always on to the
+  nearest not yet walked. At night one grown-up with no job (living nearest
+  the beat's start) walks it with a glowing lantern on a pole, stopping 2.5 s
+  at each post to look about, round and round until dawn, then home.
+  **Must not:** be kept where a garrison is; walk by day.
 
 ### Animals and small motion
 

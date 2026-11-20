@@ -123,10 +123,10 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       break;
     case 'lantern':
       b.setInk('frame').setColor(PALETTE.metal);
-      b.box([-0.025, 0, -0.025], [0.025, 0.008, 0.025]);
-      b.box([-0.02, 0.06, -0.02], [0.02, 0.07, 0.02]);
+      b.box([-0.04, 0, -0.04], [0.04, 0.012, 0.04]);
+      b.lathe([[0.034, 0.1], [0.012, 0.125], [0, 0.13]], { segments: 6 });
       b.setInk('light').setColor(PALETTE.yellow).setPattern(PATTERN.glow);
-      b.box([-0.018, 0.008, -0.018], [0.018, 0.06, 0.018]);
+      b.box([-0.032, 0.012, -0.032], [0.032, 0.1, 0.032]);
       break;
     case 'basket':
       basket(b, 0.07, 0.065);
@@ -180,7 +180,7 @@ const HOLD: Record<Load, Mat4Like> = {
   ladder: translation(0.1, 0.32, 0.02),
   hod: translation(-0.09, 0.33, -0.01),
   crate: translation(0, 0.12, 0.13),
-  lantern: translation(0.1, 0.36, 0.1),
+  lantern: translation(0.11, 0.34, 0.12),
   basket: translation(0, 0.15, 0.12),
   washing: translation(0, 0.14, 0.12),
   sheaf: translation(0, 0.11, 0.11),
