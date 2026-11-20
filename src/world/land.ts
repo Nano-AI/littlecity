@@ -13,8 +13,8 @@
 // A column is refused (and skipped) when:
 //   - it is in the sea border, or would rise above LAND_MAX, or is water and
 //     is dug;
-//   - raising water would lift a dock or a bridge (an Auto, dock or arch on
-//     the water);
+//   - raising water would lift a dock or a bridge (a dock or arch on the
+//     water; an Auto block rides up and adapts);
 //   - carrying would push something past the top of the world or into
 //     something that is not moving;
 //   - after the move something it carried would stand where it may not (a
@@ -81,7 +81,8 @@ function columnVerdict(w: World, t: Terrain, col: number, dy: 1 | -1): Column | 
   if (h >= LAND_MAX) return 'the land can rise no higher';
   if (h === 0) {
     const onWater = blockIn(w, x, 0, z);
-    if (onWater && (onWater.kind === 'auto' || onWater.kind === 'dock' || onWater.kind === 'arch')) return 'a dock or a bridge stands on this water';
+    // A dock or bridge stays where it is; an Auto block (a dock while it floats) rides up and adapts.
+    if (onWater && (onWater.kind === 'dock' || onWater.kind === 'arch')) return 'a dock or a bridge stands on this water';
   }
   // The stack's blocks end at top - 1; the cell `top` may hold a floor or edge pieces, which go to top + 1.
   if (top >= SIZE_Y) return 'it would push something past the top of the world';
