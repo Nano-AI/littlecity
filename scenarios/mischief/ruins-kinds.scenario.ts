@@ -53,6 +53,7 @@ export default scenario({
     { name: 'mid', yaw: 45, pitch: 32, zoom: 2.4, target: [23, 1, 23] },
     { name: 'low', yaw: 45, pitch: 34, zoom: 2.4, target: [23, 1, 35] },
     { name: 'docks', yaw: 45, pitch: 38, zoom: 3, target: [23, 0, 42] },
+    { name: 'mills', yaw: 40, pitch: 30, zoom: 4.5, target: [14, 1, 10] },
     { name: 'close-towers', yaw: 40, pitch: 28, zoom: 4.5, target: [14, 1, 6] },
     { name: 'close-trees', yaw: 40, pitch: 30, zoom: 4.5, target: [14, 1, 30] },
   ],

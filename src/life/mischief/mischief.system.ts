@@ -10,7 +10,7 @@
 // A spout in the water. Nothing here is saved; the damage is, by the engine.
 
 import { CELL_H, DIR4, key, keyX, keyY, keyZ, SEA_Y, type CellKey } from '@/core/grid';
-import { compose, multiply, rotationY, scaling, translation, type Mat4 } from '@/core/mat4';
+import { compose, multiply, rotationX, rotationY, rotationZ, scaling, translation, type Mat4 } from '@/core/mat4';
 import { hash, rand } from '@/core/rand';
 import { blastChunks, roofSampler } from '@/gen/damage/damage';
 import { chunkMatrix, type Chunk } from '@/gen/damage/debris';
@@ -19,12 +19,12 @@ import { polysOf, Soup } from '@/gen/damage/poly';
 import { allGenerators, allParts } from '@/gen/discover';
 import type { MeshData } from '@/gen/mesh';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
-import { ruinSettling, ruinStage, ruinCause } from '@/world/damage';
+import { ruinCause, ruinSettling, ruinStage, ruinUninhabitable } from '@/world/damage';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type SpawnSpec } from '../api';
 import { scaresOf } from '../birds/scare';
 import { fxOf } from '../fx/fx';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
-import { bombMesh, dustMesh, emberMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
+import { bombMesh, dustMesh, emberMesh, fallenSailsMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
 
 /** Instances of one mesh, reused: a finished flame is hidden and handed to the next. */
 class Pool {
@@ -166,6 +166,8 @@ interface State {
   spouts: Spout[];
   pools: Map<string, Pool>;
   smokeAcc: Map<StructureId, number>;
+  /** A wrecked windmill's sails, down on the ground beside it (falling there when it happens). */
+  sails: Map<StructureId, { h: InstanceHandle; burnt: boolean; age: number; fall: boolean; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; yaw: number }>;
   dust: Dust[];
   samplers: Map<StructureId, { hash: number; sample: (x: number, z: number, minY: number) => number | null }>;
   /** Seconds to the next fright for the birds round each fire. */
@@ -424,6 +426,7 @@ export default defineSystem<State>({
       spouts: [],
       pools: new Map(),
       smokeAcc: new Map(),
+      sails: new Map(),
       dust: [],
       samplers: new Map(),
       scareIn: 0,
@@ -452,6 +455,43 @@ export default defineSystem<State>({
       st.shakes.push({ id: s.id, h: ctx.stage.liftStructure(s.id), age: 0, amp: s.amp });
     }
     st.toShake = [];
+    // A wrecked windmill's sails lie beside it; they fall there when the mill is wrecked before our eyes.
+    for (const [id, sl] of st.sails) {
+      const s = next.shape.structures.get(id);
+      if (s && s.kind === 'windmill' && s.cells.some((c) => ruinUninhabitable(next.shape.world.blocks.get(c)?.ruin))) continue;
+      sl.h.release();
+      st.sails.delete(id);
+    }
+    for (const s of next.shape.structures.values()) {
+      if (s.kind !== 'windmill' || st.sails.has(s.id)) continue;
+      const ruins = s.cells.map((c) => next.shape.world.blocks.get(c)?.ruin);
+      if (!ruins.some((r) => ruinUninhabitable(r))) continue;
+      const burnt = ruins.some((r) => ruinCause(r) === 'fire' && ruinStage(r) >= 2);
+      const top = Math.max(...s.cells.map((c) => keyY(c))) + 1;
+      const low = Math.min(...s.cells.map((c) => keyY(c)));
+      const c0 = s.cells[0]!;
+      const a = Math.floor(rand(s.seed, 'sails-fall') * 4);
+      const [dx, dz] = DIR4[a as 0]!;
+      const yaw = Math.atan2(dx, dz);
+      // Seen falling only if the mill was whole a moment ago.
+      const was = _prev?.shape.structures.get(s.id);
+      const fall = !!was && !was.cells.some((c) => ruinUninhabitable(_prev!.shape.world.blocks.get(c)?.ruin));
+      const h = ctx.stage.spawnMesh(fallenSailsMesh(burnt), HIDDEN);
+      st.sails.set(s.id, {
+        h,
+        burnt,
+        age: fall ? 0 : 99,
+        fall,
+        x0: keyX(c0) + 0.5 + dx * 0.45,
+        y0: top * CELL_H - 0.25,
+        z0: keyZ(c0) + 0.5 + dz * 0.45,
+        x1: keyX(c0) + 0.5 + dx * 1.05,
+        y1: low * CELL_H + 0.05 + rand(s.seed, 'sails-lift') * 0.02,
+        z1: keyZ(c0) + 0.5 + dz * 1.05,
+        yaw,
+      });
+    }
+
     // A block that is gone (erased, undone) takes its embers with it.
     for (const [cell, e] of st.embers) {
       const r = next.shape.world.blocks.get(cell)?.ruin;
@@ -808,6 +848,22 @@ export default defineSystem<State>({
     }
     st.spouts.length = kept;
 
+    // ── windmill sails coming down ──────────────────────────────────────
+    for (const sl of st.sails.values()) {
+      sl.age += dt;
+      const t = Math.min(1, sl.age / 1.4);
+      const e = t * t;
+      const bounce = sl.age > 1.4 && sl.age < 1.7 ? Math.sin(((sl.age - 1.4) / 0.3) * Math.PI) * 0.05 : 0;
+      const m = compose(
+        translation(sl.x0 + (sl.x1 - sl.x0) * e, sl.y0 + (sl.y1 - sl.y0) * e + bounce, sl.z0 + (sl.z1 - sl.z0) * e),
+        rotationY(sl.yaw),
+        rotationX((-Math.PI / 2) * e),
+        rotationZ(t * 2.2),
+      );
+      sl.h.setMatrix(m);
+      sl.h.setVisible(true);
+    }
+
     // ── chunks in the air ───────────────────────────────────────────────
     for (const f of st.flights.values()) {
       f.age += dt;
@@ -871,6 +927,7 @@ export default defineSystem<State>({
       d.mist.release();
     }
     for (const e of st.embers.values()) e.h.release();
+    for (const sl of st.sails.values()) sl.h.release();
     for (const h of st.lights.values()) h.release();
     for (const f of st.flights.values()) for (const h of f.handles) h.release();
     for (const b of st.bombs.values()) b.h.release();

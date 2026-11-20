@@ -294,3 +294,46 @@ export function firelightMesh(): MeshData {
   for (const r of [1, 0.8, 0.62, 0.45, 0.3]) ball(b, 0, 0, 0, r, r * 0.75, r, 14, 7);
   return (warm = b.build());
 }
+
+const sails = new Map<boolean, MeshData>();
+/**
+ * A windmill's sails, come down: a hub and four lattice arms with their cloth, in the XY plane facing +Z,
+ * hub at the origin, about 0.7 from the hub to a tip. Burnt: charred frames and no cloth left.
+ */
+export function fallenSailsMesh(burnt: boolean): MeshData {
+  let m = sails.get(burnt);
+  if (m) return m;
+  const b = new MeshBuilder({ ink: `fallen-sails${burnt}` });
+  const wood = burnt ? DAMAGE_COLORS.char : PALETTE.wood;
+  b.setColor(wood).setPattern(PATTERN.planks).setInk('arms');
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + 0.3;
+    const c = Math.cos(a), s = Math.sin(a);
+    // The arm, and slats across it.
+    const arm = (x0: number, y0: number, x1: number, y1: number, w: number): void => {
+      const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1;
+      const nx = (-dy / l) * w, ny = (dx / l) * w;
+      b.polygon([[x0 + nx, y0 + ny, 0.02], [x0 - nx, y0 - ny, 0.02], [x1 - nx, y1 - ny, 0.02], [x1 + nx, y1 + ny, 0.02]]);
+      b.polygon([[x1 + nx, y1 + ny, -0.02], [x1 - nx, y1 - ny, -0.02], [x0 - nx, y0 - ny, -0.02], [x0 + nx, y0 + ny, -0.02]]);
+    };
+    arm(0, 0, c * 0.72, s * 0.72, 0.022);
+    for (let i = 1; i <= 4; i++) {
+      const r = 0.18 + i * 0.12;
+      // A slat across the arm, off to one side (the sail's frame); broken short on a burnt one.
+      const len = burnt && i % 2 === 0 ? 0.06 : 0.14;
+      arm(c * r, s * r, c * r - s * len, s * r + c * len, 0.01);
+    }
+    if (!burnt) {
+      b.setColor(PALETTE.white).setPattern(PATTERN.cloth).setInk(`cloth${k}`);
+      const p0: Vec3 = [c * 0.2, s * 0.2, 0.025], p1: Vec3 = [c * 0.68, s * 0.68, 0.025];
+      const p2: Vec3 = [c * 0.68 - s * 0.13, s * 0.68 + c * 0.13, 0.025], p3: Vec3 = [c * 0.2 - s * 0.13, s * 0.2 + c * 0.13, 0.025];
+      b.polygon([p0, p1, p2, p3]);
+      b.polygon([[p3[0], p3[1], -0.025], [p2[0], p2[1], -0.025], [p1[0], p1[1], -0.025], [p0[0], p0[1], -0.025]]);
+      b.setColor(wood).setPattern(PATTERN.planks).setInk('arms');
+    }
+  }
+  b.setColor(PALETTE.metal).setPattern(PATTERN.none).setInk('hub');
+  b.at([1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, -0.05, 1], () => b.lathe([[0.07, 0], [0.07, 0.1]], { segments: 8, capTop: true, capBottom: true }));
+  sails.set(burnt, (m = b.build()));
+  return m;
+}
