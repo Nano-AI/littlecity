@@ -78,6 +78,19 @@ export function riverWater(f: Facts, low: Uint8Array): (x: number, z: number) =>
   };
 }
 
+/** The barge keeps to the river: the sea, a lake or a cove is no water of its (1 = not its water). */
+function riverOnly(low: Uint8Array, river: (x: number, z: number) => boolean): Uint8Array {
+  const m = new Uint8Array(low);
+  for (let z = 0; z < SIZE_Z; z++) for (let x = 0; x < SIZE_X; x++) if (!river(x, z)) m[columnIndex(x, z)] = 1;
+  return m;
+}
+
+/** The water the barge works its run in (barge.ts): the river, under nothing too low to pass. */
+export function bargeWater(f: Facts): Uint8Array {
+  const low = lowObstacles(f);
+  return riverOnly(low, riverWater(f, low));
+}
+
 /** The barge's run for a town, or null. Pure. */
 export function riverRun(f: Facts): RiverRun | null {
   const docks = [...f.structures.values()].filter((s) => s.kind === 'dock').sort((a, b) => a.id - b.id);
@@ -116,9 +129,10 @@ export function riverRun(f: Facts): RiverRun | null {
     for (let k = 1; k < route.length; k++) length += Math.hypot(route[k]![0] - route[k - 1]![0], route[k]![1] - route[k - 1]![1]);
     return { a, b, route, length };
   };
-  // Two or more: between the first pair (in dock order) joined through the water, not side by side.
+  const riverField = seaField(riverOnly(low, river));
+  // Two or more: between the first pair (in dock order) joined through the river, not side by side.
   for (let i = 0; i < ends.length; i++) {
-    const g = graphFrom(water, ends[i]!, BARGE_CLEAR);
+    const g = graphFrom(riverField, ends[i]!, BARGE_CLEAR);
     for (let j = i + 1; j < ends.length; j++) {
       if (Math.hypot(ends[j]![0] - ends[i]![0], ends[j]![1] - ends[i]![1]) < 3) continue;
       const route = routeTo(g, ends[i]!, ends[j]!);
@@ -140,8 +154,22 @@ export function riverRun(f: Facts): RiverRun | null {
       }
     }
     if (mouth < 0) continue;
-    const b: Pt = [(mouth % SIZE_X) + 0.5, Math.floor(mouth / SIZE_X) + 0.5];
-    const route = routeTo(g, a, b);
+    // It turns about in the river short of the mouth: the river water it can reach nearest the mouth.
+    const gr = graphFrom(riverField, a, BARGE_CLEAR);
+    const mx = (mouth % SIZE_X) + 0.5, mz = Math.floor(mouth / SIZE_X) + 0.5;
+    let b: Pt | null = null, near = Infinity;
+    for (let z = Math.floor(mz) - 3; z <= Math.floor(mz) + 3; z++) {
+      for (let x = Math.floor(mx) - 3; x <= Math.floor(mx) + 3; x++) {
+        if (!inColumnBounds(x, z) || gr.cost[columnIndex(x, z)]! === Infinity) continue;
+        const d = Math.hypot(x + 0.5 - mx, z + 0.5 - mz);
+        if (d < near) {
+          near = d;
+          b = [x + 0.5, z + 0.5];
+        }
+      }
+    }
+    if (!b) continue;
+    const route = routeTo(gr, a, b);
     const r = route ? run(a, b, route) : null;
     // A dock right at the mouth has no river to work: try the next.
     if (r && r.length >= 4) return r;
