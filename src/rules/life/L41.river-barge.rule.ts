@@ -130,7 +130,9 @@ export function riverRun(f: Facts): RiverRun | null {
   if (mouth < 0) return null;
   const b: Pt = [(mouth % SIZE_X) + 0.5, Math.floor(mouth / SIZE_X) + 0.5];
   const route = routeTo(g, a, b);
-  return route ? run(a, b, route) : null;
+  const r = route ? run(a, b, route) : null;
+  // A dock right at the mouth has no river to work: no barge.
+  return r && r.length >= 4 ? r : null;
 }
 
 export default defineRule<RiverRun>({

@@ -108,12 +108,22 @@ function run(opts: Run) {
   return { harbour, rec, signals, town: current, full };
 }
 
-/** Fails if any boat's hull is ever drawn at another size than its own, or hidden once shown. */
+/** Fittings that must never shrink or blink out either: the gangplank and the goods. */
+const FITTINGS = new Set(['gangplank', 'ship-goods']);
+
+/**
+ * Fails if any boat's hull, gangplank or load of goods is ever drawn at another size than its own, or hidden
+ * once shown; or if any person (a sailor, a bargeman: a mesh of their own) is hidden once shown.
+ */
 function watchHulls(rec: ReturnType<typeof recordingStage>, problems: string[]): void {
   const seen = new Map<Recorded, boolean>();
   for (const r of rec.spawned) {
+    if (!r.spec && !r.released) {
+      if (r.moves > 0 && !r.visible) problems.push(`a figure hidden (${r.id})`);
+      continue;
+    }
     const actor = r.spec && 'actor' in r.spec ? r.spec.actor : '';
-    if (!HULLS.has(actor) || r.released) continue;
+    if ((!HULLS.has(actor) && !FITTINGS.has(actor)) || r.released) continue;
     const m = r.matrix;
     const zero = m[0] === 0 && m[5] === 0 && m[10] === 0;
     if (zero) continue;
@@ -172,11 +182,11 @@ describe('big ships (L38–L40)', () => {
           const sx = Math.sin(s.pose.yaw), cz = Math.cos(s.pose.yaw);
           last.set(s.id, { phase: s.phase, edge: Math.min(mapEdge(s.pose.x + sx * s.hull.bow, s.pose.z + cz * s.hull.bow), mapEdge(s.pose.x + sx * s.hull.stern, s.pose.z + cz * s.hull.stern)) });
           if (!s.body || mapEdge(s.pose.x, s.pose.z) > -4) continue;
-          if (!hullClear(field, hullSize(s.kind as 'galleon'), s.pose.x, s.pose.z, s.pose.yaw, 0)) hits.push(`${t.toFixed(1)} ${s.kind} ${s.phase}`);
+          if (!hullClear(field, hullSize(s.kind as 'galleon'), s.pose.x, s.pose.z, s.pose.yaw, 0)) hits.push(`${t.toFixed(1)} ${s.kind} ${s.phase} ${s.pose.x.toFixed(2)},${s.pose.z.toFixed(2)},${s.pose.yaw.toFixed(2)} s ${s.s.toFixed(1)}/${s.voyage?.path.length.toFixed(1)} swing ${s.voyage?.swing.toFixed(2)}`);
         }
       },
     });
-    expect(hits.slice(0, 8)).toEqual([]);
+    expect(hits.slice(0, 8).join(' | ')).toBe('');
     expect(kinds.size).toBeGreaterThanOrEqual(2);
     expect(outAt.length).toBeGreaterThanOrEqual(2);
     // Gone only once all of it is beyond the edge of the map.
@@ -338,5 +348,30 @@ describe('big ships (L38–L40)', () => {
     expect(maxZ).toBeGreaterThan(25.5);
     expect(hits).toBe(0);
     expect(bg.z).toBeLessThan(maxZ - 1);
+  });
+
+  test('a dock built in a town already shown: its rowboat is rowed in from beyond the edge, not there at once', () => {
+    let firstSeen: [number, number] | null = null, reached = false, id = '';
+    run({
+      seconds: 200,
+      boats: true,
+      edits: [{ at: 5, make: () => [dock(14, 28), dock(14, 29), dock(14, 30)] }],
+      onStep(t, _ships, plan, rec) {
+        if (t < 5) return;
+        const boat = plan.dressing.actors.find((a) => a.type === 'rowboat' && a.home === plan.shape.structureAt.get(key(14, 0, 28)));
+        if (!boat) return;
+        id = boat.id;
+        const r = rec.of(boat.id);
+        if (r.moves === 0) return;
+        const [x, , z] = positionOf(r.matrix);
+        firstSeen ??= [x, z];
+        if (mapEdge(x, z) < 0 && Math.hypot(x - 14.5, z - 30) < 3) reached = true;
+      },
+    });
+    expect(id).not.toBe('');
+    expect(firstSeen).not.toBeNull();
+    // It was first drawn out beyond the edge of the map, and later lay at its new dock.
+    expect(mapEdge(firstSeen![0], firstSeen![1])).toBeGreaterThan(0);
+    expect(reached).toBe(true);
   });
 });

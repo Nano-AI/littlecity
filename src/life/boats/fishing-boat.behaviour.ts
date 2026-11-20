@@ -21,7 +21,7 @@ import { angleDelta, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { swellAt, wakeRing, type Swell } from './afloat';
-import { notePose } from '../ships/ferry.system';
+import { entryRoute, notePose, townLive } from '../ships/ferry.system';
 import { standAside } from '../ships/news';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
@@ -45,6 +45,8 @@ export function fishingBoatOf(stage: LifeStage): BoatNews | null {
 }
 
 interface State {
+  /** Made for a town already shown: it comes in from the edge (decided when it is made). */
+  arrives: boolean;
   moored: Floating | null;
   mode: FishingMode;
   started: boolean;
@@ -89,6 +91,7 @@ export default defineBehaviour({
     const moored = item.at !== null ? floatingAt(ctx.instance.base, ctx.rand('swell'), BOATS.fishLength, BOATS.fishBeam) : null;
     const bx = p.berthX ?? 0, bz = p.berthZ ?? 0, byaw = p.berthYaw ?? 0;
     return {
+      arrives: moored === null && townLive(ctx.stage),
       moored, mode: 'berth', started: false, shape: null, lane: null,
       bx, bz, byaw, x: bx, z: bz, yaw: byaw,
       route: [[bx, bz]], leg: 1, legLen: 1, water: null, s: 0, turnHome: 0, wake: 0,
@@ -118,7 +121,19 @@ export default defineBehaviour({
     const out = wantsOut(signals.time) && lane !== null;
     if (!state.started) {
       state.started = true;
-      if (out) {
+      // A dock built in a town already shown: the boat comes in from the edge of the map, to work or to its berth.
+      const toward: [number, number] | null = !state.arrives ? null : out ? [lane!.at(lane!.nearest(state.bx, state.bz)).x, lane!.at(lane!.nearest(state.bx, state.bz)).z] : [state.bx, state.bz];
+      const route = toward && state.water ? entryRoute(state.water, toward[0], toward[1]) : null;
+      if (route) {
+        state.route = route;
+        state.leg = 0;
+        state.legLen = Math.max(0.01, routeLength(route));
+        state.x = route[0]![0];
+        state.z = route[0]![1];
+        state.yaw = Math.atan2(route[1]![0] - route[0]![0], route[1]![1] - route[0]![1]);
+        state.s = lane ? lane.nearest(toward![0], toward![1]) : 0;
+        state.mode = out ? 'out' : 'home';
+      } else if (out) {
         // Opened by day: already at work on the lane.
         state.s = (lane!.nearest(state.bx, state.bz) + lane!.length * 0.3 * ctx.rand('start')) % lane!.length;
         const p = lane!.at(state.s);

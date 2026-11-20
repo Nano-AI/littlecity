@@ -81,14 +81,26 @@ export default defineRule<Crossing>({
     if (ends.length < 2) return [];
     ends.sort((p, q) => p.pier - q.pier);
     const water = waterMask(facts);
-    const pairs: { i: number; j: number; len: number }[] = [];
+    // Nearest pairs first (by the straight distance between them); a route by water is worked out only for
+    // the pairs that are tried, so a big harbour does not cost a route for every pair of docks.
+    const near: { i: number; j: number; d: number }[] = [];
     for (let i = 0; i < ends.length; i++) {
       for (let j = i + 1; j < ends.length; j++) {
         const p = ends[i]!, q = ends[j]!;
-        if (p.pier === q.pier || Math.hypot(p.x - q.x, p.z - q.z) < ROWER_MIN_APART) continue;
-        const route = waterRoute(water, [p.wx, p.wz], [q.wx, q.wz]);
-        if (route) pairs.push({ i, j, len: routeLength(route) });
+        const d = Math.hypot(p.x - q.x, p.z - q.z);
+        if (p.pier !== q.pier && d >= ROWER_MIN_APART) near.push({ i, j, d });
       }
+    }
+    near.sort((a, b) => a.d - b.d || a.i - b.i || a.j - b.j);
+    const pairs: { i: number; j: number; len: number }[] = [];
+    const tried = new Set<number>();
+    for (const { i, j } of near) {
+      if (pairs.length >= ROWERS_MAX * 3 || tried.size > 40) break;
+      if (pairs.some((x) => x.i === i || x.j === i || x.i === j || x.j === j)) continue;
+      tried.add(i * 1000 + j);
+      const p = ends[i]!, q = ends[j]!;
+      const route = waterRoute(water, [p.wx, p.wz], [q.wx, q.wz]);
+      if (route) pairs.push({ i, j, len: routeLength(route) });
     }
     pairs.sort((p, q) => p.len - q.len || p.i - q.i || p.j - q.j);
     const used = new Set<number>();

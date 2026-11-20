@@ -26,7 +26,8 @@ import { angleDelta } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { Twos } from '../motion/twos';
 import { SHIPS } from '@/style/ships';
-import { notePose } from '../ships/ferry.system';
+import { alongRoute, routeLength, waterMask, type Pt } from '@/rules/life/waterway';
+import { entryRoute, notePose, townLive } from '../ships/ferry.system';
 import { berthZoneAt } from '../ships/news';
 import { hullRing, swellAt, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
@@ -77,6 +78,8 @@ export interface RowboatState {
   aside: number;
   /** On a phone, past the town's phone cap: never shown. */
   spare: boolean;
+  /** Rowing in from the edge of the map to its mooring (a dock built in a town already shown). */
+  coming: { route: Pt[]; len: number; s: number } | null;
 }
 
 /** Writes the matrix that stretches the unit rope (along +X) from a to b. */
@@ -250,6 +253,26 @@ function pose(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals
   }
 }
 
+/** Rows in from the edge along its route; at the end it ties up (its line comes out) and lies as moored. */
+function rowIn(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals: Signals, dt: number): void {
+  const c = state.coming!;
+  c.s = Math.min(c.len, c.s + 0.55 * dt);
+  const p = alongRoute(c.route, c.s);
+  const now = signals.time.seconds;
+  const sw = swellAt(now, state.phase, BOATS.rowLength, signals.wind(p.x, p.z).strength, state.swell);
+  fly(p.x, SEA_Y + sw.heave, p.z, Math.atan2(p.dx, p.dz), sw.pitch, sw.roll, 1, state.m);
+  ctx.instance.setMatrix(state.m);
+  notePose(ctx.stage, ctx.item.id, state.m);
+  if (c.s >= c.len - 1e-6) {
+    state.coming = null;
+    state.u = 0;
+    state.v = REST;
+    state.heading = Math.atan2(p.dx * state.alongX + p.dz * state.alongZ, p.dx * state.outX + p.dz * state.outZ);
+    for (const r of state.ropes) r.setVisible(state.ok);
+    if (!state.bollard && state.ropes[2]) state.ropes[2].setVisible(false);
+  }
+}
+
 /** True on a phone-sized viewport (the crowd's test). */
 function isPhone(): boolean {
   return typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
@@ -330,12 +353,21 @@ export default defineBehaviour<'rowboat', RowboatState>({
       rope: new Array<number>(16).fill(0),
       aside: 0,
       spare: isPhone() && (item.params?.rank ?? 0) >= Math.round(SHIPS.rowboatsPhone),
+      coming: null,
     };
     if (moored) {
       moor(state, ctx);
       const count = state.bollard ? 3 : 2;
       for (let i = 0; i < count; i++) state.ropes.push(ctx.stage.spawn(LINE, ctx.instance.base));
       if (!state.ok) for (const r of state.ropes) r.setVisible(false);
+      // A dock built in a town already shown: the boat is rowed in from the edge (its line is coiled aboard till then).
+      if (state.ok && !state.spare && townLive(ctx.stage)) {
+        const route = entryRoute(waterMask(ctx.shape.facts), state.ax + state.outX * REST, state.az + state.outZ * REST);
+        if (route) {
+          state.coming = { route, len: routeLength(route), s: 0 };
+          for (const r of state.ropes) r.setVisible(false);
+        }
+      }
     }
     return state;
   },
@@ -358,6 +390,10 @@ export default defineBehaviour<'rowboat', RowboatState>({
     }
     if (!state.ok || state.spare) {
       if (fresh) ctx.instance.setVisible(false);
+      return;
+    }
+    if (state.coming) {
+      rowIn(state, ctx, signals, dt);
       return;
     }
     // A big ship coming in to this stretch of quay (or lying there): cast off and row aside along the dock

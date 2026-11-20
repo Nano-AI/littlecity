@@ -393,6 +393,11 @@ export interface Voyage {
   swing: number;
   /** The pose the swing starts from (arriving: the path's end) or ends at (leaving: the path's start). */
   swung: Pose;
+  /**
+   * Leaving with no way ahead (a closed basin): towed out from the quay by this far first, and the swing is
+   * a turn about its middle instead of its stern. 0: not towed.
+   */
+  tow: number;
 }
 
 /** The pose of a hull turned by `angle` about a point `along` its length from the origin of pose `p`. */
@@ -465,9 +470,10 @@ export function planArrival(field: SeaField, h: HullSize, m: Mooring, inset: num
     const end = pivot(warp, h.bow, -sense * swing);
     if (!swingClear(field, h, warp, h.bow, -sense * swing, 0, NEAR)) continue;
     const hx = Math.sin(end.yaw), hz = Math.cos(end.yaw);
-    const lineup: Pt = [end.x - hx * len * 0.9, end.z - hz * len * 0.9];
-    for (const out of [0.9, 1.6, 0.4, 2.4]) {
-      const stage: Pt = [end.x - hx * len * 1.9 + m.ox * out, end.z - hz * len * 1.9 + m.oz * out];
+    // Lined up well astern where there is room; closer in (a basin, a short reach) where there is not.
+    for (const [back, out] of [[1.9, 0.9], [1.9, 1.6], [1.9, 0.4], [1.9, 2.4], [1.3, 0.9], [1.3, 1.8], [1.0, 1.2], [1.0, 2.2]] as const) {
+      const lineup: Pt = [end.x - hx * len * back * 0.47, end.z - hz * len * back * 0.47];
+      const stage: Pt = [end.x - hx * len * back + m.ox * out, end.z - hz * len * back + m.oz * out];
       if (field.at(stage[0], stage[1]) < r) continue;
       const g = graphFrom(field, stage, r);
       const tail: Pt[] = [stage, lineup, [end.x, end.z]];
@@ -494,7 +500,7 @@ export function planArrival(field: SeaField, h: HullSize, m: Mooring, inset: num
         const path = pathOf(smoothRoute(field, dedupe(route), r));
         const near = Math.max(0, path.length - len * 1.6);
         if (pathClear(field, h, path, margin, start ? 0 : out, near) && pathClear(field, h, path, NEAR, near, path.length)) {
-          return { path, edge: e, swing: -sense * swing, swung: end };
+          return { path, edge: e, swing: -sense * swing, swung: end, tow: 0 };
         }
       }
     }
@@ -538,10 +544,25 @@ export function planDeparture(field: SeaField, h: HullSize, m: Mooring, inset: n
           const path = pathOf(smoothRoute(field, dedupe(route), r));
           const near = Math.min(path.length, len * 1.4);
           if (pathClear(field, h, path, NEAR, 0, near) && pathClear(field, h, path, margin, near, Math.max(near, path.length - out))) {
-            return { path, edge: { ...e, yaw: e.yaw + Math.PI }, swing: from ? 0 : sense * swing, swung: s0 };
+            return { path, edge: { ...e, yaw: e.yaw + Math.PI }, swing: from ? 0 : sense * swing, swung: s0, tow: 0 };
           }
         }
       }
+    }
+  }
+  if (from) return null;
+  // No way out ahead: towed out from the quay and turned round about its middle, then away.
+  const mid = (h.stern + h.bow) / 2;
+  for (const tow of [2.2, 3.2, 4.2]) {
+    const towed: Pose = { x: m.wx + m.ox * tow, z: m.wz + m.oz * tow, yaw: m.yaw };
+    let ok = true;
+    for (let d = 0; d <= tow && ok; d += 0.25) ok = hullClear(field, h, m.wx + m.ox * d, m.wz + m.oz * d, m.yaw, NEAR);
+    if (!ok) continue;
+    for (const turn of [sense * Math.PI, -sense * Math.PI]) {
+      if (!swingClear(field, h, towed, mid, 0, turn, NEAR)) continue;
+      const turned = pivot(towed, mid, turn);
+      const v = planDeparture(field, h, m, inset, margin, pick, avoid, turned);
+      if (v) return { ...v, swing: turn, swung: turned, tow };
     }
   }
   return null;

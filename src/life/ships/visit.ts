@@ -83,10 +83,13 @@ export interface Ship {
   /** The call has gone from the plan (or its berth changed): finish this visit by leaving, and stop. */
   orphan: boolean;
   phase: Phase;
-  /** Seconds in this phase. */
+  /** Seconds in this phase; seconds since it last looked for a clear way out. */
   t: number;
+  t2: number;
   visits: number;
   voyage: Voyage | null;
+  /** Ready to leave but holding at its berth: the way out it will take (an arrival keeps clear of it). */
+  outbound: Voyage | null;
   s: number;
   speed: number;
   pose: Pose;
@@ -216,6 +219,71 @@ export function nearestFree(field: SeaField, h: HullSize, p: Pose): Pose | null 
   return null;
 }
 
+interface Disc {
+  x: number;
+  z: number;
+  r: number;
+}
+/** The safe gap between two hulls under way. */
+const SAFE = 0.5;
+
+/** The water a voyage sweeps from `from` on: its hull as discs at every step along the path. */
+function corridor(h: HullSize, v: Voyage, from: number): Disc[] {
+  const out: Disc[] = [];
+  const q = { x: 0, z: 0, yaw: 0 };
+  const len = h.bow - h.stern;
+  const n = Math.max(2, Math.ceil(len / 1.2));
+  for (let s = Math.max(0, from); s <= v.path.length + 1e-6; s += 1.2) {
+    pathAt(v.path, Math.min(s, v.path.length), q);
+    // Beyond the edge it is nobody's way.
+    if (mapEdge(q.x, q.z) > 2) continue;
+    const sx = Math.sin(q.yaw), cz = Math.cos(q.yaw);
+    for (let i = 0; i <= n; i++) {
+      const a = h.stern + (len * i) / n;
+      out.push({ x: q.x + sx * a, z: q.z + cz * a, r: h.halfBeam + 0.3 });
+    }
+  }
+  return out;
+}
+
+/** Do two swept corridors come within the safe gap anywhere? */
+function corridorsMeet(a: readonly Disc[], b: readonly Disc[]): boolean {
+  for (const p of a) {
+    for (const q of b) {
+      const d = p.r + q.r + SAFE;
+      const dx = p.x - q.x, dz = p.z - q.z;
+      if (dx * dx + dz * dz < d * d) return true;
+    }
+  }
+  return false;
+}
+
+/** Do two hulls at two poses come within `margin` of each other? */
+function hullsNear(ha: HullSize, a: Pose, hb: HullSize, b: Pose, margin: number): boolean {
+  const reach = Math.max(-ha.stern, ha.bow) + Math.max(-hb.stern, hb.bow) + ha.halfBeam + hb.halfBeam + margin;
+  if (Math.hypot(a.x - b.x, a.z - b.z) > reach) return false;
+  const disc = (h: HullSize, p: Pose): Disc[] => {
+    const out: Disc[] = [];
+    const sx = Math.sin(p.yaw), cz = Math.cos(p.yaw);
+    for (let k = h.stern; k <= h.bow + 1e-6; k += 0.6) out.push({ x: p.x + sx * k, z: p.z + cz * k, r: h.halfBeam });
+    return out;
+  };
+  const da = disc(ha, a), db = disc(hb, b);
+  for (const p of da) for (const q of db) if (Math.hypot(p.x - q.x, p.z - q.z) < p.r + q.r + margin) return true;
+  return false;
+}
+
+/** A tall ship's crossing as a corridor. */
+function passCorridor(p: Passer): Disc[] {
+  const len = Math.hypot(p.to[0] - p.from[0], p.to[1] - p.from[1]);
+  const out: Disc[] = [];
+  for (let d = 0; d <= len; d += 1.2) {
+    const x = p.from[0] + ((p.to[0] - p.from[0]) * d) / len, z = p.from[1] + ((p.to[1] - p.from[1]) * d) / len;
+    if (mapEdge(x, z) < 2) out.push({ x, z, r: 3.6 });
+  }
+  return out;
+}
+
 const harbours = new WeakMap<LifeStage, Harbour>();
 /** The harbour running on a stage (for tests). */
 export function harbourOf(stage: LifeStage): Harbour | null {
@@ -228,13 +296,17 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
   const barges: Barge[] = [];
   const piles = new Map<string, Pile>();
   /** Each berth's turn: seconds until its next ship, the berths in order (longest first), and its visits. */
-  const turns = new Map<string, { due: number; visits: number; credit: Map<ShipKind, number> }>();
+  const turns = new Map<string, { due: number; visits: number }>();
+  /** The harbour's weighted rotation of kinds (see update). */
+  const credit = new Map<ShipKind, number>();
   let order: string[] = [];
   let shape: ShapePlan | null = null;
   let opened = false;
   const fields = new Map<string, SeaField>();
   const news = newsOf(stage);
   let small: { x: number; z: number }[] = [];
+  /** Seconds since the night ended (0 at dusk and night). */
+  let daylight = 0;
 
   /** The field a ship plans in: the town, the small boats' moorings, and the hulls of the other ships alongside. */
   const fieldFor = (ship: Ship): SeaField => {
@@ -249,15 +321,70 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     return f;
   };
   const r = (ship: Ship, what: string): number => rand(seed, 'ship', ship.id, what, ship.visits);
-  /** Something is at sea, or casting off to go to sea (one at a time: ships never meet). */
-  const atSea = (but?: Ship): boolean =>
-    ships.some((s) => s !== but && (s.phase === 'arriving' || s.phase === 'leaving' || s.phase === 'warp-out' || s.phase === 'swing-out')) || passers.some((p) => p.phase === 'crossing');
+  /** Under way (or about to be): its voyage is a lane others must keep out of. */
+  const underWay = (s: Ship): boolean => (s.phase === 'arriving' || s.phase === 'leaving' || s.phase === 'warp-out' || s.phase === 'swing-out') && s.voyage !== null;
+  /**
+   * Would a voyage (from `from` along its path) bring this ship within a safe gap of any ship under way, or of
+   * a tall ship passing, at the same time? Each is moved along its way at its expected pace (a ship that has
+   * come in stays at its berth; one casting off sets out a few seconds on), with a margin that grows with
+   * time; ships under way also slow for each other (yieldFor), so a guess that is a little out is safe.
+   */
+  const lanesCross = (ship: Ship, v: Voyage, from: number): boolean => {
+    const pace = (k: ShipKind): number => (k === 'galley' ? SHIPS.rowSpeed : SHIPS.sailSpeed) * 0.7;
+    const others: { h: HullSize; v: Voyage; s: number; delay: number; pace: number }[] = [];
+    for (const o of ships) {
+      if (o === ship) continue;
+      if (underWay(o)) {
+        const moving = o.phase === 'arriving' || o.phase === 'leaving';
+        others.push({ h: o.hull, v: o.voyage!, s: moving ? o.s : 0, delay: moving ? 0 : 10, pace: pace(o.kind) });
+      } else if (o.phase === 'moored' && o.outbound && ship.phase === 'idle') {
+        // A ship waiting to leave has the way: an arrival keeps clear of the way out it will take.
+        others.push({ h: o.hull, v: o.outbound, s: 0, delay: 8, pace: pace(o.kind) });
+      }
+    }
+    const crossing = passers.filter((p) => p.phase === 'crossing');
+    if (!others.length && !crossing.length) return false;
+    const mine = pace(ship.kind);
+    const horizon = (v.path.length - from) / mine + 20;
+    const a = { x: 0, z: 0, yaw: 0 }, b = { x: 0, z: 0, yaw: 0 };
+    for (let t = 0; t <= horizon; t += 1) {
+      pathAt(v.path, Math.min(v.path.length, from + mine * t), a);
+      if (mapEdge(a.x, a.z) > 1.5) continue;
+      const margin = SAFE + 0.04 * t;
+      for (const o of others) {
+        const so = Math.min(o.v.path.length, o.s + o.pace * Math.max(0, t - o.delay));
+        pathAt(o.v.path, so, b);
+        if (mapEdge(b.x, b.z) > 1.5) continue;
+        if (hullsNear(ship.hull, a, o.h, b, margin)) return true;
+      }
+      for (const p of crossing) {
+        const len = Math.hypot(p.to[0] - p.from[0], p.to[1] - p.from[1]);
+        const d = Math.min(len, p.s + SHIPS.passSpeed * t);
+        const x = p.from[0] + ((p.to[0] - p.from[0]) * d) / len, z = p.from[1] + ((p.to[1] - p.from[1]) * d) / len;
+        if (Math.hypot(a.x - x, a.z - z) < 8 + margin) return true;
+      }
+    }
+    return false;
+  };
+
   const berthBusy = (key: string): boolean => ships.some((s) => s.phase !== 'idle' && s.berth.key === key);
   const setPhase = (ship: Ship, phase: Phase): void => {
     ship.phase = phase;
     ship.t = 0;
+    if (phase !== 'moored') ship.outbound = null;
   };
-  const yieldFor = (ship: Ship): number => clearAhead({ x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.speed }, small);
+  const yieldFor = (ship: Ship): number => {
+    const me = { x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, speed: ship.speed };
+    // Small boats under its bow, and (a safeguard) any other big ship close ahead: points along its hull.
+    const big: { x: number; z: number }[] = [];
+    for (const o of ships) {
+      // Only ships under way: those lying at a berth (or afloat, waiting) were sailed round when its way was planned.
+      if (o === ship || !o.body || !(o.phase === 'arriving' || o.phase === 'leaving' || o.phase === 'swing-out' || o.phase === 'swing-in')) continue;
+      const sx = Math.sin(o.pose.yaw), cz = Math.cos(o.pose.yaw);
+      for (let k = o.hull.stern; k <= o.hull.bow; k += 0.8) big.push({ x: o.pose.x + sx * k, z: o.pose.z + cz * k });
+    }
+    return Math.min(clearAhead(me, small), clearAhead({ ...me, halfBeam: me.halfBeam + 0.6 }, big));
+  };
 
   /** Where the gangplank comes down, and where goods are piled: on the quay beside the ship's middle. */
   const gangwayOf = (ship: Ship): { way: Gangway; side: number } => {
@@ -324,8 +451,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       nudge(ship, field);
       return;
     }
-    ship.crew?.release();
-    ship.crew = null;
+    ship.crew?.setPile(null);
     const v = planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), -1, ship.pose) ?? planDeparture(field, ship.hull, ship.mooring, SHIPS.edgeIn, 0.05, r(ship, 'exit'), -1, ship.pose);
     if (v) {
       ship.voyage = v;
@@ -346,15 +472,28 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     }
     ship.from = { ...ship.pose };
     ship.to = to;
-    ship.crew?.release();
-    ship.crew = null;
+    ship.crew?.setPile(null);
     setPhase(ship, 'nudging');
+  };
+
+  /** Its crew, cargo and gangplank: aboard from the start of the visit to its end, never appearing in view. */
+  const aboard = (ship: Ship): void => {
+    const rig = rigOf(ship.kind, ship.look);
+    const { way } = gangwayOf(ship);
+    const goods = Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67));
+    ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, rig.crew.slice(0, CREW[ship.kind]), way.hatch, goods, goods);
+    const m = ship.mooring;
+    const top = transform(fly(m.x, SEA_Y, m.z, m.yaw, 0, 0, 1), way.top);
+    ship.plankLen = Math.round(Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2])) * 20) / 20;
+    ship.plank = stage.spawn({ actor: 'gangplank', params: { length: ship.plankLen } }, HIDDEN);
+    ship.plankK = 0;
   };
 
   const begin = (ship: Ship): boolean => {
     const field = fieldFor(ship);
     const v = planArrival(field, ship.hull, ship.mooring, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'entry'));
-    if (!v) return false;
+    // No way in, or another ship is under way across it: it waits offshore, out of sight beyond the edge.
+    if (!v || lanesCross(ship, v, 0)) return false;
     ship.voyage = v;
     ship.s = 0;
     ship.speed = SHIPS.sailSpeed * 0.8;
@@ -363,6 +502,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.pose = { x: p.x, z: p.z, yaw: p.yaw };
     ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 1);
     ship.escort = new Escort(stage, seed, ship.id);
+    aboard(ship);
     setPhase(ship, 'arriving');
     return true;
   };
@@ -372,6 +512,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.pose = { x: ship.mooring.x, z: ship.mooring.z, yaw: ship.mooring.yaw };
     ship.body = new ShipBody(stage, ship.kind, ship.look, HIDDEN, 0);
     ship.escort = new Escort(stage, seed, ship.id);
+    aboard(ship);
     ship.cameFrom = -1;
     setPhase(ship, 'moored');
     ship.t = into;
@@ -400,7 +541,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         const p = pathAt(v.path, ship.s);
         ship.pose.x = p.x;
         ship.pose.z = p.z;
-        ship.pose.yaw += angleDelta(ship.pose.yaw, p.yaw) * glide(SHIPS.turn * 3, dt);
+        ship.pose.yaw = p.yaw; // along the path (its tangent is smoothed), exactly as it was checked clear
         // Sails come in one by one as it nears, the last at the very end.
         const n = body.sails.length;
         body.sails.forEach((sp, i) => {
@@ -448,32 +589,37 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         const stay = STAY[ship.kind]();
         const night = signals.time.isNight || signals.time.isDusk;
         const pile = pileOf(ship);
-        if (!ship.crew) ship.crew = new Crew(stage, (rand(seed, 'crew', ship.id, ship.visits) * 1e9) >>> 0, ship.kind, CREW[ship.kind], Math.round(SHIPS.goodsMax * (ship.kind === 'galleon' ? 1 : 0.67)), pile);
-        if (!ship.plank) {
-          const { way } = gangwayOf(ship);
-          const top = transform(fly(m.x, SEA_Y, m.z, m.yaw, 0, 0, 1), way.top);
-          ship.plankLen = Math.round(Math.max(0.3, Math.hypot(way.foot[0] - top[0], way.foot[1] - top[1], way.foot[2] - top[2])) * 20) / 20;
-          ship.plank = stage.spawn({ actor: 'gangplank', params: { length: ship.plankLen } }, HIDDEN);
-        }
+        if (!ship.crew) aboard(ship);
+        ship.crew!.setPile(pile);
         // The plank comes down once it is fast, and up again when the stay is over and the crew are aboard.
-        const done = (ship.t >= stay && !night) || ship.orphan;
-        const want = done && ship.crew.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
-        ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 1.8));
-        if (done && ship.crew.aboard && ship.plankK <= 0 && !atSea(ship)) {
-          setPhase(ship, 'warp-out');
-          news.sounds.push({ kind: 'creak', x: ship.pose.x, z: ship.pose.z });
+        // After a night alongside they do not all go at first light: each waits its own while into the morning.
+        const done = (ship.t >= stay && !night && daylight >= r(ship, 'dawn') * 75) || ship.orphan;
+        const want = done && ship.crew!.aboard ? 0 : ship.t > 0.8 ? 1 : 0;
+        ship.plankK = Math.max(0, Math.min(1, ship.plankK + (want > ship.plankK ? dt : -dt) / 2.4));
+        if (done && ship.crew!.aboard && ship.plankK <= 0) {
+          // Its way out, and only once nobody is under way across it: else it holds at its berth.
+          ship.t2 += dt;
+          if (ship.t2 >= 1) {
+            ship.t2 = 0;
+            const field = fieldFor(ship);
+            const v = planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), ship.cameFrom) ?? planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'));
+            ship.outbound = v;
+            if (v && !lanesCross(ship, v, 0)) {
+              ship.voyage = v;
+              ship.outbound = null;
+              setPhase(ship, 'warp-out');
+              news.sounds.push({ kind: 'creak', x: ship.pose.x, z: ship.pose.z });
+            } else if (!v && ship.orphan) setPhase(ship, 'stranded');
+          }
         }
         break;
       }
       case 'warp-out': {
         if (!ship.voyage) {
-          const field = fieldFor(ship);
-          ship.voyage = planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'), ship.cameFrom) ?? planDeparture(field, ship.hull, m, SHIPS.edgeIn, SEA_MARGIN, r(ship, 'exit'));
-          if (!ship.voyage) {
-            // Nowhere to go: it stays where it lies, lines fast, until a way opens.
-            setPhase(ship, ship.orphan ? 'stranded' : 'moored');
-            return;
-          }
+          // Its way out was blocked by an edit: back alongside, to plan again when it can.
+          setPhase(ship, ship.orphan ? 'stranded' : 'moored');
+          ship.t = STAY[ship.kind]();
+          return;
         }
         const dur = SHIPS.warp * 0.8;
         const k = easeInOut(clamp01(ship.t / dur));
@@ -494,7 +640,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
           ship.pose.x = m.wx;
           ship.pose.z = m.wz;
           ship.pose.yaw = m.yaw;
-          setPhase(ship, ship.voyage.swing !== 0 ? 'swing-out' : 'leaving');
+          setPhase(ship, ship.voyage.swing !== 0 || ship.voyage.tow > 0 ? 'swing-out' : 'leaving');
           ship.s = 0;
           ship.speed = 0.08;
         }
@@ -502,11 +648,22 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       }
       case 'swing-out': {
         const v = ship.voyage!;
+        const warp: Pose = { x: m.wx, z: m.wz, yaw: m.yaw };
+        // Towed out from the quay first if it must turn round in a closed basin (its boat at the bow line).
+        const towDur = v.tow / 0.35;
         const dur = Math.abs(v.swing) / SWING_RATE;
-        const k = easeInOut(clamp01(ship.t / dur));
-        pivot({ x: m.wx, z: m.wz, yaw: m.yaw }, ship.hull.stern, v.swing * k, ship.pose);
-        if (!rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp * 0.8 > body.rig.sails[i]!.order * SHIPS.sailEvery ? 1 : 0));
-        if (ship.t >= dur) {
+        if (ship.t < towDur) {
+          const k = easeInOut(clamp01(ship.t / towDur));
+          ship.pose.x = m.wx + m.ox * v.tow * k;
+          ship.pose.z = m.wz + m.oz * v.tow * k;
+          ship.pose.yaw = m.yaw;
+        } else {
+          const k = easeInOut(clamp01((ship.t - towDur) / dur));
+          if (v.tow > 0) pivot({ x: m.wx + m.ox * v.tow, z: m.wz + m.oz * v.tow, yaw: m.yaw }, (ship.hull.stern + ship.hull.bow) / 2, v.swing * k, ship.pose);
+          else pivot(warp, ship.hull.stern, v.swing * k, ship.pose);
+        }
+        if (!rowing) body.sails.forEach((sp, i) => (sp.want = ship.t + SHIPS.warp * 0.8 > body.rig.sails[i]!.order * SHIPS.sailEvery + towDur ? 1 : 0));
+        if (ship.t >= towDur + dur) {
           setPhase(ship, 'leaving');
           ship.s = 0;
           ship.speed = 0.08;
@@ -523,7 +680,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         const p = pathAt(v.path, ship.s);
         ship.pose.x = p.x;
         ship.pose.z = p.z;
-        ship.pose.yaw += angleDelta(ship.pose.yaw, p.yaw) * glide(SHIPS.turn * 3, dt);
+        ship.pose.yaw = p.yaw; // along the path (its tangent is smoothed), exactly as it was checked clear
         // Out through the edge of the map: once all of it is beyond, the visit is over.
         if (v.path.length - ship.s <= 1e-6) {
           finish(ship);
@@ -556,27 +713,35 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     // ── the crew, the gangplank and the lines, while it lies alongside ──
     const alongside = ship.phase === 'moored' || ship.phase === 'warp-out' || ship.phase === 'warp-in';
     const { way, side } = gangwayOf(ship);
-    if (ship.crew) ship.crew.update(dt, ship.m, way, ship.phase === 'moored' && ship.t < STAY[ship.kind]() - 6 && !ship.orphan);
-    if (ship.phase !== 'moored' && ship.crew && ship.crew.aboard) {
-      ship.crew.release();
-      ship.crew = null;
-    }
+    if (ship.crew) ship.crew.update(dt, ship.m, ship.phase === 'moored' ? way : null, ship.phase === 'moored' && ship.t < STAY[ship.kind]() - 6 && !ship.orphan);
     if (ship.plank) {
-      // Swung up from the rail (raised) down to rest on the quay; hauled aboard (out of sight) once it is up.
+      // The gangplank: stowed on deck along the ship (0); swung up on end at the rail (½); down on the quay (1).
+      if (ship.phase !== 'moored') ship.plankK = Math.max(0, ship.plankK - dt / 1.2);
       const top = transform(ship.m, way.top);
       const f = way.foot;
       const dx = f[0] - top[0], dy = f[1] - top[1], dz = f[2] - top[2];
-      const flat = Math.hypot(dx, dz), length = Math.hypot(flat, dy);
-      const yaw = Math.atan2(dx, dz);
-      const k = easeInOut(ship.plankK);
-      const pitch = Math.atan2(-dy, flat) * k - 1.25 * (1 - k);
+      const rest = Math.atan2(-dy, Math.hypot(dx, dz));
+      const quayYaw = Math.atan2(dx, dz);
+      const k = ship.plankK;
+      let x: number, y: number, z: number, yaw: number, pitch: number;
+      if (k >= 0.5) {
+        const u = easeInOut((k - 0.5) * 2);
+        [x, y, z] = top;
+        y += 0.02;
+        yaw = quayYaw;
+        pitch = -1.3 + (rest + 1.3) * u;
+      } else {
+        // Stowed: lying on deck inboard of the rail, its foot aft, along the ship.
+        const u = easeInOut(k * 2);
+        const deck = transform(ship.m, [way.rail[0] * 0.35, way.rail[1] + 0.05, way.rail[2] - ship.plankLen * 0.5]);
+        x = deck[0] + (top[0] - deck[0]) * u;
+        y = deck[1] + (top[1] + 0.02 - deck[1]) * u;
+        z = deck[2] + (top[2] - deck[2]) * u;
+        yaw = ship.pose.yaw + angleDelta(ship.pose.yaw, quayYaw) * u;
+        pitch = -1.3 * u;
+      }
       const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
-      const sz = ship.plankK > 0.02 ? length / ship.plankLen : 1;
-      ship.plank.setMatrix([cy, 0, -sy, 0, sy * sp, cp, cy * sp, 0, sy * cp * sz, -sp * sz, cy * cp * sz, 0, top[0], top[1] + 0.02, top[2], 1]);
-      if (ship.phase !== 'moored' && ship.plankK <= 0) {
-        ship.plank.release();
-        ship.plank = null;
-      } else if (ship.phase !== 'moored') ship.plankK = Math.max(0, ship.plankK - dt / 1.2);
+      ship.plank.setMatrix([cy, 0, -sy, 0, sy * sp, cp, cy * sp, 0, sy * cp, -sp, cy * cp, 0, x, y, z, 1]);
     }
     if (ship.lines.length === 2 && alongside) {
       const rig = rigOf(ship.kind, ship.look);
@@ -747,7 +912,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
           ship = {
             id: c.id, kind: c.kind, look: Math.abs(Math.round(p.look ?? 0)), hull, berth, dir,
             mooring: mooringAt(hull, berth.face, dir, SHIPS.alongside, SHIPS.warpGap),
-            orphan: false, phase: 'idle', t: 0, visits: 0, voyage: null, s: 0, speed: 0,
+            orphan: false, phase: 'idle', t: 0, t2: 0, visits: 0, voyage: null, outbound: null, s: 0, speed: 0,
             pose: { x: 0, z: 0, yaw: 0 }, from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 0, yaw: 0 }, cameFrom: -1,
             body: null, crew: null, plank: null, plankLen: 1, plankK: 0, lines: [], escort: null,
             heel: 0, bank: 0, swell: { heave: 0, roll: 0, pitch: 0 }, phaseSeed: rand(seed, 'ship-phase', c.id), drawn: NaN, wake: 0, bowWave: 0, ring: 0,
@@ -767,16 +932,26 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       for (const bg of barges) if (!seen.has(bg.id) && !bg.leaving) bg.leave(nextShape);
       // The berths with ships, longest first; each has its turn.
       const live = [...new Set(ships.filter((s) => !s.orphan).sort((a, b) => b.berth.cells - a.berth.cells || (a.berth.key < b.berth.key ? -1 : 1)).map((s) => s.berth.key))];
-      for (const k of live) if (!turns.has(k)) turns.set(k, { due: SHIPS.firstCall + live.indexOf(k) * 25, visits: 0, credit: new Map() });
+      // New berths come in turn, staggered: the first within SHIPS.firstCall, the rest every SHIPS.callEvery or so.
+      let fresh = 0;
+      for (const k of live) {
+        if (turns.has(k)) continue;
+        turns.set(k, { due: SHIPS.firstCall + fresh * SHIPS.callEvery * (0.75 + 0.5 * rand(seed, 'first', k)), visits: 0 });
+        fresh++;
+      }
       order = live;
       // A town opened with a port: the biggest ship that fits the longest berth is already in.
       const first = !opened;
       opened = true;
       if (first && live.length) {
-        const lead = ships.filter((s) => s.berth.key === live[0] && !s.orphan).sort((a, b) => SIZE[a.kind] - SIZE[b.kind])[0];
-        if (lead && lead.phase === 'idle') {
-          moorNow(lead, STAY[lead.kind]() * 0.2);
-          turns.get(live[0]!)!.due = STAY[lead.kind]() + 40;
+        // A town opened with a harbour: every other berth already has a ship in, at staggered points of its stay.
+        const n = Math.min(live.length, phone() ? Math.round(SHIPS.shipsPhone) : Math.round(SHIPS.shipsMax));
+        for (let i = 0; i < n; i += 2) {
+          const fits = ships.filter((s) => s.berth.key === live[i] && !s.orphan);
+          const lead = fits[(i / 2) % Math.max(1, fits.length)] ?? fits[0];
+          if (!lead || lead.phase !== 'idle') continue;
+          moorNow(lead, STAY[lead.kind]() * (0.1 + 0.7 * (i / Math.max(1, n))));
+          turns.get(live[i]!)!.due = STAY[lead.kind]() + 30;
         }
       }
       if (!changed) return;
@@ -834,37 +1009,44 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     update(dt, signals) {
       small = news.small;
       news.small = [];
+      daylight = signals.time.isNight || signals.time.isDusk ? 0 : daylight + dt;
       news.ships.length = 0;
       news.zones.length = 0;
       news.inPort.clear();
-      if (!atSea()) {
-        // A tall ship far out goes by when nothing else is at sea.
-        const pass = passers.find((p) => p.phase === 'idle' && !p.orphan && p.due <= 0);
-        if (pass) {
-          pass.phase = 'crossing';
-          pass.s = 0;
-          pass.body = new ShipBody(stage, pass.kind, pass.look, HIDDEN, 1);
-        }
+      // A tall ship far out goes by when no ship is coming in or going out near its line.
+      const pass = passers.find((p) => p.phase === 'idle' && !p.orphan && p.due <= 0);
+      if (pass && !ships.some((o) => underWay(o) && corridorsMeet(corridor(o.hull, o.voyage!, o.s), passCorridor(pass)))) {
+        pass.phase = 'crossing';
+        pass.s = 0;
+        pass.body = new ShipBody(stage, pass.kind, pass.look, HIDDEN, 1);
       }
-      // Each berth's turn: when it is due and free and nothing is at sea, a ship that fits comes for it.
-      const served = phone() ? Math.round(SHIPS.shipBerthsPhone) : order.length;
+      // Each berth's turn. When it is due and free, a ship that fits comes for it, unless a ship ready to leave
+      // is waiting (leaving ships go first) or the way in crosses a ship under way (then it waits beyond the edge).
+      const served = phone() ? Math.round(SHIPS.shipsPhone) : Math.round(SHIPS.shipsMax);
+      let started = 0;
       for (const [k, turn] of turns) {
         turn.due -= dt;
         const i = order.indexOf(k);
-        if (i < 0 || i >= served || turn.due > 0 || atSea() || berthBusy(k) || !shape) continue;
+        if (i < 0 || i >= served || turn.due > 0 || started > 0 || berthBusy(k) || !shape) continue;
         const fits = ships.filter((s) => s.berth.key === k && !s.orphan && s.phase === 'idle');
         if (!fits.length) continue;
-        // A smooth weighted rotation: each turn every ship that fits gains its weight, the one with the most
-        // comes and pays the total back. The biggest comes most often; every other takes its turn.
+        // A smooth weighted rotation over the whole harbour: each time, every ship that fits gains its weight,
+        // the one with the most comes and pays the total back. The biggest comes most often; the others take
+        // their turns, so a long quay shows galleons, galleys and cogs together.
         let total = 0;
         for (const s of fits) {
           total += WEIGHT[s.kind];
-          turn.credit.set(s.kind, (turn.credit.get(s.kind) ?? 0) + WEIGHT[s.kind]);
+          credit.set(s.kind, (credit.get(s.kind) ?? 0) + WEIGHT[s.kind]);
         }
-        const chosen = [...fits].sort((a, b) => (turn.credit.get(b.kind) ?? 0) - (turn.credit.get(a.kind) ?? 0) || SIZE[a.kind] - SIZE[b.kind])[0]!;
-        turn.credit.set(chosen.kind, (turn.credit.get(chosen.kind) ?? 0) - total);
-        turn.visits++;
-        if (!begin(chosen)) turn.due = 20;
+        const chosen = [...fits].sort((a, b) => (credit.get(b.kind) ?? 0) - (credit.get(a.kind) ?? 0) || SIZE[a.kind] - SIZE[b.kind])[0]!;
+        if (begin(chosen)) {
+          credit.set(chosen.kind, (credit.get(chosen.kind) ?? 0) - total);
+          turn.visits++;
+          started++;
+        } else {
+          for (const s of fits) credit.set(s.kind, (credit.get(s.kind) ?? 0) - WEIGHT[s.kind]);
+          turn.due = 2 + 3 * rand(seed, 'wait', k, turn.visits, Math.floor(turn.due * 10));
+        }
       }
       for (const ship of ships) {
         stepShip(ship, dt, signals);

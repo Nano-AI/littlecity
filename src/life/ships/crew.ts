@@ -1,18 +1,21 @@
-// A moored ship's crew at work (L38–L40): two or three sailors who work the
-// cargo between the hatch and the quay. If goods lie on the quay from an
-// earlier visit, they carry those aboard first; then they bring new goods up
-// from the hatch, along the deck, over the rail, down the gangplank, and set
-// them down on the quay where they pile up. When the ship is ready to sail
-// they go back aboard and below.
+// A big ship's crew and cargo (L38–L40). The sailors are aboard from the
+// moment the ship comes in through the edge of the map to the moment it
+// leaves through it: between jobs they stand at their places on deck, riding
+// the swell with the ship. Its cargo lies on deck by the hatch.
 //
-// The goods on the quay are the harbour's (a Pile per berth), and they stay
-// there between visits as dock goods: nothing on the quay ever shrinks or
-// fades; goods only go when sailors carry them aboard (or, if the quay under
-// them is taken away, with the removal puff: visit.ts).
+// Alongside a quay they work it. If goods lie on the quay from an earlier
+// visit they carry those aboard first and set them down on deck; then they
+// take cargo from the deck, over the rail, down the gangplank, and set it
+// down on the quay where it piles up. When the ship is ready to sail they go
+// back to their places.
+//
+// Nothing appears or disappears: every crate, barrel and sack is carried from
+// one place to another, and the goods on the quay stay there between visits
+// (the harbour's Pile per berth). Only if the quay under them is taken away
+// do they go, in the removal puff (visit.ts).
 //
 // Drawn like the residents (src/parts/people): five rigid pieces each, a held
-// walk drawn on twos with the stride by distance, so feet do not slide. Where
-// they are on deck is in the ship's own frame, so they ride the swell with it.
+// walk drawn on twos with the stride by distance, so feet do not slide.
 
 import type { Mat4Like, Vec3 } from '@/core/mat4';
 import { rand } from '@/core/rand';
@@ -27,9 +30,9 @@ const HIDDEN = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
 /** Walking pace, columns a second (a little slower carrying). */
 const PACE = 0.72;
 
-/** The route of one trip, ship end to quay end. Deck points are in the ship's frame; the rest in the world. */
+/** The route of one trip, ship end to quay end. Deck points are in the ship's frame; the foot in the world. */
 export interface Gangway {
-  /** On deck: the hatch, and the foot of the rail where the plank comes aboard (ship frame). */
+  /** On deck by the hatch, where the cargo lies, and the foot of the rail where the plank comes aboard (ship frame). */
   hatch: Vec3;
   rail: Vec3;
   /** On the rail where the plank rests (ship frame). */
@@ -52,24 +55,27 @@ export interface Pile {
   items: (InstanceHandle | null)[];
 }
 
-type Leg = 'below' | 'hatch' | 'deck' | 'up' | 'plank' | 'quay' | 'drop' | 'back-quay' | 'back-plank' | 'down' | 'back-deck';
+type Leg = 'idle' | 'to-cargo' | 'cargo' | 'deck' | 'up' | 'plank' | 'quay' | 'drop' | 'back-quay' | 'back-plank' | 'down' | 'back-deck' | 'stow' | 'home';
 
 interface Sailor {
   look: Look;
   pieces: InstanceHandle[];
+  /** Where it stands between jobs (ship frame). */
+  place: Vec3;
   leg: Leg;
   t: number;
   len: number;
   stride: number;
   wait: number;
-  /** What this trip is: taking goods aboard, or landing them; and which spot of the pile it is for. */
+  /** Taking goods aboard (from the quay) or landing them; the pile spot and deck slot it is for. */
   loading: boolean;
   spot: number;
+  slot: number;
   item: InstanceHandle | null;
-  shown: boolean;
+  heading: number;
 }
 
-/** Kinds of goods each ship brings ashore. */
+/** Kinds of goods each ship carries. */
 const CARGO: Record<string, readonly string[]> = {
   galleon: ['crate', 'barrel', 'crate'],
   cog: ['barrel', 'sack', 'barrel'],
@@ -78,57 +84,86 @@ const CARGO: Record<string, readonly string[]> = {
 
 export class Crew {
   private sailors: Sailor[] = [];
-  private toLand: number;
+  /** The cargo on deck: slot positions round the hatch (ship frame) and what lies in each. */
+  private slots: Vec3[] = [];
+  private deck: (InstanceHandle | null)[] = [];
+  private pile: Pile | null = null;
+  private toLand = 0;
   private local = new Float32Array(80);
   private world = new Float32Array(16);
   private time = 0;
-  /** Spots someone is on the way to (so two sailors never go for one). */
   private claimed = new Set<number>();
-  private landed = 0;
+  private claimedSlots = new Set<number>();
 
-  constructor(private stage: LifeStage, private seed: number, private kind: string, count: number, goods: number, private pile: Pile) {
-    this.toLand = Math.min(goods, pile.spots.length);
-    for (let i = 0; i < count; i++) {
+  constructor(private stage: LifeStage, seed: number, kind: string, places: readonly Vec3[], hatch: Vec3, cargo: number, private landing: number) {
+    // Cargo slots: two rows either side of the hatch, aft and forward of it.
+    for (const dz of [-0.36, -0.08, 0.2]) for (const dx of [-0.26, 0.26]) this.slots.push([hatch[0] + dx, hatch[1], hatch[2] + dz]);
+    const kinds = CARGO[kind] ?? CARGO.galleon!;
+    this.deck = this.slots.map((_, i) => (i < cargo ? stage.spawn({ actor: 'ship-goods', variant: kinds[i % 3]!, params: { look: (rand(seed, 'cargo', i) * 1000) | 0 } }, HIDDEN) : null));
+    places.forEach((at, i) => {
       const base = lookOf(rand(seed, 'sailor', i) * 1e9 >>> 0);
-      // Sailors: white or blue shirts, dark breeches, a red cap or a bare head.
       const look: Look = { ...base, dress: false, top: i % 2 === 0 ? PALETTE.white : RAMPS.roof[1]!, bottom: PALETTE.metal, hat: i === 0 ? 'cap' : base.hat === 'straw' ? 'none' : base.hat, hatColor: PALETTE.redDark, child: false };
       const meshes = buildPerson(look, `sailor-${seed}-${i}`);
-      const pieces = PIECES.map((p) => stage.spawnMesh(meshes[p], HIDDEN));
-      for (const h of pieces) h.setVisible(false);
-      this.sailors.push({ look, pieces, leg: 'below', t: 1, len: 1, stride: rand(seed, 'stride', i), wait: 1.5 + i * 2.2, loading: false, spot: -1, item: null, shown: false });
-    }
+      this.sailors.push({ look, pieces: PIECES.map((p) => stage.spawnMesh(meshes[p], HIDDEN)), place: at, leg: 'idle', t: 1, len: 1, stride: rand(seed, 'stride', i), wait: 1.5 + i * 2.2, loading: false, spot: -1, slot: -1, item: null, heading: rand(seed, 'face', i) * Math.PI * 2 });
+    });
   }
 
-  /** True once everyone is back aboard and below. */
+  /** Alongside a quay with this pile: work it (land up to `landing` goods). Null: at sea. */
+  setPile(pile: Pile | null): void {
+    if (pile && pile !== this.pile) this.toLand = this.landing;
+    this.pile = pile;
+  }
+
+  /** True once everyone is back at their places aboard. */
   get aboard(): boolean {
-    return this.sailors.every((s) => s.leg === 'below');
+    return this.sailors.every((s) => s.leg === 'idle');
   }
 
-  /** The next job: a load waiting on the quay to bring aboard, else a free spot to land goods in. */
-  private nextJob(): { loading: boolean; spot: number } | null {
-    for (let i = this.pile.items.length - 1; i >= 0; i--) if (this.pile.items[i] && !this.claimed.has(i)) return { loading: true, spot: i };
+  private nextJob(): { loading: boolean; spot: number; slot: number } | null {
+    const pile = this.pile;
+    if (!pile) return null;
+    // Goods waiting on the quay come aboard first, to a free place on deck.
+    const freeSlot = this.deck.findIndex((d, i) => !d && !this.claimedSlots.has(i));
+    for (let i = pile.items.length - 1; i >= 0; i--) if (pile.items[i] && !this.claimed.has(i) && freeSlot >= 0) return { loading: true, spot: i, slot: freeSlot };
     if (this.toLand <= 0) return null;
-    for (let i = 0; i < this.pile.spots.length; i++) if (!this.pile.items[i] && !this.claimed.has(i)) return { loading: false, spot: i };
-    return null;
+    const load = this.deck.findIndex((d, i) => d && !this.claimedSlots.has(i));
+    const spot = pile.items.findIndex((it, i) => !it && !this.claimed.has(i));
+    return load >= 0 && spot >= 0 ? { loading: false, spot, slot: load } : null;
   }
 
   /**
-   * Moves the crew `dt` seconds on. `hull` is the ship's matrix now; `working` false sends them all back
-   * aboard (the ship is about to sail).
+   * Moves the crew `dt` seconds on and places them and the deck cargo on a ship whose matrix is `hull`.
+   * `way` is the gangway while alongside (null at sea); `working` false sends everyone back to their places.
    */
-  update(dt: number, hull: Mat4Like, way: Gangway, working: boolean): void {
+  update(dt: number, hull: Mat4Like, way: Gangway | null, working: boolean): void {
     this.time += dt;
     const w = (p: Vec3): Vec3 => [hull[0]! * p[0] + hull[4]! * p[1] + hull[8]! * p[2] + hull[12]!, hull[1]! * p[0] + hull[5]! * p[1] + hull[9]! * p[2] + hull[13]!, hull[2]! * p[0] + hull[6]! * p[1] + hull[10]! * p[2] + hull[14]!];
-    const hatch = w(way.hatch), rail = w(way.rail), top = w(way.top), foot = way.foot;
+    const yaw = Math.atan2(hull[8]!, hull[10]!);
+    // The cargo on deck rides with the ship.
+    this.deck.forEach((d, i) => {
+      if (!d) return;
+      const p = w(this.slots[i]!);
+      d.setMatrix(place(p[0], p[1], p[2], yaw + i * 0.4));
+    });
     const dist = (a: Vec3, b: Vec3): number => Math.hypot(b[0] - a[0], b[2] - a[2]) + Math.abs(b[1] - a[1]) * 0.5;
     this.sailors.forEach((s, i) => {
-      const spot = s.spot >= 0 ? this.pile.spots[s.spot] : undefined;
-      // They stand just short of the spot, facing it.
-      const at: Vec3 = spot ? [spot.x - Math.sin(spot.yaw) * 0.22, spot.y, spot.z - Math.cos(spot.yaw) * 0.22] : foot;
+      const home = w(s.place);
+      if (!way) {
+        // At sea: at their places, now and then turning to look out.
+        if (s.leg !== 'idle') this.recall(s);
+        this.draw(s, home[0], home[1], home[2], yaw + s.heading, 'stand');
+        return;
+      }
+      const pile = this.pile;
+      const spot = pile && s.spot >= 0 ? pile.spots[s.spot] : undefined;
+      const at: Vec3 = spot ? [spot.x - Math.sin(spot.yaw) * 0.22, spot.y, spot.z - Math.cos(spot.yaw) * 0.22] : way.foot;
+      const cargo = s.slot >= 0 ? w(this.slots[s.slot]!) : w(way.hatch);
+      const rail = w(way.rail), top = w(way.top), foot = way.foot;
       const ends: Record<Leg, [Vec3, Vec3]> = {
-        below: [hatch, hatch],
-        hatch: [hatch, hatch],
-        deck: [hatch, rail],
+        idle: [home, home],
+        'to-cargo': [home, cargo],
+        cargo: [cargo, cargo],
+        deck: [cargo, rail],
         up: [rail, top],
         plank: [top, foot],
         quay: [foot, at],
@@ -136,44 +171,51 @@ export class Crew {
         'back-quay': [at, foot],
         'back-plank': [foot, top],
         down: [top, rail],
-        'back-deck': [rail, hatch],
+        'back-deck': [rail, cargo],
+        stow: [cargo, cargo],
+        home: [cargo, home],
       };
       if (s.t >= 1) {
         let next: Leg;
         switch (s.leg) {
-          case 'below': {
+          case 'idle': {
             const job = working ? this.nextJob() : null;
-            if (!job) return this.hide(s);
-            if (s.wait > 0) {
-              s.wait -= dt;
-              return this.hide(s);
+            if (!job || (s.wait -= dt) > 0) {
+              this.draw(s, home[0], home[1], home[2], yaw + s.heading, 'stand');
+              return;
             }
             s.loading = job.loading;
             s.spot = job.spot;
+            s.slot = job.slot;
             this.claimed.add(job.spot);
-            if (!job.loading) {
-              this.toLand--;
-              const kinds = CARGO[this.kind] ?? CARGO.galleon!;
-              s.item = this.stage.spawn({ actor: 'ship-goods', variant: kinds[(this.landed + i) % 3]!, params: { look: (rand(this.seed, 'goods', this.landed, i) * 1000) | 0 } }, HIDDEN);
-              this.landed++;
-            }
-            next = 'hatch';
+            this.claimedSlots.add(job.slot);
+            if (!job.loading) this.toLand--;
+            next = 'to-cargo';
             break;
           }
-          case 'hatch': next = 'deck'; break;
+          case 'to-cargo':
+            next = 'cargo';
+            break;
+          case 'cargo':
+            // Landing: lift it off the deck.
+            if (!s.loading) {
+              s.item = this.deck[s.slot] ?? null;
+              this.deck[s.slot] = null;
+            }
+            next = 'deck';
+            break;
           case 'deck': next = 'up'; break;
           case 'up': next = 'plank'; break;
           case 'plank': next = 'quay'; break;
           case 'quay': next = 'drop'; break;
           case 'drop': {
-            // Set the load down, or pick one up.
-            const sp = this.pile.spots[s.spot]!;
+            const sp = pile!.spots[s.spot]!;
             if (s.loading) {
-              s.item = this.pile.items[s.spot] ?? null;
-              this.pile.items[s.spot] = null;
+              s.item = pile!.items[s.spot] ?? null;
+              pile!.items[s.spot] = null;
             } else if (s.item) {
               s.item.setMatrix(place(sp.x, sp.y, sp.z, sp.yaw));
-              this.pile.items[s.spot] = s.item;
+              pile!.items[s.spot] = s.item;
               s.item = null;
             }
             this.claimed.delete(s.spot);
@@ -183,53 +225,63 @@ export class Crew {
           case 'back-quay': next = 'back-plank'; break;
           case 'back-plank': next = 'down'; break;
           case 'down': next = 'back-deck'; break;
-          default: {
-            // Down the hatch: a load taken aboard goes below with them.
+          case 'back-deck':
+            next = 'stow';
+            break;
+          case 'stow':
+            // Taking aboard: set it down on deck.
             if (s.item) {
-              s.item.release();
+              this.deck[s.slot] = s.item;
               s.item = null;
             }
-            next = 'below';
-          }
+            this.claimedSlots.delete(s.slot);
+            next = 'home';
+            break;
+          default:
+            next = 'idle';
+            s.wait = 0.6;
         }
         s.leg = next;
         s.t = 0;
         const [a, b] = ends[next];
-        s.len = next === 'hatch' ? 0.6 * PACE : next === 'drop' ? 0.5 * PACE : next === 'below' ? 1 : Math.max(0.05, dist(a, b));
+        s.len = next === 'cargo' || next === 'stow' ? 0.5 * PACE : next === 'drop' ? 0.5 * PACE : next === 'idle' ? 1 : Math.max(0.05, dist(a, b));
       }
-      // Called aboard: anyone on the way out turns back now, keeping what they carry.
+      // Called back aboard: anyone on the way out turns round now, keeping what they carry.
       if (!working && (s.leg === 'quay' || s.leg === 'plank' || s.leg === 'deck' || s.leg === 'up')) {
-        if (s.spot >= 0) this.claimed.delete(s.spot);
+        if (s.spot >= 0 && !s.loading) this.claimed.delete(s.spot);
         const back: Record<string, Leg> = { quay: 'back-quay', plank: 'back-plank', up: 'down', deck: 'back-deck' };
         s.leg = back[s.leg]!;
         s.t = 1 - s.t;
       }
-      if (s.leg === 'below') return this.hide(s);
       const [a, b] = ends[s.leg];
-      const still = s.leg === 'hatch' || s.leg === 'drop';
+      const still = s.leg === 'cargo' || s.leg === 'drop' || s.leg === 'stow' || s.leg === 'idle';
       const step = (dt * PACE * (s.item ? 0.85 : 1)) / s.len;
       s.t = Math.min(1, s.t + (still ? dt / s.len : step));
       const x = a[0] + (b[0] - a[0]) * s.t, y = a[1] + (b[1] - a[1]) * s.t, z = a[2] + (b[2] - a[2]) * s.t;
       if (!still) s.stride += (dt * PACE) / (PERSON.height * 2.4);
-      const heading = still ? Math.atan2(b[0] - foot[0], b[2] - foot[2]) : Math.atan2(b[0] - a[0], b[2] - a[2]);
-      const pose: PoseName = still ? (s.leg === 'drop' ? 'tend' : 'stand') : s.item ? 'carry' : 'walk';
+      const heading = still ? Math.atan2(b[0] - rail[0], b[2] - rail[2]) + Math.PI : Math.atan2(b[0] - a[0], b[2] - a[2]);
+      const pose: PoseName = still ? (s.leg === 'idle' ? 'stand' : 'tend') : s.item ? 'carry' : 'walk';
       this.draw(s, x, y, z, heading, pose);
+      void i;
     });
   }
 
-  private hide(s: Sailor): void {
-    if (!s.shown) return;
-    s.shown = false;
-    for (const h of s.pieces) h.setVisible(false);
+  /** Back to its place at once (the ship had to move off in a hurry): what it carries goes on deck. */
+  private recall(s: Sailor): void {
+    if (s.item) {
+      const free = this.deck.findIndex((d) => !d);
+      if (free >= 0) this.deck[free] = s.item;
+      else this.deck[s.slot >= 0 ? s.slot : 0] = s.item;
+      s.item = null;
+    }
+    if (s.spot >= 0) this.claimed.delete(s.spot);
+    if (s.slot >= 0) this.claimedSlots.delete(s.slot);
+    s.leg = 'idle';
+    s.t = 1;
   }
 
   private draw(s: Sailor, x: number, y: number, z: number, heading: number, pose: PoseName): void {
-    if (!s.shown) {
-      s.shown = true;
-      for (const h of s.pieces) h.setVisible(true);
-    }
     const phase = pose === 'walk' || pose === 'carry' ? s.stride : this.time;
-    // Carrying walks too: the legs keep their stride, the arms hold the load.
     const p = poseOf(pose === 'carry' ? 'walk' : pose, phase);
     if (pose === 'carry') {
       const c = poseOf('carry', this.time);
@@ -252,24 +304,19 @@ export class Crew {
       }
       s.pieces[i]!.setMatrix(m);
     }
-    // Carried in front at the chest; the same size it is on the quay (nothing changes size in view).
+    // Carried in front at the chest, at its own size.
     if (s.item) s.item.setMatrix(place(x + Math.sin(heading) * 0.12, y + 0.16, z + Math.cos(heading) * 0.12, heading));
   }
 
-  /** Releases the sailors. Anything still in their arms is put down on the pile (or taken aboard if there is no room). */
+  /** The crew and the cargo aboard leave with the ship (it is out beyond the edge of the map). */
   release(): void {
     for (const s of this.sailors) {
       for (const h of s.pieces) h.release();
-      if (s.item) {
-        const free = this.pile.items.findIndex((it) => !it);
-        if (!s.loading && free >= 0 && s.leg !== 'below' && s.leg !== 'hatch' && s.leg !== 'deck' && s.leg !== 'back-deck') {
-          const sp = this.pile.spots[free]!;
-          s.item.setMatrix(place(sp.x, sp.y, sp.z, sp.yaw));
-          this.pile.items[free] = s.item;
-        } else s.item.release();
-        s.item = null;
-      }
+      s.item?.release();
+      s.item = null;
     }
+    for (const d of this.deck) d?.release();
+    this.deck = [];
     this.sailors = [];
   }
 }
