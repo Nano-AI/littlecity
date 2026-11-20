@@ -679,8 +679,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   heap by its door or stall, and wheels the empty cart home. Goods a sailor
   takes back aboard first are simply not there to load. **Must not:** send
   two carters for one piece; carry more than fits where it is going.
-  *Not yet:* a horse-drawn cart on wide streets; the heaps in town are never
-  taken in, so trade stops when every place is full.
+  Somebody who lives or works where goods were left takes them in one at a
+  time once two or more lie there. *Not yet:* a horse-drawn cart on wide
+  streets.
 
 - **L59 · 2 · The harvest** — a wheat field (R-G01) → posts on up to 12 of
   its walkable cells (`harvest|field`) and outside the nearest windmill it
