@@ -121,6 +121,12 @@ export function dogsChain(): DogChain {
           const had = before.get(post.structure);
           before.delete(post.structure);
           if (had) return { ...had, post };
+          // Its house stands again while it is still running off: it turns round and goes home.
+          const back = leaving.findIndex((l) => l.d.post.structure === post.structure);
+          if (back >= 0) {
+            const d = leaving.splice(back, 1)[0]!.d;
+            return { ...d, post, doing: 'door' as const, aim: null };
+          }
           const c = board.centre(post.cell);
           return { post, coat: Number(post.ref) || 0, x: c.x, y: c.y, z: c.z, heading: 0, pose: 'sit' as DogPose, doing: 'door' as const, t: 0, rest: 5, aim: null, stride: 0, handles: null, shown: null };
         });
