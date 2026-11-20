@@ -31,7 +31,7 @@ import { standable } from '@/resolve/facts/lib';
 import { occupancy, TERRAIN } from '@/resolve/facts/occupancy.fact';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { DRESSING } from '@/style/dressing';
-import { lucky } from './lib';
+import { lucky, WORKING_ROLES } from './lib';
 
 /** Windows a line can be hung from: the ordinary ones (not a shopfront, a bay, a round or a slit). */
 export const PLAIN_WINDOWS: ReadonlySet<string> = new Set(['square', 'tall', 'arched', 'shuttered']);
@@ -87,6 +87,9 @@ export default defineRule<Line>({
         gap = k;
       }
       if (other === NO_CELL || gap < 1 || gap > maxGap) continue;
+      // No washing strung from a working building (a warehouse, a barn, a smithy).
+      const roleOf = (c: CellKey): string => facts.shape.roles.get(occ.structure[c]!)?.role ?? '';
+      if (WORKING_ROLES.has(roleOf(fc.cell)) || WORKING_ROLES.has(roleOf(other))) continue;
       const back = ((fc.dir + 2) % 4) as Dir4;
       if (!windows.has(fc.cell * 4 + fc.dir) && !windows.has(other * 4 + back)) continue;
       // What is under the line: nothing walkable at its own level, and no stair climbing up to it.

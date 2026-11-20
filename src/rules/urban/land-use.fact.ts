@@ -241,11 +241,17 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
       for (const c of cells) byCell.set(c, { use: 'bailey', patch });
       continue;
     }
-    const burgage = fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
+    // Fenced ground beside a schoolhouse is its yard (R-H21 chalks a hopscotch court on it): not a
+    // paddock or back gardens.
+    const school = cells.some((c) => [0, 1, 2, 3].some((d) => {
+      const n = neighbor(c, d as Dir4);
+      return n !== NO_CELL && shape.roles.get(f.structureAt.get(n) ?? -1)?.role === 'schoolhouse';
+    }));
+    const burgage = !school && fenced && !open && trees < DRESSING.parkTrees && cells.length > DRESSING.yardMax && cells.length <= BURGAGE_MAX && kinds.every((k) => k === 'house' || k === 'tree' || k === 'fence' || k === 'wall') ? burgageOf(cells) : null;
     if (burgage) {
       burgages.push(burgage);
       for (const c of cells) byCell.set(c, { use: 'burgage', burgage });
-    } else if (fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
+    } else if (!school && fenced && !open && !built && cells.length >= DRESSING.fieldMin) {
       const kind = trees >= DRESSING.parkTrees ? 'park' : l.bounds.has('wall') && !l.bounds.has('fence') ? 'walled-garden' : 'paddock';
       const field: Field = { kind, cells, trees };
       fields.push(field);
