@@ -816,3 +816,17 @@ through every character that suits an island before repeating any
 (`GrowOptions.avoid` is the list shown so far; `never` is the planner's
 own marble fallback). A first roll with nothing shown is unchanged, so
 the scenarios and survey are as before. Gate: 2,106 passed, 8 skipped.
+
+**Nuke redo merged** (`2c5cce7`, Opus). Its own casing and tray icon; a
+white-out; a shockwave ring with a dust wall (damage arrives with the
+ring, in 0.2 s batches; trees fall away from the middle, direction saved
+with the damage); a fireball that rises on a stem into a rolling cap,
+dies to dark smoke, goes grey and drifts off over about 40 s; firelight on
+the town; a scorched crater; crack, boom, rumble. Timing in
+`src/life/mischief/nuke-timing.ts`, drawing in `nuke.system.ts`. Gate:
+2,107 passed, 8 skipped. Agent's own caveats: the cloud still reads as
+outlined puffs, not one billowing mass; fire can look like flat red
+tiles mid-way; the town glow has a visible oval edge; the second of the
+bang runs at about 46 fps in a grown town (redrawing the flattened town,
+not the cloud); the white-out was not checked in pictures.
+Running: nothing. Unmerged experiments: walk, big-islands.
