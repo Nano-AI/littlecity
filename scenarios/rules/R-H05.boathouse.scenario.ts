@@ -3,7 +3,7 @@
 // shore (boathouse, doors to the sea); a house beside a dock (boathouse,
 // doors to the dock); a house one cell back from the shore (cottage); a
 // house on a terrace above the shore (level 2: cottage); a big house on the
-// shore, 3 × 2 and two storeys by a path (too big for a boathouse: an inn).
+// shore, 3 × 2 and two storeys by a path (too big for a boathouse).
 import { scenario } from '@/scenario';
 import { houseDressing } from '../houses/standins';
 
@@ -38,7 +38,7 @@ export default scenario({
     check.role(20, 1, 13, 'cottage');
     check.ok(plan.roles.get(check.structure(28, 2, 14).id)?.role !== 'boathouse', 'the house on the terrace is above the water, not on it');
     check.equal(check.applied('R-H05.boathouse'), 2, 'boathouses');
-    check.role(5, 1, 14, 'inn');
+    check.ok(plan.roles.get(check.structure(5, 1, 14).id)?.role !== 'boathouse', 'the big house is too big for a boathouse');
     // Wide double doors on the water side.
     const door = check.hasFeature({ type: 'door', variant: 'double', on: [10, 1, 14] })[0]!;
     check.equal(door.dir, 2, 'the boat doors face the sea to the south');

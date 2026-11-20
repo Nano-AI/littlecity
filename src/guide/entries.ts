@@ -145,7 +145,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'shop',
     group: 'houses',
     name: 'Shop',
-    how: 'Open a house straight onto a plaza, or onto a path if the house is two or more storeys tall.',
+    how: 'Open a house straight onto a plaza, or onto a path close by a plaza if the house is two or more storeys tall.',
     proof: { role: 'shop' },
     seed: 7102,
     build(b) {
@@ -153,7 +153,7 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.plaza(18, 20, 21, 21);
     },
     also: [
-      { build: (b) => void b.house(19, 19, { w: 2, floors: 2, color: 6 }).path(17, 20, 22, 20) },
+      { build: (b) => void b.house(19, 19, { w: 2, floors: 2, color: 6 }).path(17, 20, 22, 20).plaza(23, 20, 24, 21) },
     ],
     view: FRONT,
   },
@@ -161,15 +161,21 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'inn',
     group: 'houses',
     name: 'Inn',
-    how: 'Build a house of six or more blocks, two or more storeys tall, opening onto a path or a plaza.',
+    how: 'Build a house of six or more blocks, two or more storeys tall, where travellers arrive: on a square (a plaza three by three or more), or by the end of a bridge. Each such place has one inn.',
     proof: { role: 'inn' },
     seed: 7103,
     build(b) {
-      b.house(18, 19, { w: 3, floors: 2, color: 1 });
-      b.path(16, 20, 22, 20);
+      b.house(18, 18, { w: 3, d: 2, floors: 2, color: 1 });
+      b.plaza(17, 20, 21, 22);
     },
     also: [
-      { build: (b) => void b.house(18, 18, { w: 3, d: 2, floors: 2, color: 1 }).plaza(18, 20, 20, 21) },
+      {
+        ground: (t) => {
+          t.flat(1);
+          t.water(4, 21, 43, 23);
+        },
+        build: (b) => void b.house(18, 18, { w: 3, floors: 2, color: 1 }).path(16, 19, 22, 19).path(20, 20, 20, 20).block('arch', 20, 0, 21).block('arch', 20, 0, 22).block('arch', 20, 0, 23).path(20, 24, 20, 25),
+      },
     ],
     view: FRONT,
   },

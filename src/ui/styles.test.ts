@@ -119,8 +119,8 @@ describe('one building, not a row of strangers (design section 7)', () => {
     expect(planUse({ item: 'house', swatch: 'auto', style: 0 }, pickAt(ctx, 20.5, 20.5), ctx).tries[0]).toMatchObject({ color: 'auto' });
   });
 
-  test('six ground clicks in a 3 × 2 block beside a path, then a storey on each: one inn', () => {
-    const ctx = play(3, rect(10, 10, 3, 2), 2, (b) => b.path(8, 12, 15, 12));
+  test('six ground clicks in a 3 × 2 block beside a square, then a storey on each: one inn', () => {
+    const ctx = play(3, rect(10, 10, 3, 2), 2, (b) => b.plaza(9, 12, 13, 14));
     const { ids, role } = structuresOf(ctx);
     expect(ids.size).toBe(1);
     expect(role(10, 1, 10)).toBe('inn');

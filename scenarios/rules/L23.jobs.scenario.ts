@@ -23,6 +23,8 @@ export default scenario({
     b.put('stall', 12, 16);
     b.garden(16, 16, 18, 18);
     b.path(12, 19, 12, 19);
+    // A market pavement across the street from the shops: it makes the street the high street (R-H07).
+    b.plaza(15, 19, 24, 19);
     // The pier and the lighthouse.
     for (let z = 30; z <= 33; z++) b.block('dock', 14, 0, z);
     b.stack('lighthouse', 8, 28, { floors: 4 });
@@ -55,7 +57,8 @@ export default scenario({
     const places = check.sockets({ type: 'workplace' });
     const of = (job: string) => places.filter((s) => (s.name ?? '').split('|')[0] === job);
     check.ok(places.every((s) => nav.nodeAt.has(s.cell)), 'every station is a cell people can walk to');
-    check.ok(of('shopkeeper').length + of('baker').length >= 3, 'a keeper or a baker at each shop');
+    const shops = [...plan.roles.values()].filter((r) => r.role === 'shop').length;
+    check.ok(shops >= 1 && of('shopkeeper').length + of('baker').length >= shops, 'a keeper or a baker at each shop');
     check.equal(of('vendor').length, 1, 'stall vendors');
     check.equal(of('gardener').length, 1, 'gardeners');
     check.equal(of('fisher').length, 1, 'fishers');

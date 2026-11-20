@@ -14,9 +14,10 @@ export default scenario({
   seed: 911,
   about: 'The facade a straight street of 5+ runs into gets a doorway, an oriel, a niche or a clock by what the house is; a short street does nothing.',
   build(b) {
-    // Into a shop.
+    // Into a shop (a little plaza round the corner makes this its high street, R-H07).
     b.path(5, 8, 11, 8);
     b.house(12, 8, { floors: 2, color: 2 });
+    b.plaza(13, 10, 14, 11);
     // Into the door of a cottage.
     b.path(18, 4, 18, 9);
     b.house(17, 10, { w: 2, color: 4 });
@@ -24,10 +25,10 @@ export default scenario({
     b.path(26, 4, 26, 9);
     b.house(26, 10, { color: 6 });
     b.path(24, 11, 29, 11);
-    // Into the side of an inn.
+    // Into the side of an inn (its door on the square, R-H06).
     b.path(5, 20, 10, 20);
     b.house(11, 19, { w: 4, d: 3, floors: 2, color: 1 });
-    b.path(15, 17, 15, 23);
+    b.plaza(15, 18, 17, 20);
     // Too short.
     b.path(30, 20, 32, 20);
     b.house(33, 20, { floors: 2, color: 3 });

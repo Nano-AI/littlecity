@@ -57,15 +57,28 @@ type and which later rules apply.
   storeys; ground storey at `y ≤ 1` and a facade faces water within 1, or
   touches a dock → wide double doors on the water side, slipway, net on the
   wall. (A bigger house on the shore can be a town hall, inn or manor.)
-- **R-H06 · 2 · Inn** — 6+ cells, 2+ storeys, ground-storey facade faces a
-  street or plaza within 1 → inn sign on a bracket, lantern by the door,
-  stable-style door.
-- **R-H07 · 1 · Shop** — ground-storey facade faces a plaza within 1; or
-  faces a street within 1 and the structure has 2+ storeys → shopfront
-  window, awning (colour from seed), hanging sign. The shop type is a seeded
-  pick from {bakery, café, books, flowers, fish, tailor, cheese, toys}, with
-  fish allowed only within 6 cells of a dock. A café with 2+ free floor
-  cells in front also gets tables (D08).
+- **R-H06 · 2 · Inn** (place and scarcity: discovery 1, FX-02) — 6+ cells,
+  2+ storeys, a ground-storey facade faces a street or plaza within 1, and
+  the house stands where travellers arrive: on a square (it faces a plaza
+  holding a 3 × 3 within 1, or has a cell within 2 of one), within 3 of the
+  end of a bridge over water, or within 3 of a gate (a small arch standing
+  on a path between marble, wall, house or tower). A bridge end or gate
+  within 6 steps of a square is the square's. One inn per place: the
+  largest candidate (most cells, then the lowest id); a house is the inn of
+  one place at most → inn sign on a bracket, lantern by the door,
+  stable-style door. Every other house is left to the later roles (a
+  home). Not: a house on a plain street, however big; the quay's big houses
+  (R-H17 warehouse).
+- **R-H07 · 1 · Shop** (the share falls with distance: discovery 1, FX-02)
+  — a ground-storey facade faces a plaza within 1 → shop; or faces a street
+  within 1 and the structure has 2+ storeys → shop if a cell of it is within
+  3 steps (4-way) of a plaza cell, else with a seeded p by the steps: 0.45
+  within 6, 0.2 within 12, 0.1 beyond (and with no plaza at all) → shopfront
+  window, awning (colour from seed), hanging sign. The roll is the house's
+  own (its structure seed), so it holds while the town grows elsewhere. The
+  shop type is a seeded pick from {bakery, café, books, flowers, fish,
+  tailor, cheese, toys}, with fish allowed only within 6 cells of a dock. A
+  café with 2+ free floor cells in front also gets tables (D08).
 - **R-H09 · 2 · Manor** — footprint ≥ 10 cells or total ≥ 16 cells → hip
   roof, dormers, two chimneys, portico with two small columns at the door.
 - **R-H10 · 1 · Townhouse** — footprint exactly 1 cell and 3+ storeys →

@@ -921,6 +921,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     for (const q of people) {
       if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit' || q.mode === 'hop') continue;
       if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
+      // Somebody waiting on the doorstep to go in through this very door waits for us: no standoff
+      // (under a roof hatch the one waiting below stands on the spot the one coming down lands on).
+      const theirs = q.mode === 'walk' ? q.walk![q.at + 1] : undefined;
+      if (q.queued && theirs?.kind === 'door' && theirs.enter && theirs.door?.feature === piece.door?.feature) continue;
       if (Math.abs(q.y - piece.base) > 0.3) continue;
       if (Math.hypot(q.x - piece.x1, q.z - piece.z1) < BODY + 0.06) return true;
     }
@@ -963,7 +967,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         // L29: nobody steps into a doorway until its door is open, nor while somebody is coming the other way.
         const next = walk[p.at + 1];
         if (piece.kind === 'move' && next?.kind === 'door' && next.enter && next.door && (!doors.ready(next.door.feature) || doors.comingOut(next.door.feature) > 0)) {
-          limit = Math.min(limit, Math.max(p.t, 1 - DOORS.wait / piece.length));
+          // Under a roof hatch the one coming down lands where the one waiting would stand: wait a body back.
+          const back = next.door.feature.startsWith('hatch@') ? DOORS.wait + 2 * BODY + 0.06 : DOORS.wait;
+          limit = Math.min(limit, Math.max(p.t, 1 - back / piece.length));
           p.queued = true;
         } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && (doors.goingIn(piece.door.feature) > 0 || doorstepTaken(p, piece))))) {
           limit = 0;
