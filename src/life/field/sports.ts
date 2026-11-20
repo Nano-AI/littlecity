@@ -4,6 +4,7 @@
 import type { Court, FieldRole } from '@/rules/roles/field.lib';
 import { basketball } from './basketball';
 import { tennis } from './tennis';
+import { football } from './football';
 import type { Athlete, Game } from './kit';
 
 export interface Sport {
@@ -44,5 +45,21 @@ export const SPORTS: Partial<Record<FieldRole, Sport>> = {
     make: (c, a, o) => tennis(c, a, o),
     // The first two at the baselines, partners up at the net.
     spot: (c, i) => [(i % 2 === 0 ? -1 : 1) * (i < 2 ? c.hl - 0.1 : c.hl * 0.35), i < 2 ? 0.1 : -0.2],
+  },
+  'football-pitch': {
+    min: 4,
+    max: 8,
+    tag: 'field:play',
+    who: 'all',
+    make: (c, a, o) => football(c, a, o),
+    spot: (c, i, n) => lines(c, i, n, c.hl * 0.45),
+  },
+  'kickabout-green': {
+    min: 3,
+    max: 6,
+    tag: 'field:play',
+    who: 'children',
+    make: (c, a, o) => football(c, a, o),
+    spot: (c, i, n) => lines(c, i, n, c.hl * 0.4),
   },
 };

@@ -54,7 +54,7 @@ export function courtPieces(c: Court): Piece[] {
     const h = hoopOf(c);
     for (const s of [-1, 1]) out.push({ type: 'court-hoop', ...standing(c, s * h.post, 0), pos: 'c', face: dirOf(c, -s, 0) });
   } else if (c.role === 'tennis-court') {
-    out.push({ type: 'court-net', ...standing(c, 0, 0), pos: 'c', face: dirOf(c, 1, 0), span: (c.hw + 0.09) * 2 });
+    out.push({ type: 'court-net', ...standing(c, 0, 0), pos: 'c', face: dirOf(c, 1, 0), span: (c.hw + 0.03) * 2 });
     if (c.rw >= 1.5) out.push({ type: 'umpire-chair', ...standing(c, 0, -(c.rw - 0.07)), pos: 'c', face: dirOf(c, 0, 1) });
   } else if (c.role === 'football-pitch') {
     const g = goalOf(c);

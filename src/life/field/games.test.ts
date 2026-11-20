@@ -8,6 +8,7 @@ import { CELL_H } from '@/core/grid';
 import { courtLocal, courtOf, type Court, type FieldRole } from '@/rules/roles/field.lib';
 import { basketball } from './basketball';
 import { tennis } from './tennis';
+import { football } from './football';
 import type { Athlete, Game } from './kit';
 
 function athletes(c: Court, n: number): Athlete[] {
@@ -53,6 +54,35 @@ export function run(game: Game, limit: number, dt = 1 / 30): Run {
   for (const e of game.events) kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
   return { game, kinds, problems };
 }
+
+describe('football', () => {
+  const pitch = courtFor('football-pitch', 6, 4, 'grass');
+
+  test('three a side with goalkeepers: kick-off, passes, shots, saves or goals, handshakes', () => {
+    const g = football(pitch, athletes(pitch, 6), { seed: 3, length: 150 });
+    const r = run(g, 260);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('kickoff') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(r.kinds.get('pass') ?? 0).toBeGreaterThanOrEqual(4);
+    expect(r.kinds.get('shot') ?? 0).toBeGreaterThanOrEqual(3);
+    expect(r.kinds.get('goal') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(g.phase).toBe('over');
+  });
+
+  test('a kickabout on a green, between the jumpers', () => {
+    const green = courtFor('kickabout-green', 3, 2, 'grass');
+    const r = run(football(green, athletes(green, 4), { seed: 8, length: 90 }), 160);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('shot') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(r.game.phase).toBe('over');
+  });
+
+  test('the same seed plays the same game', () => {
+    const a = run(football(pitch, athletes(pitch, 6), { seed: 5, length: 60 }), 100);
+    const b = run(football(pitch, athletes(pitch, 6), { seed: 5, length: 60 }), 100);
+    expect(b.game.events).toEqual(a.game.events);
+  });
+});
 
 describe('tennis', () => {
   const court = courtFor('tennis-court', 5, 2, 'clay');
