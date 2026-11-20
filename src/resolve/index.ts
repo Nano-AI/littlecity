@@ -12,6 +12,7 @@ import type { Terrain, World } from '@/core/world';
 import type { ResolveOptions } from './engine/api';
 import { allRules } from './engine/discover';
 import { runDressingStage, runShapeStage } from './engine/run';
+import { islandOf } from '@/terrain/land';
 import { resolveKinds } from './kinds';
 import { buildNav } from './nav';
 import type { DressingPlan, ShapePlan, TownPlan } from './plan';
@@ -23,6 +24,8 @@ export type { ResolveOptions } from './engine/api';
 export type * from './plan';
 
 export function resolveShape(w: World, t: Terrain, opts: ResolveOptions = {}): ShapePlan {
+  // The world's own island (shaping the land): the terrain passed may be the generated one.
+  t = islandOf(w, t);
   const kinds = resolveKinds(w, t);
   const { structures, structureAt, floorAt, edgeAt } = buildStructures(w, t, kinds);
   const supports = resolveSupports(w, t, kinds);

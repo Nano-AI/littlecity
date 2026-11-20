@@ -103,8 +103,9 @@ describe('tower (J13, R-T01, R-T07)', () => {
 
 describe('lighthouse (R-L01)', () => {
   test('bands per storey, a lantern stage on the top storey, inside its cells', () => {
-    const t = town((b) => b.stack('lighthouse', 10, 10, { floors: 4 }));
-    const s = t.at(10, 1, 10);
+    // By the sea (within 6 of it): far inland a Light is a folly tower (R-L02).
+    const t = town((b) => b.stack('lighthouse', 6, 10, { floors: 4 }));
+    const s = t.at(6, 1, 10);
     expect(t.plan.roles.get(s.id)?.role).toBe('lighthouse');
     const out = allGenerators().build(s, t.plan, allParts());
     const mesh = out.mesh;
@@ -126,8 +127,8 @@ describe('lighthouse (R-L01)', () => {
     const { min, max } = meshBounds(mesh);
     expect(max[1]).toBeLessThan(5 * CELL_H + 0.05);
     expect(max[1]).toBeGreaterThan(5 * CELL_H - 0.2);
-    expect(min[0]).toBeGreaterThan(10 - 0.12); // the plinth and the door step, never more
-    expect(max[0]).toBeLessThan(11 + 0.12);
+    expect(min[0]).toBeGreaterThan(6 - 0.12); // the plinth and the door step, never more
+    expect(max[0]).toBeLessThan(7 + 0.12);
     expect(triangleCount(mesh)).toBeLessThan(4 * 500);
     // The beam's socket is in the lantern room.
     const lantern = t.plan.sockets.find((k) => k.type === 'lantern' && k.structure === s.id)!;

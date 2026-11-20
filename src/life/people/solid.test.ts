@@ -208,6 +208,8 @@ describe('people are solid', () => {
     const { crowd } = day(town, 60, 0);
     for (const p of crowd.people) {
       if (!p.visible || p.mode !== 'walk') continue;
+      // Stepping through a doorway is crossing the wall between two cells: not a cell of the graph.
+      if (p.walk![p.at]!.kind !== 'move') continue;
       expect(crowd.nav!.nodeAt.has(key(Math.floor(p.x), Math.round(p.y / 0.8), Math.floor(p.z))) || crowd.nav!.nodes[p.node] !== undefined).toBe(true);
       expect(Math.floor(p.x)).toBe(keyX(crowd.nav!.nodes[p.node]!.cell));
       expect(Math.floor(p.z)).toBe(keyZ(crowd.nav!.nodes[p.node]!.cell));

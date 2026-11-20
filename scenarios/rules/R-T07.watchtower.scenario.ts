@@ -16,9 +16,11 @@ export default scenario({
   },
   build(b) {
     b.path(8, 13, 24, 13);
+    // Built first, so it is the first of this crowd of towers and keeps the plain cone (FX-10: the
+    // others, within 4 of it, take other looks).
+    b.tower(13, 12, { floors: 3, color: 3 });
     b.tower(9, 12, { floors: 1, color: 0 });
     b.tower(11, 12, { floors: 2, color: 1 });
-    b.tower(13, 12, { floors: 3, color: 3 });
     b.tower(16, 12, { floors: 4, color: 6 });
     b.tower(19, 12, { floors: 5, color: 4 });
     b.tower(22, 12, { floors: 3, color: 2 }).block('marble', 22, 4, 12);

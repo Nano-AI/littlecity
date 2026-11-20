@@ -18,11 +18,12 @@
 import { columnIndex, DIR4, key, keyX, keyY, keyZ, turn, type Dir4 } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule, slot, type Candidate } from '@/resolve/engine/api';
-import { featuresOfType } from '@/resolve/facts/plan-index.fact';
+import { featuresOfType, socketsOfType } from '@/resolve/facts/plan-index.fact';
 import type { StructureId } from '@/resolve/plan';
 import { freeWater } from '../roles/dock-shape';
 import { ladderSide } from '../roles/R-D02.pier.rule';
-import { edgeWater } from './berths.fact';
+import { berthZones, edgeWater, shipLanes, zoneGap } from './berths.fact';
+import { bargeRun } from './L41.river-barge.rule';
 import { routeLength, waterMask, waterRoute } from './waterway';
 
 /** Docks closer than this (in columns) have no rower between them: it would be a step, not a crossing. */
@@ -48,12 +49,25 @@ export default defineRule<Crossing>({
   about: 'Reads: dock structures, pier-head features, open water between docks. Claims: each dock’s rower. Emits: a rower between two docks joined by open water (at most two in the town).',
   find({ facts }) {
     const ends: { pier: StructureId; x: number; z: number; wx: number; wz: number }[] = [];
+    // It waits where nothing else lies or comes: out of the big ships' berths and the ways they sail, off
+    // every mooring a rowboat may lie at (L17), and off the barge's run (L41).
+    const zones = berthZones(facts);
+    const inLane = shipLanes(facts);
+    const rests = socketsOfType(facts, 'mooring')
+      .filter((m) => m.dir !== undefined)
+      .map((m) => [keyX(m.cell) + DIR4[m.dir as Dir4]![0] * 1.1 + 0.5, keyZ(m.cell) + DIR4[m.dir as Dir4]![1] * 1.1 + 0.5] as const);
+    const run = bargeRun(facts)?.route ?? [];
+    const free = (wx: number, wz: number): boolean =>
+      zones.every((s) => zoneGap(s, wx, wz) > 0.8) &&
+      !inLane(wx, wz) &&
+      rests.every(([x, z]) => Math.hypot(x - wx, z - wz) > 1.4) &&
+      run.every(([x, z]) => Math.hypot(x - wx, z - wz) > 1.6);
     for (const head of featuresOfType(facts, 'pier-head')) {
       if (head.cell === undefined || head.dir === undefined) continue;
       const x = keyX(head.cell), z = keyZ(head.cell);
       const seaward = head.dir as Dir4;
       const sides: Dir4[] = [seaward, ladderSide(seaward), turn(ladderSide(seaward), 2)];
-      const side = sides.find((d) => freeWater(facts, x + DIR4[d]![0], z + DIR4[d]![1]));
+      const side = sides.find((d) => freeWater(facts, x + DIR4[d]![0], z + DIR4[d]![1]) && free(x + DIR4[d]![0] + 0.5, z + DIR4[d]![1] + 0.5));
       if (side === undefined) continue;
       ends.push({ pier: head.structure, x, z, wx: x + DIR4[side]![0] + 0.5, wz: z + DIR4[side]![1] + 0.5 });
     }
@@ -67,7 +81,7 @@ export default defineRule<Crossing>({
         if (keyY(c) !== 0) continue;
         const x = keyX(c), z = keyZ(c);
         for (const [dx, dz] of DIR4) {
-          if (!freeWater(facts, x + dx, z + dz) || !reach[columnIndex(x + dx, z + dz)]) continue;
+          if (!freeWater(facts, x + dx, z + dz) || !reach[columnIndex(x + dx, z + dz)] || !free(x + dx + 0.5, z + dz + 0.5)) continue;
           let wet = 0;
           for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (freeWater(facts, x + dx * 2 + i, z + dz * 2 + j)) wet++;
           if (wet > room) {

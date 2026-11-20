@@ -49,6 +49,12 @@ export interface Spot {
   yaw: number;
 }
 
+const GOODS_KIND = new WeakMap<object, string>();
+/** What a piece of ship's cargo is ('crate', 'barrel', 'sack'): the town's carters (L58) read it off the quay. */
+export function goodsKindOf(h: InstanceHandle): string | undefined {
+  return GOODS_KIND.get(h);
+}
+
 /** Goods lying on a quay: what lies in each of its spots (null: free). */
 export interface Pile {
   spots: Spot[];
@@ -99,7 +105,12 @@ export class Crew {
     // Cargo slots: two rows either side of the hatch, aft and forward of it.
     for (const dz of [-0.36, -0.08, 0.2]) for (const dx of [-0.26, 0.26]) this.slots.push([hatch[0] + dx, hatch[1], hatch[2] + dz]);
     const kinds = CARGO[kind] ?? CARGO.galleon!;
-    this.deck = this.slots.map((_, i) => (i < cargo ? stage.spawn({ actor: 'ship-goods', variant: kinds[i % 3]!, params: { look: (rand(seed, 'cargo', i) * 1000) | 0 } }, HIDDEN) : null));
+    this.deck = this.slots.map((_, i) => {
+      if (i >= cargo) return null;
+      const h = stage.spawn({ actor: 'ship-goods', variant: kinds[i % 3]!, params: { look: (rand(seed, 'cargo', i) * 1000) | 0 } }, HIDDEN);
+      GOODS_KIND.set(h, kinds[i % 3]!); // for the town's carters (L58: goodsKindOf)
+      return h;
+    });
     places.forEach((at, i) => {
       const base = lookOf(rand(seed, 'sailor', i) * 1e9 >>> 0);
       const look: Look = { ...base, dress: false, top: i % 2 === 0 ? PALETTE.white : RAMPS.roof[1]!, bottom: PALETTE.metal, hat: i === 0 ? 'cap' : base.hat === 'straw' ? 'none' : base.hat, hatColor: PALETTE.redDark, child: false };

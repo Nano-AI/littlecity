@@ -15,24 +15,30 @@ import { applyEdit, canApply, isSolid } from '@/world/world';
 import { INPUT } from '@/style/input';
 import { planUse, type ActionContext, type ToolState } from './actions';
 import { faceZone, type Pick } from './pick';
-import { isFloorPiece, type ItemId } from './pieces';
+import { isFloorPiece, isLandTool, type ItemId } from './pieces';
 
 /** Length runs from 1 to this (design section 7). */
 export const MAX_LENGTH = 12;
 
-export type Growth = 'up' | 'ground';
+/** 'brush': the land tools' held length is the brush, 1 to 3 columns across (design section 6). */
+export type Growth = 'up' | 'ground' | 'brush';
+/** The widest brush the land tools take. */
+export const BRUSH_MAX = 3;
 
 const UPWARD = new Set<ItemId>(['pillar', 'tower', 'lighthouse']);
 const ALONG = new Set<ItemId>(['fence', 'wall', 'dock', 'arch', 'marble']);
 
 /** How the piece grows when it has a length, or null for pieces that have none. */
 export function growthOf(item: ItemId): Growth | null {
+  if (isLandTool(item)) return 'brush';
   if (UPWARD.has(item)) return 'up';
   if (ALONG.has(item) || isFloorPiece(item)) return 'ground';
   return null;
 }
 
-export const clampLength = (n: number): number => Math.max(1, Math.min(MAX_LENGTH, Math.round(n)));
+export const clampLength = (n: number, max: number = MAX_LENGTH): number => Math.max(1, Math.min(max, Math.round(n)));
+/** The longest the held item may be: the brush for the land tools, else MAX_LENGTH. */
+export const maxLengthOf = (item: ItemId): number => (isLandTool(item) ? BRUSH_MAX : MAX_LENGTH);
 
 export interface Run {
   /** The edits to apply, in order; empty when the first cell is refused. */
@@ -124,7 +130,7 @@ export function planRun(tool: ToolState, pick: Pick, ctx: ActionContext, length:
 
   const growth = growthOf(tool.item);
   const n = clampLength(length);
-  if (growth === null || n === 1) return { edits, world: w, dir: null, at: plan.at, refusal: null };
+  if (growth === null || growth === 'brush' || n === 1) return { edits, world: w, dir: null, at: plan.at, refusal: null };
 
   // Where the run is now, which way it goes, and how to make the next edit.
   let cell: CellKey;

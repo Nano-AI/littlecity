@@ -1,4 +1,4 @@
-// L29: bells swing at dusk. When the evening comes (the moment lamps can
+// L29: bells swing at dusk (and, L57, for a wedding). When the evening comes (the moment lamps can
 // first be lit) each belfry rings a peal: the bell swings up to
 // MECHANISMS.bellSwing either side, eases off and hangs still again. A
 // town's bells start a beat apart (seeded), and a bell already swinging
@@ -15,11 +15,14 @@ import { eveningSeconds } from '../dusk/evening';
 import { carryOf } from '../feedback/carry';
 import { easeIn, easeOut } from '../motion/ease';
 import { onTwos } from '../motion/twos';
+import { pealAt } from './peal';
 
 /** The swing (radians) of a bell `delay` seconds behind the town's first, at a time. 0 outside its peal. */
-export function bellAngle(time: TimeSignal, delay: number, seconds: number): number {
-  if (!time.isDusk && !time.isNight) return 0;
-  const t = eveningSeconds(time) - delay;
+export function bellAngle(time: TimeSignal, delay: number, seconds: number, extra: number | null = null): number {
+  // L57: a wedding's peal, by day, from when it was rung.
+  const ext = extra !== null ? time.seconds - extra - delay : -1;
+  if (!time.isDusk && !time.isNight && !(ext > 0 && ext < MECHANISMS.pealTime)) return 0;
+  const t = ext > 0 && ext < MECHANISMS.pealTime ? ext : eveningSeconds(time) - delay;
   const len = MECHANISMS.pealTime;
   if (t <= 0 || t >= len) return 0;
   // Rung up over two swings, held, and let die away over the last third.
@@ -34,7 +37,7 @@ export default defineBehaviour({
     return { delay: ctx.rand('delay') * 2.5, phase: ctx.rand('twos'), still: false };
   },
   update(state, _dt, signals, ctx) {
-    const angle = bellAngle(signals.time, state.delay, onTwos(signals.time.seconds, state.phase));
+    const angle = bellAngle(signals.time, state.delay, onTwos(signals.time.seconds, state.phase), pealAt(ctx.stage));
     const carry = carryOf(ctx.stage, ctx.item.home);
     // A still bell is left where the plan put it.
     if (angle === 0 && !carry) {

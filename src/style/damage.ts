@@ -38,6 +38,7 @@ export const DAMAGE_COLORS = defineStyle('damage-colors', {
   /** Rope. */
   rope: '#a88a62',
   /** Flames, from the root to the tips, and embers. */
+  flameDeep: '#d9472f',
   flameRoot: '#ff7a3c',
   flameMid: '#ffb347',
   flameTip: '#ffe58a',

@@ -15,17 +15,19 @@ const SEEDS = [1, 2, 3, 17, 404, 9001, 31337];
  * Triangles per plant. Crowns are divided finely enough that their outlines are
  * curves (sixteen sides to a core, five to seven lumps round the rim: art review
  * 1, G1), which costs more than the first pass's 400: the ceiling is 620.
+ * Broadleaves carry their winter branches inside the crown (Seasons): up to 160 more.
  */
+const BRANCHES = 160;
 const BUDGET: Record<TreeRole, number> = {
-  'round-tree': 540,
+  'round-tree': 540 + BRANCHES,
   'cypress': 380,
   'bush': 470,
   'palm': 330,
-  'willow': 520,
+  'willow': 520 + BRANCHES,
   'pine': 420,
   'planter-tree': 500,
-  'fruit-tree': 620,
-  'grove-tree': 620,
+  'fruit-tree': 620 + BRANCHES,
+  'grove-tree': 620 + BRANCHES,
 };
 const COMPANION = 200;
 

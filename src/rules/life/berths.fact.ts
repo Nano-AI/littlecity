@@ -27,7 +27,7 @@ import { hash } from '@/core/rand';
 import { defineFact, type Facts } from '@/resolve/facts/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { SHIPS } from '@/style/ships';
-import { hullClear as hullClearAt, mooringAt, obstacleColumns, planArrival, planDeparture, seaField, type HullSize, type Mooring, type SeaField } from './ship-routes';
+import { hullClear as hullClearAt, mooringAt, obstacleColumns, planArrival, planDeparture, seaField, type HullSize, type Mooring, type Pt, type SeaField } from './ship-routes';
 
 export type BigShip = 'galleon' | 'cog' | 'galley';
 
@@ -55,6 +55,8 @@ export interface ShipPlan {
   /** Bow along the run (+1) or against it (−1). */
   dir: 1 | -1;
   mooring: Mooring;
+  /** The ways it sails in and out (the lead ship's at a berth), for small boats to wait out of. */
+  lanes: readonly Pt[][];
 }
 
 export interface Harbour {
@@ -226,7 +228,7 @@ export function planBerth(f: Facts, ship: BigShip, berth: Berth, field: SeaField
     if (!arrive) continue;
     const leave = planDeparture(field, h, m, SHIPS.edgeIn, SEA_MARGIN);
     if (!leave) continue;
-    return { ship, berth, dir, mooring: m };
+    return { ship, berth, dir, mooring: m, lanes: [arrive.path.points, leave.path.points] };
   }
   return null;
 }
@@ -269,7 +271,7 @@ export const harbour = defineFact<Harbour>('harbour', (f) => {
         const h2 = hullSize(ship);
         if (h2.bow - h2.stern > b.cells + 0.6) continue;
         const m = mooringAt(h2, b.face, lead.dir, SHIPS.alongside, SHIPS.warpGap);
-        if (mooredClear(field, h2, m)) plans.push({ ship, berth: b, dir: lead.dir, mooring: m });
+        if (mooredClear(field, h2, m)) plans.push({ ship, berth: b, dir: lead.dir, mooring: m, lanes: lead.lanes });
       }
     }
     if (lead) used++;
@@ -278,6 +280,58 @@ export const harbour = defineFact<Harbour>('harbour', (f) => {
   if (PLANNED.size > 6) PLANNED.delete(PLANNED.keys().next().value!);
   return { berths, plans };
 });
+
+/** A stretch of quay a big ship takes and the water off it: a hull from stern to bow, `half` wide. */
+export interface Zone {
+  x: number;
+  z: number;
+  hx: number;
+  hz: number;
+  stern: number;
+  bow: number;
+  half: number;
+}
+
+/** How far (x, z) lies outside a zone; negative inside. */
+export function zoneGap(s: Zone, x: number, z: number): number {
+  const dx = x - s.x, dz = z - s.z;
+  const along = dx * s.hx + dz * s.hz;
+  const across = Math.abs(-dx * s.hz + dz * s.hx);
+  const a = Math.max(s.stern, Math.min(s.bow, along));
+  return Math.hypot(along - a, across) - s.half;
+}
+
+/**
+ * The stretches of quay big ships take and the water off them (L38–L40), as the harbour system marks them
+ * for the small boats (src/life/ships/visit.ts): each planned ship's hull at its mooring and at its warp
+ * point, 0.6 longer at each end and wider by the warp gap and half a column.
+ */
+export function berthZones(f: Facts): Zone[] {
+  const out: Zone[] = [];
+  for (const p of harbour(f).plans) {
+    const h = hullSize(p.ship);
+    const m = p.mooring;
+    for (const [x, z] of [[m.x, m.z], [m.wx, m.wz]] as const) {
+      out.push({ x, z, hx: Math.sin(m.yaw), hz: Math.cos(m.yaw), stern: h.stern - 0.6, bow: h.bow + 0.6, half: h.halfBeam + SHIPS.warpGap + 0.5 });
+    }
+  }
+  return out;
+}
+
+/** Whether a point lies in the way a big ship sails in or out (its half beam and most of a column either side). */
+export function shipLanes(f: Facts): (x: number, z: number) => boolean {
+  const lanes = harbour(f).plans.flatMap((p) => p.lanes.map((points) => ({ points, half: hullSize(p.ship).halfBeam + 0.9 })));
+  return (x, z) =>
+    lanes.some(({ points, half }) => {
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1]!, b = points[i]!;
+        const ex = b[0] - a[0], ez = b[1] - a[1], l2 = ex * ex + ez * ez || 1;
+        const t = Math.max(0, Math.min(1, ((x - a[0]) * ex + (z - a[1]) * ez) / l2));
+        if (Math.hypot(a[0] + ex * t - x, a[1] + ez * t - z) < half) return true;
+      }
+      return false;
+    });
+}
 
 /**
  * Open water a boat can reach from the edge of the map (1 = reachable): a flood over open-water columns

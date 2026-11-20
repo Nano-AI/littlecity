@@ -12,6 +12,7 @@ import { rand, randInt, randRange } from '@/core/rand';
 import { MAT, type Terrain, type World } from '@/core/world';
 import { ISLAND } from '@/style/island';
 import { coastDistance, components, D4, fbm, hAt, N } from './noise';
+import { islandOf } from './land';
 import { generateIsland2 } from './terrain2';
 import { applyEdit, canApply, emptyWorld } from '@/world/world';
 
@@ -233,10 +234,22 @@ export function terrainGenOf(w: Pick<World, 'terrainGen'>): TerrainGen {
   return w.terrainGen === 2 ? 2 : 1;
 }
 
-/** The island a saved world stands on: its seed, through the generator recorded with it. */
-export function terrainOf(w: Pick<World, 'seed' | 'terrainGen'>): Terrain {
-  return generateTerrain(w.seed, terrainGenOf(w));
+/**
+ * The island a saved world stands on: its seed, through the generator recorded with it, with the
+ * player's reshaped columns laid over it (World.terrainEdits; src/terrain/land.ts).
+ */
+export function terrainOf(w: Pick<World, 'seed' | 'terrainGen' | 'terrainEdits'>): Terrain {
+  const gen = terrainGenOf(w);
+  // The last few generated islands are kept: the same base keeps islandOf's memo warm.
+  let base = generated.find((g) => g.seed === w.seed && g.gen === gen)?.terrain;
+  if (!base) {
+    base = generateTerrain(w.seed, gen);
+    generated.unshift({ seed: w.seed, gen, terrain: base });
+    generated.length = Math.min(generated.length, 4);
+  }
+  return islandOf(w, base);
 }
+const generated: { seed: number; gen: TerrainGen; terrain: Terrain }[] = [];
 
 /**
  * The island for a seed. Pure and deterministic. `gen` 1 (the default) is the

@@ -58,3 +58,9 @@ export function baseLevel(s: Structure): number {
   for (const c of s.cells) y = Math.min(y, keyY(c));
   return y;
 }
+
+/**
+ * Working buildings (the structures builder's roles): a warehouse, a barn, a smithy and its chimney.
+ * They carry no flower boxes (D09) and no washing strung from their walls (D05).
+ */
+export const WORKING_ROLES: ReadonlySet<string> = new Set(['warehouse', 'barn', 'smithy', 'forge-chimney']);

@@ -36,6 +36,9 @@ import { BODY } from './overlap';
 /** How close anybody lets another come: a body and a hand's breadth (steady following sits just outside an overlap). */
 const KEEP = BODY + 0.025;
 import { createRouter, type Router } from './route';
+import { createScuffles, type Scuffle, type Scuffles } from './scuffle';
+import type { ErrandHost, ErrandStep, Load } from './errand';
+import { HEAVY } from '@/parts/people/loads';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
@@ -65,7 +68,7 @@ export interface Work {
 }
 
 export interface Goal {
-  kind: 'home' | 'haunt' | 'leave';
+  kind: 'home' | 'haunt' | 'leave' | 'errand';
   node: number;
   haunt: Haunt | null;
   /** Go in at this door at the end. */
@@ -77,6 +80,8 @@ export interface Goal {
   linger: number;
   /** Sitting: height of the seat above the floor; -1 when not sitting. */
   seat: number;
+  /** An errand's step (kind 'errand'). */
+  errand?: ErrandStep;
 }
 
 export interface Person {
@@ -101,6 +106,8 @@ export interface Person {
   part: string;
   /** Walking with their arms full (a miller's sack, a baker's tray). */
   carrying: boolean;
+  /** What they carry for an errand now, drawn in their hands (also while standing and inside). */
+  load: Load | null;
   /** Walking the lamp round, briskly (L08). */
   brisk: boolean;
 
@@ -185,6 +192,13 @@ export interface Person {
   offZ: number;
   /** Held up, they thought again once; cleared once they get going. */
   rethought: boolean;
+  /** L50: the scuffle they are in or watching, and whether they are inside its cloud now (not drawn). */
+  scuffle: Scuffle | null;
+  inCloud: boolean;
+  /** In an event's party (a wedding, a parade): never drawn into a scuffle. */
+  party: boolean;
+  /** Dressed for an event (L57: the bride and the groom), else null. */
+  costume: 'bride' | 'groom' | 'askew' | null;
 }
 
 export interface CrowdEvents {
@@ -194,6 +208,8 @@ export interface CrowdEvents {
   passed?(cell: CellKey, person: Person): void;
   /** L08: the lamplighter reached a lamp (the lamp prop's id). */
   lamp?(lamp: string, person: Person): void;
+  /** L50: a scuffle started or ended. */
+  scuffle?(s: Scuffle, what: 'start' | 'end'): void;
   /** L23: the bell ringer went in to ring. */
   bell?(structure: StructureId, person: Person): void;
   /** Somebody was added or removed (the drawing must follow). */
@@ -213,6 +229,12 @@ export interface CrowdOptions {
   events?: CrowdEvents;
   /** L36, L37: bodies walkers wait for (soldiers, a horse), read each step. */
   obstacles?(): readonly { x: number; y: number; z: number }[];
+  /** L51 and up: the town's chains, which send people on errands. */
+  errands?: ErrandHost;
+  /** L50: sends somebody to break up a scuffle (the town's chains know the watchman); returns them, or null. */
+  respond?(s: Scuffle): Person | null;
+  /** L50: overrides the scuffle dials (a fixture forcing one). */
+  scuffle?: { chance?: number; squeeze?: number; rest?: number };
   /** L38–L40: how much a place that is only sometimes worth going to weighs now (a quay with a ship in); 0 = not now. */
   favour?(h: Haunt): number;
 }
@@ -232,6 +254,12 @@ export interface Crowd {
   step(dt: number, time: TimeSignal): void;
   /** A block landed in this cell: people near it stop and look (L26). */
   blockLanded(cell: CellKey): void;
+  /** L50: the scuffle going on now, if any, and the means to start one at once (fixtures, sequences). */
+  readonly scuffles: Scuffles;
+  /** Makes somebody choose what to do now (an errand has come up for them), as soon as they can. */
+  rethink(p: Person): void;
+  /** Something stands in a cell for a while (L56: a market stall): walkers route round it (0 lifts it). */
+  setCrowded(cell: CellKey, extra: number): void;
 }
 
 const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
@@ -279,6 +307,18 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   let duskClock = 0;
   let planCursor = 0;
   const doors = createDoors();
+  /** Cells with something standing in them a while, and how much dearer they are to cross (setCrowded). */
+  const crowdedCells = new Map<CellKey, number>();
+  /** Cluttered cells (café tables, benches) where somebody sits now: routes go round them while they do. */
+  let seated = new Set<number>();
+  const updateSeated = (): void => {
+    if (!nav || !router) return;
+    const now = new Set<number>();
+    for (const p of people) if (p.mode === 'linger' && p.seat >= 0 && p.node >= 0 && nav.nodes[p.node]!.clutter) now.add(p.node);
+    for (const n of now) if (!seated.has(n)) router.setExtra(n, Math.max(PEOPLE.seatedExtra, crowdedCells.get(nav.nodes[n]!.cell) ?? 0));
+    for (const n of seated) if (!now.has(n)) router.setExtra(n, crowdedCells.get(nav.nodes[n]!.cell) ?? 0);
+    seated = now;
+  };
   /** Shop doors (they stand open by day). */
   let shopDoors: string[] = [];
 
@@ -372,7 +412,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const door = h.structure !== undefined ? usableDoors(nav!, h.structure).find((d) => d.node === h.node) : undefined;
         if (door && r(p, 'go-in') < 0.5) g.door = door;
         else {
-          facing(door ? 0.2 : 0.1);
+          // At the window, close to the wall and off to one side of the doorway: the middle of the street is
+          // left to whoever walks past (a shop on a lane one cell wide is the common case).
+          const side = r(p, 'window') < 0.5 ? -0.27 : 0.27;
+          if (h.dir !== undefined) {
+            const [dx, dz] = DIR4[h.dir]!;
+            g.spot = { x: c.x + dx * 0.3 - dz * side, z: c.z + dz * 0.3 + dx * side };
+            g.face = DIR_HEADING[h.dir]!;
+          }
           g.pose = r(p, 'pose') < 0.5 ? 'chat' : 'stand';
         }
         break;
@@ -391,8 +438,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           g.spot = { x: seat.x, z: seat.z };
           g.face = seat.face;
           g.seat = Math.max(0, seat.y - keyY(h.cell) * 0.8);
-        } else {
+        } else if (h.dir !== undefined) {
           facing(0.05);
+          g.seat = 0;
+        } else {
+          // Where the seat is not known (no frame for it), round the table: each seat its own place by its
+          // number, facing the middle (two seats of one table never one spot).
+          const n = Number((h.name ?? '').match(/(\d+)$/)?.[1] ?? 0);
+          const a = n * (Math.PI / 2) + 0.4;
+          g.spot = { x: c.x + Math.sin(a) * 0.24, z: c.z + Math.cos(a) * 0.24 };
+          g.face = a + Math.PI;
           g.seat = 0;
         }
         break;
@@ -600,6 +655,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const nextGoal = (p: Person, time: TimeSignal, fromHome: boolean): Goal | null => {
     p.trips++;
     if (p.leaving) return leaveGoal(p);
+    // The town's chains first: an errand under way goes on; a new one may be offered.
+    const e = opts.errands?.next(p, time);
+    if (e) {
+      const g = errandGoal(p, e);
+      if (g) return g;
+      opts.errands!.failed(p, e);
+    }
+    // Something still in their hands that no errand wants: it goes home with them.
+    if (p.load) return fromHome ? null : homeGoal(p);
     const work = workGoal(p, time);
     if (work) return work;
     if (mustBeHome(p, time)) return fromHome ? null : homeGoal(p);
@@ -608,6 +672,19 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const h = pickHaunt(p, time);
     if (h) return hauntGoal(p, h);
     return fromHome ? null : homeGoal(p);
+  };
+  /** The goal for an errand's step, or null if its place is not on the graph (or not where they can walk). */
+  const errandGoal = (p: Person, e: ErrandStep): Goal | null => {
+    if (!nav) return null;
+    const node = nav.nodeAt.get(e.cell);
+    if (node === undefined || (p.node >= 0 && nav.part[node] !== nav.part[p.node])) return null;
+    let door: NavDoor | null = null;
+    if (e.door) {
+      door = nav.doors.find((d) => d.feature === e.door!.feature && d.structure === e.door!.structure && d.node === node) ?? null;
+      if (!door) return null;
+    }
+    const spot = door ? null : e.spot ? freeSpot(p, node, e.spot) : null;
+    return { kind: 'errand', node, haunt: null, door, spot, face: e.face, pose: e.pose, linger: e.linger, seat: -1, errand: e };
   };
   const leaveGoal = (p: Person): Goal | null => {
     if (!nav || p.node < 0) return null;
@@ -689,8 +766,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.seat = -1;
     p.stuck = 0;
     p.flying = false;
-    p.carrying = goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker');
-    p.brisk = goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter';
+    // An errand's load is in their hands on the way; whatever else they hold stays in their hands (nothing
+    // vanishes in view) until they are home with it (nextGoal sends them there next).
+    p.load = goal.errand ? goal.errand.load : p.load;
+    p.carrying = p.load !== null || (goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker'));
+    p.brisk = (goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter') || goal.errand?.brisk === true;
     enterPiece(p);
     return true;
   };
@@ -744,7 +824,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.timer = 2;
       return;
     }
+    // The chain hears first: it sets down, picks up, fills a stall (and may change what is in their hands).
+    if (goal.errand) opts.errands?.arrived(p, goal.errand);
     if (goal.kind === 'home') {
+      p.load = null; // put away inside
       p.mode = 'home';
       p.visible = false;
       p.timer = PEOPLE.homeMin + r(p, 'home-stay') * (PEOPLE.homeMax - PEOPLE.homeMin);
@@ -876,7 +959,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const fx = scratch.dx / len, fz = scratch.dz / len;
     const ex = tx - p.offX, ez = tz - p.offZ;
     const eLat = ex * rx + ez * rz, eAlong = ex * fx + ez * fz;
-    const shrinkRoom = Math.abs(p.dodge) > room + 1e-9 ? AVOID.rate * 2 : 0;
+    // (Not while turning on the spot: that would slide them sideways, or backwards, before they face the way.)
+    const shrinkRoom = Math.abs(p.dodge) > room + 1e-9 && !turning ? AVOID.rate * 2 : 0;
     const latMost = Math.max(rate, shrinkRoom) * dt;
     const alongMost = moved * 0.5;
     const dLat = Math.max(-latMost, Math.min(latMost, eLat));
@@ -921,6 +1005,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     for (const q of people) {
       if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit' || q.mode === 'hop') continue;
       if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
+      // Somebody waiting on the doorstep to go in through this very door waits for us: no standoff
+      // (under a roof hatch the one waiting below stands on the spot the one coming down lands on).
+      const theirs = q.mode === 'walk' ? q.walk![q.at + 1] : undefined;
+      if (q.queued && theirs?.kind === 'door' && theirs.enter && theirs.door?.feature === piece.door?.feature) continue;
       if (Math.abs(q.y - piece.base) > 0.3) continue;
       if (Math.hypot(q.x - piece.x1, q.z - piece.z1) < BODY + 0.06) return true;
     }
@@ -954,7 +1042,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       if (piece.kind === 'hide') rate = 1 / Math.max(0.05, piece.seconds);
       else {
-        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow) * (p.brisk ? PEOPLE.lampPace : 1);
+        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow) * (p.brisk ? PEOPLE.lampPace : 1) * (p.load !== null && HEAVY.has(p.load) ? PEOPLE.laden : 1);
         rate = speed / piece.length;
         if (piece.kind === 'move' && !mayEnter(p, piece)) {
           limit = WAIT_AT;
@@ -963,7 +1051,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         // L29: nobody steps into a doorway until its door is open, nor while somebody is coming the other way.
         const next = walk[p.at + 1];
         if (piece.kind === 'move' && next?.kind === 'door' && next.enter && next.door && (!doors.ready(next.door.feature) || doors.comingOut(next.door.feature) > 0)) {
-          limit = Math.min(limit, Math.max(p.t, 1 - DOORS.wait / piece.length));
+          // Under a roof hatch the one coming down lands where the one waiting would stand: wait a body back.
+          const back = next.door.feature.startsWith('hatch@') ? DOORS.wait + 2 * BODY + 0.06 : DOORS.wait;
+          limit = Math.min(limit, Math.max(p.t, 1 - back / piece.length));
           p.queued = true;
         } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && (doors.goingIn(piece.door.feature) > 0 || doorstepTaken(p, piece))))) {
           limit = 0;
@@ -1036,6 +1126,43 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   /** Too busy to stop: on the lamp round, or called home by the dusk. */
   let now: TimeSignal | null = null;
   const onDutyNow = (p: Person): boolean => now !== null && (onDuty(p, now) || mustBeHome(p, now));
+  // ── L50: the scuffle ──────────────────────────────────────────────────
+  let inns = new Set<StructureId>();
+  let shapeNow: ShapePlan | null = null;
+  const scuffles = createScuffles({
+    people,
+    nav: () => nav,
+    shape: () => shapeNow,
+    busy: (p) => onDutyNow(p) || (p.work !== null && now !== null && onDuty(p, now)),
+    seed: () => seed,
+    innGoal(p) {
+      if (!nav || p.node < 0) return null;
+      const part = nav.part[p.node];
+      let best: Haunt | null = null, bestD = Infinity;
+      for (const h of haunts) {
+        if (h.structure === undefined || !inns.has(h.structure) || (h.type !== 'haunt-visit' && h.type !== 'haunt-shop') || nav.part[h.node] !== part) continue;
+        const d = Math.abs(keyX(h.cell) - keyX(p.cell)) + Math.abs(keyZ(h.cell) - keyZ(p.cell));
+        if (d < bestD || (d === bestD && best !== null && h.id < best.id)) {
+          bestD = d;
+          best = h;
+        }
+      }
+      if (!best) return null;
+      const g = hauntGoal(p, best);
+      const door = best.structure !== undefined ? usableDoors(nav, best.structure).find((d) => d.node === best.node) : undefined;
+      if (door) {
+        g.door = door;
+        g.spot = null;
+      }
+      g.linger = 20 + r(p, 'inn') * 15;
+      return g;
+    },
+    events: {
+      scuffle: (s, what) => events.scuffle?.(s, what),
+    },
+    respond: (s) => opts.respond?.(s) ?? null,
+    ...(opts.scuffle ? { dials: opts.scuffle } : {}),
+  });
   const follow = (dt: number): void => {
     const bodies = opts.obstacles?.() ?? null;
     for (const p of people) {
@@ -1050,7 +1177,18 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         // anywhere, the count runs on to squeezing past.
         if (p.want) p.stuck = 0;
       }
-      if (p.stuck > 4.5) p.stuck = -1.5;
+      if (p.stuck > 4.5) {
+        // L50: squeezing past somebody, now and then, is a scuffle.
+        const fx0 = Math.sin(p.heading), fz0 = Math.cos(p.heading);
+        let in_: Person | null = null;
+        for (const q of people) {
+          if (q === p || q.mode !== 'walk' || !q.visible) continue;
+          const dx = q.x - p.x, dz = q.z - p.z;
+          if (dx * fx0 + dz * fz0 > 0 && dx * dx + dz * dz < 0.36 && Math.abs(q.y - p.y) < 0.3) in_ = q;
+        }
+        if (in_ && scuffles.bump(p, in_, 0, true)) continue;
+        p.stuck = -1.5;
+      }
       if (p.stuck < 0) continue;
       const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
       for (const q of people) {
@@ -1061,8 +1199,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (p.id < q.id && p.lastMet !== q && Math.sin(q.heading) * fx + Math.cos(q.heading) * fz < -0.5 && dx * dx + dz * dz < 0.2) {
           p.lastMet = q;
           q.lastMet = p;
+          // L50: a head-on bump, now and then, is a scuffle.
+          if (scuffles.bump(p, q, Math.abs(dx * fz - dz * fx), false)) continue;
           const open = (w: Person): boolean =>
-            w.chat <= 0 && w.chatRest <= 0 && w.startled <= 0 && w.held < 0 && !w.queued && !w.leaving && !w.carrying && w.fade >= 1 && w.walk![w.at]!.kind === 'move' && !onDutyNow(w);
+            w.chat <= 0 && w.chatRest <= 0 && w.startled <= 0 && !w.scuffle && w.held < 0 && !w.queued && !w.leaving && !w.carrying && w.fade >= 1 && w.walk![w.at]!.kind === 'move' && !onDutyNow(w);
           if (open(p) && open(q) && rand(p.seed, 'chat', q.seed, p.trips) < PEOPLE.chat) {
             const t = PEOPLE.chatTime * (0.6 + 0.4 * rand(p.seed, 'chat-time', q.seed, p.trips));
             p.chat = q.chat = t;
@@ -1106,11 +1246,13 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           if (ahead < -AVOID.clear * 0.7 || ahead > AVOID.look || Math.abs(lat) >= AVOID.clear) continue;
           const d = Math.hypot(dx, dz);
           if (d >= nearest) continue;
-          const moving = q.mode === 'walk' && q.slow > 0.05 && !q.queued && q.startled <= 0 && q.chat <= 0;
+          const moving = q.mode === 'walk' && q.slow > 0.05 && !q.queued && q.startled <= 0 && q.chat <= 0 && !q.scuffle;
           const along = Math.sin(q.heading) * fx + Math.cos(q.heading) * fz;
           const right = lat + AVOID.clear, left = -(AVOID.clear - lat);
           const away = (): number => {
-            const goRight = Math.abs(lat) < 0.02 ? p.id < q.id : lat < 0;
+            // Already stepping one way round somebody close ahead: keep to it (no dithering left and right as
+            // the step aside itself moves them across their line).
+            const goRight = Math.abs(lat) < AVOID.clear * 0.5 && Math.abs(p.dodgeTo) > 0.01 ? p.dodgeTo > 0 : Math.abs(lat) < 0.02 ? p.id < q.id : lat < 0;
             let s = goRight ? right : left;
             if (Math.abs(p.dodge + s) > room) s = goRight ? left : right; // no room that side: the other
             return s;
@@ -1186,6 +1328,17 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
     }
     return best;
+  };
+  /**
+   * Shaping the land: a resident on a column that rose or sank rides it, to the same spot a level up or
+   * down, if that is still somewhere to stand (else the caller sends them to the nearest place that is).
+   */
+  const rideOf = (p: Person, was: ShapePlan['terrain'] | null): number => {
+    if (!was || !terrain || was === terrain || p.cell < 0) return -1;
+    const col = columnIndex(keyX(p.cell), keyZ(p.cell));
+    const dy = terrain.height[col]! - was.height[col]!;
+    if (dy === 0 || terrain.height[col] === 0) return -1;
+    return nav!.nodeAt.get(p.cell + dy * (1 << 12)) ?? -1;
   };
   const hopTo = (p: Person, node: number): void => {
     const c = nodeCentre(nav!, node);
@@ -1291,6 +1444,17 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       if (!door) return false;
       g.door = door;
       g.node = door.node;
+      return true;
+    }
+    if (g.kind === 'errand' && g.errand) {
+      const node = nav!.nodeAt.get(g.errand.cell);
+      if (node === undefined) return false;
+      if (g.door) {
+        const door = nav!.doors.find((d) => d.feature === g.door!.feature && d.structure === g.door!.structure && d.node === node);
+        if (!door) return false;
+        g.door = door;
+      }
+      g.node = node;
       return true;
     }
     if (g.kind !== 'haunt' || !g.haunt) return false;
@@ -1447,7 +1611,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       speed: PEOPLE.speed * (1 + (rand(s, 'speed') * 2 - 1) * PEOPLE.speedVary) * (child ? PEOPLE.childSpeed : 1),
       owl: false,
       shutIn: false,
-      work: null, station: -1, round: 0, part: '', carrying: false, brisk: false,
+      work: null, station: -1, round: 0, part: '', carrying: false, load: null, brisk: false,
       mode: 'home', visible: false, fade: 1,
       x: 0, y: 0, z: 0, heading: rand(s, 'heading') * 6.28,
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
@@ -1456,6 +1620,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       inside: null, hop: null, leaving: false, startled: 0, startledFace: 0, edgeX: 0, edgeZ: 0, fadeTime: PEOPLE.fade,
       jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
       dodge: 0, dodgeTo: 0, dodgeV: 0, offX: 0, offZ: 0, rethought: false,
+      scuffle: null, inCloud: false, party: false, costume: null,
     };
   };
 
@@ -1481,6 +1646,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const first = nav === null;
       const old = nav;
       seed = shape.world.seed;
+      shapeNow = shape;
+      const oldTerrain = terrain;
       terrain = shape.terrain;
       blocks = shape.structureAt;
       // L29: doors new to the town start as they should already be; shops stand open by day.
@@ -1488,6 +1655,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
       nav = dressing.nav;
       router = createRouter(nav);
+      seated = new Set();
+      for (const [cell, extra] of crowdedCells) {
+        const node = nav.nodeAt.get(cell);
+        if (node !== undefined) router.setExtra(node, extra);
+      }
       runCount = new Int16Array(nav.runs.length);
       runSense = new Int8Array(nav.runs.length);
       readHaunts(dressing);
@@ -1544,7 +1716,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         } else if (node !== undefined && p.mode === 'walk' && p.walk && old && !p.leaving && p.goal && p.goal.kind !== 'leave' && refreshGoal(p, p.goal) && carryWalk(p, old)) {
           place(p, node);
           continue;
-        } else if (node !== undefined && p.mode === 'linger' && !p.leaving && p.goal?.haunt && refreshGoal(p, p.goal)) {
+        } else if (node !== undefined && p.mode === 'linger' && !p.leaving && (p.goal?.haunt || p.goal?.errand) && refreshGoal(p, p.goal!)) {
           place(p, node);
           continue;
         }
@@ -1553,7 +1725,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         leaveHaunt(p);
         clearWalk(p);
         p.goal = null;
-        if (node === undefined || p.mode === 'visit') hopTo(p, nearestNode(p.x, p.y, p.z));
+        const rode = node === undefined ? rideOf(p, oldTerrain) : -1;
+        if (node === undefined || p.mode === 'visit') hopTo(p, rode >= 0 ? rode : nearestNode(p.x, p.y, p.z));
         else {
           place(p, node);
           p.mode = 'wait';
@@ -1564,7 +1737,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         }
         // Go on to where they were going, if it is still there.
         if (!p.leaving && wasGoal) {
-          if (wasGoal.kind === 'home') p.want = homeGoal(p);
+          if (wasGoal.errand) {
+            // The chain is asked again what they do now (the step, or something else if its place is gone).
+            p.timer = 0;
+            if (p.mode === 'hop') p.want = null;
+          } else if (wasGoal.kind === 'home') p.want = homeGoal(p);
           else if (wasGoal.haunt && hauntById.has(wasGoal.haunt.id)) p.want = hauntGoal(p, hauntById.get(wasGoal.haunt.id)!);
         }
       }
@@ -1592,6 +1769,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       for (const p of people) p.owl = false;
       ranked.forEach((p, i) => (p.owl = i < owls));
       assignJobs();
+      inns = new Set([...shape.roles].filter(([, r]) => r.role === 'inn').map(([id]) => id));
+      scuffles.sync();
       for (const p of fresh) {
         p.part = time.part;
         if (first) warmStart(p, time);
@@ -1654,7 +1833,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             }
             if (p.startled > 0) break;
             // Dusk calls everybody in, whatever they were doing.
-            if (p.timer > 0 && mustBeHome(p, time) && p.goal?.haunt?.type !== 'haunt-night') p.timer = 0;
+            if (p.timer > 0 && mustBeHome(p, time) && p.goal?.haunt?.type !== 'haunt-night' && p.goal?.kind !== 'errand') p.timer = 0;
             if (p.timer <= 0 && !p.want) {
               p.want = nextGoal(p, time, false);
               if (!p.want) p.timer = 4 + r(p, 'retry') * 4;
@@ -1662,7 +1841,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             break;
           }
           case 'walk':
-            if (p.startled > 0 || p.chat > 0) {
+            if (p.startled > 0 || p.chat > 0 || (p.scuffle && (p.scuffle.a === p || p.scuffle.b === p))) {
               p.pose = 'stand';
               p.poseTime += dt;
               break;
@@ -1767,6 +1946,9 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           }
         }
       }
+      // L50: the scuffle, after everybody's own reactions (it sets the poses of the two and of the ring).
+      scuffles.step(dt, time);
+      updateSeated();
       // Routes: a few a frame, taking turns, so sixty people asking at once never show in a frame.
       for (let k = 0; k < n && plans > 0; k++) {
         const p = people[(planCursor + k) % n]!;
@@ -1782,6 +1964,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           if (wasWaiting && p.fade < 1) p.visible = true;
           continue;
         }
+        if (goal.errand) opts.errands?.failed(p, goal.errand);
         // No way there. Home, if that can be reached; else stay a while.
         if (goal.kind !== 'home' && p.mode !== 'home') {
           const back = homeGoal(p);
@@ -1805,6 +1988,19 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
     },
 
+    get scuffles() {
+      return scuffles;
+    },
+    setCrowded(cell, extra) {
+      if (extra > 0) crowdedCells.set(cell, extra);
+      else crowdedCells.delete(cell);
+      const node = nav?.nodeAt.get(cell);
+      if (router && node !== undefined) router.setExtra(node, Math.max(extra, seated.has(node) ? PEOPLE.seatedExtra : 0));
+    },
+    rethink(p) {
+      if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit' || p.mode === 'wait') p.timer = Math.min(p.timer, 0);
+      else if (p.mode === 'walk' && now && !p.want && p.walk && p.walk[p.at]!.kind === 'move') p.want = nextGoal(p, now, false);
+    },
     blockLanded(cell) {
       const x = keyX(cell) + 0.5, z = keyZ(cell) + 0.5;
       for (const p of people) {

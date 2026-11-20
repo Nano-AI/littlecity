@@ -52,6 +52,8 @@ describe('the list', () => {
       'tiered-fountain', 'well', 'birdbath', 'basin', 'fish-stall', 'flower-stall', 'market-stall',
       'wheat-field', 'herb-garden', 'reed-bed', 'park-lawn', 'kitchen-garden', 'flower-garden',
       'picket-fence', 'rope-fence', 'iron-railing', 'stone-balustrade', 'low-wall', 'garden-wall', 'curtain-wall',
+      // discovery round 1, structures
+      'podium', 'theatre', 'barn', 'watermill', 'warehouse', 'churchyard', 'smithy', 'forge-chimney', 'obelisk', 'folly-tower', 'bridge-shop', 'bandstand', 'stoa', 'schoolhouse',
     ] as const satisfies readonly Role[];
     type Unlisted = Exclude<Role, (typeof ALL)[number]>;
     const allListed: Unlisted extends never ? true : Unlisted = true;
@@ -95,7 +97,9 @@ describe('the pictures', () => {
       expect(size, `${e.id}.webp is ${size} bytes`).toBeLessThan(48_000);
       total += size;
     }
-    expect(total).toBeLessThan(1_500_000);
+    // Pictures load lazily as the guide scrolls, so the whole set's size is not paid on opening the
+    // game. The cap was 1.5 MB at 47 entries; raised as the discovery rounds added buildings.
+    expect(total).toBeLessThan(3_000_000);
   });
 
   test('no picture is left over from an entry that is gone', () => {

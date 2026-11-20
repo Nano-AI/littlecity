@@ -5,6 +5,7 @@
 // is one); a platform whose player-built wall replaces the railing on one
 // side; and a stair head with no floor at all.
 
+import { keyX, keyY, keyZ } from '@/core/grid';
 import { scenario } from '@/scenario';
 
 export default scenario({
@@ -54,7 +55,8 @@ export default scenario({
       return `${p?.from}/${p?.to}`;
     };
     // Marble plaza: eight railings, balustrade, one post per corner and per joint.
-    check.equal(check.features({ type: 'railing', on: [15, 3, 14], variant: 'balustrade' }).length, 8, 'railings round the marble plaza');
+    // (The plaza makes the block a podium, R-M08, which rails its own top with J19's ends: the same eight.)
+    check.equal(check.features({ type: 'railing', variant: 'balustrade' }).filter((f) => [15, 16].includes(keyX(f.cell!)) && [14, 15].includes(keyZ(f.cell!)) && keyY(f.cell!) === 3).length, 8, 'railings round the marble plaza');
     check.equal(ends(15, 3, 14, 0), '0/2', 'north side, west cell: runs on from its neighbour into the corner post');
     check.equal(ends(15, 3, 14, 3), '3/6', 'west side, north cell: the corner post belongs to the north side');
     check.equal(ends(16, 3, 14, 0), '3/6', 'north side, east cell: its east end is the east side’s corner');

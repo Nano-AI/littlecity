@@ -554,3 +554,118 @@ Viking raid): design section 13b written; new Opus agent on
 `swarm/mischief`. Touches saves (`Block.ruin`), the tray (a Mischief
 drawer), people (bucket chain, fleeing, rebuilding), ships (longship).
 Running: seasons, disc1-structures, disc1-fill, living-town, mischief.
+**Mischief is EXPERIMENTAL (Derek): preview only.** Do NOT merge
+`swarm/mischief` or publish it until he has tried it locally and said yes
+(same treatment as `swarm/walk`). Serve its worktree on a local port when
+the agent reports. The design section 13b is on the main branch as a spec
+only.
+
+**Seasons and weather merged** (`6885a22`, Opus): the year turns (24 min a
+season), autumn trees, bare winter trees, snow falling and settling as
+shading, ice, rain, mist, storms, festival lights and a tree in the square,
+season and weather buttons. Conflict with the ships' edge cut in
+`src/render/index.ts` and `shaders/surface.ts` resolved by hand (both
+kept; the bare-tree material swap now skips the movers pool, which would
+otherwise have lost its edge cut). Full run: 1,696 of 1,697; the one
+failure (shots CLI) is a load timeout and passes alone. Published.
+Not done by the seasons agent: people in winter clothes and umbrellas,
+seasonal props (stooks, pumpkins, snowman, icicles, leaf drifts), candles,
+rainbow, tracks in snow, weather sounds; spring is weak; full snow by day
+is flat white; festival bulbs tiny at overview. Follow-up NOT yet sent
+(machine is saturated; send when an agent slot frees).
+**Derek: terrain must be editable** ("pretty important") → design section 6
+"Shaping the land"; new Opus agent on `swarm/landshaping`.
+**Derek: boats overlap each other and the river barge passes through
+bridges** → ships agent resumed.
+Running: disc1-structures, disc1-fill, living-town, mischief (preview),
+landshaping, ships fixes.
+
+**Living town merged** (`ed2e2b3`, Opus): L50 scuffle (dust cloud, grawlix
+balloon, watchers, dazed ending), L51 bread, L52 water, L53 the catch, L54
+builders at a newly placed house, L55 night watchman, L56 market day, L57
+wedding; an errand engine in `src/life/town/`; guide group "Days the town
+earns". Full check clean: 1,726 tests. Published. Second pass sent to the
+same agent: bigger loads at wide zoom, trade carts from the quay, harvest,
+laundry, a dog, the watchman breaking up scuffles, the fill builder's
+sockets, temporary stalls on the walking graph.
+Running: disc1-structures, disc1-fill, mischief (preview), landshaping,
+ships fixes, living-town pass 2.
+
+**Boat fixes merged** (`a7b149d`): no two floating things overlap (test
+`src/life/ships/afloat.test.ts` over six towns, five minutes each); the
+barge treats arches at the water and decks one storey up as blocked, stays
+inside river water (river material, or water ≤ 3 wide for ≥ 6), poles back
+without turning; rowboats get waiting places clear of berths and lanes.
+Full check clean: 1,783 tests. Published. Side effect: grown-town-4 and -7
+get no barge (low bridges cut their river docks off). Only the rowboat cap
+scales with free water so far.
+Running: disc1-structures, disc1-fill, living-town pass 2, mischief
+(preview), landshaping.
+
+**Shaping the land merged** (`b046809`, Opus): Raise, Dig and Level in the
+Nature drawer; `World.terrainEdits`; one `land` edit type; things ride their
+column; water classified as sea, river or pond (`MAT_POND`); share codec
+v4 = v3 + flags + length-prefixed sections (bit 0 land; mischief should use
+bit 1). One conflict in `src/life/people/crowd.ts` resolved (both lines
+kept). Full check clean: 1,837 tests. Published.
+Over budget: town logic after a land edit 12.1 ms (budget 8); a 20-column
+stroke frame 28 ms rebuild; steep-island worst chunk 34 ms. Weak: one-wide
+dug channels look thin; brush-raised hills are square-stepped; water does
+not visibly flow in. The six play-throughs were built as scenarios, not
+clicked by hand.
+**Mischief Phase A ready as a PREVIEW** (`swarm/mischief` at `b9bdb78`, NOT
+merged): torch, bomb, mallet, mend; staged damage; ruins of every kind;
+repair scaffolding and crew assets. Served at http://127.0.0.1:5175/
+(`/?seed=4242&mischief`). It also uses codec version 4 → will conflict with
+landshaping's v4 on merge (move ruins to flag bit 1). Waiting on Derek.
+Running: disc1-structures, disc1-fill, living-town pass 2.
+
+**Living town pass 2 merged** (`91cb203`): loads 1.65× and carried high,
+growing with camera distance; faster bread; scuffles broken up by the
+watchman or a guard; L58 quay trade with handcarts; L59 harvest; L60
+laundry out and in (rain); L61 dogs; gulls over the catch. Timeouts in the
+full run passed serially.
+**Discovery 1 structures merged** (`122437b`): R-M08 podium (temples and
+stairs no longer keeps; garrison needs a real castle), inn and shop limits
+(grown towns: shops 31–58 → 3–26 per town; inns 1 each), chapel roofs,
+churchyard, warehouse, watermill, bridge-shop, smithy, theatre, obelisk,
+barn, stoa, bandstand, schoolhouse, folly-tower. Not reached: cathedral.
+**NOT PUBLISHED: 3 tests fail at the seam** (L51.bread fixture has nowhere
+to sell; a scuffle test; people-town overlaps 41 > 30). Sent to the
+living-town agent; publish when it reports green. Last published build:
+land shaping (`3fb3f2e`).
+Running: disc1-fill, living-town (integration, then the new buildings).
+Previews awaiting Derek: walk (`swarm/walk`), mischief (`swarm/mischief`,
+served at port 5175).
+
+**Discovery 1 fill merged** (`0eb2a5f`): fingerposts 38/22/27 → 2/3/3 in
+grown towns; farm-lane lamps 22 → 5; U13 country lanes, U14 back gardens,
+U15 village green, U16 shops in the wall, U17 drying green, U18 orchard,
+U19 stair forecourt, U20 quay apron, U21 castle bailey, U22 ford, U23
+belvedere, D35 stair guardians, D36 shrine, D37 market cross, D38 rope
+swing. Guide conflict resolved by hand; guide picture budget raised to 3 MB.
+**All three discovery branches are on the main branch but it is RED:**
+7 unit failures at the seams (L51.bread, U16 fixture, scuffle test, two
+solid.test overlap bounds, two crowd.test cases). Living-town agent has the
+people ones; fill agent has U16. DO NOT PUBLISH until `npm test` is green.
+Last published build: land shaping (`3fb3f2e`).
+
+**Discovery round 1 fully merged and PUBLISHED** (`28717dd`): living-town
+integration (`0904e3b`: any shop bakes, hands keep their load, café seats;
+L62 school, smithy, theatre, bandstand, vendors, maypole, orchard pickers)
+and fill follow-up (`ed8972d`: booths and vault doors agree, the podium
+scene, drying lines join washing day, orchard fruit trees). Orchestrator
+removed a market-cross guide entry duplicated by the merge. Full check
+clean: 1,950 tests. NP-01 hedge not built (needs frozen core kinds).
+**Derek's new list (20:30), dispatched:**
+- Mischief (liked; stays UNMERGED; revise): bigger real chunks, better fire
+  (attached, not floating cut-outs), smoke that fuses, Mend progressive and
+  automatic over time, people respond (firefighters with hoses, bucket
+  chains) → mischief agent.
+- Bug: new houses get festival lights out of season; sliders for time,
+  season, weather with gradual transitions → seasons agent (plus its
+  pending follow-up).
+- Bug: Level tool does not work → landshaping agent.
+- Bug: the sweeper's broom is not in her hands → living-town agent.
+- New: Field ground piece (basketball, tennis, grass pitch by shape) with
+  people playing → new Opus agent `swarm/field`.

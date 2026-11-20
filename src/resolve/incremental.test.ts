@@ -12,6 +12,8 @@ import type { Terrain, World } from '@/core/world';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { randomEdit } from '@/scenario/edits';
+import { islandOf } from '@/terrain/land';
+import { randomLandEdit } from '@/world/land-edits';
 import { applyEdit } from '@/world/world';
 import { facades } from './facts/facades.fact';
 import { roofRegions } from './facts/roofs.fact';
@@ -63,7 +65,7 @@ function snapshot(shape: ShapePlan, dressing: DressingPlan): Record<string, unkn
   };
 }
 
-function play(name: string, edits: number, seed: number): void {
+function play(name: string, edits: number, seed: number, land = false): void {
   const scn = findScenario(name)!;
   const built = buildScenario(scn);
   const t: Terrain = built.terrain;
@@ -74,13 +76,14 @@ function play(name: string, edits: number, seed: number): void {
   resolver.poll();
   let played = 0;
   for (let i = 0; i < edits; i++) {
-    const e = randomEdit(world, t, seed, i);
+    // With `land`, every third edit reshapes the ground (shaping the land: terrain must invalidate what it should).
+    const e = land && i % 3 === 0 ? randomLandEdit(world, t, seed, i) : randomEdit(world, islandOf(world, t), seed, i);
     if (!e) continue;
     const next = applyEdit(world, t, e);
     // Hovering first, as a player does: sometimes this very edit, sometimes another one.
     if (i % 3 === 0) resolver.preview(applyEdit(world, t, e));
     if (i % 5 === 1) {
-      const other = randomEdit(world, t, seed + 1, i);
+      const other = land && i % 2 === 0 ? randomLandEdit(world, t, seed + 1, i) : randomEdit(world, islandOf(world, t), seed + 1, i);
       if (other) resolver.preview(applyEdit(world, t, other));
     }
     world = next;
@@ -107,4 +110,7 @@ describe('incremental resolve equals a full resolve', () => {
   test('bench-2000: 60 random legal edits', () => play('bench-2000', 60, 12), 240_000);
   // Stepped ground, where houses join across one-level steps (split-level houses).
   test('J02.split-level: 150 random legal edits on stepped ground', () => play('J02.split-level', 150, 13), 240_000);
+  // Shaping the land: raising, digging and levelling under and around the town.
+  test('everything: 150 edits, a third of them land edits', () => play('everything', 150, 14, true), 240_000);
+  test('grown town on generator 2: 120 edits, a third of them land edits', () => play('grown-town-1', 120, 15, true), 240_000);
 });

@@ -18,7 +18,7 @@ import { facades } from '@/resolve/facts/facades.fact';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
 import { DRESSING } from '@/style/dressing';
 import { PLAIN_WINDOWS } from './D05.laundry-line.rule';
-import { lucky } from './lib';
+import { lucky, WORKING_ROLES } from './lib';
 
 const RULE = 'D09.flower-boxes';
 
@@ -36,6 +36,7 @@ export default defineRule<{ socket: string }>({
       if (s.dir === undefined || s.owner === undefined) continue;
       const fc = all.at(s.cell, s.dir);
       if (!fc || fc.kind !== 'house' || fc.storey > DRESSING.boxTopStorey) continue;
+      if (WORKING_ROLES.has(facts.shape.roles.get(fc.structure)?.role ?? '')) continue; // no boxes on a working building
       if (!PLAIN_WINDOWS.has(features.get(s.owner)?.variant ?? '')) continue;
       if (!lucky(seed, RULE, s.cell, s.id, fc.sunny ? DRESSING.boxSunny : DRESSING.boxShade)) continue;
       out.push({ anchor: s.cell, structure: s.structure, key: s.id, data: { socket: s.id } });

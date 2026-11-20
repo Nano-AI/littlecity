@@ -10,8 +10,22 @@ export interface Step {
   dir: Dir4;
 }
 
-/** The cells of a marble structure to cut into steps, or [] if it holds no flight of 3+ rows, 2+ wide. */
+const memo = new WeakMap<ReadonlyMap<CellKey, unknown>, WeakMap<Structure, Step[]>>();
+
+/**
+ * The cells of a marble structure to cut into steps, or [] if it holds no flight of 3+ rows, 2+ wide.
+ * Worked out once per structure per resolve: it reads only the structure, the resolved kinds (a new map
+ * each resolve) and the terrain, and four role rules and a decoration rule ask.
+ */
 export function grandSteps(s: Structure, plan: ShapePlan): Step[] {
+  let byStructure = memo.get(plan.kinds);
+  if (!byStructure) memo.set(plan.kinds, (byStructure = new WeakMap()));
+  let steps = byStructure.get(s);
+  if (!steps) byStructure.set(s, (steps = findSteps(s, plan)));
+  return steps;
+}
+
+function findSteps(s: Structure, plan: ShapePlan): Step[] {
   // Top cell per column.
   const top = new Map<number, CellKey>();
   for (const c of s.cells) {

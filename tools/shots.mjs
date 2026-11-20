@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// npm run shots -- [glob] [--time day|dusk|night|dawn] [--size 1280x800] [--scale 1] [--out dir] [--list]
+// npm run shots -- [glob] [--time day|dusk|night|dawn] [--season spring|summer|autumn|winter|festival|<0..1>]
+//                  [--weather clear|cloudy|rain|storm|fog|wind|snow] [--settle 2] [--size 1280x800] [--scale 1] [--out dir] [--list]
 //
 // Renders every scenario matching the glob from each of its cameras, with
 // headless Chromium and WebGL, to .context/shots/<name>-<camera>.png in THIS
@@ -21,6 +22,10 @@ const [width, height] = String(flags.size ?? '1280x800').split('x').map(Number);
 const scale = Number(flags.scale ?? 1);
 const outDir = path.resolve(ROOT, String(flags.out ?? '.context/shots'));
 const time = flags.time === undefined ? undefined : Number.isNaN(Number(flags.time)) ? flags.time : Number(flags.time);
+// Seasons (design section 13a): summer and clear unless asked; --settle is seconds of life before the shot.
+const season = flags.season === undefined ? undefined : Number.isNaN(Number(flags.season)) ? flags.season : Number(flags.season);
+const weather = flags.weather === undefined ? undefined : String(flags.weather);
+const settle = flags.settle === undefined ? undefined : Number(flags.settle);
 
 const server = await startServer();
 const browser = await launchBrowser();
@@ -40,8 +45,8 @@ try {
     for (const s of wanted) {
       for (let c = 0; c < s.cameras.length; c++) {
         const t0 = Date.now();
-        const stats = await page.evaluate(([name, cam, opts]) => window.__shot.show(name, cam, opts), [s.name, c, { time }]);
-        const suffix = time === undefined ? '' : `-${time}`;
+        const stats = await page.evaluate(([name, cam, opts]) => window.__shot.show(name, cam, opts), [s.name, c, { time, season, weather, settle }]);
+        const suffix = [season, weather, time].filter((v) => v !== undefined).map((v) => `-${v}`).join('');
         const file = path.join(outDir, `${s.name}-${s.cameras[c]}${suffix}.png`);
         await page.locator('#town').screenshot({ path: file });
         console.log(`${path.relative(ROOT, file)}  (${stats.blocks} blocks, ${stats.drawCalls} draw calls, ${stats.triangles} triangles, ${Date.now() - t0} ms)`);

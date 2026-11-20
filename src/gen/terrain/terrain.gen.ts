@@ -883,6 +883,27 @@ export function buildTerrainChunk(chunk: Chunk, plan: ShapePlan): MeshBuilder {
   return b;
 }
 
+/**
+ * The ground of a few columns on their own (shaping the land): their terrace tops and banks, no sea and
+ * no slab, as the chunk draws them. The view moves this for the bounce of a raised or dug column and
+ * draws it for the ghost. Columns are column indices (x + z * 48).
+ */
+export function buildTerrainColumns(cols: Iterable<number>, plan: ShapePlan, ink = 'terrain'): MeshBuilder {
+  const g = groundOf(plan);
+  const b = new MeshBuilder({ ink });
+  for (const i of cols) {
+    const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+    const top = Math.min(g.h(x, z), MAX_LEVEL);
+    for (let level = 1; level <= top; level++) {
+      emitQuarter(b, g, x, z, -1, -1, level);
+      emitQuarter(b, g, x, z, 1, -1, level);
+      emitQuarter(b, g, x, z, -1, 1, level);
+      emitQuarter(b, g, x, z, 1, 1, level);
+    }
+  }
+  return b;
+}
+
 export const terrainLayer = defineLayer({
   layer: 'terrain',
 
@@ -900,6 +921,19 @@ export const terrainLayer = defineLayer({
         if (!inColumnBounds(x, z)) continue;
         const i = columnIndex(x, z);
         hsh = hashCombine(hsh, t.height[i]!, t.material[i]!);
+      }
+    }
+    // The river's flow is worked out over the whole island (riverField): a channel dug far away can turn
+    // the current here, so the flow in and around the chunk is part of its key (shaping the land).
+    const rf = riverField(t);
+    if (rf) {
+      for (let z = chunk.z0 - 1; z <= chunk.z1 + 1; z++) {
+        for (let x = chunk.x0 - 1; x <= chunk.x1 + 1; x++) {
+          if (!inColumnBounds(x, z)) continue;
+          const i = columnIndex(x, z);
+          if (rf.riv[i] === 0) continue;
+          hsh = hashCombine(hsh, i, Math.round(rf.riv[i]! * 64), Math.round(rf.fx[i]! * 64), Math.round(rf.fz[i]! * 64));
+        }
       }
     }
     // What stands at a step in the ground squares its corner (mustSquare). Flat ground does not care.

@@ -13,11 +13,14 @@ export type PieceId = PlacedKind | FloorKind;
 /** Mischief (design section 13b): tools that wreck and mend, in their own drawer. */
 export type MischiefToolId = 'torch' | 'bomb' | 'mallet' | 'mend';
 export type ToolId = 'change' | 'paint' | 'erase' | MischiefToolId;
-export type ItemId = PieceId | ToolId;
+/** Shaping the land (design section 6): the Land group at the start of the Nature drawer. */
+export type LandId = 'raise' | 'dig' | 'level';
+export type ItemId = PieceId | ToolId | LandId;
 export type DrawerId = 'build' | 'ground' | 'nature' | 'tools' | 'mischief';
 
 export const TOOL_IDS: readonly ToolId[] = ['change', 'paint', 'erase'];
 export const MISCHIEF_TOOL_IDS: readonly MischiefToolId[] = ['torch', 'bomb', 'mallet', 'mend'];
+export const LAND_IDS: readonly LandId[] = ['raise', 'dig', 'level'];
 
 export interface TrayItem {
   id: ItemId;
@@ -25,6 +28,8 @@ export interface TrayItem {
   /** One short line for the tooltip. */
   hint: string;
   drawer: DrawerId;
+  /** A group within the drawer that starts with this item (the tray sets it off with a little gap). */
+  group?: 'land';
 }
 
 const PIECE_INFO: Partial<Record<PieceId, { label: string; hint: string; drawer: DrawerId; order: number }>> = {
@@ -46,6 +51,12 @@ const PIECE_INFO: Partial<Record<PieceId, { label: string; hint: string; drawer:
   tree: { label: 'Tree', hint: 'Tree', drawer: 'nature', order: 0 },
   garden: { label: 'Garden', hint: 'Garden', drawer: 'nature', order: 1 },
   fountain: { label: 'Fountain', hint: 'Fountain', drawer: 'nature', order: 2 },
+};
+
+const LAND_INFO: Record<LandId, { label: string; hint: string }> = {
+  raise: { label: 'Raise', hint: 'Raise the ground a level (Shift-drag to paint; scroll for a wider brush)' },
+  dig: { label: 'Dig', hint: 'Dig the ground down a level; at the bottom it fills with water' },
+  level: { label: 'Level', hint: 'Bring the ground to one height: click, or Shift-drag from the height you want' },
 };
 
 const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
@@ -74,19 +85,24 @@ export function isToolId(id: ItemId): id is ToolId {
 export function isMischiefTool(id: ItemId): id is MischiefToolId {
   return (MISCHIEF_TOOL_IDS as readonly string[]).includes(id);
 }
+/** Raise, Dig or Level: they shape the ground instead of placing a piece. */
+export function isLandTool(id: ItemId): id is LandId {
+  return id === 'raise' || id === 'dig' || id === 'level';
+}
 export function isFloorPiece(id: ItemId): id is FloorKind {
   return (FLOOR_KINDS as readonly string[]).includes(id);
 }
 export function isEdgePiece(id: ItemId): id is EdgeKind {
   return id === 'fence' || id === 'wall';
 }
-/** Pieces a Shift-drag paints as a run (design section 7). */
+/** Pieces a Shift-drag paints as a run (design section 7); the land tools paint strokes. */
 export function paintsRuns(id: ItemId): boolean {
-  return isFloorPiece(id) || isEdgePiece(id) || id === 'marble';
+  return isFloorPiece(id) || isEdgePiece(id) || id === 'marble' || isLandTool(id);
 }
 
 export function trayItem(id: ItemId): TrayItem {
   if (isToolId(id)) return { id, drawer: isMischiefTool(id) ? 'mischief' : 'tools', ...TOOL_INFO[id] };
+  if (isLandTool(id)) return { id, drawer: 'nature', ...LAND_INFO[id], ...(id === 'raise' ? { group: 'land' as const } : {}) };
   const info = PIECE_INFO[id];
   return { id, label: info?.label ?? titleCase(id), hint: info?.hint ?? titleCase(id), drawer: info?.drawer ?? 'build' };
 }
@@ -95,6 +111,12 @@ export function trayItem(id: ItemId): TrayItem {
 export function drawerItems(drawer: DrawerId): TrayItem[] {
   if (drawer === 'tools') return TOOL_IDS.map(trayItem);
   if (drawer === 'mischief') return MISCHIEF_TOOL_IDS.map(trayItem);
+  // The Land group comes first in the Nature drawer.
+  const land = drawer === 'nature' ? LAND_IDS.map(trayItem) : [];
+  return land.concat(pieceItems(drawer));
+}
+
+function pieceItems(drawer: DrawerId): TrayItem[] {
   return allPieceIds()
     .map((id, index) => ({ item: trayItem(id), order: PIECE_INFO[id]?.order ?? 100 + index }))
     .filter(({ item }) => item.drawer === drawer)

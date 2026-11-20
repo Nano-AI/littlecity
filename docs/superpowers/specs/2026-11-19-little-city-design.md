@@ -48,7 +48,7 @@ Townscaper, and is the easiest possible city builder to play.
 - Economy, scoring, quests, unlocks.
 - Flowing water, lifts, cable cars, weather, seasons, residents who decorate
   over time, the above-the-clouds setting. All later.
-- Terrain editing. The island is generated and fixed.
+- (Terrain editing was a non-goal; it is now in: see "Shaping the land" in section 6.)
 - Accounts, a server, a shared gallery, multiplayer.
 - Townscaper's irregular grid. The grid is square.
 - Letting the player override derived details (roof style, which shop).
@@ -215,6 +215,47 @@ saved before it keep the island they were built on.
   the island (`World.terrainGen`, 1 or 2). Generator 1 stays in the code
   unchanged, so every existing town, link, test town and guide picture loads
   on the island it was built on. New islands and the dice use generator 2.
+
+**Shaping the land** (Derek's request, 2026-11-19: "terrain should be able
+to be deleted, added, removed. This is pretty important."). This replaces
+the earlier non-goal that terrain is fixed.
+
+- **Tools**, in a Land group at the start of the Nature drawer:
+  - **Raise**: click a column of land or water and it rises one level.
+    Clicking water makes new land at level 1.
+  - **Dig**: click a column and it drops one level. Digging level 1 makes
+    water: sea where it joins the sea, a river where it is a narrow channel,
+    a pond where it is shut in.
+  - **Level**: press on a spot and drag: everything the drag covers is
+    brought to the height of where the drag began (one step per column per
+    stroke), for making building plots and terraces.
+  Shift-drag paints with Raise and Dig as it does with paths, and the held
+  length control sets a brush of 1, 2 or 3 columns across. The ghost shows
+  the new shape of the ground before the click.
+- **What it makes.** New and changed ground is drawn exactly like generated
+  ground: rounded terraces, grass on top, sand at the water's edge, rock
+  where a face drops two or more levels and on high summits, river water in
+  narrow channels. The player never picks a material. Heights run from 0
+  (water) to 10.
+- **Things standing on it move with it.** Raising or digging a column
+  carries whatever stands on that column up or down with the ground:
+  blocks, floors, edge pieces, trees. The town then settles as it always
+  does (supports appear, roles change, bridges that no longer reach are
+  just arches). If carrying would push something past the top of the world
+  or into something that is not moving, the click is refused with the
+  usual shake and reason. Digging under a dock or bridge leaves it standing
+  where it is (it rests on its neighbours or on stilts).
+- **Limits.** The outer five columns of the map stay sea, so boats can
+  always come and go. Nothing else is forbidden: the player may sink the
+  whole island, cut it in two, dig a moat round the castle, raise a
+  mountain, or fill the sea out to the limit.
+- **The town reacts** as to any edit: residents on a column that moves ride
+  it; boats whose water is filled are nudged aside or sail off; a river dug
+  to a dock brings a barge; a moat is water like any other.
+- **Saved** as a list of changed columns and their heights on top of the
+  generated island (`World.terrainEdits`), in a new save version; old towns
+  and links load unchanged. One undo step per stroke. New island clears
+  them.
 
 **What is saved.**
 
@@ -442,6 +483,27 @@ and walk through it as one of its people.
   are hidden while walking; the time-of-day button stays.
 - **Limits.** Walk mode never changes the town or the save. On phones it
   uses the same performance fallbacks as the builder.
+
+**Time, season and weather sliders** (Derek, 2026-11-19; replaces the
+click-to-cycle buttons). Clicking the sun, season or weather button opens a
+small slider beside it. Time of day: a track from dawn round to night with
+a "running" stop at one end. Season: spring to winter (with the festival
+at its end) and a "running" stop. Weather: clear, cloudy, wind, mist, rain,
+storm, snow, and "auto". Dragging scrubs the town through the values, and
+letting go eases to the chosen one over a few seconds: nothing ever
+switches instantly, whether set by the slider or by the town's own clock.
+
+**Field** (Derek, 2026-11-19). A new ground piece in the Ground drawer:
+a playing field, painted like path and plaza. What a patch of field
+becomes depends on its shape and size, and people come and play on it:
+small rectangles become hard courts (a basketball court with hoops, a
+tennis court with a net), larger ones grass pitches (a kickabout pitch
+with goals, a bowling or croquet lawn), a long thin one a running track or
+bowling alley, and so on; the builder chooses the exact table, makes the
+shapes easy to hit, and lists them in the field guide. Residents turn up,
+play real little games you can follow (a ball that moves, a rally, a shot
+at the hoop, a goal and a cheer), take turns, and others watch from the
+edge. A field with nobody free is just a quiet court.
 
 **Placement rules**
 

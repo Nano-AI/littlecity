@@ -396,6 +396,18 @@ export const swing = definePart({
   build(item, ctx) {
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 769));
+    if (item.variant === 'rope') {
+      // D38: a rope swing from a willow's long bough out over the river, a stick for a seat.
+      // `drop`: how far below the tree's foot the water lies; the seat hangs just above it.
+      const z = 0.78, top = 0.62, seat = 0.08 + r('h') * 0.04 - Math.max(0, Math.min(1.4, item.params?.drop ?? 0));
+      b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.2, 0.05], [0.03, top - 0.04, z * 0.55], [0.05, top, z + 0.08]], [0.055, 0.04, 0.024], { seg: 5 }));
+      // A thick rope (it must read at playing zoom: a thin one is a hair) and a red plank seat.
+      b.with({ color: PALETTE.sand, pattern: PATTERN.none, ink: 'swing', sway: (_x: number, y: number) => Math.max(0, (top - y) / top) * 0.5 }, () => {
+        b.box([0.045 - 0.014, seat, z - 0.014], [0.045 + 0.014, top, z + 0.014]);
+        b.with({ color: PALETTE.red }, () => b.box([-0.07, seat - 0.03, z - 0.05], [0.16, seat, z + 0.05]));
+      });
+      return { mesh: b.build(), anchors: { seat: translation(0.045, seat, z) } };
+    }
     // Out past the crown's edge, so the swing shows from above: a long low bough reaching out.
     const z = 0.52, top = 0.5, seat = 0.12 + r('h') * 0.03;
     b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'swing-branch' }, () => tube(b, [[0, top - 0.16, 0.05], [0.02, top - 0.03, z * 0.6], [0.03, top, z + 0.1]], [0.035, 0.025, 0.016], { seg: 5 }));

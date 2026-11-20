@@ -59,6 +59,8 @@ export class Director {
   readonly bombs: Bomb[] = [];
   private nextBomb = 1;
   private listeners: ((e: MischiefEvent) => void)[] = [];
+  /** Where the reader looks from (degrees; the app sets it each frame): flames are drawn turned toward them. */
+  camera = { yaw: 45, pitch: 35 };
 
   constructor(seed: number) {
     this.engine = createMischiefEngine(seed);

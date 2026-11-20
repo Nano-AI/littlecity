@@ -25,6 +25,7 @@ import { DIRS } from '@/resolve/facts/lib';
 import type { CellPos } from '@/resolve/plan';
 import { DEPTH } from '@/style/depth';
 import { landUse } from '../urban/land-use.fact';
+import { orchards } from '../urban/orchards.fact';
 import { clearways, edgePos } from './clearways.fact';
 import { lucky } from './lib';
 
@@ -56,6 +57,7 @@ export default defineRule<Thing>({
       for (const c of s.cells) if (keyY(c) < keyY(foot)) foot = c;
       broad.add(foot);
     }
+    const planted = orchards(facts);
     const homely = (c: CellKey): boolean => {
       if (c === NO_CELL) return false;
       const use = uses.byCell.get(c)?.use;
@@ -70,8 +72,10 @@ export default defineRule<Thing>({
         });
         if (d !== undefined) out.push({ anchor: t, key: 'swing', data: { type: 'swing', cell: t, pos: 'c', face: d } });
       }
-      // A hammock: to a tree two cells east or south, the cell between them empty.
+      // A hammock: to a tree two cells east or south, the cell between them empty. Not in an orchard
+      // (U18: its rows are worked, with ladders and baskets; a hammock between every pair is a camp).
       for (const d of [1, 2] as Dir4[]) {
+        if (planted.byTree.has(t)) break;
         const [dx, dz] = DIR4[d]!;
         const other = key(keyX(t) + 2 * dx, keyY(t), keyZ(t) + 2 * dz);
         const mid = key(keyX(t) + dx, keyY(t), keyZ(t) + dz);

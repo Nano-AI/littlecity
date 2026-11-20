@@ -8,8 +8,8 @@ import { MAX_LENGTH } from './length';
 
 export interface Stepper {
   readonly el: HTMLElement;
-  /** Shows the length, or hides the stepper when the selected piece has none. */
-  show(length: number | null): void;
+  /** Shows the length, or hides the stepper when the selected piece has none. `max` is the longest it goes. */
+  show(length: number | null, max?: number, label?: string): void;
 }
 
 export function createStepper(change: (by: number) => void): Stepper {
@@ -23,13 +23,17 @@ export function createStepper(change: (by: number) => void): Stepper {
   );
   return {
     el: root,
-    show(length) {
+    show(length, max = MAX_LENGTH, label = 'Length') {
       root.toggleAttribute('hidden', length === null);
       if (length === null) return;
       value.textContent = String(length);
-      value.setAttribute('aria-label', `Length ${length}`);
+      value.setAttribute('aria-label', `${label} ${length}`);
+      root.setAttribute('aria-label', label);
+      root.title = label === 'Length' ? 'Length: scroll over the island, or press − and +' : `${label}: scroll over the island, or press − and +`;
+      less.setAttribute('aria-label', label === 'Length' ? 'Shorter' : 'Narrower');
+      more.setAttribute('aria-label', label === 'Length' ? 'Longer' : 'Wider');
       less.disabled = length <= 1;
-      more.disabled = length >= MAX_LENGTH;
+      more.disabled = length >= max;
     },
   };
 }

@@ -12,42 +12,103 @@ import { PALETTE } from '@/style/palette';
 
 const GLOW = airborne(PATTERN.glow);
 
-/** A tongue of flame in the XY plane, base at the origin, 1 tall: a few licks, the middle one tallest. */
-function tongue(look: number, scale: number): [number, number][] {
-  const L = [
-    [[-0.32, 0], [-0.3, 0.32], [-0.2, 0.58], [-0.14, 0.38], [-0.05, 1], [0.06, 0.5], [0.15, 0.74], [0.22, 0.36], [0.31, 0.22], [0.3, 0]],
-    [[-0.3, 0], [-0.33, 0.24], [-0.24, 0.66], [-0.1, 0.42], [0.02, 0.92], [0.1, 0.55], [0.24, 0.8], [0.27, 0.34], [0.32, 0]],
-    [[-0.31, 0], [-0.28, 0.4], [-0.16, 0.76], [-0.06, 0.48], [0.06, 1], [0.14, 0.44], [0.29, 0.6], [0.32, 0]],
-  ][look % 3]!;
-  return L.map(([x, y]) => [x! * scale, y! * scale]);
-}
-
 function sheet(b: MeshBuilder, pts: readonly [number, number][], z: number, rot: number): void {
   const p3: Vec3[] = pts.map(([x, y]) => [x * Math.cos(rot) + z * Math.sin(rot), y, -x * Math.sin(rot) + z * Math.cos(rot)]);
   b.polygon(p3);
   b.polygon([...p3].reverse());
 }
 
+/**
+ * The outline of a cluster of tongues sharing one base, in the XY plane: base centred on the origin,
+ * buried a little below it (it grows out of whatever it stands on), about 1 tall and `w` wide. Each
+ * tongue tapers to a curling tip; the middle one is tallest. Points go anticlockwise.
+ */
+function cluster(look: number, w: number, h: number): [number, number][] {
+  // Tips: [x of the tip, height, lean of the tip] per tongue, left to right.
+  const sets: [number, number, number][][] = [
+    [[-0.3, 0.55, -0.08], [-0.04, 1, 0.06], [0.27, 0.7, 0.1]],
+    [[-0.28, 0.72, -0.1], [0.02, 0.92, -0.05], [0.3, 0.5, 0.08]],
+    [[-0.32, 0.48, -0.04], [-0.1, 0.8, 0.02], [0.14, 1, 0.08], [0.33, 0.58, 0.12]],
+  ];
+  const tips = sets[look % sets.length]!;
+  const out: [number, number][] = [];
+  const base = -0.08;
+  // The base: a shallow round bottom from right to left.
+  for (let i = 0; i <= 6; i++) {
+    const a = (i / 6) * Math.PI;
+    out.push([Math.cos(a) * 0.42 * w, base - Math.sin(a) * 0.04]);
+  }
+  // Up the left side, then over each tongue: a curved flank up to the tip, down into the notch.
+  const left = -0.42 * w;
+  let x = left;
+  let y = 0.05;
+  for (let t = 0; t < tips.length; t++) {
+    const [tx0, th, lean] = tips[t]!;
+    const tx = tx0 * w;
+    const ty = th * h;
+    // Flank up: bulge outward, then taper (sampled on a quadratic curve).
+    const cx = (x + tx) / 2 - 0.08 * w, cy = y + (ty - y) * 0.45;
+    for (let k = 1; k <= 5; k++) {
+      const u = k / 5;
+      const px = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * cx + u * u * (tx + lean * w * 0.3);
+      const py = (1 - u) * (1 - u) * y + 2 * (1 - u) * u * cy + u * u * ty;
+      out.push([px, py]);
+    }
+    // Down into the notch before the next tongue (or down the right side to the base).
+    const nx = t + 1 < tips.length ? (tx + tips[t + 1]![0] * w) / 2 : 0.42 * w;
+    const ny = t + 1 < tips.length ? Math.min(ty, tips[t + 1]![1] * h) * 0.42 : 0.05;
+    const dx = (tx + nx) / 2 + 0.06 * w, dy = ny + (ty - ny) * 0.55;
+    for (let k = 1; k <= 4; k++) {
+      const u = k / 4;
+      out.push([
+        (1 - u) * (1 - u) * (tx + lean * w * 0.3) + 2 * (1 - u) * u * dx + u * u * nx,
+        (1 - u) * (1 - u) * ty + 2 * (1 - u) * u * dy + u * u * ny,
+      ]);
+    }
+    x = nx;
+    y = ny;
+  }
+  // The outline was built base right→left, then left→right over the top: make it one anticlockwise loop.
+  const baseArc = out.slice(0, 7);
+  const top = out.slice(7);
+  return [...baseArc.reverse(), ...top.reverse()].reverse();
+}
+
+/** Every flame shares one ink id: layers and neighbouring flames are one drawn shape, outlined only outside. */
+const FLAME_INK = 0x7f1e;
 const flames = new Map<number, MeshData>();
-/** A flame: three nested tongues (red-orange, orange, yellow) on two crossed sheets. About 1 tall. */
+/**
+ * A flame, drawn flat as a hand would draw it, to be turned toward the reader: a dark red-orange
+ * cluster of tongues, an orange one inside it, a yellow core low in the middle, all on one base.
+ * About 1 tall, base at the origin, facing +Z.
+ */
 export function flameMesh(look: number): MeshData {
   let m = flames.get(look);
   if (m) return m;
-  const b = new MeshBuilder({ ink: `flame${look}` });
-  b.setPattern(GLOW).setInk('flame');
-  for (const rot of [0, Math.PI / 2]) {
-    b.setColor(DAMAGE_COLORS.flameRoot);
-    sheet(b, tongue(look, 1), 0, rot);
-    b.setColor(DAMAGE_COLORS.flameMid).setInk('flame-mid');
-    sheet(b, tongue(look + 1, 0.7), 0.012, rot);
-    sheet(b, tongue(look + 1, 0.7), -0.012, rot);
-    b.setColor(DAMAGE_COLORS.flameTip).setInk('flame-tip');
-    sheet(b, tongue(look + 2, 0.42), 0.024, rot);
-    sheet(b, tongue(look + 2, 0.42), -0.024, rot);
-    b.setInk('flame');
-  }
+  const b = new MeshBuilder();
+  b.setPattern(GLOW).setInkId(FLAME_INK);
+  const layer = (color: string, w: number, h: number, z: number, l: number): void => {
+    b.setColor(color);
+    b.polygon(cluster(l, w, h).map(([x, y]) => [x, y, z] as Vec3));
+  };
+  layer(DAMAGE_COLORS.flameDeep, 1, 1, 0, look);
+  layer(DAMAGE_COLORS.flameRoot, 0.82, 0.8, 0.012, look + 1);
+  layer(DAMAGE_COLORS.flameMid, 0.62, 0.58, 0.024, look + 2);
+  layer(DAMAGE_COLORS.flameTip, 0.4, 0.34, 0.036, look);
   flames.set(look, (m = b.build()));
   return m;
+}
+
+let windowGlow: MeshData | null = null;
+/** The glow of a fire inside, filling a window: a flat self-lit pane, 1 × 1, facing +Z, centred. */
+export function windowGlowMesh(): MeshData {
+  if (windowGlow) return windowGlow;
+  const b = new MeshBuilder({ ink: 'window-glow' });
+  b.setPattern(PATTERN.glow).setInk('glow').setColor(DAMAGE_COLORS.flameRoot);
+  b.polygon([[-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0]]);
+  b.setColor(DAMAGE_COLORS.flameMid);
+  b.polygon([[-0.3, -0.5, 0.004], [0.32, -0.5, 0.004], [0.2, 0.15, 0.004], [0.02, 0.38, 0.004], [-0.18, 0.1, 0.004]]);
+  return (windowGlow = b.build());
 }
 
 let spark: MeshData | null = null;

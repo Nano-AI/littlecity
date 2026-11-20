@@ -9,9 +9,15 @@
 //
 //   --time day|dusk|night|dawn|<phase 0..1>   hold that time of day (default day)
 //   --run                    let the dusk cycle run from that time instead of holding it
+//   --season winter|festival|<year 0..1> --weather snow|rain|...   hold a season and weather (default: as the app
+//                            opens, summer and a clear sky, running); --settle brings the weather in at once
+//   --year 0.74 --year-run   start the year there and let it run (so a change of season can be watched)
 //   --warm 2000              milliseconds of life to play before the sequence starts
 //   --edit 'place:house@10,1,10; erase@12,1,10; floor:path@9,1,9; kind:tower@10,1,10; edge:fence@10,1,10,E'
 //                            edits applied at the first frame (x,y,z are grid cells; y is the level)
+//            'raise@10,12; dig@10,12,14,12; level:2@8,8,12,12'
+//                            shaping the land: one column (x,z) or a rectangle (x0,z0,x1,z1), one level up or
+//                            down, or one step toward a height (level:<h>); each is one edit, as one brush dab
 //   --then '<edits>' --after 400   a second batch of edits, that many ms into the sequence
 //   mischief (design section 13b), in either list: 'fire@10,1,10' sets that block alight, 'bomb@10,1,10'
 //   drops a bomb on the floor of that cell (y = the level it lands on), 'knock@10,1,10' knocks its
@@ -59,7 +65,7 @@ function parseEdits(text) {
       const [head, where] = s.split('@');
       const [verb, what] = head.split(':');
       const parts = where.split(',').map((p) => p.trim());
-      return { verb, what, x: Number(parts[0]), y: Number(parts[1]), z: Number(parts[2]), side: parts[3] };
+      return { verb, what, x: Number(parts[0]), y: Number(parts[1]), z: Number(parts[2]), side: parts[3], parts: parts.map(Number) };
     });
 }
 
@@ -76,7 +82,10 @@ try {
   });
   await page.clock.install({ time: 0 });
   // A scenario name, or seed:N for a fresh island of that seed.
-  const query = scenario.startsWith('seed:') ? `seed=${Number(scenario.slice(5))}` : `scenario=${encodeURIComponent(scenario)}`;
+  let query = scenario.startsWith('seed:') ? `seed=${Number(scenario.slice(5))}` : `scenario=${encodeURIComponent(scenario)}`;
+  if (flags.season !== undefined) query += `&season=${encodeURIComponent(String(flags.season))}`;
+  if (flags.weather !== undefined) query += `&weather=${encodeURIComponent(String(flags.weather))}`;
+  if (flags.settle) query += '&settle=1';
   await page.goto(`${server.url}/?${query}`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__lc !== undefined, null, { timeout: 60_000 });
   // The interface is not what is being looked at.
@@ -111,6 +120,10 @@ try {
       if (cam.pitch !== undefined) pose.pitch = cam.pitch;
       if (cam.target) pose.target = cam.target;
       if (Object.keys(pose).length) lc.view.setCamera(pose);
+      if (cam.year !== undefined) {
+        s.setYear(cam.year);
+        if (cam.yearRun) s.holdSeason('run');
+      }
     },
     [
       flags.time === undefined ? 'day' : Number.isNaN(Number(flags.time)) ? flags.time : Number(flags.time),
@@ -120,6 +133,8 @@ try {
         yaw: flags.yaw === undefined ? undefined : Number(flags.yaw),
         pitch: flags.pitch === undefined ? undefined : Number(flags.pitch),
         target: flags.target === undefined ? undefined : String(flags.target).split(',').map(Number),
+        year: flags.year === undefined ? undefined : Number(flags.year),
+        yearRun: Boolean(flags['year-run']),
       },
     ],
   );
@@ -178,7 +193,16 @@ try {
         if (e.verb === 'mend' || e.verb === 'mendall') { done.push(m.mend(cell, e.verb === 'mendall') ? 'mended' : 'no'); continue; }
         if (e.verb === 'undo') { if (!(m.active && (m.cancel(), true))) lc.game.undo(); done.push('undone'); continue; }
         let edit;
-        if (e.verb === 'place') edit = { type: 'placeBlock', cell, kind: e.what, color: 'auto', from: null };
+        if (e.verb === 'raise' || e.verb === 'dig' || e.verb === 'level') {
+          // Shaping the land: a column (x,z) or a rectangle of them (x0,z0,x1,z1).
+          const [x0, z0, x1 = x0, z1 = z0] = e.parts;
+          const cols = [];
+          for (let z = Math.min(z0, z1); z <= Math.max(z0, z1); z++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) cols.push(x + z * 48);
+          const h = lc.terrain().height;
+          if (e.verb === 'raise') edit = { type: 'land', up: cols, down: [] };
+          else if (e.verb === 'dig') edit = { type: 'land', up: [], down: cols };
+          else edit = { type: 'land', up: cols.filter((c) => h[c] < Number(e.what)), down: cols.filter((c) => h[c] > Number(e.what)) };
+        } else if (e.verb === 'place') edit = { type: 'placeBlock', cell, kind: e.what, color: 'auto', from: null };
         else if (e.verb === 'erase') edit = { type: 'eraseBlock', cell };
         else if (e.verb === 'floor') edit = { type: 'placeFloor', cell, floor: e.what };
         else if (e.verb === 'nofloor') edit = { type: 'eraseFloor', cell };

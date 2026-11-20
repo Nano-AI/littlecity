@@ -16,7 +16,7 @@ import type { Kind } from '@/core/kinds';
 import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
 
-export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town';
+export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'events';
 
 export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'auto', title: 'The Auto block' },
@@ -27,6 +27,7 @@ export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'waterfront', title: 'Waterfront' },
   { id: 'green', title: 'Green' },
   { id: 'town', title: 'Town' },
+  { id: 'events', title: 'Days the town earns' },
 ];
 
 /** What shows the rules really made the building. */
@@ -38,7 +39,9 @@ export type Proof =
   /** A prop placed by this rule (dressing stage), optionally of one type. */
   | { prop: { rule: string; type?: PropType } }
   /** An actor placed by this rule (dressing stage), optionally of one type. */
-  | { actor: { rule: string; type?: ActorType } };
+  | { actor: { rule: string; type?: ActorType } }
+  /** A socket placed by this rule (dressing stage): the posts of the town's events (L56, L57). */
+  | { socket: { rule: string } };
 
 export interface Recipe {
   ground?: (t: TerrainBuilder) => void;
@@ -70,9 +73,10 @@ export interface GuideEntry {
   pad?: number;
   /**
    * Draw the picture with the castle's people (troop, rider) on, frozen after `settle` seconds of
-   * simulated day. Every other picture leaves people, birds and boats out.
+   * simulated day. Every other picture leaves people, birds and boats out. `residents` keeps the
+   * town's people in it too (the events).
    */
-  life?: { settle: number };
+  life?: { settle: number; residents?: boolean };
   /** Frame only these columns (inclusive), `top` levels high, instead of the whole recipe. */
   frame?: readonly [x0: number, z0: number, x1: number, z1: number, top: number];
 }
@@ -145,7 +149,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'shop',
     group: 'houses',
     name: 'Shop',
-    how: 'Open a house straight onto a plaza, or onto a path if the house is two or more storeys tall.',
+    how: 'Open a house straight onto a plaza, or onto a path close by a plaza if the house is two or more storeys tall.',
     proof: { role: 'shop' },
     seed: 7102,
     build(b) {
@@ -153,7 +157,7 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.plaza(18, 20, 21, 21);
     },
     also: [
-      { build: (b) => void b.house(19, 19, { w: 2, floors: 2, color: 6 }).path(17, 20, 22, 20) },
+      { build: (b) => void b.house(19, 19, { w: 2, floors: 2, color: 6 }).path(17, 20, 22, 20).plaza(23, 20, 24, 21) },
     ],
     view: FRONT,
   },
@@ -161,15 +165,21 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'inn',
     group: 'houses',
     name: 'Inn',
-    how: 'Build a house of six or more blocks, two or more storeys tall, opening onto a path or a plaza.',
+    how: 'Build a house of six or more blocks, two or more storeys tall, where travellers arrive: on a square (a plaza three by three or more), or by the end of a bridge. Each such place has one inn.',
     proof: { role: 'inn' },
     seed: 7103,
     build(b) {
-      b.house(18, 19, { w: 3, floors: 2, color: 1 });
-      b.path(16, 20, 22, 20);
+      b.house(18, 18, { w: 3, d: 2, floors: 2, color: 1 });
+      b.plaza(17, 20, 21, 22);
     },
     also: [
-      { build: (b) => void b.house(18, 18, { w: 3, d: 2, floors: 2, color: 1 }).plaza(18, 20, 20, 21) },
+      {
+        ground: (t) => {
+          t.flat(1);
+          t.water(4, 21, 43, 23);
+        },
+        build: (b) => void b.house(18, 18, { w: 3, floors: 2, color: 1 }).path(16, 19, 22, 19).path(20, 20, 20, 20).block('arch', 20, 0, 21).block('arch', 20, 0, 22).block('arch', 20, 0, 23).path(20, 24, 20, 25),
+      },
     ],
     view: FRONT,
   },
@@ -193,16 +203,60 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'manor',
     group: 'houses',
     name: 'Manor',
-    how: 'Build a house that covers ten or more squares of ground, or holds sixteen or more blocks in all.',
+    how: 'Build a house two or more storeys tall that covers ten or more squares of ground, or holds sixteen or more blocks in all.',
     proof: { role: 'manor' },
     seed: 7105,
     build(b) {
-      b.house(18, 19, { w: 4, d: 3, color: 0 });
+      b.house(18, 19, { w: 4, d: 3, floors: 2, color: 0 });
     },
     also: [
       { build: (b) => void b.house(18, 19, { w: 4, d: 2, floors: 2, color: 0 }) },
     ],
     view: FRONT,
+  },
+  {
+    id: 'barn',
+    group: 'houses',
+    name: 'Barn',
+    how: 'Build a long one-storey house of six or more squares beside a garden or field of six or more, away from paths, plazas and squares; with a house beside it, it is a farmstead.',
+    proof: { role: 'barn' },
+    seed: 7115,
+    build(b) {
+      b.house(18, 19, { w: 4, d: 2, color: 3 });
+      b.house(18, 22, { w: 2, floors: 2, color: 1 });
+      b.garden(23, 18, 25, 21);
+    },
+    view: FRONT,
+  },
+  {
+    id: 'smithy',
+    group: 'houses',
+    name: 'Smithy',
+    how: 'Put a one-storey house of one to three squares against a tower one or two blocks tall: the tower is its smoking forge chimney, and the hearth glows at dusk.',
+    proof: { role: 'smithy' },
+    seed: 7118,
+    build(b) {
+      b.house(19, 19, { w: 2, color: 2 }).tower(18, 19, { floors: 2 });
+      b.path(17, 21, 22, 21);
+    },
+    view: FRONT,
+  },
+  {
+    id: 'schoolhouse',
+    group: 'houses',
+    name: 'Schoolhouse',
+    how: 'In a town of ten or more houses, give a one-storey house on a path a fenced yard beside it: the biggest such yard is the school’s, with a bell on the roof and hopscotch in the yard.',
+    proof: { role: 'schoolhouse' },
+    seed: 7119,
+    build(b) {
+      b.path(8, 21, 30, 21);
+      for (let i = 0; i < 5; i++) b.house(8 + i * 3, 19, { w: 2, d: 2, floors: 2, color: i });
+      for (let i = 0; i < 5; i++) b.house(8 + i * 3, 22, { w: 2, floors: 2, color: (i + 3) % 8 });
+      b.house(24, 22, { w: 2, color: 2 });
+      b.fenceAround(26, 22, 28, 24);
+    },
+    view: FRONT,
+    frame: [22, 19, 29, 25, 3],
   },
   {
     id: 'townhouse',
@@ -247,7 +301,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'boathouse',
     group: 'houses',
     name: 'Boathouse',
-    how: 'Build a small house (four squares of ground or fewer, at most two storeys) on the shore, with a wall looking straight out onto the water.',
+    how: 'Build a small house on the shore (one storey on four squares of ground or fewer, or two storeys on two or fewer), with a wall looking straight out onto the sea.',
     proof: { role: 'boathouse' },
     seed: 7109,
     ground: seaSouth,
@@ -255,6 +309,23 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.house(19, 20, { w: 2, color: 3 });
     },
     view: FRONT,
+  },
+  {
+    id: 'watermill',
+    group: 'houses',
+    name: 'Watermill',
+    how: 'Build a house of two or more blocks on a river bank, a wall looking straight out onto the river: its wheel turns in the stream. One mill to a stretch of river.',
+    proof: { role: 'watermill' },
+    seed: 7116,
+    ground: (t) => {
+      t.flat(1);
+      t.water(4, 21, 43, 22);
+    },
+    build(b) {
+      b.house(19, 19, { w: 2, d: 2, floors: 2, color: 4 });
+    },
+    view: { yaw: 20, pitch: 28 },
+    frame: [17, 18, 22, 23, 3],
   },
   {
     id: 'cliff-house',
@@ -422,14 +493,26 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'lighthouse',
     group: 'towers',
     name: 'Lighthouse',
-    how: 'Stack the Light piece, or four or more Auto blocks near the sea.',
+    how: 'Stack the Light piece, or four or more Auto blocks, near the sea. Far inland (six squares or more from water) the Light is a folly tower.',
     proof: { role: 'lighthouse' },
     seed: 7207,
     ground: seaSouth,
     build(b) {
       b.auto(20, 20, { floors: 5 });
     },
-    also: [{ build: (b) => void b.stack('lighthouse', 20, 20, { floors: 3 }) }],
+    also: [{ ground: seaSouth, build: (b) => void b.stack('lighthouse', 20, 20, { floors: 3 }) }],
+    view: FRONT,
+  },
+  {
+    id: 'folly-tower',
+    group: 'towers',
+    name: 'Folly tower',
+    how: 'Stack the Light piece far inland, six squares or more from any water: a stone tower with a belvedere on top for the view.',
+    proof: { role: 'folly-tower' },
+    seed: 7208,
+    build(b) {
+      b.stack('lighthouse', 20, 20, { floors: 4 });
+    },
     view: FRONT,
   },
 
@@ -512,6 +595,91 @@ export const ENTRIES: readonly GuideEntry[] = [
     },
     view: FRONT,
   },
+  {
+    id: 'bandstand',
+    group: 'stone',
+    name: 'Bandstand',
+    how: 'Rest marble of four blocks or fewer on four pillars two or more tall, standing on a plaza or garden of nine or more squares.',
+    proof: { role: 'bandstand' },
+    seed: 7310,
+    build(b) {
+      b.plaza(17, 17, 21, 21);
+      for (const x of [19, 20]) for (const z of [19, 20]) b.stack('pillar', x, z, { floors: 2 }).block('marble', x, 3, z, { color: 2 });
+    },
+    view: FRONT,
+  },
+  {
+    id: 'stoa',
+    group: 'stone',
+    name: 'Stoa',
+    how: 'Rest a long marble roof, three or more times as long as it is wide and more than six blocks, on pillars beside a plaza: a market hall with one sloping roof.',
+    proof: { role: 'stoa' },
+    seed: 7311,
+    build(b) {
+      b.plaza(15, 18, 18, 23);
+      for (let z = 18; z <= 23; z++) b.stack('pillar', 20, z, { floors: 2 }).block('marble', 20, 3, z, { color: 1 }).block('marble', 21, 3, z, { color: 1 });
+    },
+    view: FRONT,
+  },
+  {
+    id: 'obelisk',
+    group: 'stone',
+    name: 'Obelisk or column',
+    how: 'Stack marble three or more blocks high on a single square of a plaza, with nothing touching it: an obelisk with a gilt tip, or, four or more high, sometimes a column with a statue.',
+    proof: { role: 'obelisk' },
+    seed: 7309,
+    build(b) {
+      b.plaza(18, 18, 22, 22);
+      b.stack('marble', 20, 20, { floors: 4 });
+    },
+    view: FRONT,
+  },
+  {
+    id: 'podium',
+    group: 'stone',
+    name: 'Podium',
+    how: 'Build a marble platform two or more blocks high and give it a use: a temple on top, a broad stair up its side, or a plaza over a quarter of its top.',
+    proof: { role: 'podium' },
+    seed: 7307,
+    build(b) {
+      b.fill('marble', 18, 18, 22, 20, { floors: 3 });
+      for (const x of [19, 21]) for (const z of [18, 19]) b.stack('pillar', x, z, { floors: 2 });
+      for (let x = 19; x <= 21; x++) for (const z of [18, 19]) b.block('marble', x, 6, z, { color: 2 });
+      for (let i = 0; i < 2; i++) for (const x of [19, 20, 21]) b.stack('marble', x, 22 - i, { floors: i + 1 });
+    },
+    also: [
+      { build: (b) => void b.fill('marble', 18, 18, 21, 21, { floors: 3 }).plaza(18, 18, 21, 20) },
+      { build: (b) => void b.fill('marble', 18, 18, 22, 20, { floors: 3 }).stack('marble', 20, 22, { floors: 1 }).stack('marble', 20, 21, { floors: 2 }).stack('marble', 21, 22, { floors: 1 }).stack('marble', 21, 21, { floors: 2 }) },
+    ],
+    view: FRONT,
+  },
+  {
+    id: 'theatre',
+    group: 'stone',
+    name: 'Theatre',
+    how: 'Pile marble in rows of seats, each row one block higher and four or more wide, with nothing at the top, facing a plaza or open ground.',
+    proof: { role: 'theatre' },
+    seed: 7308,
+    build(b) {
+      for (let row = 0; row < 3; row++) for (let x = 18; x <= 22; x++) b.stack('marble', x, 20 - row, { floors: row + 1 });
+      b.plaza(18, 21, 22, 22);
+    },
+    view: { yaw: 20, pitch: 30 },
+  },
+  {
+    id: 'wall-shops',
+    group: 'stone',
+    name: 'Shops in the wall',
+    how: 'Build a long marble wall two blocks tall beside a plaza or a path (not a castle): little arched shops and a fountain open in it.',
+    proof: { prop: { rule: 'U16.shops-in-the-wall', type: 'wall-booth' } },
+    seed: 7654,
+    build(b) {
+      b.fill('marble', 17, 18, 22, 19, { floors: 2, color: 2 });
+      b.plaza(16, 21, 23, 22);
+    },
+    view: { yaw: 20, pitch: 28 },
+    pad: -0.1,
+  },
 
   // ── bridges ───────────────────────────────────────────────────────────
   {
@@ -528,6 +696,24 @@ export const ENTRIES: readonly GuideEntry[] = [
     build(b) {
       for (let z = 19; z <= 21; z++) b.block('arch', 20, 0, z);
       b.path(20, 17, 20, 18).path(20, 22, 20, 23);
+    },
+    view: { yaw: 60, pitch: 28 },
+  },
+  {
+    id: 'bridge-shop',
+    group: 'bridges',
+    name: 'Bridge shops',
+    how: 'Build houses on a bridge two or more wide whose deck is a street (a path on it or at its end), leaving room to pass: they become shops over the river.',
+    proof: { role: 'bridge-shop' },
+    seed: 7406,
+    ground(t) {
+      t.flat(1);
+      t.water(4, 19, 43, 21);
+    },
+    build(b) {
+      for (let z = 19; z <= 21; z++) b.block('arch', 19, 0, z).block('arch', 20, 0, z);
+      b.path(19, 17, 19, 23);
+      b.house(20, 19, { d: 2, floors: 2, color: 4 });
     },
     view: { yaw: 60, pitch: 28 },
   },
@@ -618,6 +804,25 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 60, pitch: 30 },
   },
   {
+    // Shaping the land (design section 6): how to dig a river or a moat.
+    id: 'dug-river',
+    group: 'waterfront',
+    name: 'Dug river and barge',
+    how: 'Dig a narrow channel in from the sea with Dig (Nature drawer; Shift-drag paints) and it fills as a river: put a dock on it and a barge comes. Dig all round a building for a moat.',
+    proof: { actor: { rule: 'L41.river-barge' } },
+    seed: 7509,
+    ground: seaSouth,
+    build(b) {
+      // A channel three wide from the sea at z = 21 up to z = 9, dug by hand.
+      const cols: number[] = [];
+      for (let z = 9; z <= 20; z++) for (const x of [20, 21, 22]) cols.push(x + z * 48);
+      b.edit({ type: 'land', up: [], down: cols }, 'dig');
+      b.block('dock', 20, 0, 10).block('dock', 20, 0, 11);
+      b.house(17, 10, { color: 3 });
+    },
+    view: { yaw: 30, pitch: 34 },
+  },
+  {
     id: 'quay',
     group: 'waterfront',
     name: 'Quay',
@@ -650,6 +855,21 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   // Boats and ships ("Boats and ships": whatever fits comes). The picture shows the ship moored: a town opened
   // with a port has its biggest ship in.
+  {
+    id: 'warehouse',
+    group: 'waterfront',
+    name: 'Warehouse',
+    how: 'Build a house of six or more blocks, two or more storeys tall, facing a dock across the harbour street: loading doors climb its wall to a hoist.',
+    proof: { role: 'warehouse' },
+    seed: 7117,
+    ground: seaSouth,
+    build(b) {
+      b.house(18, 17, { w: 3, d: 2, floors: 3, color: 7 });
+      b.path(16, 19, 23, 19);
+      for (let x = 19; x <= 20; x++) b.block('dock', x, 0, 21);
+    },
+    view: FRONT,
+  },
   {
     id: 'ships',
     group: 'waterfront',
@@ -741,6 +961,66 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: { yaw: 40, pitch: 42 },
     pad: -0.1,
   },
+  // ── discovery round 1: the fill builder's entries ──
+  {
+    id: 'country-lane',
+    group: 'green',
+    name: 'Country lane',
+    how: 'Run a path out of town across open grass: four or more squares of it more than three squares from any building or plaza get hedges, field gates and milestones instead of street lamps.',
+    proof: { prop: { rule: 'U13.country-lanes', type: 'hedge' } },
+    seed: 7651,
+    build(b) {
+      b.house(13, 19, { color: 2 });
+      b.path(13, 20, 27, 20);
+    },
+    view: { yaw: 30, pitch: 34 },
+    pad: -0.2,
+  },
+  {
+    id: 'burgage-plots',
+    group: 'green',
+    name: 'Back gardens',
+    how: 'Fence in the grass behind a row of two or more houses: each house gets its own long back garden, with a fruit tree at the far end.',
+    proof: { prop: { rule: 'U14.burgage-plots', type: 'fruit-tree' } },
+    seed: 7652,
+    build(b) {
+      b.path(16, 17, 23, 17);
+      for (let i = 0; i < 3; i++) b.house(17 + i * 2, 18, { w: 2, floors: 1 + (i % 2), color: (i * 3 + 1) % 8 });
+      for (let x = 17; x <= 22; x++) b.fenceEdge(x, 22, 'S');
+      for (let z = 19; z <= 22; z++) b.fenceEdge(17, z, 'W').fenceEdge(22, z, 'E');
+    },
+    view: { yaw: 200, pitch: 40 },
+    pad: -0.1,
+  },
+  {
+    id: 'village-green',
+    group: 'green',
+    name: 'Village green',
+    how: 'Leave a patch of grass between two rows of houses that face each other across it, with a path beside it: it becomes the village green, with a maypole.',
+    proof: { prop: { rule: 'U15.village-green', type: 'maypole' } },
+    seed: 7653,
+    build(b) {
+      b.path(15, 15, 15, 24);
+      for (const x of [17, 20]) b.house(x, 16, { color: x % 8 }).house(x, 23, { color: (x + 3) % 8 });
+      b.path(16, 15, 21, 15).path(16, 24, 21, 24);
+      b.put('tree', 21, 19);
+    },
+    view: { yaw: 40, pitch: 36 },
+    pad: -0.1,
+  },
+  {
+    id: 'orchard',
+    group: 'green',
+    name: 'Orchard',
+    how: 'Plant six or more trees in rows, two squares apart each way: they become an orchard, with ladders, baskets of apples and beehives.',
+    proof: { prop: { rule: 'U18.orchard', type: 'ladder' } },
+    seed: 7655,
+    build(b) {
+      for (let x = 17; x <= 23; x += 2) for (let z = 18; z <= 22; z += 2) b.put('tree', x, z);
+    },
+    view: { yaw: 35, pitch: 36 },
+    pad: -0.1,
+  },
   {
     id: 'pocket-park',
     group: 'green',
@@ -751,6 +1031,19 @@ export const ENTRIES: readonly GuideEntry[] = [
     build(b) {
       b.house(19, 18, { w: 3, floors: 2, color: 2 });
       b.path(18, 18, 18, 22).path(22, 18, 22, 22).path(19, 22, 21, 22);
+    },
+    view: FRONT,
+  },
+  {
+    id: 'churchyard',
+    group: 'green',
+    name: 'Churchyard',
+    how: 'Wall or fence in some garden or grass beside a chapel: it fills with headstones and a yew, with a roofed lychgate where a path goes through the wall.',
+    proof: { role: 'churchyard' },
+    seed: 7607,
+    build(b) {
+      b.house(18, 18, { w: 3, color: 5 }).tower(21, 18, { floors: 4 });
+      b.garden(18, 19, 20, 21).fenceAround(18, 19, 20, 21, 'wall');
     },
     view: FRONT,
   },
@@ -849,6 +1142,63 @@ export const ENTRIES: readonly GuideEntry[] = [
     life: { settle: 64 },
     frame: [19, 20, 24, 22, 3],
   },
+
+  {
+    id: 'market-cross',
+    group: 'town',
+    name: 'Market cross',
+    how: 'Put a single marble block on a plaza with two or more stalls round it (and no fountain beside it): it becomes the market cross.',
+    proof: { prop: { rule: 'D37.market-cross', type: 'market-cross' } },
+    seed: 7656,
+    build(b) {
+      b.plaza(17, 18, 22, 22);
+      b.put('marble', 19, 20, { color: 3 });
+      b.put('stall', 17, 20).put('stall', 21, 21);
+    },
+    view: { yaw: 30, pitch: 32 },
+    pad: -0.1,
+  },
+
+  // ── days the town earns (L56, L57) ────────────────────────────────────
+  {
+    id: 'market-day',
+    group: 'events',
+    name: 'Market day',
+    how: 'Lay a plaza at least three by three with two stalls on it, and houses round it. On market mornings traders set up stalls there, a busker juggles and the town comes to buy.',
+    proof: { socket: { rule: 'L56.market-day' } },
+    seed: 7801,
+    build(b) {
+      b.plaza(18, 18, 22, 22);
+      b.put('stall', 18, 18).put('stall', 22, 22);
+      b.house(18, 15, { floors: 2, w: 2, d: 2, color: 1 }).house(21, 15, { floors: 2, w: 2, d: 2, color: 3 });
+      b.house(15, 19, { floors: 2, w: 2, d: 2, color: 5 }).house(24, 19, { floors: 1, w: 2, d: 2, color: 6 });
+      b.path(18, 17, 22, 17).path(17, 18, 17, 22);
+    },
+    view: FRONT,
+    pad: 0.2,
+    life: { settle: 40, residents: true },
+    frame: [16, 17, 23, 23, 2],
+  },
+  {
+    id: 'wedding',
+    group: 'events',
+    name: 'A wedding',
+    how: 'Put a chapel (a house beside a tower) with its door on a path that runs to a plaza, and houses round about. Most mornings a couple is married there and the guests walk them to the plaza.',
+    proof: { socket: { rule: 'L57.wedding' } },
+    seed: 7802,
+    build(b) {
+      b.house(17, 16, { w: 2, d: 2, color: 5 });
+      b.tower(19, 16, { floors: 4 });
+      b.path(15, 18, 25, 18);
+      b.plaza(21, 19, 24, 21);
+      b.house(14, 16, { floors: 1, w: 2, d: 2, color: 1 }).house(22, 15, { floors: 1, w: 2, d: 2, color: 6 }).house(25, 15, { floors: 1, w: 2, d: 2, color: 2 });
+      b.path(23, 17, 23, 17).path(26, 17, 26, 17);
+    },
+    view: { yaw: 20, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 70, residents: true },
+    frame: [16, 16, 24, 21, 2],
+  },
 ];
 
 /**
@@ -888,6 +1238,7 @@ export const NOT_SPECIAL: Readonly<Partial<Record<Role, string>>> = {
   'low-wall': 'the default wall',
   'garden-wall': 'a wall variant (around a garden)',
   'curtain-wall': 'a wall variant (touching marble or a tower): shown in the castle turret and gatehouse pictures',
+  'forge-chimney': 'the smithy’s tower: shown in the smithy picture',
 };
 
 /** The recipe as a scenario (`also` picks one of the other ways): what the proof test and the picture tool use. */

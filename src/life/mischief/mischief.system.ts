@@ -12,10 +12,10 @@
 import { CELL_H, DIR4, key, keyX, keyY, keyZ, SEA_Y, type CellKey } from '@/core/grid';
 import { compose, multiply, rotationY, scaling, translation, type Mat4 } from '@/core/mat4';
 import { hash, rand } from '@/core/rand';
-import { blastChunks } from '@/gen/damage/damage';
+import { blastChunks, roofSampler } from '@/gen/damage/damage';
 import { chunkMatrix, type Chunk } from '@/gen/damage/debris';
 import { AIRBORNE } from '@/gen/airborne';
-import { Soup } from '@/gen/damage/poly';
+import { polysOf, Soup } from '@/gen/damage/poly';
 import { allGenerators, allParts } from '@/gen/discover';
 import type { MeshData } from '@/gen/mesh';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
@@ -24,7 +24,7 @@ import { defineSystem, type InstanceHandle, type LifeStage, type Signals, type S
 import { scaresOf } from '../birds/scare';
 import { fxOf } from '../fx/fx';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
-import { bombMesh, emberMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh } from './meshes';
+import { bombMesh, emberMesh, firelightMesh, flameMesh, flashMesh, FUSE_TIP, smokeMesh, sparkMesh, spoutMesh, windowGlowMesh } from './meshes';
 
 /** Instances of one mesh, reused: a finished flame is hidden and handed to the next. */
 class Pool {
@@ -65,19 +65,26 @@ interface Spot {
   x: number;
   y: number;
   z: number;
-  /** Facing (radians about up), for a flame at a window. */
-  rot: number;
   size: number;
-  roof: boolean;
+  /** On top of what is there (a ridge, an eave, a broken wall top), so smoke and sparks rise from it. */
+  top: boolean;
+  /** Out of a window or door: it licks out and up the wall, leaning along (nx, nz). */
+  window: boolean;
+  nx: number;
+  nz: number;
 }
 interface Flame {
   cell: CellKey;
   spots: Spot[];
   handles: InstanceHandle[];
   looks: number[];
+  /** The glow inside each window spot (null for spots that are not at a window). */
+  glows: (InstanceHandle | null)[];
   phase: number;
   intensity: number;
   frame: number;
+  /** The structure's hash the spots were found for (the ruin changes as it burns, and the flames move down with it). */
+  shapeHash: number;
 }
 interface Puff {
   ink: InstanceHandle;
@@ -155,6 +162,9 @@ interface State {
   spouts: Spout[];
   pools: Map<string, Pool>;
   smokeAcc: Map<StructureId, number>;
+  samplers: Map<StructureId, { hash: number; sample: (x: number, z: number, minY: number) => number | null }>;
+  /** Seconds to the next fright for the birds round each fire. */
+  scareIn: number;
   /** Firelight round each burning building. */
   lights: Map<StructureId, InstanceHandle>;
   sparkAcc: number;
@@ -170,32 +180,56 @@ function pool(st: State, stage: LifeStage, k: string, mesh: () => MeshData): Poo
   return p;
 }
 
-/** Where flames show on a burning block: out of its windows and doors, and up from its roof if nothing of its building stands on it. */
-function spotsOf(shape: ShapePlan, cell: CellKey): Spot[] {
+const HOUSELIKE = new Set<string>(['house', 'windmill', 'tower', 'lighthouse']);
+
+/**
+ * Where flames grow on a burning block, all rooted on what is really there: out of its windows and door
+ * (licking up the wall), and on top of whatever is highest over it (the ridge and the eaves while the roof
+ * stands, the broken wall tops and the floor of a shell once it has gone). `sample` is the height of the
+ * structure's own top surface at a point.
+ */
+function spotsOf(shape: ShapePlan, cell: CellKey, sample: ((x: number, z: number, minY: number) => number | null) | null): Spot[] {
   const x = keyX(cell), y = keyY(cell), z = keyZ(cell);
+  const floor = y * CELL_H;
   const sid = shape.structureAt.get(cell);
-  const kind = shape.kinds.get(cell);
+  const kind = shape.kinds.get(cell) ?? '';
   const out: Spot[] = [];
   const top = sid === undefined || shape.structureAt.get(key(x, y + 1, z)) !== sid;
   const seed = hash(shape.world.seed, 'flames', cell);
-  if (kind === 'house' || kind === 'windmill' || kind === 'tower' || kind === 'lighthouse') {
+  if (HOUSELIKE.has(kind)) {
     const feats = (sid === undefined ? [] : shape.featuresByStructure.get(sid) ?? []).filter(
       (f) => f.cell === cell && f.dir !== undefined && (f.type === 'window' || f.type === 'door'),
     );
-    // Two openings at most, picked by the seed.
     feats.sort((a, b) => hash(seed, a.id) - hash(seed, b.id));
     for (const f of feats.slice(0, LIGHT ? 1 : 2)) {
       const [dx, dz] = DIR4[f.dir!]!;
-      out.push({ x: x + 0.5 + dx * 0.5, y: y * CELL_H + (f.type === 'door' ? 0.05 : 0.3), z: z + 0.5 + dz * 0.5, rot: Math.atan2(dx, dz), size: 0.62, roof: false });
+      const door = f.type === 'door';
+      out.push({ x: x + 0.5 + dx * 0.5, y: floor + (door ? 0.04 : 0.26), z: z + 0.5 + dz * 0.5, size: door ? 0.6 : 0.5, top: false, window: true, nx: dx, nz: dz });
     }
-    if (top) out.push({ x: x + 0.5, y: (y + 1) * CELL_H - 0.05, z: z + 0.5, rot: rand(seed, 'rot') * Math.PI, size: 1.45, roof: true });
-  } else if (kind === 'tree') {
-    out.push({ x: x + 0.5, y: y * CELL_H + 0.35, z: z + 0.5, rot: rand(seed, 'rot') * Math.PI, size: 0.85, roof: true });
-  } else if (kind === 'dock') {
-    out.push({ x: x + 0.5, y: SEA_Y + 0.35, z: z + 0.5, rot: rand(seed, 'rot') * Math.PI, size: 0.6, roof: true });
-  } else {
-    out.push({ x: x + 0.5, y: y * CELL_H + 0.05, z: z + 0.5, rot: rand(seed, 'rot') * Math.PI, size: top ? 0.75 : 0.5, roof: top });
   }
+  if (!top && HOUSELIKE.has(kind)) return out;
+  // On top: the highest surface over a few points of the cell (its middle and toward each side).
+  const pts: [number, number][] = [[0.5, 0.5], [0.24, 0.5], [0.76, 0.5], [0.5, 0.24], [0.5, 0.76]];
+  const cands: { x: number; y: number; z: number }[] = [];
+  for (const [px, pz] of pts) {
+    const h = sample ? sample(x + px, z + pz, floor - 0.01) : floor + CELL_H;
+    if (h === null || h > floor + CELL_H * 2.5) continue;
+    cands.push({ x: x + px, y: h, z: z + pz });
+  }
+  cands.sort((a, b) => b.y - a.y || a.x - b.x || a.z - b.z);
+  const picked: typeof cands = [];
+  for (const c of cands) {
+    if (picked.length >= (LIGHT ? 2 : 3)) break;
+    if (picked.some((q) => Math.hypot(q.x - c.x, q.z - c.z) < 0.2)) continue;
+    picked.push(c);
+  }
+  picked.forEach((c, i) => {
+    const tree = kind === 'tree';
+    // In a tree the flames are in the crown; elsewhere they stand on the top, their base sunk into it.
+    const y0 = tree ? c.y - 0.42 : c.y - 0.05;
+    const size = (i === 0 ? 1 : 0.72) * (tree ? 0.95 : kind === 'dock' || kind === 'fence' ? 0.6 : HOUSELIKE.has(kind) ? 1 : 0.8);
+    out.push({ x: c.x, y: y0, z: c.z, size, top: true, window: false, nx: 0, nz: 0 });
+  });
   return out;
 }
 
@@ -314,10 +348,29 @@ function setPlace(m: Mat4, x: number, y: number, z: number, s: number): void {
   m[15] = 1;
 }
 
-/** A flame's matrix: at the spot, turned to face out, leaning downwind, stretched by how fiercely it burns. */
-function flameMatrix(sp: Spot, sx: number, sy: number, windX: number, windZ: number): Mat4 {
-  const shear: Mat4 = [1, 0, 0, 0, windX, 1, windZ, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-  return compose(translation(sp.x, sp.y, sp.z), shear, rotationY(sp.rot), scaling(sx, sy, sx));
+/**
+ * A flame's matrix: rooted at the spot, turned to face the reader (yaw of the camera), leaning downwind and,
+ * out of a window, out from the wall; stretched by how fiercely it burns.
+ */
+function flameMatrix(sp: Spot, sx: number, sy: number, leanX: number, leanZ: number, yaw: number): Mat4 {
+  const out = sp.window ? 0.35 : 0;
+  const shear: Mat4 = [1, 0, 0, 0, leanX + sp.nx * out, 1, leanZ + sp.nz * out, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  // A window's flame sits a hair out from the wall so the wall never cuts its base.
+  const px = sp.x + sp.nx * 0.04, pz = sp.z + sp.nz * 0.04;
+  return compose(translation(px, sp.y, pz), shear, rotationY(yaw), scaling(sx, sy, sx));
+}
+
+/** The structure's top surface, sampled from its own current drawing (cached by its hash). */
+function samplerOf(st: State, shape: ShapePlan, sid: StructureId | undefined): ((x: number, z: number, minY: number) => number | null) | null {
+  if (sid === undefined) return null;
+  const s = shape.structures.get(sid);
+  if (!s) return null;
+  const had = st.samplers.get(sid);
+  if (had && had.hash === s.hash) return had.sample;
+  const mesh = allGenerators().build(s, shape, allParts()).mesh;
+  const sample = roofSampler(polysOf(mesh));
+  st.samplers.set(sid, { hash: s.hash, sample });
+  return sample;
 }
 
 export default defineSystem<State>({
@@ -341,6 +394,8 @@ export default defineSystem<State>({
       spouts: [],
       pools: new Map(),
       smokeAcc: new Map(),
+      samplers: new Map(),
+      scareIn: 0,
       lights: new Map(),
       sparkAcc: 0,
       time: 0,
@@ -388,32 +443,53 @@ export default defineSystem<State>({
     const burning = st.d.engine.burning();
     const live = new Set<CellKey>();
     const fierce = new Map<StructureId, { i: number; x: number; y: number; z: number }>();
+    const glowPool = pool(st, stage, 'window-glow', windowGlowMesh);
+    const yaw = (st.d.camera.yaw * Math.PI) / 180;
+    const release = (f: Flame): void => {
+      f.handles.forEach((h, i) => flamePools[f.looks[i]!]!.give(h));
+      for (const g of f.glows) if (g) glowPool.give(g);
+      f.handles = [];
+      f.glows = [];
+    };
     for (const b of burning) {
       live.add(b.cell);
+      const sid = b.structure;
+      const sHash = sid === undefined ? 0 : (shape.structures.get(sid)?.hash ?? 0);
       let f = st.flames.get(b.cell);
-      if (!f) {
-        const spots = spotsOf(shape, b.cell);
+      if (!f || f.shapeHash !== sHash) {
+        // New, or its building changed under it (the roof fell in): find where the flames stand now.
+        if (f) release(f);
+        const spots = spotsOf(shape, b.cell, samplerOf(st, shape, sid));
         const seed = hash(shape.world.seed, 'flame', b.cell);
         const looks = spots.map((_, i) => Math.floor(rand(seed, 'look', i) * 3));
-        f = { cell: b.cell, spots, handles: [], looks, phase: rand(seed, 'phase'), intensity: 0, frame: -1 };
+        f = { cell: b.cell, spots, handles: [], looks, glows: [], phase: f?.phase ?? rand(seed, 'phase'), intensity: f?.intensity ?? 0, frame: -1, shapeHash: sHash };
         for (let i = 0; i < spots.length; i++) {
           const h = flamePools[looks[i]!]!.take();
           h.setParams(1);
           f.handles.push(h);
+          const sp = spots[i]!;
+          if (sp.window) {
+            // The window itself glows with the fire inside.
+            const g = glowPool.take();
+            g.setMatrix(compose(translation(sp.x + sp.nx * 0.012, sp.y + 0.14, sp.z + sp.nz * 0.012), rotationY(Math.atan2(sp.nx, sp.nz)), scaling(0.17, 0.26, 1)));
+            g.setParams(1);
+            g.setVisible(true);
+            f.glows.push(g);
+          } else f.glows.push(null);
         }
         st.flames.set(b.cell, f);
       }
       f.intensity = b.intensity;
-      if (b.structure !== undefined) {
-        const top = f.spots.find((s) => s.roof) ?? f.spots[0];
-        const cur = fierce.get(b.structure);
-        if (top && (!cur || top.y > cur.y)) fierce.set(b.structure, { i: (cur?.i ?? 0) + b.intensity, x: top.x, y: top.y, z: top.z });
+      if (sid !== undefined) {
+        const top = f.spots.find((s) => s.top) ?? f.spots[0];
+        const cur = fierce.get(sid);
+        if (top && (!cur || top.y > cur.y)) fierce.set(sid, { i: (cur?.i ?? 0) + b.intensity, x: top.x, y: top.y, z: top.z });
         else if (cur) cur.i += b.intensity;
       }
     }
     for (const [cell, f] of st.flames) {
       if (live.has(cell)) continue;
-      f.handles.forEach((h, i) => flamePools[f.looks[i]!]!.give(h));
+      release(f);
       st.flames.delete(cell);
       // A burnt-out block keeps glowing embers in its ash for a while.
       const r = shape.world.blocks.get(cell)?.ruin;
@@ -427,6 +503,14 @@ export default defineSystem<State>({
         st.embers.set(cell, { h, age: 0, life: 35 + rand(cell, 'ember-life') * 20 });
       }
     }
+    // Birds keep clear of a fire: every so often, a fright round each burning building.
+    st.scareIn -= dt;
+    if (st.scareIn <= 0 && fierce.size > 0) {
+      st.scareIn = 0.6;
+      for (const src of fierce.values()) {
+        scaresOf(stage).add(key(Math.floor(src.x), Math.max(0, Math.floor(src.y / CELL_H)), Math.floor(src.z)), 4, false, signals.time.seconds);
+      }
+    }
     for (const f of st.flames.values()) {
       const frame = Math.floor(st.time * FPS + f.phase * 2);
       if (frame === f.frame) continue;
@@ -435,24 +519,30 @@ export default defineSystem<State>({
         const w = signals.wind(sp.x, sp.z);
         const j = rand(f.cell, 'jit', frame, i);
         const k = rand(f.cell, 'jit2', frame, i);
-        const grow = 0.3 + 0.7 * Math.min(1, f.intensity * 1.2);
-        const sy = sp.size * grow * (0.82 + 0.36 * j);
-        const sx = sp.size * (0.75 + 0.25 * grow) * (0.9 + 0.2 * k);
-        const lean = 0.45 * w.strength;
         const h = f.handles[i]!;
-        h.setMatrix(flameMatrix(sp, sx, sy, w.dirX * lean, w.dirZ * lean));
-        h.setVisible(true);
+        // A fire inside shows first in the windows; it licks out of them once it has hold.
+        const fierceness = Math.min(1, f.intensity * 1.15);
+        if (sp.window && fierceness < 0.35) {
+          h.setVisible(false);
+          return;
+        }
+        const grow = sp.window ? (fierceness - 0.35) / 0.65 : 0.25 + 0.75 * fierceness;
+        const sy = sp.size * (0.3 + 0.7 * grow) * (0.85 + 0.3 * j);
+        const sx = sp.size * (0.7 + 0.3 * grow) * (0.92 + 0.16 * k);
+        // Sway: a lean with the wind that swings a little drawing to drawing.
+        const lean = (0.35 * w.strength + 0.1) * (0.7 + 0.6 * j);
+        const m = flameMatrix(sp, sx, sy, w.dirX * lean + (k - 0.5) * 0.12, w.dirZ * lean + (j - 0.5) * 0.12, yaw);
         // A flame swaps its drawing now and then (a new lick), rather than morphing.
-        if (k < 0.18) {
-          const look = (f.looks[i]! + 1) % 3;
+        if (k < 0.2) {
+          const look = (f.looks[i]! + 1 + (j < 0.5 ? 1 : 0)) % 3;
           flamePools[f.looks[i]!]!.give(h);
           const nh = flamePools[look]!.take();
           nh.setParams(1);
-          nh.setMatrix(flameMatrix(sp, sx, sy, w.dirX * lean, w.dirZ * lean));
-          nh.setVisible(true);
           f.handles[i] = nh;
           f.looks[i] = look;
         }
+        f.handles[i]!.setMatrix(m);
+        f.handles[i]!.setVisible(true);
       });
     }
 
@@ -532,7 +622,7 @@ export default defineSystem<State>({
     const sparkPool = pool(st, stage, 'spark', sparkMesh);
     for (const f of st.flames.values()) {
       for (const sp of f.spots) {
-        if (!sp.roof) continue;
+        if (!sp.top) continue;
         if (rand(f.cell, 'spark', Math.floor(st.time * 30)) > dt * 6 * f.intensity) continue;
         if (st.sparks.length >= SPARK_CAP) break;
         const h = sparkPool.take();
@@ -556,7 +646,7 @@ export default defineSystem<State>({
       s.x += s.vx * dt;
       s.y += s.vy * dt;
       s.z += s.vz * dt;
-      const k = 0.07 * (1 - (s.age / s.life) * 0.7);
+      const k = 0.045 * (1 - (s.age / s.life) * 0.7);
       s.h.setMatrix([k, 0, 0, 0, 0, k, 0, 0, 0, 0, k, 0, s.x, s.y, s.z, 1]);
       s.h.setVisible(true);
     }

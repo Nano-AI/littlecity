@@ -111,6 +111,10 @@ uniform vec3 uStar;
 uniform float uGlow;
 uniform float uStars;
 uniform float uHalo;
+uniform float uFestive;
+uniform float uFog;        // Seasons: mist, 0 to 1 (lying low, by the water)
+uniform vec3 uFogCol;      // its colour, graded (the paper's)
+uniform float uFogY;       // the waterline    // Seasons: festival lights up; halos take each light's own colour
 
 ${NOISE}
 ${COLOR}
@@ -257,13 +261,18 @@ void main(){
   if (uGlow > 0.01 && uHalo > 0.0) {
     // A warm halo round anything lit: two rings of taps on the glow channel.
     float h = 0.0;
+    vec3 hc = vec3(0.0);
     for (int i = 0; i < 8; i++) {
       float a = float(i) * 0.7854;
       vec2 d = vec2(cos(a), sin(a)) * uPR / uOut;
-      h += texture(tColor, vUv + d * 4.5).a + 0.6 * texture(tColor, vUv + d * 10.0).a;
+      vec4 t1 = texture(tColor, vUv + d * 4.5), t2 = texture(tColor, vUv + d * 10.0);
+      h += t1.a + 0.6 * t2.a;
+      hc += t1.rgb * t1.a + 0.6 * t2.rgb * t2.a;
     }
+    // Seasons: while the festival's lights are up, a halo takes the colour of what glows.
+    vec3 warm = uFestive > 0.0 ? mix(uLampWarm, hc / max(h, 1e-3), uFestive * 0.7) : uLampWarm;
     h = clamp(h / 8.0, 0.0, 1.0);
-    g += uLampWarm * h * uHalo * uGlow * (1.0 - glow) * 0.55;
+    g += warm * h * uHalo * uGlow * (1.0 - glow) * 0.55;
   }
 
   if (uStars > 0.0) {
@@ -301,7 +310,22 @@ void main(){
     }
   }
 
+  // Seasons: mist. It lies low, thickest at the water and thinning up the hills, in slow banks that
+  // drift; it is read at the world point under the pixel, so it stays put when the view turns.
+  float mist = 0.0;
+  if (uFog > 0.0) {
+    float dd = texture(tDepth, vUv).x;
+    vec2 ndc = vUv * 2.0 - 1.0;
+    vec3 wp = uEye + uRight * ndc.x + uUp * ndc.y + uForward * (uNear + dd * uDepthRange);
+    float banks = n2(wp.xz * 0.13 + uTime * vec2(0.025, 0.01)) * 0.65 + n2(wp.xz * 0.41 - uTime * 0.02) * 0.35;
+    float low = 1.0 - smoothstep(uFogY + 0.05, uFogY + 2.8, wp.y + (banks - 0.5) * 1.6);
+    mist = uFog * mix(low * (0.45 + 0.55 * banks), 0.35, bg) * (1.0 - glow * 0.7);
+    g = mix(g, uFogCol, clamp(mist, 0.0, 0.85));
+  }
   float dens = mix(1.0, 0.8 + 0.2 * pen.w, steady);
+  dens *= 1.0 - 0.55 * clamp(mist, 0.0, 1.0);
+  // Seasons: a small light glowing is not swallowed by its own outline.
+  if (uFestive > 0.0) dens *= 1.0 - glow * uFestive * 0.6;
   g = mix(g, uInk, clamp(e * 1.15, 0.0, 1.0) * dens);
 
   // Paper grain, after everything: per-pixel tooth, short fibres, soft mottling, the odd fleck.

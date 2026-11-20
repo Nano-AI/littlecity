@@ -32,6 +32,8 @@ export interface Router {
   find(from: number, to: number, free?: readonly StructureId[]): Route | null;
   /** Searches run and routes served from memory, for tests and the benchmark. */
   readonly stats: { searches: number; hits: number; expanded: number };
+  /** Makes crossing a node dearer by `extra` (0: as the graph says), for something standing there a while (L56's stalls). */
+  setExtra(node: number, extra: number): void;
 }
 
 const CACHE_MAX = 600;
@@ -150,6 +152,13 @@ export function createRouter(nav: NavGraph): Router {
   return {
     nav,
     stats,
+    setExtra(node, extra) {
+      if (node < 0 || node >= n) return;
+      const want = nav.nodes[node]!.cost + extra;
+      if (cost[node] === want) return;
+      cost[node] = want;
+      cache.clear();
+    },
     find(from, to, free = []) {
       if (from < 0 || to < 0 || from >= n || to >= n) return null;
       if (from === to) return { nodes: [from], links: [], cost: 0 };

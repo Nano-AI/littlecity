@@ -11,7 +11,7 @@
 // (p = 0.2); a townhouse's upper storeys on the door side may carry a
 // balcony (R-H10, p = 0.5). A free gable end gets a small round window
 // (p = HOUSE.gableWindow); the chapel's far gable gets its rose.
-import { below, keyY, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
+import { above, below, keyY, neighbor, NO_CELL, type CellKey, type Dir4 } from '@/core/grid';
 import { defineRule } from '@/resolve/engine/api';
 import { facades } from '@/resolve/facts/facades.fact';
 import { roofRegions } from '@/resolve/facts/roofs.fact';
@@ -60,7 +60,9 @@ export default defineRule<{ s: Structure }>({
     const balconies = new Set<number>();
     for (const f of ctx.plan.featuresByStructure.get(s.id) ?? []) {
       if (f.cell === undefined || f.dir === undefined) continue;
-      if (f.type === 'vista' && f.variant !== 'doorway') taken.add(f.cell * 4 + f.dir);
+      if ((f.type === 'vista' && f.variant !== 'doorway') || f.type === 'mill-race' || f.type === 'forge-front') taken.add(f.cell * 4 + f.dir);
+      // R-H17: the loading doors fill their whole column of the wall.
+      if (f.type === 'loading-doors') for (let k = 0, c = f.cell; k < ((f.params as { storeys?: number } | undefined)?.storeys ?? 2); k++, c = above(c)) taken.add(c * 4 + f.dir);
       if (f.type === 'balcony') balconies.add(f.cell * 4 + f.dir);
     }
     // Columns (and sides) of this house that stand over an alley.
@@ -75,11 +77,15 @@ export default defineRule<{ s: Structure }>({
       // An alley side is the whole wall over the alley, not just its ground storey.
       const alley = f.alley || alleySides.has((f.cell & 4095) * 4 + f.dir);
       if (alley && ctx.rand('alley', f.cell, f.dir) >= 0.5) continue;
+      // R-H18: a barn has few windows, small and shuttered: one wall cell in three.
+      if (role === 'barn' && ctx.rand('barn', f.cell, f.dir) >= 0.34) continue;
 
       let variant: WindowVariant = persona.family;
       const top = info ? keyY(f.cell) === info.maxY : false;
       if (role === 'chapel') variant = 'pointed';
-      else if (role === 'shop') {
+      else if (role === 'barn') variant = 'shuttered';
+      else if (role === 'schoolhouse') variant = 'tall';
+      else if (role === 'shop' || role === 'bridge-shop') {
         if (f.storey === 1 && (f.street === 1 || f.plaza === 1) && f.drop === 0) variant = 'shopfront';
         else if (f.storey >= 2 && (f.street !== undefined || f.plaza !== undefined) && ctx.rand('bay', f.cell, f.dir) < 0.2) variant = 'bay';
       } else if (role === 'townhouse' && mainDoor && f.dir === mainDoor.dir && f.storey >= 2 && !top && ctx.rand('balcony', f.cell) < 0.5) {

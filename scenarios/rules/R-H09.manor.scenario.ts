@@ -1,5 +1,6 @@
-// Fixture for R-H09 (manor): a footprint of 10+ cells or 16+ cells in all.
-// West to east: a 4 × 3 house (footprint 12: a manor, one storey); a 3 × 3
+// Fixture for R-H09 (manor): a footprint of 10+ cells with 2+ storeys, or 16+
+// cells in all. West to east: a 4 × 3 house of two storeys (footprint 12: a
+// manor; one storey would be a home, FX-06); a 3 × 3
 // of two storeys (18 cells: a manor); an E-shaped house (footprint 13); and
 // a 3 × 3 of one storey (9 cells: not one).
 import { scenario } from '@/scenario';
@@ -10,7 +11,7 @@ export default scenario({
   seed: 5109,
   rules: houseDressing,
   build(b) {
-    b.house(8, 10, { w: 4, d: 3, color: 5 });
+    b.house(8, 10, { w: 4, d: 3, floors: 2, color: 5 });
     b.house(14, 10, { w: 3, d: 3, floors: 2, color: 2 });
     b.house(19, 9, { w: 5, d: 2, floors: 2, color: 0 });
     b.house(19, 11, { d: 2, floors: 2, color: 0 });

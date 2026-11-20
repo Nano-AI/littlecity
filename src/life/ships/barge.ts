@@ -21,7 +21,7 @@ import { buildPerson, lookOf, PIECES, type Look } from '@/parts/people/person';
 import { poseOf, rigMatrices } from '@/parts/people/pose';
 import type { ShapePlan } from '@/resolve/plan';
 import { hullSize } from '@/rules/life/berths.fact';
-import { BARGE_CLEAR, lowObstacles } from '@/rules/life/L41.river-barge.rule';
+import { BARGE_CLEAR, bargeWater, lowObstacles } from '@/rules/life/L41.river-barge.rule';
 import { beyond, edgePoints, graphFrom, hullClear, mapEdge, pathAt, pathOf, routeTo, seaField, type Path, type Pt, type SeaField } from '@/rules/life/ship-routes';
 import { SHIPS } from '@/style/ships';
 import { PALETTE, RAMPS } from '@/style/palette';
@@ -31,7 +31,7 @@ import { angleDelta, approach, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { ShipBody } from './body';
-import type { BigShipNews } from './news';
+import { clearAhead, floatPoints, type BigShipNews } from './news';
 import { removalPuff } from './puff';
 import { nearestFree } from './visit';
 
@@ -57,6 +57,12 @@ export class Barge {
   z = 0;
   yaw = 0;
   private from = { x: 0, z: 0, yaw: 0 };
+  /** Lying stern to the way its path runs (it is double-ended, and came in the other way round). */
+  private flip = false;
+  /** The way it goes, along its own hull: +1 bow first, −1 stern first. */
+  private get hullWay(): number {
+    return this.mode === 'run' || this.mode === 'coming' || this.mode === 'leaving' ? this.way * (this.flip ? -1 : 1) : this.way;
+  }
   private to = { x: 0, z: 0, yaw: 0 };
   private t = 0;
   private swell: Swell = { heave: 0, roll: 0, pitch: 0 };
@@ -126,7 +132,8 @@ export class Barge {
       } else this.mode = 'resident';
       return;
     }
-    const g = graphFrom(this.field, this.a, BARGE_CLEAR);
+    // Up and down its river only (L41.river-barge.rule.ts).
+    const g = graphFrom(seaField(bargeWater(shape.facts)), this.a, BARGE_CLEAR);
     const route = routeTo(g, this.a, this.b);
     const was = this.path;
     this.path = route ? pathOf(route) : null;
@@ -184,14 +191,26 @@ export class Barge {
     let moving = false;
     const pole = (path: Path, target: number): boolean => {
       const left = Math.abs(target - this.s);
-      const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + this.t / 3);
+      // It slows for a small boat in its way (going stern first, "ahead" is astern).
+      const here = pathAt(path, this.s);
+      const me = { x: this.x, z: this.z, yaw: here.yaw + (target < this.s ? Math.PI : 0), stern: HULL.stern, bow: HULL.bow, halfBeam: HULL.halfBeam, speed: this.speed };
+      const want = SHIPS.poleSpeed * Math.min(1, 0.25 + left / 2.5) * Math.min(1, 0.3 + this.t / 3) * clearAhead(me, floatPoints(this.stage));
       this.speed += (want - this.speed) * glide(1.2, dt);
       this.s = target > this.s ? Math.min(target, this.s + this.speed * dt) : Math.max(target, this.s - this.speed * dt);
       const p = pathAt(path, this.s);
       const px = this.x, pz = this.z;
       this.x = p.x;
       this.z = p.z;
-      this.yaw += angleDelta(this.yaw, p.yaw) * glide(2, dt);
+      // Lying along the way it goes: the line from a little astern to a little ahead (so the hull follows
+      // the bends, not swinging wide of them). It is double-ended: it never turns about, it poles the other way.
+      const back = pathAt(path, Math.max(0, this.s - 1.2)), fore = pathAt(path, Math.min(path.length, this.s + 1.2));
+      let aim = Math.hypot(fore.x - back.x, fore.z - back.z) > 0.05 ? Math.atan2(fore.x - back.x, fore.z - back.z) : p.yaw;
+      if (this.flip) aim += Math.PI;
+      if (Math.abs(angleDelta(this.yaw, aim)) > Math.PI / 2) {
+        this.flip = !this.flip;
+        aim += Math.PI;
+      }
+      this.yaw += angleDelta(this.yaw, aim) * glide(5, dt);
       this.wake += Math.hypot(this.x - px, this.z - pz);
       return Math.abs(target - this.s) < 1e-6;
     };
@@ -237,7 +256,7 @@ export class Barge {
       }
     }
     // A bridge just ahead (or overhead): the mast comes down.
-    const hx = Math.sin(this.yaw) * this.way, hz = Math.cos(this.yaw) * this.way;
+    const hx = Math.sin(this.yaw) * this.hullWay, hz = Math.cos(this.yaw) * this.hullWay;
     let under = false;
     for (let d = -1.6; d <= 2.4 && !under; d += 0.4) {
       const cx = Math.floor(this.x + hx * d), cz = Math.floor(this.z + hz * d);
@@ -246,13 +265,13 @@ export class Barge {
     this.body.lower = approach(this.body.lower, under ? 1 : 0, dt / 1.6);
     const wind = signals.wind(this.x, this.z);
     const sn = Math.sin(this.yaw), cs = Math.cos(this.yaw);
-    const along = (wind.dirX * sn + wind.dirZ * cs) * this.way;
+    const along = (wind.dirX * sn + wind.dirZ * cs) * this.hullWay;
     this.body.setAll(moving && !under && this.body.lower < 0.05 && along > 0.35 ? 1 : 0);
     const now = onTwos(signals.time.seconds, this.phase);
     if (now !== this.drawn) {
       this.drawn = now;
       swellAt(now, this.phase, 1.2, wind.strength * 0.5, this.swell);
-      this.body.trim(1 / 12, { lee: (wind.dirX * cs - wind.dirZ * sn) * this.way, along, strength: wind.strength }, SHIPS.sailTime);
+      this.body.trim(1 / 12, { lee: (wind.dirX * cs - wind.dirZ * sn) * this.hullWay, along, strength: wind.strength }, SHIPS.sailTime);
     }
     fly(this.x, SEA_Y + this.swell.heave * 0.5, this.z, this.yaw, this.swell.pitch * 0.4, this.swell.roll * 0.4, 1, this.m);
     const edge = Math.max(mapEdge(this.x + sn * 2, this.z + cs * 2), mapEdge(this.x - sn * 2, this.z - cs * 2));
@@ -270,11 +289,11 @@ export class Barge {
   /** The bargeman at the end he poles from (the stern going to B, the bow coming back), facing the way. */
   private drawMan(signals: Signals, moving: boolean): void {
     const rig = this.body.rig;
-    const zl = this.way > 0 ? rig.hull.z(0.13, 0.2) : rig.hull.z(0.88, 0.2);
+    const zl = this.hullWay > 0 ? rig.hull.z(0.13, 0.2) : rig.hull.z(0.88, 0.2);
     const deck = rig.spec.decks[0]!.y;
     const m = this.m;
     const x = m[8]! * zl + m[4]! * deck + m[12]!, y = m[9]! * zl + m[5]! * deck + m[13]!, z = m[10]! * zl + m[6]! * deck + m[14]!;
-    const heading = this.yaw + (this.way > 0 ? 0 : Math.PI);
+    const heading = this.yaw + (this.hullWay > 0 ? 0 : Math.PI);
     const t = signals.time.seconds + this.phase * 5;
     const pose = poseOf(moving ? 'sweep' : 'stand', moving ? t * 0.6 : t);
     rigMatrices(this.look, pose, this.mats);

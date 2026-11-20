@@ -109,7 +109,8 @@ describe('the big town', () => {
     // are indoors for good and do not count toward the cap.
     const residents = town.dressing.actors.filter((a) => a.type === 'resident');
     expect(residents.filter((a) => a.variant !== 'indoors')).toHaveLength(PEOPLE.cap);
-    expect(residents.filter((a) => a.variant === 'indoors').length).toBeGreaterThan(10);
+    // (Fewer since FX-12 made the two-storey 2 × 2 houses there homes rather than boathouses: 10 now.)
+    expect(residents.filter((a) => a.variant === 'indoors').length).toBeGreaterThan(5);
     const c = clock(town.world.seed);
     const crowd = createCrowd();
     crowd.sync(town.shape, town.dressing, c.time);

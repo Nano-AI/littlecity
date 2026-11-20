@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// npm run bench [-- <scenario>] [--frames 120] [--no-browser]
+// npm run bench [-- <scenario>] [--frames 120] [--no-browser] [--season winter --weather snow] [--phone]
 //
 // Prints the design section 14 numbers for the synthetic 2,000-block town:
 // both logic stages after one edit (in Node and in the browser), geometry
@@ -48,11 +48,14 @@ if (!flags['no-browser'] && !failed) {
   const server = await startServer();
   const browser = await launchBrowser();
   try {
-    const { page, errors } = await openPage(browser, `${server.url}/tools/shot/index.html`, { width: 1280, height: 800, scale: 2 });
+    // --phone: a phone-sized viewport (390 × 844 at 2×, touch), so the view picks its phone fallbacks.
+    const size = flags.phone ? { width: 390, height: 844, scale: 2, hasTouch: true, isMobile: true } : { width: 1280, height: 800, scale: 2 };
+    const { page, errors } = await openPage(browser, `${server.url}/tools/shot/index.html`, size);
     await page.waitForFunction(() => window.__shot !== undefined, null, { timeout: 60_000 });
-    const r = await page.evaluate(([n, f]) => window.__shot.bench(n, f), [name, frames]);
+    const calendar = { season: flags.season, weather: flags.weather };
+    const r = await page.evaluate(([n, f, c]) => window.__shot.bench(n, f, c), [name, frames, calendar]);
     const fps = 1000 / (r.frameMs.reduce((a, b) => a + b, 0) / r.frameMs.length);
-    console.log(`\nBrowser (headless Chromium, 1280 × 800 at 2×, GPU: ${r.gpu})`);
+    console.log(`\nBrowser (headless Chromium, ${size.width} × ${size.height} at 2×, ${calendar.season ?? 'summer'}, ${calendar.weather ?? 'clear'}, GPU: ${r.gpu})`);
     row('frame rate over ' + r.frames + ' frames', `${fps.toFixed(1)} fps`, 'budget 60 fps');
     row('frame time (median / p95)', `${ms(median(r.frameMs))} / ${ms(p95(r.frameMs))}`);
     row('update + render CPU time (median / p95)', `${ms(median(r.renderMs))} / ${ms(p95(r.renderMs))}`);

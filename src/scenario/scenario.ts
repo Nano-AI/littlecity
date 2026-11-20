@@ -26,6 +26,14 @@ import { createCheck, type Check } from './check';
 
 /** A part of the day (held at its middle), or a phase 0–1 of the dusk cycle. */
 export type TimeOfDay = 'day' | 'dusk' | 'night' | 'dawn' | number;
+/**
+ * Added by Seasons (design section 13a; docs/swarm/requests/seasons.md). A season held at its usual
+ * point ('festival' is winter with the lights up), or a position in the year 0–1 from the start of
+ * spring. Scenarios, screenshots and the guide are summer unless they say otherwise.
+ */
+export type SeasonOfYear = 'spring' | 'summer' | 'autumn' | 'winter' | 'festival' | number;
+/** Added by Seasons. Weather held for the scenario (settled at once: snow lies, the town is wet). Default 'clear'. */
+export type WeatherOfDay = 'clear' | 'cloudy' | 'rain' | 'storm' | 'fog' | 'wind' | 'snow';
 
 export interface CameraSpec {
   /** Used in the screenshot file name; defaults to the camera's index. */
@@ -40,6 +48,9 @@ export interface CameraSpec {
   target: [number, number, number];
   /** Overrides the scenario's time for this camera. */
   time?: TimeOfDay;
+  /** Added by Seasons: overrides the scenario's season and weather for this camera. */
+  season?: SeasonOfYear;
+  weather?: WeatherOfDay;
 }
 
 export interface ScenarioDef {
@@ -66,6 +77,10 @@ export interface ScenarioDef {
   cameras?: CameraSpec[];
   /** Default 'day'. */
   time?: TimeOfDay;
+  /** Added by Seasons. Default 'summer'. */
+  season?: SeasonOfYear;
+  /** Added by Seasons. Default 'clear'. */
+  weather?: WeatherOfDay;
   /**
    * Extra rules that exist only in this scenario, run together with the
    * discovered ones. For gallery entries and fixtures that must show a part

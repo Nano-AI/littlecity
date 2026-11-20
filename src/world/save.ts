@@ -22,11 +22,23 @@
 // generator 1 is written exactly as before (version 1 or 2), so every old
 // link and file still opens on the island it was built on.
 //
-// Version 4 (2026-11-19, mischief: design section 13b) is version 3 plus,
-// after the edge list, the damaged blocks: count, then per damaged block its
-// index in the block list (delta varint) and its damage byte (settling
-// dropped). Only a town with a damaged block is written as version 4, so a
-// town with no ruins encodes exactly as before.
+// Version 4 (2026-11-19, shaping the land) is version 3 (generator byte
+// included) followed by optional sections after the edges:
+//
+//   sections = flags (varint) | per set bit, lowest first: length (varint), bytes
+//   bit 0, the reshaped land (World.terrainEdits): count (varint), then per
+//          column in index order: index delta from the previous (varint, the
+//          first from -1), height (byte, 0–10)
+//
+//   bit 1, damaged blocks (Block.ruin, mischief: design section 13b): count
+//          (varint), then per damaged block its index in the block list
+//          above (delta varint, the first from -1) and its damage byte (the
+//          passing "settling" mark is never saved)
+//
+// Each section is self-contained and length-prefixed, so another optional
+// section can take the next bit beside this one without touching it. A town
+// with no section to write is written as before (version 1, 2 or 3), byte for
+// byte; a flag bit this code does not know is "a different version".
 //
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
@@ -36,6 +48,7 @@ import { inBounds, key, keyX, keyY, keyZ, NO_CELL, edgeCells, type CellKey, type
 import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 import type { Block, Rot, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
+import { LAND_MAX, landEditable } from '@/terrain/land';
 import { isRuin, savedRuin } from './damage';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
@@ -49,8 +62,12 @@ const VERSION_1 = 1;
 const VERSION_2 = 2;
 /** Version 2 plus the island generator (a byte after the seed). */
 const VERSION_3 = 3;
-/** Version 3 plus damaged blocks after the edges (mischief). */
+/** Version 3 plus optional sections after the edges (the reshaped land). */
 const VERSION_4 = 4;
+/** Section flags of version 4. Take the next free bit for a new section. */
+const SECTION_LAND = 1 << 0;
+const SECTION_RUINS = 1 << 1;
+const KNOWN_SECTIONS = SECTION_LAND | SECTION_RUINS;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -170,20 +187,7 @@ export function encodeTown(w: World): string {
     prev = e;
     p.byte(EDGE_KINDS.indexOf(w.edges.get(e)!));
   }
-  if (version === VERSION_4) {
-    const ruined: [number, number][] = [];
-    blocks.forEach(([, b], i) => {
-      const r = savedRuin(b.ruin);
-      if (r) ruined.push([i, r]);
-    });
-    p.varint(ruined.length);
-    let pi = -1;
-    for (const [i, r] of ruined) {
-      p.varint(i - pi);
-      pi = i;
-      p.byte(r);
-    }
-  }
+  if (version === VERSION_4) writeSections(p, w, blocks.map(([, b]) => b));
   const payload = Uint8Array.from(p.bytes);
   const head = new Writer();
   head.byte(0x4c);
@@ -197,8 +201,92 @@ export function encodeTown(w: World): string {
   return toBase64Url(all);
 }
 
-/** The codec version a town needs: 4 with a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+/** Version 4's optional sections: the flags, then each present section with its length. */
+function writeSections(p: Writer, w: World, order: readonly Block[]): void {
+  let flags = 0;
+  const sections: number[][] = [];
+  if (w.terrainEdits && w.terrainEdits.size > 0) {
+    flags |= SECTION_LAND;
+    const s = new Writer();
+    const cols = sortedKeys(w.terrainEdits);
+    s.varint(cols.length);
+    let prev = -1;
+    for (const c of cols) {
+      s.varint(c - prev);
+      prev = c;
+      s.byte(w.terrainEdits.get(c)!);
+    }
+    sections.push(s.bytes);
+  }
+  const ruined: [number, number][] = [];
+  order.forEach((b, i) => {
+    const r = savedRuin(b.ruin);
+    if (r) ruined.push([i, r]);
+  });
+  if (ruined.length > 0) {
+    flags |= SECTION_RUINS;
+    const s = new Writer();
+    s.varint(ruined.length);
+    let prev = -1;
+    for (const [i, r] of ruined) {
+      s.varint(i - prev);
+      prev = i;
+      s.byte(r);
+    }
+    sections.push(s.bytes);
+  }
+  p.varint(flags);
+  for (const bytes of sections) {
+    p.varint(bytes.length);
+    for (const b of bytes) p.byte(b);
+  }
+}
+
+/** Reads version 4's sections into the world's optional fields; a reason string if they are damaged. */
+function readSections(r: Reader, out: { terrainEdits?: Map<number, number> }, order: readonly CellKey[], blocks: Map<CellKey, Block>): string | null {
+  const flags = r.varint();
+  if (flags & ~KNOWN_SECTIONS) return OTHER_VERSION;
+  if (flags & SECTION_LAND) {
+    const length = r.varint();
+    const end = r.pos + length;
+    const edits = new Map<number, number>();
+    const n = r.varint();
+    if (n < 1 || n > 48 * 48) return DAMAGED;
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const c = prev + r.varint();
+      if (c === prev || c >= 48 * 48 || !landEditable(c % 48, (c / 48) | 0)) return DAMAGED;
+      prev = c;
+      const h = r.byte();
+      if (h > LAND_MAX) return DAMAGED;
+      edits.set(c, h);
+    }
+    if (r.pos !== end) return DAMAGED;
+    out.terrainEdits = edits;
+  }
+  if (flags & SECTION_RUINS) {
+    const length = r.varint();
+    const end = r.pos + length;
+    const n = r.varint();
+    if (n < 1 || n > order.length) return DAMAGED;
+    let prev = -1;
+    for (let i = 0; i < n; i++) {
+      const at = prev + r.varint();
+      const cell = order[at];
+      if (at === prev || cell === undefined) return DAMAGED;
+      prev = at;
+      const ruin = r.byte();
+      if (!isRuin(ruin) || savedRuin(ruin) !== ruin) return DAMAGED;
+      blocks.set(cell, { ...blocks.get(cell)!, ruin });
+    }
+    if (r.pos !== end) return DAMAGED;
+  }
+  return null;
+}
+
+/** The codec version a town needs: 4 with reshaped land or a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
 export function codecVersion(w: World): 1 | 2 | 3 | 4 {
+  if (w.terrainEdits && w.terrainEdits.size > 0) return VERSION_4;
   for (const b of w.blocks.values()) if (savedRuin(b.ruin)) return VERSION_4;
   if (w.terrainGen === 2) return VERSION_3;
   for (const b of w.blocks.values()) if (b.style) return VERSION_2;
@@ -250,7 +338,7 @@ function decode(code: string): DecodeResult {
   const nBlocks = r.varint();
   if (nBlocks > 48 * 48 * 32) return { ok: false, reason: DAMAGED };
   let px = 0, py = 0, pz = 0, pseq = 0;
-  /** Cells in the order they were read (version 4's damage list points into it). */
+  /** Cells in the order they were read (the ruins section points into it). */
   const order: CellKey[] = [];
   for (let i = 0; i < nBlocks; i++) {
     const seq = pseq + 1 + r.varint();
@@ -305,23 +393,16 @@ function decode(code: string): DecodeResult {
     if (!kind) return { ok: false, reason: DAMAGED };
     edges.set(e, kind);
   }
+  const extra: { terrainEdits?: Map<number, number> } = {};
   if (version === VERSION_4) {
-    const n = r.varint();
-    if (n === 0 || n > order.length) return { ok: false, reason: DAMAGED };
-    let pi = -1;
-    for (let i = 0; i < n; i++) {
-      pi += r.varint();
-      const cell = order[pi];
-      const ruin = r.byte();
-      if (cell === undefined || !isRuin(ruin) || savedRuin(ruin) !== ruin) return { ok: false, reason: DAMAGED };
-      const b = blocks.get(cell)!;
-      if (b.ruin) return { ok: false, reason: DAMAGED };
-      blocks.set(cell, { ...b, ruin });
-    }
+    const bad = readSections(r, extra, order, blocks);
+    if (bad) return { ok: false, reason: bad };
   }
   if (!r.done) return { ok: false, reason: DAMAGED };
-  const world: World = { version: 1, seed, nextSeq, blocks, floors, edges };
-  return { ok: true, world: terrainGen === 2 ? { ...world, terrainGen } : world };
+  let world: World = { version: 1, seed, nextSeq, blocks, floors, edges };
+  if (terrainGen === 2) world = { ...world, terrainGen };
+  if (extra.terrainEdits) world = { ...world, terrainEdits: extra.terrainEdits };
+  return { ok: true, world };
 }
 
 /** The share code, and whether it is short enough for a link (else offer the town file). */

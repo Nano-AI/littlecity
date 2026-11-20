@@ -27,6 +27,8 @@ import { hash } from '@/core/rand';
 import type { Edit, EditResult, Rot, Terrain, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
 import { isRuin } from './damage';
+import { islandOf } from '@/terrain/land';
+import { canShapeLand, shapeLand } from './land';
 
 export type { Block, Edit, EditResult, Rot, World } from '@/core/world';
 
@@ -169,7 +171,8 @@ function canPlaceBlockKind(w: World, t: Terrain, cell: CellKey, kind: PlacedKind
 /** Would this edit be legal? Never throws; an illegal edit comes back with a plain reason. */
 export function canApply(w: World, t: Terrain, e: Edit): EditResult {
   try {
-    return verdict(w, t, e);
+    // The world's own island: the terrain passed may be the generated one, or one from before a land edit.
+    return verdict(w, islandOf(w, t), e);
   } catch {
     return no('that edit could not be read');
   }
@@ -255,6 +258,8 @@ function verdict(w: World, t: Terrain, e: Edit): EditResult {
       if (!b) return no('nothing there');
       return b.ruin ? yes : no('it is not damaged');
     }
+    case 'land':
+      return canShapeLand(w, t, e);
     default:
       return no('unknown edit');
   }
@@ -276,6 +281,7 @@ function edgesAround(cell: CellKey): EdgeKey[] {
 export function applyEdit(w: World, t: Terrain, e: Edit): World {
   const v = canApply(w, t, e);
   if (!v.ok) throw new Error(`applyEdit(${e?.type}): ${v.reason}`);
+  t = islandOf(w, t);
   switch (e.type) {
     case 'placeBlock': {
       let color: number;
@@ -340,6 +346,10 @@ export function applyEdit(w: World, t: Terrain, e: Edit): World {
       const ruin = e.type === 'setRuin' ? e.ruin : 0;
       blocks.set(e.cell, ruin ? { ...rest, ruin } : rest);
       return { ...w, blocks };
+    }
+    case 'land': {
+      const r = shapeLand(w, t, e);
+      return typeof r === 'string' ? w : r.world;
     }
   }
 }
