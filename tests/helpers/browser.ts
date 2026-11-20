@@ -7,6 +7,8 @@
 //   await app.close();                                    // in afterAll
 
 import type { Browser, BrowserContextOptions, Page } from 'playwright';
+import { inject, onTestFinished } from 'vitest';
+import type {} from './e2e-server'; // the type of inject('lcServerUrl')
 import { launchBrowser, openPage } from '../../tools/lib/browser.mjs';
 import { startServer } from '../../tools/lib/vite.mjs';
 
@@ -40,13 +42,34 @@ export function pinCalendar(path: string): string {
   return `${route}?${params}${hash ? `#${hash}` : ''}`;
 }
 
+/** The e2e project's shared dev server (tests/helpers/e2e-server.ts), or '' outside it. */
+function sharedServer(): string {
+  try {
+    return inject('lcServerUrl') ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export async function startApp(): Promise<App> {
-  const server = await startServer();
+  const shared = sharedServer();
+  const server = shared ? { url: shared, close: async () => {} } : await startServer();
   const browser: Browser = await launchBrowser();
   return {
     url: server.url,
     browser,
-    open: (path = '/', opts = {}) => openPage(browser, server.url + pinCalendar(path), opts) as Promise<{ page: Page; errors: string[] }>,
+    async open(path = '/', opts = {}) {
+      const opened = (await openPage(browser, server.url + pinCalendar(path), opts)) as { page: Page; errors: string[] };
+      // A page opened in a test closes when the test ends: a living town draws every frame, and the
+      // pages of earlier tests left open starve the later ones of CPU and GPU (a touch stroke then
+      // landed after the test had looked). A page opened in beforeAll is the file's to close.
+      try {
+        onTestFinished(() => opened.page.context().close().catch(() => {}));
+      } catch {
+        // Not inside a test.
+      }
+      return opened;
+    },
     async close() {
       await browser.close();
       await server.close();
