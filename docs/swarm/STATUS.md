@@ -1033,3 +1033,13 @@ the door exit on screen. Open design question for Derek: should
 residents stay and wander while their house is mended instead of leaving
 the island?
 Running: short-links. Waiting on Derek: fly mode answers.
+
+**Fly mode decided (Derek, 2026-11-20): 1a 2a 3a 4a 5a 6a 7a 8a.** A
+wings button in the top-right group plus F; pointer-lock mouse look;
+WASD, Space up, Shift down, wheel for speed; solid world, stay over the
+map; look only (tray hidden); Escape glides back to the view before
+take-off; Escape outside fly mode closes what is open, else glides to
+the default whole-island view and the piece stays in hand; desktop only.
+Street-level walk mode is dropped. → agent `a118f47399afb0a2a` on
+`swarm/fly` (Opus), porting the flying parts of `swarm/walk`.
+Running: short-links, fly.
