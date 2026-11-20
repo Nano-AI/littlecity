@@ -78,10 +78,21 @@ export type Phase = 'idle' | 'arriving' | 'swing-in' | 'warp-in' | 'moored' | 'w
  * the water, and its berth is free again when it has gone.
  */
 export interface ShipHit {
-  ship: Ship;
+  /** A ship on a visit (null: a barge, or a tall ship passing out at sea). */
+  ship: Ship | null;
   stage: 1 | 2 | 3;
   /** Distance from the blast to the nearest point of the hull's line. */
   d: number;
+  /** Where it was and how big, when it was hit (for the drawing of what comes off it). */
+  kind: ShipKind;
+  x: number;
+  z: number;
+  yaw: number;
+  stern: number;
+  bow: number;
+  halfBeam: number;
+  /** How many go over the side if it goes down. */
+  crew: number;
 }
 
 export interface Ship {
@@ -139,7 +150,9 @@ export interface Passer {
   to: [number, number];
   often: boolean;
   orphan: boolean;
-  phase: 'idle' | 'crossing';
+  phase: 'idle' | 'crossing' | 'sinking';
+  /** Mischief: seconds going down. */
+  sinkT?: number;
   due: number;
   s: number;
   body: ShipBody | null;
@@ -459,7 +472,7 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
       const stage: 0 | 1 | 2 | 3 = d <= r3 ? 3 : d <= r2 ? 2 : d <= r1 ? 1 : 0;
       if (stage === 0 || stage <= (ship.hurt ?? 0)) continue;
       ship.hurt = stage;
-      out.push({ ship, stage, d });
+      out.push({ ship, stage, d, kind: ship.kind, x: ship.pose.x, z: ship.pose.z, yaw: ship.pose.yaw, stern: ship.hull.stern, bow: ship.hull.bow, halfBeam: ship.hull.halfBeam, crew: CREW[ship.kind] });
       if (stage === 3) {
         // It goes down: nobody stays aboard, nothing is tied to the quay.
         ship.crew?.release();
@@ -476,6 +489,34 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
         ship.list = (x - ship.pose.x) * cos - (z - ship.pose.z) * sin > 0 ? -1 : 1;
         setPhase(ship, 'sinking');
       }
+    }
+    // Barges, and tall ships passing out at sea.
+    const reach = (sx: number, sz: number, yaw: number, stern: number, bow: number, halfBeam: number): number => {
+      const sin = Math.sin(yaw), cos = Math.cos(yaw);
+      const along = Math.max(stern, Math.min(bow, (x - sx) * sin + (z - sz) * cos));
+      return Math.max(0, Math.hypot(x - (sx + sin * along), z - (sz + cos * along)) - halfBeam);
+    };
+    for (const b of barges) {
+      if (b.gone) continue;
+      const h = Barge.hull;
+      const d = reach(b.x, b.z, b.yaw, h.stern, h.bow, h.halfBeam);
+      const stage: 0 | 1 | 2 | 3 = d <= r3 ? 3 : d <= r2 ? 2 : d <= r1 ? 1 : 0;
+      if (stage === 0 || stage <= b.hurt) continue;
+      b.hit(stage);
+      out.push({ ship: null, stage, d, kind: 'barge', x: b.x, z: b.z, yaw: b.yaw, stern: h.stern, bow: h.bow, halfBeam: h.halfBeam, crew: 1 });
+    }
+    for (const p of passers) {
+      if (p.phase !== 'crossing' || !p.body) continue;
+      const sx = p.m[12]!, sz = p.m[14]!, yaw = Math.atan2(p.to[0] - p.from[0], p.to[1] - p.from[1]);
+      const d = reach(sx, sz, yaw, -2.85, 3.55, 0.75);
+      const stage: 0 | 1 | 2 | 3 = d <= r3 ? 3 : d <= r2 ? 2 : d <= r1 ? 1 : 0;
+      if (stage === 0) continue;
+      p.body.damage({ sails: p.body.rig.sails.map((_, i) => i).filter((i) => stage >= 2 || i % 2 === 0) });
+      if (stage === 3) {
+        p.phase = 'sinking';
+        p.sinkT = 0;
+      }
+      out.push({ ship: null, stage, d, kind: p.kind, x: sx, z: sz, yaw, stern: -2.85, bow: 3.55, halfBeam: 0.75, crew: stage === 3 ? CREW[p.kind] : 0 });
     }
     return out;
   };
@@ -877,6 +918,22 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
   const stepPasser = (p: Passer, dt: number, signals: Signals): void => {
     if (p.phase === 'idle') {
       p.due -= dt * (p.often ? SHIPS.passLighthouse : 1);
+      return;
+    }
+    if (p.phase === 'sinking') {
+      // Broken out at sea: down where it is, under, and gone; the next comes in its time.
+      p.sinkT = (p.sinkT ?? 0) + dt;
+      const k = Math.min(1, p.sinkT / SINK_TIME);
+      const m = p.m;
+      fly(m[12]!, SEA_Y - 4.2 * k * k, m[14]!, Math.atan2(p.to[0] - p.from[0], p.to[1] - p.from[1]), 0.08 + Math.min(0.42, p.sinkT * 0.05), Math.min(0.7, p.sinkT * 0.1), 1, p.m);
+      p.body?.pose(p.m, 0);
+      if (k >= 1) {
+        p.body?.release();
+        p.body = null;
+        p.phase = 'idle';
+        p.sinkT = 0;
+        p.due = SHIPS.passGapMin + (SHIPS.passGapMax - SHIPS.passGapMin) * rand(seed, 'pass-gap', p.id, Math.floor(signals.time.seconds));
+      }
       return;
     }
     const [x0, z0] = p.from, [x1, z1] = p.to;

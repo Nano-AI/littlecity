@@ -14,7 +14,7 @@
 //                drift a while and sink. Its berth comes free and another ship calls.
 // Nothing shrinks or fades: what goes, goes under the water.
 
-import { SEA_Y } from '@/core/grid';
+import { columnIndex, inColumnBounds, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { compose, rotationY, translation, type Mat4 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { allParts } from '@/gen/discover';
@@ -26,7 +26,8 @@ import { centroid, clonePoly, polysOf, Soup, transformPoly, type Poly } from '@/
 import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import { harbourOf, type Ship, type ShipHit } from '../ships/visit';
 import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director';
-import { flameMesh, smokeMesh, spoutMesh, wreckPieceMesh } from './meshes';
+import { wakeRing } from '../boats/afloat';
+import { flameMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
 import { ownStage, type Owned } from './owned';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -48,6 +49,27 @@ interface Piece {
   spin: number;
   /** A fallen mast: turning over about its foot first (radians to go), its world polygons' matrix. */
   mast?: { tip: number; axisX: number; axisZ: number; pivot: [number, number, number]; t: number };
+  seed: number;
+}
+
+/**
+ * Someone in the water: off the deck of a ship going down in a jump, then swimming for open sea and the
+ * edge of the map (where the renderer cuts them off, as it does the ships), never vanishing where they are.
+ */
+interface Swimmer {
+  h: [InstanceHandle, InstanceHandle];
+  x: number;
+  y: number;
+  z: number;
+  /** The jump: from (x0, y0, z0) over `jump` seconds. */
+  x0: number;
+  y0: number;
+  z0: number;
+  dx: number;
+  dz: number;
+  age: number;
+  jump: number;
+  ring: number;
   seed: number;
 }
 
@@ -74,6 +96,7 @@ interface State {
   own: Owned;
   shape: ShapePlan | null;
   pieces: Piece[];
+  swimmers: Swimmer[];
   burning: Burning[];
   puffs: Puff[];
   spouts: { h: InstanceHandle; age: number }[];
@@ -95,7 +118,8 @@ function hullWithout(ship: Ship, mast: number, shape: ShapePlan): { rest: Poly[]
     const up = cy > m.foot + 0.2;
     const pole = up && Math.abs(cx) < 0.32 && Math.abs(cz - m.z) < 0.42;
     // Its shrouds come down to the rail beside it.
-    const shroud = up && cy > m.foot + 0.5 && Math.abs(cz - m.z) < 0.7 && Math.abs(cx) < 0.9 && Math.abs(cx) > 0.2;
+    // Its shrouds come down from its top to the rail beside it (a little aft of it), all the way down.
+    const shroud = cy > m.foot + 0.08 && cz > m.z - 0.75 && cz < m.z + 0.45 && Math.abs(cx) < 0.95 && Math.abs(cx) > 0.15 && cy > m.foot + 0.15 + (Math.abs(cx) - 0.15) * 0.45;
     (pole || shroud ? gone : rest).push(p);
   }
   return { rest, mast: gone };
@@ -108,10 +132,18 @@ function meshOfPolys(polys: readonly Poly[]): MeshData {
 }
 
 function hit(st: State, stage: LifeStage, h: ShipHit, from: [number, number]): void {
+  const seed = Math.floor(h.x * 131 + h.z * 71) + h.stage;
+  if (h.stage === 3) goesDown(st, h, seed);
+  else if (h.stage === 2 && !h.ship) {
+    // A barge or a tall ship out at sea dismasted: planks off it.
+    for (let i = 0; i < 4; i++) {
+      const a = rand(seed, 'plank', i) * Math.PI * 2;
+      st.pieces.push(piece(st, i % 2 ? 0 : 4, h.x, SEA_Y + 0.6, h.z, Math.cos(a) * 1.2, 2 + rand(seed, 'up', i), Math.sin(a) * 1.2, seed + i));
+    }
+  }
   const ship = h.ship;
-  const body = ship.body;
-  if (!body || !st.shape) return;
-  const seed = h.ship.visits * 31 + ship.look;
+  const body = ship?.body;
+  if (!ship || !body || !st.shape) return;
   // Smoke and flames on deck a while (longer, the worse it is hurt).
   st.burning.push({ ship, age: 0, life: 12 + h.stage * 8, flames: [], puffAcc: 0 });
   // Sails torn away.
@@ -156,18 +188,59 @@ function hit(st: State, stage: LifeStage, h: ShipHit, from: [number, number]): v
       st.pieces.push(piece(st, i % 2 ? 0 : 4, ship.pose.x + sin * (m.z * 0.5), SEA_Y + 0.8, ship.pose.z + cos * (m.z * 0.5), Math.cos(a) * 1.4, 2.2 + rand(seed, 'up', i), Math.sin(a) * 1.4, seed + i));
     }
   }
-  if (h.stage === 3) {
-    // Where it goes down: wreckage on the water.
-    const len = ship.hull.bow - ship.hull.stern;
-    for (let i = 0; i < 9; i++) {
-      const u = rand(seed, 'wreck-u', i), v = rand(seed, 'wreck-v', i) - 0.5;
-      const along = ship.hull.stern + u * len;
-      const sin = Math.sin(ship.pose.yaw), cos = Math.cos(ship.pose.yaw);
-      const x = ship.pose.x + sin * along + cos * v * ship.hull.halfBeam * 2;
-      const z = ship.pose.z + cos * along - sin * v * ship.hull.halfBeam * 2;
-      st.pieces.push(piece(st, i, x, SEA_Y + 0.6, z, (rand(seed, 'wx', i) - 0.5) * 1.6, 1.5 + rand(seed, 'wy', i), (rand(seed, 'wz', i) - 0.5) * 1.6, seed + 100 + i));
+}
+
+/** Where a ship (a barge, a tall ship) goes down: wreckage on the water, a splash, its people over the side. */
+function goesDown(st: State, h: ShipHit, seed: number): void {
+  const len = h.bow - h.stern;
+  const sin = Math.sin(h.yaw), cos = Math.cos(h.yaw);
+  const n = h.kind === 'barge' ? 6 : 9;
+  for (let i = 0; i < n; i++) {
+    const u = rand(seed, 'wreck-u', i), v = rand(seed, 'wreck-v', i) - 0.5;
+    const along = h.stern + u * len;
+    const x = h.x + sin * along + cos * v * h.halfBeam * 2;
+    const z = h.z + cos * along - sin * v * h.halfBeam * 2;
+    // A barge's cargo goes over the side: barrels and crates.
+    const kind = h.kind === 'barge' ? (i % 2 ? 2 : 4) : i;
+    st.pieces.push(piece(st, kind, x, SEA_Y + 0.6, z, (rand(seed, 'wx', i) - 0.5) * 1.6, 1.5 + rand(seed, 'wy', i), (rand(seed, 'wz', i) - 0.5) * 1.6, seed + 100 + i));
+  }
+  st.spouts.push({ h: st.own.stage.spawnMesh(spoutMesh(), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, h.x, SEA_Y, h.z, 1]), age: 0 });
+  abandon(st, h, seed);
+}
+
+/** Which way to swim from (x, z): toward the nearest edge of the map reached over open water, or null. */
+function wayOut(shape: ShapePlan, x: number, z: number): [number, number] | null {
+  const dirs: [number, number, number][] = [[-1, 0, x], [1, 0, SIZE_X - x], [0, -1, z], [0, 1, SIZE_Z - z]];
+  dirs.sort((a, b) => a[2] - b[2]);
+  for (const [dx, dz, far] of dirs) {
+    let open = true;
+    for (let t = 0.5; t < far && open; t += 0.5) {
+      const cx = Math.floor(x + dx * t), cz = Math.floor(z + dz * t);
+      if (!inColumnBounds(cx, cz)) break;
+      if (shape.terrain.height[columnIndex(cx, cz)]! > 0) open = false;
     }
-    st.spouts.push({ h: st.own.stage.spawnMesh(spoutMesh(), [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ship.pose.x, SEA_Y, ship.pose.z, 1]), age: 0 });
+    if (open) return [dx, dz];
+  }
+  return null;
+}
+
+/** The crew of a ship going down jump clear and swim for it. */
+function abandon(st: State, h: ShipHit, seed: number): void {
+  if (!st.shape) return;
+  const n = h.crew;
+  const sin = Math.sin(h.yaw), cos = Math.cos(h.yaw);
+  for (let i = 0; i < n; i++) {
+    const along = h.stern + (h.bow - h.stern) * (0.25 + 0.5 * (i / Math.max(1, n - 1)));
+    const side = i % 2 ? 1 : -1;
+    const x0 = h.x + sin * along + cos * side * h.halfBeam * 0.6, y0 = SEA_Y + 0.75, z0 = h.z + cos * along - sin * side * h.halfBeam * 0.6;
+    // Over the side, a body's length out, then away.
+    const ox = cos * side, oz = -sin * side;
+    const out = wayOut(st.shape, x0 + ox * 1.2, z0 + oz * 1.2) ?? [ox, oz];
+    const look = Math.floor(rand(seed, 'swimmer', i) * 60);
+    st.swimmers.push({
+      h: [st.own.stage.spawnMesh(swimmerMesh(look, 0), HIDDEN), st.own.stage.spawnMesh(swimmerMesh(look, 1), HIDDEN)],
+      x: x0 + ox * 1.1, y: SEA_Y, z: z0 + oz * 1.1, x0, y0, z0, dx: out[0], dz: out[1], age: -i * 0.35, jump: 0.7, ring: 0, seed: seed + i,
+    });
   }
 }
 
@@ -184,6 +257,8 @@ function strike(st: State, stage: LifeStage, x: number, z: number, power: number
 
 function clearAll(st: State): void {
   for (const p of st.pieces) p.h.release();
+  for (const w of st.swimmers) for (const h of w.h) h.release();
+  st.swimmers = [];
   for (const b of st.burning) for (const f of b.flames) f.release();
   for (const p of st.puffs) {
     p.h.release();
@@ -213,10 +288,11 @@ export default defineSystem<State>({
   id: 'mischief.shipwreck',
   order: 41,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, off: () => {} };
+    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, ctx.stage, e));
     // For tests and watching (like __lcPeople): the harbour on this stage.
     Object.defineProperty(globalThis, '__lcHarbour', { get: () => harbourOf(ctx.stage), configurable: true });
+    Object.defineProperty(globalThis, '__lcSwimmers', { get: () => st.swimmers.map((w) => ({ x: w.x, z: w.z, age: w.age })), configurable: true });
     return st;
   },
   sync(st, next) {
@@ -224,6 +300,7 @@ export default defineSystem<State>({
   },
   update(st, dt, signals, ctx) {
     st.time += dt;
+    const stage = ctx.stage;
     for (let i = st.pending.length - 1; i >= 0; i--) {
       const p = st.pending[i]!;
       if (st.time < p.at) continue;
@@ -276,6 +353,51 @@ export default defineSystem<State>({
         st.pieces.splice(i, 1);
       }
     }
+    // ── swimmers: over the side, then away for open water and the edge of the map ──
+    for (let i = st.swimmers.length - 1; i >= 0; i--) {
+      const w = st.swimmers[i]!;
+      w.age += dt;
+      if (w.age < 0) continue;
+      const [a, b] = w.h;
+      let m: Mat4;
+      const yaw = Math.atan2(w.dx, w.dz);
+      if (w.age < w.jump) {
+        // The jump: up off the rail and down into the water, a splash at the end.
+        const k = w.age / w.jump;
+        const x = w.x0 + (w.x - w.x0) * k, z = w.z0 + (w.z - w.z0) * k;
+        const y = w.y0 + (SEA_Y - w.y0) * k + Math.sin(k * Math.PI) * 0.35;
+        m = compose(translation(x, y, z), rotationY(yaw));
+        a.setMatrix(m);
+        a.setVisible(true);
+        b.setVisible(false);
+        continue;
+      }
+      if (w.ring === 0) wakeRing(stage, w.x, w.z, 0.12, 2.4, 1.2);
+      // Swimming: two drawings in turn (on twos), a ripple each stroke.
+      w.x += w.dx * dt * 0.42;
+      w.z += w.dz * dt * 0.42;
+      w.ring += dt;
+      const stroke = Math.floor(st.time * 2.4 + w.seed) % 2;
+      if (w.ring > 0.85) {
+        w.ring = 0.001;
+        wakeRing(stage, w.x, w.z, 0.1, 2.2, 1.1);
+      }
+      const bob = Math.sin(st.time * 4.8 + w.seed) * 0.012;
+      // A little larger than life, so a head in the water reads from the whole-harbour view.
+      m = compose(translation(w.x, SEA_Y - 0.03 + bob, w.z), rotationY(yaw), [1.5, 0, 0, 0, 0, 1.5, 0, 0, 0, 0, 1.5, 0, 0, 0, 0, 1]);
+      const show = stroke ? b : a, hide = stroke ? a : b;
+      show.setMatrix(m);
+      show.setVisible(true);
+      hide.setVisible(false);
+      // At the edge of the map the renderer cuts them off, as it does a ship sailing out.
+      const out = Math.min(w.x, SIZE_X - w.x, w.z, SIZE_Z - w.z);
+      for (const h of w.h) h.setParams(1, 0, 0, out < 1.5 ? -2 : 0);
+      if (out < -0.6) {
+        for (const h of w.h) h.release();
+        st.swimmers.splice(i, 1);
+      }
+    }
+
     // ── fire and smoke aboard a hurt ship, carried with it ──
     for (let i = st.burning.length - 1; i >= 0; i--) {
       const b = st.burning[i]!;

@@ -40,7 +40,7 @@ const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
 const LIE = 18;
 const HULL = hullSize('barge');
 
-type Mode = 'run' | 'coming' | 'leaving' | 'nudging' | 'resident';
+type Mode = 'run' | 'coming' | 'leaving' | 'nudging' | 'resident' | 'sinking';
 
 export class Barge {
   private body: ShipBody;
@@ -89,6 +89,33 @@ export class Barge {
     this.pole = stage.spawnMesh(toolMesh('pole', RAMPS.wood[1]!), HIDDEN);
     this.x = a[0];
     this.z = a[1];
+  }
+
+  /** Mischief: how badly a blast hurt it (0 not at all). */
+  hurt = 0;
+  /** Its hull's reach, for a blast's distance. */
+  static readonly hull = HULL;
+
+  /**
+   * Mischief (design section 13b): hit by a blast. Scorched or worse, its sail is torn; dismasted (2) it
+   * gives up its run and poles away out of town; broken (3) it goes down where it is, the bargeman over
+   * the side (the caller draws him swimming), and is gone when it is under.
+   */
+  hit(stage: 1 | 2 | 3): void {
+    if (stage <= this.hurt || this.gone) return;
+    this.hurt = stage;
+    this.body.damage({ sails: this.body.rig.sails.map((_, i) => i) });
+    if (stage === 3) {
+      this.mode = 'sinking';
+      this.t = 0;
+      for (const h of [...this.man, this.pole]) h.setVisible(false);
+    } else if (stage === 2 && this.mode === 'run') {
+      this.mode = 'leaving';
+      this.leg = this.field ? this.toEdge([this.x, this.z], false) : null;
+      this.s = 0;
+      this.t = 0;
+      if (!this.leg) this.mode = 'resident';
+    }
   }
 
   /** On its way out for good (its run has gone). */
@@ -188,6 +215,15 @@ export class Barge {
 
   update(dt: number, signals: Signals): BigShipNews | null {
     if (this.gone) return null;
+    if (this.mode === 'sinking') {
+      // Down by the stern and under; then gone.
+      this.t += dt;
+      const k = Math.min(1, this.t / 7);
+      fly(this.x, SEA_Y - 2.4 * k * k, this.z, this.yaw, 0.1 + Math.min(0.35, this.t * 0.06), Math.min(0.4, this.t * 0.07), 1, this.m);
+      this.body.pose(this.m, this.yaw);
+      if (k >= 1) this.gone = true;
+      return null;
+    }
     let moving = false;
     const pole = (path: Path, target: number): boolean => {
       const left = Math.abs(target - this.s);

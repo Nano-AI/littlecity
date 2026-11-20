@@ -179,8 +179,9 @@ try {
     }
   }
 
+  let shipAt = null;
   const applyEdits = (list) =>
-    page.evaluate((edits) => {
+    page.evaluate(([edits, ship]) => {
       const lc = window.__lc;
       const key = (x, y, z) => x | (z << 6) | (y << 12);
       const done = [];
@@ -188,6 +189,15 @@ try {
         const cell = key(e.x, e.y, e.z);
         const m = lc.mischief;
         if (e.verb === 'fire') { done.push(m.ignite(cell) ? 'lit' : 'would not catch'); continue; }
+        if ((e.verb === 'shipbomb' || e.verb === 'shipnuke') && ship) {
+          const mx = ship.x + Math.sin(ship.yaw) * ship.mid, mz = ship.z + Math.cos(ship.yaw) * ship.mid;
+          const off = ship.beam + e.x;
+          const px = mx - Math.cos(ship.yaw) * off * ship.dir, pz = mz + Math.sin(ship.yaw) * off * ship.dir;
+          if (e.verb === 'shipnuke') m.dropNuke([px, 0.4, pz]);
+          else m.dropBomb([px, 1.2, pz]);
+          done.push(e.verb);
+          continue;
+        }
         if (e.verb === 'strike') {
           // Lightning: on the top of the building in that column.
           let top = e.y;
@@ -223,7 +233,7 @@ try {
         done.push(verdict.ok ? 'ok' : `refused: ${verdict.reason}`);
       }
       return done;
-    }, list);
+    }, [list, shipAt]);
 
   // --grow [ms]: start Grow a town from the menu (on a seed:N island), then play that long into it.
   if (flags.grow !== undefined) {
@@ -237,6 +247,26 @@ try {
   const first = parseEdits(flags.edit);
   const second = parseEdits(flags.then);
   const after = Number(flags.after ?? 0);
+  // --ship moored|underway: play on until a big ship is alongside (or under way inside the map), and aim the
+  // camera at it; then the verbs 'shipbomb@<d>,0,0' and 'shipnuke@<d>,0,0' hit it from <d> cells off its sea side.
+  if (flags.ship) {
+    let at = null;
+    for (let waited = 0; waited < Number(flags.wait ?? 240000) && !at; waited += 250) {
+      at = await page.evaluate((want) => {
+        const h = window.__lcHarbour;
+        const ok = (s) => (want === 'underway' ? (s.phase === 'arriving' || s.phase === 'leaving') && s.pose.x > 4 && s.pose.x < 44 && s.pose.z > 4 && s.pose.z < 44 : s.phase === 'moored');
+        const s = h?.ships.find(ok);
+        return s ? { x: s.pose.x, z: s.pose.z, yaw: s.pose.yaw, beam: s.hull.halfBeam, dir: s.dir, mid: (s.hull.stern + s.hull.bow) / 2 } : null;
+      }, String(flags.ship));
+      if (!at) await play(250);
+    }
+    if (!at) console.log('--ship: no ship in time');
+    else {
+      console.log(`--ship: at ${at.x.toFixed(2)},${at.z.toFixed(2)}`);
+      shipAt = at;
+      await page.evaluate(([x, z]) => window.__lc.view.setCamera({ target: [x, 0.6, z] }), [at.x + Math.sin(at.yaw) * at.mid, at.z + Math.cos(at.yaw) * at.mid]);
+    }
+  }
   if (first.length) console.log(`edits: ${(await applyEdits(first)).join(', ')}`);
 
   // --shore: after the edits, play on until somebody is about to come ashore (a new home's people) or step

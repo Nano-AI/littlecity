@@ -9,7 +9,7 @@
 // tumbling, and landing where its rubble heap is baked (so they become it).
 // A spout in the water. Nothing here is saved; the damage is, by the engine.
 
-import { CELL_H, DIR4, key, keyX, keyY, keyZ, SEA_Y, type CellKey } from '@/core/grid';
+import { CELL_H, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, SEA_Y, type CellKey } from '@/core/grid';
 import { compose, multiply, rotationX, rotationY, rotationZ, scaling, translation, type Mat4 } from '@/core/mat4';
 import { hash, rand } from '@/core/rand';
 import { blastChunks, roofSampler } from '@/gen/damage/damage';
@@ -348,7 +348,12 @@ function onEvent(st: State, stage: LifeStage, signals: Signals, e: MischiefEvent
     // The nuke's flash, shockwave, cloud and shudders are drawn by nuke.system.ts.
     if (!e.nuke) {
       st.flashes.push({ h: st.own.stage.spawnMesh(flashMesh(), HIDDEN), age: 0, x, y: y + 0.3, z, power: e.blast.power });
-      addDust(st, stage, x, y, z, LIGHT ? 12 : 20, 1.6, e.bomb);
+      // By the water (a pier, a house on stilts) the dust is thin, so what goes over into the water is seen.
+      const wet = st.shape ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => {
+        const cx = Math.floor(x) + dx!, cz = Math.floor(z) + dz!;
+        return inColumnBounds(cx, cz) && st.shape!.terrain.height[columnIndex(cx, cz)] === 0;
+      }) : false;
+      addDust(st, stage, x, y, z, wet ? (LIGHT ? 4 : 6) : LIGHT ? 12 : 20, wet ? 1.1 : 1.6, e.bomb);
     }
     const hitStructures = new Map<StructureId, number>();
     for (const h of e.blast.hit) {
