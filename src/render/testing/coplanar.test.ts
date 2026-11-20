@@ -66,7 +66,7 @@ const where = (p: CoplanarPair): string => `${p.a} / ${p.b} at ${p.at.map((v) =>
 
 describe('no faces lie on each other in the dense towns (coplanar overlaps with different ink ids)', () => {
   for (const name of SCENARIOS) {
-    test(name, { timeout: 300_000 }, () => {
+    test(name, () => {
       const scn = findScenario(name);
       expect(scn, name).toBeDefined();
       const built = buildScenario(scn!);

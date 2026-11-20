@@ -12,6 +12,7 @@ import path from 'node:path';
 import type { CDPSession, Page } from 'playwright';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { FULL } from '../helpers/tier';
 
 const SHOTS = path.resolve(__dirname, '../../.context/shots');
 const TOWN = '/?scenario=ui-playground';
@@ -620,7 +621,8 @@ describe('desktop: mouse and keys', () => {
     expect(errors).toEqual([]);
   });
 
-  test('how it looks on a desktop', async () => {
+  // A picture for people to look at (.context/shots): only in the full run (LC_FULL=1).
+  test.runIf(FULL)('how it looks on a desktop', async () => {
     const { page, errors } = await open(TOWN, { ...DESKTOP, scale: 2 });
     await pick(page, 'house');
     await page.mouse.move(...(await ground(page, 25, 27)));
@@ -748,7 +750,8 @@ describe('phone: touch', () => {
     expect(errors).toEqual([]);
   });
 
-  test('how it looks on a phone', async () => {
+  // A picture for people to look at (.context/shots): only in the full run (LC_FULL=1).
+  test.runIf(FULL)('how it looks on a phone', async () => {
     const { page, errors } = await open(TOWN, { ...PHONE, scale: 3 });
     await pick(page, 'house', true);
     await page.touchscreen.tap(...(await ground(page, 24, 26)));

@@ -733,7 +733,7 @@ await page.waitForFunction('window.__lc.world().blocks.size === 1');
 await app.close();                                             // afterAll
 ```
 
-`tests/e2e/app.e2e.test.ts` is the worked example (place, stack, erase,
+`tests/e2e/interface.e2e.test.ts` is the worked example (place, stack, erase,
 undo, drag does not place). **Lint** is `eslint.config.js`; `tests/lint.test.ts`
 shows what each directory may and may not do.
 

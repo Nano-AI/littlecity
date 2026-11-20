@@ -5,9 +5,9 @@
 
 import { describe, expect, test, vi } from 'vitest';
 
-// Long fixed-step harbour simulations: minutes of game time. On a machine shared with other work the
-// default 30 s is not enough.
-vi.setConfig({ testTimeout: 300_000 });
+// Long fixed-step harbour simulations: minutes of game time. The ten-minute busy-harbour run is in the
+// full run only (LC_FULL=1); the others, which also hold that no hulls meet, are in the gate.
+vi.setConfig({ testTimeout: sized(60_000, 600_000) });
 import { key } from '@/core/grid';
 import type { Edit, World } from '@/core/world';
 import { resolveDressing, resolveShape } from '@/resolve/index';
@@ -23,6 +23,7 @@ import { recordingStage } from '../testing/stage';
 import ferry from './ferry.system';
 import harbourSystem from './harbour.system';
 import { harbourOf, type Ship } from './visit';
+import { FULL, sized } from '../../../tests/helpers/tier';
 
 type Town = ReturnType<typeof resolveScenario>;
 type Plan = { shape: Town['shape']; dressing: Town['dressing'] };
@@ -135,7 +136,7 @@ describe('big ships at the same time', () => {
     expect(bad.slice(0, 6)).toEqual([]);
   });
 
-  test('a busy harbour keeps moving: after it has filled, a ship is usually coming or going; with seven or eight active no hulls meet', () => {
+  test.runIf(FULL)('a busy harbour keeps moving: after it has filled, a ship is usually coming or going; with seven or eight active no hulls meet', () => {
     let samples = 0, moving = 0, maxActive = 0;
     const bad: string[] = [];
     run(harbourScn, {

@@ -139,8 +139,12 @@ export function coplanarPairs(shape: ShapePlan, dressing: DressingPlan | null = 
   for (const [key, list] of buckets) {
     const [a, b, c, dk] = key.split(',').map(Number) as [number, number, number, number];
     const near = [dk - 1, dk, dk + 1].flatMap((k) => buckets.get(`${a},${b},${c},${k}`) ?? []);
+    // A big plane (the ground, every floor at one level) holds thousands of triangles: only those whose
+    // boxes in the plane meet can overlap, so look them up in a grid instead of trying every pair. The
+    // candidates keep their order in `near`, so the pairs found (and which side is `a`) are as before.
+    const index = near.length > 64 ? planeGrid(near) : null;
     for (const t of list) {
-      for (const o of near) {
+      for (const o of index ? index.around(t) : near) {
         if (o === t || o.ink === t.ink || Math.abs(o.d - t.d) > 2e-4) continue;
         if (o.n[0] * t.n[0] + o.n[1] * t.n[1] + o.n[2] * t.n[2] < 0.99995) continue;
         if (!overlap(t.p, o.p, 1e-3)) continue;
@@ -153,6 +157,52 @@ export function coplanarPairs(shape: ShapePlan, dressing: DressingPlan | null = 
     }
   }
   return out;
+}
+
+/** Cell size of the plane grid, in world units (a cell is 1 × 1 on the ground). */
+const GRID = 0.5;
+
+/**
+ * The triangles of one plane, by the cells of a grid over their 2D corners. `around(t)` gives every
+ * triangle whose box meets t's (touching counts), in `near` order. Two triangles whose boxes are apart
+ * never pass `overlap`, so nothing is missed. Triangles projected on other axes than t (a normal right
+ * between two axes) are always given, as the plain loop gave them.
+ */
+function planeGrid(near: Tri[]): { around(t: Tri): Tri[] } {
+  // The axis left out of t.p (as in coplanarPairs' `big`).
+  const axes = (t: Tri): number => (Math.abs(t.n[0]) > Math.abs(t.n[1]) ? (Math.abs(t.n[0]) > Math.abs(t.n[2]) ? 0 : 2) : Math.abs(t.n[1]) > Math.abs(t.n[2]) ? 1 : 2);
+  const box = (t: Tri): [number, number, number, number] => {
+    let u0 = Infinity, u1 = -Infinity, w0 = Infinity, w1 = -Infinity;
+    for (const [u, w] of t.p) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); w0 = Math.min(w0, w); w1 = Math.max(w1, w); }
+    return [Math.floor(u0 / GRID), Math.floor(u1 / GRID), Math.floor(w0 / GRID), Math.floor(w1 / GRID)];
+  };
+  const cells = new Map<string, number[]>();
+  const odd = new Map<number, number[]>(); // by projection axis: triangles listed for every query on another axis
+  const axisOf = near.map(axes);
+  near.forEach((o, i) => {
+    const [u0, u1, w0, w1] = box(o);
+    for (let u = u0; u <= u1; u++) {
+      for (let w = w0; w <= w1; w++) {
+        const k = `${axisOf[i]}:${u}:${w}`;
+        let l = cells.get(k);
+        if (!l) cells.set(k, (l = []));
+        l.push(i);
+      }
+    }
+    let l = odd.get(axisOf[i]!);
+    if (!l) odd.set(axisOf[i]!, (l = []));
+    l.push(i);
+  });
+  return {
+    around(t: Tri): Tri[] {
+      const ax = axes(t);
+      const found = new Set<number>();
+      const [u0, u1, w0, w1] = box(t);
+      for (let u = u0; u <= u1; u++) for (let w = w0; w <= w1; w++) for (const i of cells.get(`${ax}:${u}:${w}`) ?? []) found.add(i);
+      for (const [other, l] of odd) if (other !== ax) for (const i of l) found.add(i);
+      return [...found].sort((x, y) => x - y).map((i) => near[i]!);
+    },
+  };
 }
 
 /** The kind of a label: `house#12` is `house`, `layer terrain` stays. */

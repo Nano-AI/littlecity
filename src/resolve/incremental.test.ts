@@ -23,6 +23,7 @@ import type { ResolveOptions } from './engine/api';
 import { resolveDressing, resolveShape } from './index';
 import type { DressingPlan, ShapePlan } from './plan';
 import { createStagedResolver } from './staged';
+import { sized } from '../../tests/helpers/tier';
 
 const plain = (v: unknown): unknown =>
   JSON.parse(
@@ -105,12 +106,14 @@ function play(name: string, edits: number, seed: number, land = false): void {
   expect(played).toBeGreaterThan(edits * 0.9);
 }
 
+// Edit counts: the gate plays the first part of each run (the same seeds, so the same first edits);
+// the full run (LC_FULL=1) plays all of it.
 describe('incremental resolve equals a full resolve', () => {
-  test('everything: 300 random legal edits', () => play('everything', 300, 11), 240_000);
-  test('bench-2000: 60 random legal edits', () => play('bench-2000', 60, 12), 240_000);
+  test('everything: random legal edits', () => play('everything', sized(30, 300), 11), sized(60_000, 600_000));
+  test('bench-2000: random legal edits', () => play('bench-2000', sized(8, 60), 12), sized(60_000, 600_000));
   // Stepped ground, where houses join across one-level steps (split-level houses).
-  test('J02.split-level: 150 random legal edits on stepped ground', () => play('J02.split-level', 150, 13), 240_000);
+  test('J02.split-level: random legal edits on stepped ground', () => play('J02.split-level', sized(50, 150), 13), sized(60_000, 600_000));
   // Shaping the land: raising, digging and levelling under and around the town.
-  test('everything: 150 edits, a third of them land edits', () => play('everything', 150, 14, true), 240_000);
-  test('grown town on generator 2: 120 edits, a third of them land edits', () => play('grown-town-1', 120, 15, true), 240_000);
+  test('everything: edits, a third of them land edits', () => play('everything', sized(45, 150), 14, true), sized(60_000, 600_000));
+  test('grown town on generator 2: edits, a third of them land edits', () => play('grown-town-1', sized(36, 120), 15, true), sized(60_000, 600_000));
 });

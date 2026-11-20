@@ -11,6 +11,7 @@ import { resolveShape, resolveTown } from '@/resolve/index';
 import { generateTerrain } from '@/terrain/terrain';
 import { applyEdit, emptyWorld, type World } from '@/world/world';
 import { growTown, planTown } from './index';
+import { FULL, sized } from '../../tests/helpers/tier';
 
 /** Every role in catalogue part R (RoleVocab). The type check below fails if one is added and not listed. */
 const ROLES = [
@@ -70,14 +71,15 @@ describe('grow a town', () => {
     expect(allListed).toBe(true);
   });
 
-  test('seeds 1 to 50: every edit is legal on its own island, and none throws', () => {
-    for (let seed = 1; seed <= 50; seed++) {
+  // Seeds 1 to 12 in the gate, 1 to 50 in the full run (LC_FULL=1).
+  test('seeds 1 to 12 (50 in full): every edit is legal on its own island, and none throws', () => {
+    for (let seed = 1; seed <= sized(12, 50); seed++) {
       const t = generateTerrain(seed, 1);
       const edits = growTown(t, seed);
       expect(edits.length, `seed ${seed}`).toBeGreaterThan(300);
       expect(() => build(t, edits), `seed ${seed}`).not.toThrow();
     }
-  }, 240_000);
+  }, sized(60_000, 600_000));
 
   test('deterministic per seed, different between seeds', () => {
     const t = generateTerrain(7, 1);
@@ -85,7 +87,9 @@ describe('grow a town', () => {
     expect(JSON.stringify(growTown(t, 8))).not.toBe(JSON.stringify(growTown(t, 7)));
   });
 
-  test('under 200 ms for a full island', () => {
+  // Wall-clock budget: only in the full run (LC_FULL=1), where nothing else shares the machine's time with it;
+  // in the gate a busy machine failed it with nothing wrong (docs/swarm/test-diet.md).
+  test.runIf(FULL)('under 200 ms for a full island', () => {
     const terrains = [3, 11, 19, 27, 35].map((s) => generateTerrain(s, 1));
     growTown(terrains[0]!, 3); // warm up
     for (const [i, t] of terrains.entries()) {

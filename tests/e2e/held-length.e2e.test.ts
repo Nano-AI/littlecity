@@ -8,6 +8,7 @@ import path from 'node:path';
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { FULL } from '../helpers/tier';
 
 const SHOTS = path.resolve(__dirname, '../../.context/shots');
 const TOWN = '/?scenario=ui-playground';
@@ -157,15 +158,15 @@ describe('desktop: held length', () => {
     expect(errors).toEqual([]);
   });
 
-  test('how a held run looks on a desktop', async () => {
+  // A picture for people to look at (.context/shots): only in the full run (LC_FULL=1).
+  test.runIf(FULL)('how a held run looks on a desktop', async () => {
     const { page, errors } = await open({ ...DESKTOP, scale: 2 });
     await pick(page, 'wall');
     const [x, y] = await ground(page, 21, 28, 0.66, 0.5);
     await page.mouse.move(x, y);
     for (let i = 0; i < 5; i++) await notch(page);
     await page.waitForFunction('window.__lc.ui.debug().run === 6');
-    await page.waitForTimeout(250);
-    await page.screenshot({ path: path.join(SHOTS, 'held-length-desktop.png') });
+    if (FULL) await page.waitForTimeout(250).then(() => page.screenshot({ path: path.join(SHOTS, 'held-length-desktop.png') })); // a picture for people, full run only
     expect(errors).toEqual([]);
   });
 });
@@ -194,8 +195,7 @@ describe('phone: held length', () => {
     await page.waitForFunction('window.__lc.world().floors.size === 3');
     const floors = await js<number[]>(page, '[...window.__lc.world().floors.keys()].sort((a, b) => a - b)');
     expect(floors).toEqual([23, 24, 25].map((x) => key(x, 1, 27)));
-    await page.waitForTimeout(250);
-    await page.screenshot({ path: path.join(SHOTS, 'held-length-phone.png') });
+    if (FULL) await page.waitForTimeout(250).then(() => page.screenshot({ path: path.join(SHOTS, 'held-length-phone.png') })); // a picture for people, full run only
 
     // One undo step, by the button.
     await page.tap('[data-ui="undo"]');

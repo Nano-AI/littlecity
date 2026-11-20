@@ -1,7 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
-// The 200-seed sweep is slow when the machine is busy; give it room.
-vi.setConfig({ testTimeout: 60_000 });
 import { columnIndex, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { MAT } from '@/core/world';
@@ -16,7 +14,7 @@ describe('the island generator', () => {
       const t = generateTerrain(seed);
       const r = checkTerrain(t.height);
       if (r.problems.length) failures.push(`${seed}: ${r.problems.join(', ')}`);
-      for (let i = 0; i < t.height.length; i++) expect(t.height[i]).toBeLessThanOrEqual(6);
+      expect(Math.max(...t.height), `seed ${seed}`).toBeLessThanOrEqual(6); // one expect a seed, not one a column
     }
     expect(failures).toEqual([]);
   });

@@ -1,4 +1,6 @@
-// The three CLIs, run as real processes the way agents run them.
+// The three CLIs, run as real processes the way agents run them. Each run starts Vite (and for shots
+// and bench a browser), so the gate runs shots and inspect once each; the full run (LC_FULL=1) adds the
+// night shot, the inspect overview, JSON and error paths, and the bench.
 
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
@@ -6,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, test } from 'vitest';
+import { FULL } from '../helpers/tier';
 
 const run = promisify(execFile);
 const ROOT = path.resolve(__dirname, '../..');
@@ -30,34 +33,39 @@ describe('tools', () => {
         // A drawn scene compresses far worse than a blank canvas (about 1.5 kB at this size).
         expect(fs.statSync(file).size).toBeGreaterThan(4000);
       }
-      const dusk = await node(['tools/shots.mjs', 'hello-town', '--out', out, '--size', '640x400', '--time', 'night']);
-      expect(dusk.stdout).toContain('hello-town-front-night.png');
-      expect(fs.readFileSync(path.join(out, 'hello-town-front-night.png')).equals(fs.readFileSync(path.join(out, 'hello-town-front.png')))).toBe(false);
+      if (FULL) {
+        const dusk = await node(['tools/shots.mjs', 'hello-town', '--out', out, '--size', '640x400', '--time', 'night']);
+        expect(dusk.stdout).toContain('hello-town-front-night.png');
+        expect(fs.readFileSync(path.join(out, 'hello-town-front-night.png')).equals(fs.readFileSync(path.join(out, 'hello-town-front.png')))).toBe(false);
+      }
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }
   });
 
-  test('shots CLI fails clearly when nothing matches', async () => {
+  test.runIf(FULL)('shots CLI fails clearly when nothing matches', async () => {
     await expect(node(['tools/shots.mjs', 'no-such-scenario'])).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("No scenario matches 'no-such-scenario'") });
   });
 
   test('inspect CLI prints what town logic decided, through the same discovery', async () => {
-    const overview = (await node(['tools/inspect.mjs'])).stdout;
-    expect(overview).toContain('hello-town');
-    expect(overview).toContain('townFacts');
-    expect(overview).toMatch(/Layers: .*terrain/);
+    if (FULL) {
+      const overview = (await node(['tools/inspect.mjs'])).stdout;
+      expect(overview).toContain('hello-town');
+      expect(overview).toContain('townFacts');
+      expect(overview).toMatch(/Layers: .*terrain/);
+    }
     const { stdout } = await node(['tools/inspect.mjs', 'hello-town']);
     for (const heading of ['Kinds (placed → resolved)', 'Structures (', 'Supports (', 'Features (', 'Sockets (', 'Props (', 'Actors (', 'Walking graph', 'Rules (']) {
       expect(stdout).toContain(heading);
     }
     expect(stdout).toContain('expect(): passed');
+    if (!FULL) return;
     const json = JSON.parse((await node(['tools/inspect.mjs', 'hello-town', '--json'])).stdout);
     expect(json.kinds).toHaveLength(11);
     await expect(node(['tools/inspect.mjs', 'nope'])).rejects.toMatchObject({ code: 1 });
   });
 
-  test('bench CLI reports both logic stages and frame statistics', async () => {
+  test.runIf(FULL)('bench CLI reports both logic stages and frame statistics', async () => {
     const { stdout } = await node(['tools/bench.mjs', '--frames', '20']);
     expect(stdout).toMatch(/bench-2000 \(\d{4} blocks/);
     expect(stdout).toMatch(/resolveShape\(\) after one edit\s+[\d.]+ ms/);

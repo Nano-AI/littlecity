@@ -24,6 +24,7 @@ import scare from './scare.system';
 import swift from './swift.behaviour';
 import { columnTops, openWater, topUnder } from './town';
 import { findScenario } from '@/scenario/discover';
+import { FULL } from '../../../tests/helpers/tier';
 
 const BEHAVIOURS = [gull, pigeon, swift];
 
@@ -389,7 +390,9 @@ describe('all birds', () => {
     expect(rec.spawned.every((w) => w.released)).toBe(true);
   });
 
-  test('thirty birds are cheap: well under 0.2 ms a frame on a quiet machine', () => {
+  // Wall-clock budget: only in the full run (LC_FULL=1), where nothing else shares the machine's time with it;
+  // in the gate a busy machine failed it with nothing wrong (docs/swarm/test-diet.md).
+  test.runIf(FULL)('thirty birds are cheap: well under 0.2 ms a frame on a quiet machine', () => {
     const { life, birds, signals } = live(pigeonsScenario); // 23 pigeons, a gull, swifts
     step(life, signals, 2);
     signals.emit('blockLanded', key(22, 1, 21)); // the busiest they get

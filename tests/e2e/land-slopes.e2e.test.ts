@@ -14,6 +14,7 @@
 import type { CDPSession, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { sized } from '../helpers/tier';
 
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844, hasTouch: true, isMobile: true, scale: 2 };
@@ -35,8 +36,25 @@ async function open(seed: number, opts: Record<string, unknown> = DESKTOP): Prom
   await opened.page.waitForFunction('window.__lc !== undefined && window.__lc.ui !== null');
   // Look straight down the slope from close by, so each column's top is in view.
   await opened.page.evaluate('window.__lc.view.setCamera({ zoom: 2.4, pitch: 50 })');
-  await opened.page.waitForTimeout(500);
+  await settled(opened.page);
   return opened;
+}
+
+/** Waits until the camera has stopped gliding (a point's place on screen holds for a few frames). */
+async function settled(page: Page): Promise<void> {
+  await page.waitForFunction(`(() => {
+    const p = window.__lc.view.worldToScreen([24, 1, 24]).map((v) => Math.round(v * 10)).join();
+    const w = window.__tdCam ??= { p: '', n: 0 };
+    w.n = w.p === p ? w.n + 1 : 0;
+    w.p = p;
+    return w.n >= 3;
+  })()`, undefined, { polling: 'raf' });
+  await page.evaluate('delete window.__tdCam');
+}
+
+/** Waits (up to 10 s) for the ground to change after a stroke; the test's own checks say whether it changed right. */
+async function landMoved(page: Page, before: number[]): Promise<void> {
+  await page.waitForFunction((was) => [...(window as unknown as { __lc: { terrain(): { height: Iterable<number> } } }).__lc.terrain().height].join() !== was, before.join(), { timeout: 10_000 }).catch(() => {});
 }
 
 async function pick(page: Page, item: 'raise' | 'dig' | 'level', tap = false): Promise<void> {
@@ -73,6 +91,7 @@ async function slope(page: Page, minSpan = 2): Promise<{ x: number; z: number; n
 
 /** A real mouse drag through the tops of these columns, without Shift. */
 async function drag(page: Page, cols: [number, number][], shift = false): Promise<void> {
+  const was = await heights(page);
   const points: [number, number][] = [];
   for (const [x, z] of cols) {
     const a = await aim(page, x, z);
@@ -84,11 +103,12 @@ async function drag(page: Page, cols: [number, number][], shift = false): Promis
   for (const p of points.slice(1)) await page.mouse.move(p[0], p[1], { steps: 6 });
   await page.mouse.up();
   if (shift) await page.keyboard.up('Shift');
-  await page.waitForTimeout(150);
+  await landMoved(page, was);
 }
 
 describe('desktop: the land tools on generated slopes', () => {
-  for (const seed of [11, 14, 5]) {
+  // One slope in the gate (the Level click and the phone test below use seed 11 too); three in the full run.
+  for (const seed of sized([14], [11, 14, 5])) {
     test(`Level, seed ${seed}: a plain drag levels every column it covers to the starting height, in one stroke and one undo`, async () => {
       const { page, errors } = await open(seed);
       await pick(page, 'level');
@@ -124,14 +144,13 @@ describe('desktop: the land tools on generated slopes', () => {
     const s = (await slope(page))!;
     const a = (await aim(page, s.x + 2, s.z))!;
     await page.mouse.click(...a.at);
-    await page.waitForTimeout(150);
-    expect(await js<string>(page, 'document.body.innerText')).toContain('Level brings the ground to the height where you press');
+    await page.waitForFunction('document.body.innerText.includes("Level brings the ground to the height where you press")');
     await page.click('[data-ui="length-more"]');
     await page.click('[data-ui="length-more"]');
     const before = await heights(page);
     const to = before[a.col]!;
     await page.mouse.click(...a.at);
-    await page.waitForTimeout(200);
+    await landMoved(page, before);
     const after = await heights(page);
     const x0 = a.col % 48, z0 = Math.floor(a.col / 48);
     let level = 0;
@@ -163,7 +182,7 @@ describe('desktop: the land tools on generated slopes', () => {
     for (let i = 0; i < after.length; i++) expect(Math.abs(after[i]! - before[i]!)).toBeLessThanOrEqual(1);
     // On the sea: the camera turns, the ground does not change.
     await page.evaluate('window.__lc.view.setCamera({ zoom: 1.2 })');
-    await page.waitForTimeout(500);
+    await settled(page);
     const sea = await js<[number, number]>(page, 'window.__lc.view.worldToScreen([45.5, 0.4, 24])');
     const y0 = await yaw(page);
     const h0 = await heights(page);
@@ -200,7 +219,7 @@ describe('phone: the land tools with one finger', () => {
     for (let d = 0; d < 5; d++) points.push((await aim(page, s.x + d, s.z))!.at);
     const to = before[(await aim(page, s.x, s.z))!.col]!;
     await touchDrag(cdp, points);
-    await page.waitForTimeout(200);
+    await landMoved(page, before);
     const after = await heights(page);
     const changed = after.map((v, i) => (v !== before[i] ? i : -1)).filter((i) => i >= 0);
     expect(changed.length).toBeGreaterThan(0);

@@ -86,7 +86,8 @@ describe('the view', () => {
     await look(`window.__look.release()`);
     const after = await settled();
     expect(after.thumb).toEqual(before.thumb);
-    expect(await look<number>(`window.__look.rebuildMs()`)).toBeLessThan(8);
+    // The same town again rebuilds nothing: counted, not timed (under load the old 8 ms budget failed with nothing wrong).
+    expect(await look(`window.__look.rebuildWork()`)).toEqual({ structures: 0, vertices: 0 });
   });
 
   test('props are instances: hiding them changes the picture, showing them restores it', async () => {
