@@ -830,3 +830,17 @@ tiles mid-way; the town glow has a visible oval edge; the second of the
 bang runs at about 46 fps in a grown town (redrawing the flattened town,
 not the cloud); the white-out was not checked in pictures.
 Running: nothing. Unmerged experiments: walk, big-islands.
+
+**Derek after pass 4 and the nuke redo (2026-11-20).**
+- Bug: a new island keeps the old island's scorch marks and burning
+  windows; bug: automatic mending skips buildings over water → mischief
+  agent (`ac4e8c4f1f7628058`, `swarm/mischief`), resumed.
+- Grow a town: far too few trees (wants forests, orchards); each
+  character must be unmistakable, not one token piece (farming village
+  with several farms and fields, castle town with walls everywhere, port
+  town with several quays, more marble through the marble city) → grow-town
+  agent (`a5aa1417a439de127`, `swarm/grow-town`), pass 5, resumed.
+- He was confused by the two grow buttons. Orchestrator: the entry is
+  now "Grow a town here" and grows a different kind of town each time on
+  the same island; the dice are "New island with a new town" (`4045a25`).
+Running: mischief (two bugs), grow-town pass 5.
