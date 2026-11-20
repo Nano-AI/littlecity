@@ -9,6 +9,7 @@ import path from 'node:path';
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { FULL } from '../helpers/tier';
 
 const SHOTS = path.resolve(__dirname, '../../.context/shots');
 /** Flat ground at level 1 on columns 4–43 (the ui playground), a few houses on it. */
@@ -64,11 +65,10 @@ describe('desktop: shaping the land', () => {
     await page.mouse.move(p[0], p[1]);
     await page.waitForFunction('window.__lc.ui.debug().ghost !== null');
     expect(await height(page, x, z)).toBe(1); // the ghost changes nothing
-    await page.screenshot({ path: path.join(SHOTS, 'land-ghost-raise.png') });
+    if (FULL) await page.screenshot({ path: path.join(SHOTS, 'land-ghost-raise.png') }); // a picture for people, full run only
     await page.mouse.click(p[0], p[1]);
     await page.waitForFunction(`window.__lc.terrain().height[${x + z * 48}] === 2`);
-    await page.waitForTimeout(120);
-    await page.screenshot({ path: path.join(SHOTS, 'land-raise-bounce.png') });
+    if (FULL) await page.waitForTimeout(120).then(() => page.screenshot({ path: path.join(SHOTS, 'land-raise-bounce.png') })); // a picture for people, full run only
 
     await pick(page, 'dig');
     const q = await top(page, x, z);
@@ -76,8 +76,7 @@ describe('desktop: shaping the land', () => {
     await page.waitForFunction(`window.__lc.terrain().height[${x + z * 48}] === 1`);
     await page.mouse.click(q[0], q[1] + 12);
     await page.waitForFunction(`window.__lc.terrain().height[${x + z * 48}] === 0`);
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(SHOTS, 'land-dug-pond.png') });
+    if (FULL) await page.waitForTimeout(500).then(() => page.screenshot({ path: path.join(SHOTS, 'land-dug-pond.png') })); // a picture for people, full run only
 
     await page.keyboard.press('ControlOrMeta+z');
     await page.keyboard.press('ControlOrMeta+z');
@@ -104,8 +103,7 @@ describe('desktop: shaping the land', () => {
     let dug = 0;
     for (let x = 12; x <= 30; x++) if ((await height(page, x, 24)) === 0) dug++;
     expect(dug).toBeGreaterThan(14);
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(SHOTS, 'land-stroke-channel.png') });
+    if (FULL) await page.waitForTimeout(600).then(() => page.screenshot({ path: path.join(SHOTS, 'land-stroke-channel.png') })); // a picture for people, full run only
     await page.keyboard.press('ControlOrMeta+z');
     await page.waitForFunction('window.__lc.world().terrainEdits === undefined');
     expect(errors).toEqual([]);
@@ -137,7 +135,7 @@ describe('phone: shaping the land', () => {
   test('tap Raise and Dig, the brush stepper, undo', async () => {
     const { page, errors } = await open(PHONE);
     await pick(page, 'raise', true);
-    await page.screenshot({ path: path.join(SHOTS, 'land-phone-tray.png') });
+    if (FULL) await page.screenshot({ path: path.join(SHOTS, 'land-phone-tray.png') }); // a picture for people, full run only
     expect(await debug(page, 'length')).toBe(1);
     await page.tap('[data-ui="length-more"]');
     await page.tap('[data-ui="length-more"]');
@@ -147,8 +145,7 @@ describe('phone: shaping the land', () => {
     await page.touchscreen.tap(p[0], p[1]);
     // The widest brush has a soft edge: the middle and its four sides rise, the corners wait a dab.
     await page.waitForFunction(`window.__lc.terrain().height[${22 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 22 * 48}] === 2 && window.__lc.terrain().height[${23 + 23 * 48}] === 1`);
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: path.join(SHOTS, 'land-phone-raise.png') });
+    if (FULL) await page.waitForTimeout(400).then(() => page.screenshot({ path: path.join(SHOTS, 'land-phone-raise.png') })); // a picture for people, full run only
     await page.tap('[data-ui="undo"]');
     await page.waitForFunction('window.__lc.world().terrainEdits === undefined');
     expect(errors).toEqual([]);

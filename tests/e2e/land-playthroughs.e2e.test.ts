@@ -10,6 +10,7 @@ import path from 'node:path';
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
+import { FULL } from '../helpers/tier';
 
 const SHOTS = path.resolve(__dirname, '../../.context/shots');
 const DESKTOP = { width: 1280, height: 800 };
@@ -42,7 +43,15 @@ async function brush(n: number): Promise<void> {
 }
 async function look(x: number, z: number, zoom = 3): Promise<void> {
   await js(`window.__lc.view.setCamera({ target: [${x}, 1, ${z}], zoom: ${zoom}, pitch: 52, yaw: 45 })`);
-  await page.waitForTimeout(700);
+  // Until the camera has stopped gliding (a point's place on screen holds for a few frames).
+  await page.waitForFunction(`(() => {
+    const p = window.__lc.view.worldToScreen([${x}, 1, ${z}]).map((v) => Math.round(v * 10)).join();
+    const w = window.__tdCam ??= { p: '', n: 0 };
+    w.n = w.p === p ? w.n + 1 : 0;
+    w.p = p;
+    return w.n >= 3;
+  })()`, undefined, { polling: 'raf' });
+  await js('delete window.__tdCam');
 }
 /** The screen point on top of column (x, z) (or on whatever stands there, `y` levels up). */
 async function at(x: number, z: number, y?: number): Promise<[number, number]> {
@@ -62,7 +71,9 @@ async function drag(cols: [number, number][]): Promise<void> {
   await page.waitForTimeout(200);
 }
 const row = (x0: number, x1: number, z: number): [number, number][] => Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, z]);
+/** A picture for people to look at: only in the full run (LC_FULL=1); it checks nothing. */
 const shot = async (name: string): Promise<void> => {
+  if (!FULL) return;
   await page.mouse.move(640, 790);
   await page.waitForTimeout(700);
   await page.screenshot({ path: path.join(SHOTS, `play-${name}.png`) });
