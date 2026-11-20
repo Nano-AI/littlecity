@@ -1143,6 +1143,22 @@ export const ENTRIES: readonly GuideEntry[] = [
     frame: [19, 20, 24, 22, 3],
   },
 
+  {
+    id: 'market-cross',
+    group: 'town',
+    name: 'Market cross',
+    how: 'Put a single marble block on a plaza with two or more stalls round it (and no fountain beside it): it becomes the market cross.',
+    proof: { prop: { rule: 'D37.market-cross', type: 'market-cross' } },
+    seed: 7656,
+    build(b) {
+      b.plaza(17, 18, 22, 22);
+      b.put('marble', 19, 20, { color: 3 });
+      b.put('stall', 17, 20).put('stall', 21, 21);
+    },
+    view: { yaw: 30, pitch: 32 },
+    pad: -0.1,
+  },
+
   // ── days the town earns (L56, L57) ────────────────────────────────────
   {
     id: 'market-day',
@@ -1182,21 +1198,6 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: 0.2,
     life: { settle: 70, residents: true },
     frame: [16, 16, 24, 21, 2],
-  },
-  {
-    id: 'market-cross',
-    group: 'town',
-    name: 'Market cross',
-    how: 'Put a single marble block on a plaza with two or more stalls round it (and no fountain beside it): it becomes the market cross.',
-    proof: { prop: { rule: 'D37.market-cross', type: 'market-cross' } },
-    seed: 7656,
-    build(b) {
-      b.plaza(17, 18, 22, 22);
-      b.put('marble', 19, 20, { color: 3 });
-      b.put('stall', 17, 20).put('stall', 21, 21);
-    },
-    view: { yaw: 30, pitch: 32 },
-    pad: -0.1,
   },
 ];
 

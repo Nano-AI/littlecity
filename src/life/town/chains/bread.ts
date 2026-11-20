@@ -138,8 +138,11 @@ export function breadChain(): Chain {
         }),
       );
     }
-    const bake = board.stepIn(b.structure!, { cell: b.cell, linger: CHAINS.bake, load: sacks ? 'sack' : null, tag: 'bread:bake', done: (q) => void (q.load = null) });
-    const back = board.stepIn(b.structure!, { cell: b.cell, linger: 3, tag: 'bread:back' });
+    // In at the bakery's door; a stall that bakes (no door) bakes at its counter.
+    const bake =
+      board.stepIn(b.structure!, { cell: b.cell, linger: CHAINS.bake, load: sacks ? 'sack' : null, tag: 'bread:bake', done: (q) => void (q.load = null) }) ??
+      board.stepAt(b.cell, { ...standAt(board, b, 0.15), pose: 'tend', linger: CHAINS.bake, load: sacks ? 'sack' : null, tag: 'bread:bake', done: (q) => void (q.load = null) });
+    const back = board.stepIn(b.structure!, { cell: b.cell, linger: 3, tag: 'bread:back' }) ?? board.stepAt(b.cell, { ...standAt(board, b, 0.15), pose: 'chat', linger: 3, tag: 'bread:back' });
     if (!bake || !back) return null;
     bakeAt = board.now + CHAINS.bakeGap;
     steps.push(bake, deliverStep(board, to, 'tray', 'loaf', CHAINS.tray, 'bread:deliver'), back);

@@ -190,7 +190,8 @@ export function createBoard(opts: BoardOptions): Board {
         if (s) return s;
         plans.delete(p);
       }
-      if (p.child || p.shutIn || p.leaving || p.scuffle) return null;
+      // (Children too: the school and the maypole are theirs; each chain says who it wants.)
+      if (p.shutIn || p.leaving || p.scuffle) return null;
       // Something still in the hands from an errand that ended: home with it first (a chain's own hands go on with it).
       if (p.load && !claimed.get(p)?.keeps?.(p.load)) return null;
       for (const chain of opts.chains) {
@@ -344,8 +345,11 @@ export function createBoard(opts: BoardOptions): Board {
       dressing = nextDressing;
       posts = new Map();
       for (const s of nextDressing.sockets) {
-        if (s.type !== 'errand') continue;
-        const post = readPost(s);
+        // The chains' own posts, and the places other builders mark for activities (disc1-fill:
+        // `activity` sockets named dance, fetch-water, vend, browse, hang-washing, basket, pick, ford…),
+        // read as posts of the chain 'activity' with the socket's name as the role and its owner prop as ref.
+        if (s.type !== 'errand' && s.type !== 'activity') continue;
+        const post = s.type === 'activity' ? { id: s.id, chain: 'activity', role: s.name ?? '', ref: s.owner ?? '', cell: s.cell, ...(s.dir !== undefined ? { dir: s.dir } : {}), ...(s.structure !== undefined ? { structure: s.structure } : {}) } : readPost(s);
         if (!post) continue;
         const list = posts.get(post.chain);
         if (list) list.push(post);

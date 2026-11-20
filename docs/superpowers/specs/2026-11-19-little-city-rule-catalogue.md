@@ -908,6 +908,41 @@ its carrier. Nothing is ever left floating or vanishes in view.
   it runs to bark at a scuffle (L50) within 5 cells. The crowd never waits
   for a dog.
 
+- **L62 · 2 · The new buildings and greens at work** (`chains/places.ts`;
+  posts from `L62.places` and the fill builder's `activity` sockets). Every
+  chain takes its hands from the residents.
+  - *School* (R-H21): a lesson every 150 s by day. The teacher stands at the
+    door waving, the town's children within 30 steps go in for the lesson
+    (70 s), then burst out running to the hopscotch court and hop about
+    14 s, then go home.
+  - *Smithy* (R-H19): the smith hammers 9 s at the anvil, sparks flying with
+    the blows, then works the forge inside; the forge chimney smokes while
+    the forge is hot.
+  - *Shows* (R-M09 theatre, R-M11 bandstand): a show of 60 s every 210 s, by
+    day and dusk. Up to three players on the stage (the theatre's backdrop
+    and its neighbours; the cells at the bandstand's foot) gesture and bow;
+    residents within 24 steps (p=0.35, when 25 s or more are left) come to
+    sit on the tiers or stand round, some clapping. A stage that cannot be
+    walked to from the houses has no show.
+  - *Vendors* (R-H20 bridge shops; the fill builder's wall booths and
+    market cross, `vend`): a shopkeeper or vendor stands at each by day,
+    calling out; customers (p=0.1) stop at a booth (`browse`) and go home
+    with a basket.
+  - *Water* (L52) is also fetched at wall fountains and bailey wells
+    (`fetch-water`); *washing* (L60) also goes out on drying lines and
+    poles (`hang-washing`), by whoever lives within 12 steps.
+  - *Orchard* (`pick`, `basket`): at harvest time (L59's seasons) two pickers
+    reach up into the trees by the ladder 5 s and carry a basket of apples
+    to the big basket.
+  - *Maypole* (`dance`): a dance of 50 s every 180 s by day: up to six
+    dancers (children too) circle the pole by the cells round it.
+  - *Watermill* (R-H16): a mill for L51 and L59 like a windmill.
+    *Warehouse* (R-H17): its loading door is one of L58's places; its own
+    people take the goods in.
+  - *Not yet:* a link across the ford's stepping stones and a stair up to a
+    belvedere in the walking graph; soldiers drilling in the bailey; a
+    hoist that lifts.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

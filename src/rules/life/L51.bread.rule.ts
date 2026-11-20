@@ -11,7 +11,8 @@
 //                  market stalls (in front of the counter), the inn's door,
 //                  a café's door (ref: 'stall' or 'door')
 //
-// Degrades: no bakery → the inn bakes (`bread|bakery|inn`), else nothing; no
+// Degrades: no bakery → any shop bakes (shops are few: R-H07); no shop → the
+// inn (`bread|bakery|inn`); no inn → a market stall (`bread|bakery|stall`); no
 // mill → the bakery bakes from its own flour (no mill post); nowhere to sell
 // → the bakery sells from its door (`bread|sell|door` at the bakery).
 // src/life/town/chains/bread.ts runs it.
@@ -47,7 +48,8 @@ export default defineRule<Data>({
     for (const s of ctx.dressing?.sockets ?? []) if (s.type === 'workplace' && (s.name ?? '').startsWith('baker|') && s.structure !== undefined) bakers.add(s.structure);
     // A shop that is a bakery by its sign first; else one L23 gave a baker.
     const bakeries: Place[] = [];
-    for (const want of [(id: StructureId) => plan.tags.get(id)?.has('shop:bakery') === true, (id: StructureId) => bakers.has(id)]) {
+    // (Shops are few now, by place (R-H07): any shop at all bakes, before the town has to turn to its inn.)
+    for (const want of [(id: StructureId) => plan.tags.get(id)?.has('shop:bakery') === true, (id: StructureId) => bakers.has(id), () => true]) {
       for (const s of structures) {
         if (role(s.id) !== 'shop' || !want(s.id)) continue;
         const at = doorPlace(nav, s.id);
@@ -63,6 +65,15 @@ export default defineRule<Data>({
         if (at) bakeries.push(at);
       }
       ref = 'inn';
+    }
+    if (bakeries.length === 0) {
+      // No shop and no inn: a market stall bakes (its loaves on its own counter).
+      for (const s of structures) {
+        if (role(s.id) !== 'market-stall') continue;
+        const at = stallPlace(ctx, nav, s.id);
+        if (at) bakeries.push(at);
+      }
+      ref = 'stall';
     }
     if (bakeries.length === 0) return [];
     const heart = heartOf(ctx) ?? bakeries[0]!.cell;

@@ -74,6 +74,7 @@ describe('L50 the street scuffle', () => {
     const crowd = createCrowd();
     crowd.sync(town.shape, town.dressing, c.time);
     for (let i = 0; i < 20 * 30; i++) crowd.step(c.tick(1 / 30), c.time);
+    crowd.scuffles.end(); // (one may have started by itself: this one is watched from its start)
     const s = crowd.scuffles.provoke();
     expect(s).not.toBeNull();
     const phases: string[] = [];
@@ -97,6 +98,7 @@ describe('L50 the street scuffle', () => {
     const crowd = createCrowd();
     crowd.sync(town.shape, town.dressing, c.time);
     for (let i = 0; i < 20 * 30; i++) crowd.step(c.tick(1 / 30), c.time);
+    crowd.scuffles.end();
     const s = crowd.scuffles.provoke()!;
     expect(s).not.toBeNull();
     crowd.step(c.tick(1 / 30), c.time);
@@ -118,6 +120,8 @@ describe('L50 the street scuffle', () => {
     for (let i = 0; i < 20 * 30; i++) crowd.step(c.tick(1 / 30), c.time);
     // Everybody out has a loaf.
     for (const p of crowd.people) if (p.mode === 'walk' && !p.child) p.load = 'loaf';
+    // (One may have started by itself in the twenty seconds: this one is to be with the loaves.)
+    crowd.scuffles.end();
     const s = crowd.scuffles.provoke()!;
     expect(s).not.toBeNull();
     expect(s.setDown.size).toBe(2);

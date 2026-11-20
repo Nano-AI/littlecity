@@ -17,7 +17,8 @@ export function waterChain(): Chain {
   const chain: Chain = {
     id: 'water',
     sync(board) {
-      wells = [...board.posts('water')];
+      // And the fill builder's wall fountains and bailey wells (`activity` / fetch-water).
+      wells = [...board.posts('water'), ...board.posts('activity').filter((p) => p.role === 'fetch-water')];
       for (const [id, p] of at) if (!wells.some((w) => w.id === id) || !board.plans.has(p)) at.delete(id);
     },
     offer(p, time, board) {

@@ -14,7 +14,7 @@ import { fxOf } from '../../fx/fx';
 import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
 import type { Board, Chain, Post } from '../board';
-import { canWork, reaches, standAt } from '../hands';
+import { canWork, homeCell, reaches, standAt } from '../hands';
 
 interface Line {
   post: Post;
@@ -54,9 +54,8 @@ export function laundryChain(): LaundryChain {
     },
     sync(board) {
       const before = new Map(lines.map((l) => [l.post.ref, l]));
-      lines = board
-        .posts('laundry')
-        .filter((p) => p.role === 'line')
+      // D05's lines, and the fill builder's drying lines and washing poles (`activity` / hang-washing).
+      lines = [...board.posts('laundry').filter((p) => p.role === 'line'), ...board.posts('activity').filter((p) => p.role === 'hang-washing' && p.ref)]
         .map((post) => {
           const had = before.get(post.ref);
           return { post, out: had?.out ?? true, busy: had?.busy ?? null };
@@ -76,7 +75,9 @@ export function laundryChain(): LaundryChain {
     offer(p, time, board) {
       if (!canWork(p) || board.claimedBy(p)) return null;
       const want = washOut(time, board.weather.rain);
-      const l = lines.find((x) => x.out !== want && !x.busy && x.post.structure === p.home && reaches(board, p, x.post.cell));
+      const homeAt = homeCell(board, p);
+      // The house it hangs from does it; a drying green, whoever lives within a dozen steps.
+      const l = lines.find((x) => x.out !== want && !x.busy && (x.post.structure !== undefined ? x.post.structure === p.home : homeAt !== null && board.dist(homeAt, x.post.cell) <= 12) && reaches(board, p, x.post.cell));
       if (!l) return null;
       // Not all at once along a street: a little seeded hesitation.
       if (rand(p.seed, 'wash', p.trips) < 0.3) return null;

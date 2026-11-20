@@ -36,10 +36,12 @@ export default scenario({
     const via = (v: string): number => nav.links.filter((l) => l.via === v).length;
     check.equal(via('stairs'), 3, 'stairs links');
     check.equal(via('steps'), 1, 'flights of carved steps');
-    check.equal(via('gate'), 1, 'gates');
+    // The fence's gate, and any field gate in a hedgerow the country lanes (U13) planted round the fields.
+    check.equal(via('gate'), 1 + check.props({ type: 'field-gate' }).length, 'gates');
     // Single-file: the narrow flight, the carved steps, the gate. Not the wide flight.
-    check.equal(nav.runs.length, 3, 'single-file stretches');
-    check.equal(check.sockets({ type: 'queue-point' }).length, 6, 'queue points (one at each end of each)');
+    const fieldGates = check.props({ type: 'field-gate' }).length;
+    check.equal(nav.runs.length, 3 + fieldGates, 'single-file stretches');
+    check.equal(check.sockets({ type: 'queue-point' }).length, 6 + 2 * fieldGates, 'queue points (one at each end of each)');
     check.hasSocket({ type: 'queue-point', at: [11, 1, 14] }); // the foot of the narrow flight
     check.hasSocket({ type: 'queue-point', at: [11, 2, 12] }); // and its head
     check.equal(check.sockets({ type: 'queue-point', at: [18, 1, 14] }).length, 0, 'queue points at the wide flight');

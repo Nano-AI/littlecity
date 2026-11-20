@@ -30,7 +30,7 @@ export default defineRule<Data>({
     if (!nav) return [];
     const { facts, plan, seed } = ctx;
     const all = [...facts.structures.values()].sort((a, b) => a.id - b.id);
-    const mills = all.filter((s) => s.kind === 'windmill').map((s) => doorPlace(nav, s.id)).filter((p): p is Place => p !== null);
+    const mills = all.filter((s) => s.kind === 'windmill' || (plan.roles.get(s.id)?.role as string | undefined) === 'watermill').map((s) => doorPlace(nav, s.id)).filter((p): p is Place => p !== null);
     const out: Candidate<Data>[] = [];
     for (const f of all) {
       if (plan.roles.get(f.id)?.role !== 'wheat-field') continue;
