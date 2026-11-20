@@ -57,7 +57,7 @@ export const courtHoop = definePart({
     b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'board' }, () => b.box([-0.17, rimY - 0.04, reach - 0.13], [0.17, rimY + 0.2, reach - 0.11]));
     b.with({ color: PALETTE.red, pattern: PATTERN.none, ink: 'square' }, () => b.box([-0.06, rimY + 0.005, reach - 0.11], [0.06, rimY + 0.085, reach - 0.106]));
     b.with({ color: RIM, pattern: PATTERN.metal, ink: 'rim' }, () => {
-      ring(b, 0, rimY, reach, 0.07, 0.012);
+      ring(b, 0, rimY, reach, 0.085, 0.013);
       b.box([-0.012, rimY - 0.006, reach - 0.11], [0.012, rimY + 0.006, reach - 0.065]);
     });
     // The net: strands from the rim gathering below it.
@@ -65,8 +65,8 @@ export const courtHoop = definePart({
       const n = 8;
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2;
-        const x0 = Math.cos(a) * 0.066, z0 = reach + Math.sin(a) * 0.066;
-        const x1 = Math.cos(a) * 0.04, z1 = reach + Math.sin(a) * 0.04;
+        const x0 = Math.cos(a) * 0.08, z0 = reach + Math.sin(a) * 0.08;
+        const x1 = Math.cos(a) * 0.05, z1 = reach + Math.sin(a) * 0.05;
         const t = 0.004;
         b.quad([x0 - t, rimY, z0], [x0 + t, rimY, z0], [x1 + t, rimY - 0.11, z1], [x1 - t, rimY - 0.11, z1]);
         b.quad([x0 + t, rimY, z0], [x0 - t, rimY, z0], [x1 - t, rimY - 0.11, z1], [x1 + t, rimY - 0.11, z1]);

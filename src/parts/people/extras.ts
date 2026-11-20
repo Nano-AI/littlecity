@@ -85,10 +85,10 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe' | 'racket' | 'mallet';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe', 'racket', 'mallet'];
 /** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0, racket: 4, mallet: 4 };
 
 export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   const b = new MeshBuilder({ ink: `tool-${tool}` });
@@ -180,6 +180,32 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       tube(b, [[0, -0.09, 0.012], [0, -0.5, 0.012]], 0.005, { seg: 4 });
       b.setInk('wick').setColor(PALETTE.yellow);
       b.box([-0.009, -0.53, 0.003], [0.009, -0.5, 0.021]);
+      break;
+    case 'racket': {
+      // The playing field: a tennis racket in the right fist, on along the line of the arm.
+      b.setColor('#f4f1ea');
+      tube(b, [[0, -0.1, 0.0], [0, -0.2, 0.0]], 0.008, { seg: 4 });
+      b.setInk('head').setColor(PALETTE.red).setPattern(PATTERN.none);
+      const n = 10, rx = 0.045, ry = 0.06, cy = -0.26;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+        tube(b, [[Math.cos(a0) * rx, cy + Math.sin(a0) * ry, 0], [Math.cos(a1) * rx, cy + Math.sin(a1) * ry, 0]], 0.006, { seg: 3 });
+      }
+      b.setInk('strings').setColor('#efe6c4');
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+        const p0: [number, number, number] = [Math.cos(a0) * rx, cy + Math.sin(a0) * ry, 0], p1: [number, number, number] = [Math.cos(a1) * rx, cy + Math.sin(a1) * ry, 0];
+        b.tri([0, cy, 0], p0, p1);
+        b.tri([0, cy, 0], p1, p0);
+      }
+      break;
+    }
+    case 'mallet':
+      // The playing field: a croquet mallet, its long shaft down from the fist, the head across the foot.
+      b.setColor(PALETTE.wood);
+      tube(b, [[0, -0.1, 0.0], [0, -0.36, 0.03]], 0.006, { seg: 4 });
+      b.setInk('head').setColor(PALETTE.trunk);
+      b.box([-0.016, -0.4, -0.04], [0.016, -0.36, 0.1]);
       break;
   }
   return b.build();

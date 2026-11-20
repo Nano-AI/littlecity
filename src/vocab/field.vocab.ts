@@ -60,4 +60,17 @@ declare module '@/core/vocab' {
     'umpire-chair.dx': number;
     'umpire-chair.dz': number;
   }
+  interface ActorVocab {
+    // The sport poses (src/parts/people/pose.ts), so the people sheet can show them.
+    'figure/ready': true;
+    'figure/dribble': true;
+    'figure/shoot': true;
+    'figure/pass': true;
+    'figure/swing': true;
+    'figure/serve': true;
+    'figure/kick': true;
+    'figure/dive': true;
+    'figure/bowl': true;
+    'figure/clap': true;
+  }
 }

@@ -94,7 +94,7 @@ export default defineRule<Piece>({
           if (n === NO_CELL || own.has(n) || facts.world.floors.has(n)) continue;
           const pos = edgePos(opposite(d));
           if (!clear.free(n, pos) || clear.walked(n, 'c')) continue;
-          out.push({ anchor: n, key: 'bench', data: { type: 'bench', cell: n, pos, face: opposite(d) } });
+          out.push({ anchor: n, key: `bench:${pos}`, data: { type: 'bench', cell: n, pos, face: opposite(d) } });
           break bench;
         }
       }
@@ -109,7 +109,7 @@ export default defineRule<Piece>({
         if (x < 0 || z < 0 || x > 47 || z > 47 || own.has(n)) continue;
         const pos = cornerPos(a, b);
         if (!clear.free(n, pos) || !clear.headroom(n, pos)) continue;
-        out.push({ anchor: n, key: 'lamp', data: { type: 'lamp', cell: n, pos, face: a } });
+        out.push({ anchor: n, key: `lamp:${pos}`, data: { type: 'lamp', cell: n, pos, face: a } });
       }
     }
     return out;

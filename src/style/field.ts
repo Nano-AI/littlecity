@@ -49,16 +49,19 @@ export const GAME = defineStyle(
     /** How far a player will come to a game (cells from home), and the share of free people who will. */
     reach: 18,
     join: 0.5,
+    /** Most of the town on the courts at once: this share of the residents (never fewer than minPlayers). */
+    share: 0.3,
+    minPlayers: 6,
     /** Seconds to wait for players to arrive before starting with whoever has. */
     gather: 45,
     /** Running speed on court, cells per second (a grown-up; children a little less). */
     run: 1.3,
     jog: 0.7,
     /** Ball radii (world units): big enough to see from the playing zoom. */
-    basketball: 0.045,
-    tennisBall: 0.026,
-    football: 0.042,
-    bowl: 0.03,
+    basketball: 0.06,
+    tennisBall: 0.038,
+    football: 0.058,
+    bowl: 0.04,
     /** Gravity for the ball, world units per second squared (cartoon slow). */
     gravity: 3.2,
     /** Spectators: the share of passers-by who stop to watch, how many at most. */
