@@ -28,8 +28,10 @@ import { createLivingTown, type LivingTown } from '../town';
 import { seasonOf, weatherOf } from '../season';
 import { restingMesh } from '@/parts/people/loads';
 import { place } from '../motion/pose';
+import { fxOf } from '../fx/fx';
 import { markCensusReady, recordHome } from './home';
 import { carriedMesh, HEAVY, HOLD_OF, holdAnchor } from '@/parts/people/loads';
+import { applyHold } from '@/parts/people/hands';
 import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
 import { cloudMesh, dazeStarMesh, popMesh, POPS, swearMesh, type PopKind } from '@/parts/people/scuffle-art';
@@ -183,6 +185,8 @@ interface Drawn {
   costume: Person['costume'];
   /** L50: the hat knocked askew in a scuffle, drawn on its own. */
   askew: InstanceHandle | null;
+  /** The broom's stroke last drawn (a puff of dust at each). */
+  stroke: number;
 }
 
 const loadM = new Float32Array(16);
@@ -243,8 +247,9 @@ interface State {
   art: ScuffleArt | null;
 }
 
-const local = new Float32Array(80);
-const world = new Float32Array(80);
+/** The five pieces' matrices, then (slot 5) a long tool's, in the figure's frame and in the world. */
+const local = new Float32Array(96);
+const world = new Float32Array(96);
 const IDENTITY: Mat4Like = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 /** The resident cap for this device (L21): 60, or 30 on a phone-sized viewport. */
@@ -296,50 +301,16 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     pose.armR = 2.95;
     pose.outR = -0.2;
   }
-  const holding = p.load !== null && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave');
-  if (holding) {
-    // How the load is carried decides the arms (loads.ts); a heavy one bends them forward under it.
-    switch (HOLD_OF[p.load!]) {
-      case 'side':
-        pose.armR = 0.05;
-        pose.outR = 0.12;
-        break;
-      case 'shoulder':
-        pose.armR = 2.75;
-        pose.outR = -0.15;
-        break;
-      case 'shoulderL':
-        pose.armL = 2.75;
-        pose.outL = -0.15;
-        break;
-      case 'head':
-        pose.armL = 2.95;
-        pose.outL = 0.25;
-        break;
-      case 'high':
-        pose.armR = 3.05;
-        pose.outR = 0.08;
-        break;
-      case 'yoke':
-        pose.armL = pose.armR = 2.3;
-        pose.outL = pose.outR = 0.55;
-        break;
-      case 'push':
-        // Both hands down on the handcart's handles.
-        pose.armL = pose.armR = 0.75;
-        pose.outL = pose.outR = -0.12;
-        pose.lean += 0.1;
-        break;
-      default:
-        pose.armL = pose.armR = 1.25;
-        pose.outL = pose.outR = -0.2;
-    }
-    if (walking && HEAVY.has(p.load!)) pose.lean += 0.14;
-  } else if (walking && p.carrying) {
-    // Arms full: a sack, a tray.
-    pose.armL = pose.armR = 1.25;
-    pose.outL = pose.outR = -0.2;
-  }
+  // Hands on what they hold (hands.ts): the thing is placed, then the arms are posed onto it.
+  const tool = toolOf(p, name);
+  const holding = p.load !== null && name !== 'mow' && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave' || name === 'tend');
+  const longTool = applyHold(pose, d.rig, {
+    tool: tool ?? (walking && p.carrying && !p.load ? (p.work?.job === 'baker' ? 'tray' : 'sack') : null),
+    load: holding ? p.load : null,
+    hold: holding ? HOLD_OF[p.load!] : null,
+    anchor: holding ? holdAnchor(p.load!) : null,
+  });
+  if (holding && walking && HEAVY.has(p.load!)) pose.lean += 0.14;
   const sitting = name === 'sit' && p.seat >= 0;
   const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade);
   const away = edge ? 1 - p.fade : 0;
@@ -351,9 +322,10 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   const from = len > 1 ? 0.62 : 0.15;
   const py = p.y + p.lift - depth * easeIn(Math.max(0, Math.min(1, (away - from) / (0.92 - from))));
   rigMatrices(d.look, pose, local, sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
+  if (longTool) local.set(longTool, 80);
   // world = T(x, y, z) · Ry(heading) · S(scale) · local
   const c = Math.cos(p.heading) * scale, s = Math.sin(p.heading) * scale;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (longTool ? 6 : 5); i++) {
     const k = i * 16;
     for (let col = 0; col < 4; col++) {
       const o = k + col * 4;
@@ -365,7 +337,6 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     }
   }
   // The tool of their trade, in the hand that holds it.
-  const tool = toolOf(p, name);
   if (d.tool && d.tool.kind !== tool) {
     d.tool.handle.release();
     d.tool = null;
@@ -388,7 +359,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   }
   // A still figure is left alone: nothing moved, so the page need not redraw its shade.
   let same = d.shown;
-  for (let i = 0; same && i < 80; i++) same = d.last[i] === world[i];
+  for (let i = 0; same && i < 96; i++) same = d.last[i] === world[i];
   if (!d.shown) {
     for (const h of d.handles) h.setVisible(true);
     d.shown = true;
@@ -397,6 +368,15 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
+  // A little dust off the broom at the end of each stroke.
+  if (name === 'sweep' && d.tool?.kind === 'broom') {
+    const stroke = Math.floor((p.poseTime + p.rank * 7) * 3);
+    if (stroke !== d.stroke && stroke % 2 === 0 && stroke % 8 !== 6) {
+      const bx = world[92]!, by = world[93]!, bz = world[94]!;
+      fxOf(stage).play({ actor: 'puff', variant: 'dust' }, 0.4, (t, m) => place(bx + t * 0.04, by + 0.01 + t * 0.05, bz, 0, 0.07 + t * 0.12, 0.07 + t * 0.12, 0.07 + t * 0.12, m));
+    }
+    d.stroke = stroke;
+  }
   // L50: a hat tipped over one ear after a scuffle.
   const askew = p.costume === 'askew' && d.base.hat !== 'none';
   if (askew && !d.askew) d.askew = stage.spawnMesh(popMesh('hat'), IDENTITY);
@@ -488,7 +468,7 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null, base: look, costume: null, askew: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(96), bubble: null, kite: null, tool: null, load: null, base: look, costume: null, askew: null, stroke: 0 });
         },
         removed(p) {
           const d = drawn.get(p);

@@ -253,19 +253,20 @@ const HOLD: Record<Load, Mat4Like> = {
   basket: translation(0, 0.41, 0),
   washing: translation(0, 0.41, 0),
   petals: translation(0, 0.41, 0),
-  tray: translation(0.06, 0.49, 0.05),
+  // On the flat of the right hand, up at the shoulder.
+  tray: translation(0.085, 0.335, 0.05),
   bucket: translation(0, 0, 0),
   fishes: translation(0.115, -0.03, 0.03),
   // A long loaf held up across the chest, one end up past the shoulder.
-  loaf: multiply(translation(0.02, 0.2, 0.11), rotZ(0.9)),
-  bouquet: translation(0, 0.19, 0.12),
-  lantern: translation(0.11, 0.34, 0.12),
+  loaf: multiply(translation(0.0, 0.2, 0.08), rotZ(0.9)),
+  bouquet: translation(0, 0.19, 0.08),
+  lantern: translation(0.09, 0.36, 0.06),
   barrel: multiply(translation(0.075, 0.27, -0.1), rotX(Math.PI / 2)),
   // On the ground ahead of them, its handles in their hands. (A cart is not drawn bigger: it is big enough.)
-  cart: translation(0, 0, 0.36),
-  'cart-1': translation(0, 0, 0.36),
-  'cart-2': translation(0, 0, 0.36),
-  'cart-3': translation(0, 0, 0.36),
+  cart: translation(0, 0, 0.33),
+  'cart-1': translation(0, 0, 0.33),
+  'cart-2': translation(0, 0, 0.33),
+  'cart-3': translation(0, 0, 0.33),
   scythe: multiply(translation(0.08, 0.2, -0.04), rotX(-0.5)),
 };
 
@@ -301,7 +302,7 @@ export function carriedMesh(kind: Load): MeshData {
       else if (kind === 'lantern') {
         // On a short pole held up before them.
         b.setInk('pole').setColor(PALETTE.trunk);
-        tube(b, [[0, -0.2, 0], [0, 0.1, 0]], 0.005, { seg: 4 });
+        tube(b, [[0, -0.19, 0], [0, 0.02, 0]], 0.005, { seg: 4 });
         b.at(translation(0, 0.02, 0), () => drawLoad(b, kind));
       } else drawLoad(b, kind);
     });
