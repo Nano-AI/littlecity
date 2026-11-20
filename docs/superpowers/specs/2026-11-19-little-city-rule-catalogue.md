@@ -695,6 +695,12 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   looking out against the curtain wall, hay, a practice dummy and an
   archery butt. (Garrison drill and stabling the rider's horse here are the
   life builder's.)
+- **U22 · 2 · Ford and stepping stones** (UF-08) — two path dead ends on the
+  ground facing each other straight across 1–2 cells of open water, no arch
+  within 2 (the `fords` fact) → three stepping stones across each water
+  cell, with a ripple ring round each; D03 puts no view bench at a ford's
+  ends. 'activity'/'ford' and 'ford-far' sockets at the two ends for the
+  walking graph (a link there is the life builder's).
 
 ---
 

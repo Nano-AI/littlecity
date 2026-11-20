@@ -1,7 +1,9 @@
-// Country props (U13 country lanes): milestone and field gate. Several parts
+// Country props (U13 country lanes, D36 shrine, U22 ford): milestone, field gate, wayside shrine,
+// stepping stones. Several parts
 // in one file; each is discovered by its own export. The hedgerow is the
 // hedge prop's 'wild' variant (park.part.ts).
 
+import { SEA_Y } from '@/core/grid';
 import { translation, type Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { SLOT_INSET } from '@/gen/frames';
@@ -145,6 +147,33 @@ export const waysideShrine = definePart({
       b.with({ color: PALETTE.brick, pattern: PATTERN.none, ink: `pot${i}` }, () => b.at(translation(x, item.variant === 'niche' ? 0 : 0.06, z), () => b.lathe([[0.025, 0], [0.04, 0.06], [0.045, 0.065]], { segments: 6 })));
       b.with({ color: colors[Math.floor(r('fc', i) * colors.length)]!, pattern: PATTERN.none, ink: `pot${i}`, sway: 0.2 }, () => {
         for (let k = 0; k < 3; k++) dab(b, x + (k - 1) * 0.02, (item.variant === 'niche' ? 0 : 0.06) + 0.08 + (k % 2) * 0.015, z, 0.022, TONE.lit, 5, 0.015);
+      });
+    }
+    return { mesh: b.build() };
+  },
+});
+
+/**
+ * Stepping stones (U22 ford): three flat stones across one cell of river
+ * water, their tops just clear of the surface, a white ripple ring round each
+ * where the current breaks. Frame: the water cell's centre slot (on the river
+ * bed, y = 0 of the cell at sea level); +X along the crossing.
+ */
+export const steppingStones = definePart({
+  prop: 'stepping-stones',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 613));
+    const surface = SEA_Y;
+    for (let i = 0; i < 3; i++) {
+      const x = -0.33 + i * 0.33 + (r('x', i) - 0.5) * 0.06, z = (r('z', i) - 0.5) * 0.14;
+      const rad = 0.11 + r('r', i) * 0.03;
+      b.with({ color: vary(mixColor(PALETTE.stoneShade, PALETTE.rock, 0.4), r('c', i)), pattern: PATTERN.rock, ink: `stone${i}` }, () => {
+        // A squat column from the bed to just above the water, with a rounded top.
+        b.at(translation(x, 0, z), () => b.lathe([[rad * 0.9, surface - 0.25], [rad, surface - 0.02], [rad * 0.92, surface + 0.04], [rad * 0.55, surface + 0.065], [0, surface + 0.07]], { segments: 7 }));
+      });
+      b.with({ color: PALETTE.foam, pattern: PATTERN.foam, ink: `ripple${i}` }, () => {
+        b.at(translation(x, 0, z), () => b.lathe([[rad + 0.05, surface + 0.006], [rad + 0.005, surface + 0.006]], { segments: 9 }));
       });
     }
     return { mesh: b.build() };

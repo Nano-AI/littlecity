@@ -30,6 +30,10 @@ declare module '@/core/vocab' {
     'wayside-shrine/calvary': true;
     'wayside-shrine/niche': true;
     'wayside-shrine.look': number;
+    // U22 ford: three stepping stones across one cell of river water, at the water cell's centre slot
+    // (the river bed); +X along the crossing (face turned so).
+    'stepping-stones': true;
+    'stepping-stones.look': number;
 
     // U14 burgage plots (and U23 orchard). A small fruit tree at a floor slot, square to the world;
     // `fruit` 0 apples, 1 pears. A compost bin at an edge slot against a fence, +Z away from it.
