@@ -35,6 +35,8 @@ import type { Brigade, PumpCart } from './response';
 import { createMischiefEngine, type BlastEvent, type Env, type Hit, type MischiefEngine } from './engine';
 import { NUKE_TIME, waveRadius } from './nuke-timing';
 import { mischiefDrawn } from './owned';
+import { harbourOf } from '../ships/visit';
+import { boatNear } from './boatwreck';
 
 /** Seconds between the batches of hits a shockwave does on its way out. */
 const WAVE_BATCH = 0.2;
@@ -190,6 +192,42 @@ export class Director {
     this.emit({ type: 'cloud', strike: s });
     return ok;
   }
+
+  /**
+   * Lightning on a ship or a boat (no block): the same cloud and bolt at `point`; when it comes down the
+   * vessel's sails catch (shipwreck.system hears the strike: `cell` is -1).
+   */
+  strikeVessel(point: readonly [number, number, number]): void {
+    this.open();
+    const s: Strike = { id: this.nextBomb++, cell: -1 as CellKey, point: [point[0], point[1], point[2]], age: 0, ok: false, struck: false };
+    this.strikes.push(s);
+    this.emit({ type: 'cloud', strike: s });
+  }
+
+  /** The ship or boat under (x, z), if any (the Lightning tool can strike one): its middle. */
+  vesselAt(x: number, z: number): [number, number] | null {
+    if (!this.stage) return null;
+    const h = harbourOf(this.stage);
+    let best: [number, number] | null = null;
+    let bestD = Infinity;
+    for (const s of h?.ships ?? []) {
+      if (s.phase === 'idle' || s.phase === 'sinking' || !s.body) continue;
+      const sin = Math.sin(s.pose.yaw), cos = Math.cos(s.pose.yaw);
+      const along = Math.max(s.hull.stern, Math.min(s.hull.bow, (x - s.pose.x) * sin + (z - s.pose.z) * cos));
+      const cx = s.pose.x + sin * along, cz = s.pose.z + cos * along;
+      const d = Math.hypot(x - cx, z - cz) - s.hull.halfBeam;
+      if (d < 0.6 && d < bestD) {
+        bestD = d;
+        best = [cx, cz];
+      }
+    }
+    if (best) return best;
+    const b = boatNear(this.stage, x, z, 0.8, this.clock);
+    return b ? [b.x, b.z] : null;
+  }
+
+  /** The signals' clock, as the mischief systems last saw it (for the small boats' registry). */
+  clock = 0;
 
   /** Strikes on their way (a cloud gathering, the bolt not yet down). */
   readonly strikes: Strike[] = [];

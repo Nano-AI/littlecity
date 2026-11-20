@@ -91,3 +91,31 @@ test('a rowing boat by a blast capsizes: hull up, then under; whoever was in it 
   expect(boatWrecksOf(rec.stage).size).toBe(0);
   expect(rec.of(boat.id).matrix[5]!).toBeGreaterThan(0.8);
 }, 120_000);
+
+test('lightning on a ship: a cloud over it, the bolt, and its sails catch (scorched: it gives up its visit)', () => {
+  const town = resolveScenario(scn);
+  const rec = recordingStage(town);
+  const signals = createSignals(scn.seed);
+  signals.setPhase(partPhases().day.start + 0.02);
+  signals.hold('run');
+  const life = createLife(rec.stage, signals, { behaviours: [], systems: [harbourSystem, mischiefSystem, shipwreckSystem] });
+  life.sync(town);
+  const harbour = harbourOf(rec.stage)!;
+  const d = mischiefOf(rec.stage);
+  const step = (s: number): void => {
+    for (let t = 0; t < s; t += 1 / 20) {
+      life.update(signals.advance(1 / 20));
+      d.flush();
+    }
+  };
+  for (let i = 0; i < 600 && !harbour.ships.some((s) => s.phase === 'moored'); i++) step(1);
+  const ship = harbour.ships.find((s) => s.phase === 'moored')!;
+  const mid = (ship.hull.stern + ship.hull.bow) / 2;
+  const v = d.vesselAt(ship.pose.x + Math.sin(ship.pose.yaw) * mid, ship.pose.z + Math.cos(ship.pose.yaw) * mid)!;
+  expect(v).not.toBeNull();
+  d.strikeVessel([v[0], 1.5, v[1]]);
+  expect(ship.hurt ?? 0).toBe(0);
+  step(1);
+  expect(ship.hurt).toBe(1);
+  expect(ship.phase).not.toBe('sinking');
+}, 120_000);

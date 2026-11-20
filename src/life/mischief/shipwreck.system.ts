@@ -29,7 +29,7 @@ import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director'
 import { wakeRing } from '../boats/afloat';
 import { crowdOf } from '../doors/table';
 import { flameMesh, shockRingMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
-import { forgetBoatWrecks, strikeBoats } from './boatwreck';
+import { boatAt, forgetBoatWrecks, strikeBoats } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -112,6 +112,8 @@ interface State {
   time: number;
   /** The signals' clock (the small boats' wrecks are timed by it). */
   now: number;
+  /** A small boat burning (its sail caught, or hit at the edge of a blast): flames and smoke on it a while. */
+  boatFires: { id: string; age: number; flame: InstanceHandle; puff: number }[];
   off: () => void;
 }
 
@@ -295,6 +297,7 @@ function strike(st: State, stage: LifeStage, x: number, z: number, power: number
   if (harbour) for (const h of harbour.strike(x, z, r3, r2, r1)) hit(st, stage, h, [x, z]);
   // The small boats: swamped or capsized (their behaviours draw that); whoever was aboard a capsized one swims.
   for (const b of strikeBoats(stage, x, z, st.now, r3, r2, r1)) {
+    if (b.stage < 3) burnBoat(st, b.id);
     const seed = Math.floor(b.x * 97 + b.z * 53) + b.stage;
     if (b.stage === 3) {
       abandon(st, { ship: null, stage: 3, d: 0, kind: 'barge', x: b.x, z: b.z, yaw: b.yaw, stern: -0.4, bow: 0.4, halfBeam: 0.2, crew: b.type === 'fishing-boat' ? 2 : 1 }, seed);
@@ -303,7 +306,14 @@ function strike(st: State, stage: LifeStage, x: number, z: number, power: number
   }
 }
 
+function burnBoat(st: State, id: string): void {
+  if (st.boatFires.some((f) => f.id === id)) return;
+  st.boatFires.push({ id, age: 0, flame: st.own.stage.spawnMesh(flameMesh(id.length % 3), HIDDEN), puff: 0 });
+}
+
 function clearAll(st: State): void {
+  for (const f of st.boatFires) f.flame.release();
+  st.boatFires = [];
   for (const p of st.pieces) p.h.release();
   for (const w of st.swimmers) for (const h of [...w.h, w.halo]) h.release();
   st.swimmers = [];
@@ -327,6 +337,14 @@ function onEvent(st: State, stage: LifeStage, e: MischiefEvent): void {
     harbourOf(stage)?.clearWrecks();
     return;
   }
+  // Lightning on a vessel: its sails catch, and it is scorched as at the edge of a blast.
+  if (e.type === 'strike' && e.strike.cell === -1) {
+    const [x, , z] = e.strike.point;
+    const harbour = harbourOf(stage);
+    if (harbour) for (const h of harbour.strike(x, z, -1, -1, 0.7)) hit(st, stage, h, [x, z]);
+    for (const b of strikeBoats(stage, x, z, st.now, -1, -1, 0.7)) burnBoat(st, b.id);
+    return;
+  }
   if (e.type !== 'blast') return;
   const [x, , z] = e.blast.point;
   if (e.nuke) st.pending.push({ at: st.time + 0.3, x, z, power: NUKE.power });
@@ -337,7 +355,7 @@ export default defineSystem<State>({
   id: 'mischief.shipwreck',
   order: 41,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, now: 0, off: () => {} };
+    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, now: 0, boatFires: [], off: () => {} };
     st.off = st.d.on((e) => onEvent(st, ctx.stage, e));
     // For tests and watching (like __lcPeople): the harbour on this stage.
     Object.defineProperty(globalThis, '__lcHarbour', { get: () => harbourOf(ctx.stage), configurable: true });
@@ -350,6 +368,7 @@ export default defineSystem<State>({
   update(st, dt, signals, ctx) {
     st.time += dt;
     st.now = signals.time.seconds;
+    st.d.clock = st.now;
     const stage = ctx.stage;
     for (let i = st.pending.length - 1; i >= 0; i--) {
       const p = st.pending[i]!;
@@ -469,6 +488,29 @@ export default defineSystem<State>({
       if (out < -0.6) {
         for (const h of [...w.h, w.halo]) h.release();
         st.swimmers.splice(i, 1);
+      }
+    }
+
+    // ── small boats burning: flames on the boat (its sail alight), smoke, then out ──
+    for (let i = st.boatFires.length - 1; i >= 0; i--) {
+      const f = st.boatFires[i]!;
+      f.age += dt;
+      const at = boatAt(stage, f.id);
+      const life = 14;
+      if (!at || f.age > life) {
+        f.flame.release();
+        st.boatFires.splice(i, 1);
+        continue;
+      }
+      const k = Math.min(1, (life - f.age) / 3) * Math.min(1, f.age * 3);
+      const s = 0.2 + 0.4 * k;
+      f.flame.setMatrix(compose(translation(at.x, at.y + 0.18, at.z), rotationY((st.d.camera.yaw * Math.PI) / 180), [s, 0, 0, 0, 0, s * (1.4 + 0.15 * Math.sin(st.time * 9)), 0, 0, 0, 0, s, 0, 0, 0, 0, 1]));
+      f.flame.setParams(1);
+      f.flame.setVisible(k > 0.05);
+      f.puff += dt * 1.5;
+      if (f.puff >= 1 && st.puffs.length < 60) {
+        f.puff = 0;
+        st.puffs.push({ h: st.own.stage.spawnMesh(smokeMesh(false, st.puffs.length % 3, 0), HIDDEN), mist: null, x: at.x, y: at.y + 0.6, z: at.z, age: 0 });
       }
     }
 

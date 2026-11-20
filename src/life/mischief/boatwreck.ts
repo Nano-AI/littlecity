@@ -103,6 +103,27 @@ export function strikeBoats(stage: LifeStage, x: number, z: number, now: number,
   return out;
 }
 
+/** The small boat nearest (x, z) within `reach`, seen lately and not wrecked past scorching: where it is. */
+export function boatNear(stage: LifeStage, x: number, z: number, reach: number, now: number): { x: number; z: number } | null {
+  const r = registry(stage);
+  let best: { x: number; z: number; d: number } | null = null;
+  for (const [id, s] of r.seen) {
+    if (now - s.now > 1 || (r.wrecks.get(id)?.stage ?? 0) > 1) continue;
+    const d = Math.hypot(s.x - x, s.z - z);
+    if (d <= reach && (!best || d < best.d)) best = { x: s.x, z: s.z, d };
+  }
+  return best;
+}
+
+/** Where a small boat was last drawn (its wreck's place if wrecked past scorching), or null. */
+export function boatAt(stage: LifeStage, id: string): { x: number; z: number; y: number } | null {
+  const r = registry(stage);
+  const w = r.wrecks.get(id);
+  if (w && w.stage > 1) return { x: w.x, z: w.z, y: SEA_Y };
+  const s = r.seen.get(id);
+  return s ? { x: s.x, z: s.z, y: SEA_Y } : null;
+}
+
 /** Undo, or a different town: no boat is wrecked any more. */
 export function forgetBoatWrecks(stage: LifeStage): void {
   registry(stage).wrecks.clear();
