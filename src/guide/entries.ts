@@ -487,14 +487,26 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'lighthouse',
     group: 'towers',
     name: 'Lighthouse',
-    how: 'Stack the Light piece, or four or more Auto blocks near the sea.',
+    how: 'Stack the Light piece, or four or more Auto blocks, near the sea. Far inland (six squares or more from water) the Light is a folly tower.',
     proof: { role: 'lighthouse' },
     seed: 7207,
     ground: seaSouth,
     build(b) {
       b.auto(20, 20, { floors: 5 });
     },
-    also: [{ build: (b) => void b.stack('lighthouse', 20, 20, { floors: 3 }) }],
+    also: [{ ground: seaSouth, build: (b) => void b.stack('lighthouse', 20, 20, { floors: 3 }) }],
+    view: FRONT,
+  },
+  {
+    id: 'folly-tower',
+    group: 'towers',
+    name: 'Folly tower',
+    how: 'Stack the Light piece far inland, six squares or more from any water: a stone tower with a belvedere on top for the view.',
+    proof: { role: 'folly-tower' },
+    seed: 7208,
+    build(b) {
+      b.stack('lighthouse', 20, 20, { floors: 4 });
+    },
     view: FRONT,
   },
 

@@ -16,6 +16,7 @@ declare module '@/core/vocab' {
     'churchyard': 'garden'; //   R-G02: a walled or fenced garden beside a chapel
     // marble (R-M08 …)
     'podium': 'marble'; //       R-M08: carries a temple, a stair or a forum: no battlements
+    'folly-tower': 'lighthouse'; // R-L02: a Light far inland: a stone belvedere, no beam
     'obelisk': 'marble'; //      R-M10: a free 1 × 1 marble column 3+ tall on a square
     'theatre': 'marble'; //      R-M09: tiers of seats facing a stage
   }
@@ -25,6 +26,7 @@ declare module '@/core/vocab' {
     'hayloft': true; //          R-H18: a hayloft door and hoist beam, centred in a gable end
     'loading-doors': true; //    R-H17: a column of loading doors up the water side, a hoist beam over them
     'loading-doors.storeys': number; // how many storeys the column climbs (default 2)
+    'cap/belvedere': true; //    R-L02: an open belvedere on a folly tower (no lantern, no beam)
     'forge-front': true; //      R-H19: an open forge front with a glowing hearth, on a ground-storey wall
     'mill-race': true; //        R-H16: the wheel's timber frame and bearing on the water side; owns 'wheel-hub'
   }

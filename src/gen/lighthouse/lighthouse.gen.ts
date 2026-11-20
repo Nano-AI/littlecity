@@ -31,7 +31,8 @@ export function lighthouseShape(s: Structure, plan: ShapePlan): LighthouseShape 
   const top = s.cells[s.cells.length - 1]!;
   const n = s.cells.length;
   const features = plan.featuresByStructure.get(s.id) ?? [];
-  const lantern = features.some((f) => f.type === 'cap' && f.variant === 'lantern-room');
+  // R-L02: a folly's belvedere stands where a lantern room would, on the same deck.
+  const lantern = features.some((f) => f.type === 'cap' && (f.variant === 'lantern-room' || f.variant === 'belvedere'));
   const inWater = keyY(bottom) === 0 && plan.terrain.height[columnIndex(keyX(bottom), keyZ(bottom))] === 0;
   const free = !plan.kinds.has(above(top));
   const lean = free && n >= 2 ? MONUMENTS.towerLean * 0.5 : 0;
@@ -79,6 +80,8 @@ export default defineGenerator({
     const RT = Math.min(RF - 0.05, MONUMENTS.lightRadiusTop + 0.012 * Math.max(0, n - 4));
     const rAt = (y: number): number => RF + ((RT - RF) * Math.min(y, deck)) / deck;
     const features = plan.featuresByStructure.get(s.id) ?? [];
+    // R-L02: a folly is plain coursed stone, not red and white.
+    const folly = plan.roles.get(s.id)?.role === 'folly-tower';
 
     b.at(world, () => {
       if (foot > 0) {
@@ -95,7 +98,7 @@ export default defineGenerator({
         const y0 = i === 0 ? plinthTop : (i * deck) / bands;
         const y1 = ((i + 1) * deck) / bands;
         const red = (bands - 1 - i) % 2 === 0;
-        b.with({ color: red ? PALETTE.red : PALETTE.white, pattern: PATTERN.plaster, ink: `band${i}` }, () =>
+        b.with({ color: folly ? (i % 2 === 0 ? PALETTE.stone : PALETTE.stoneShade) : red ? PALETTE.red : PALETTE.white, pattern: folly ? PATTERN.stone : PATTERN.plaster, ink: `band${i}` }, () =>
           b.lathe([[rAt(y0), y0], [rAt(y1), y1]], { segments: 18, capTop: !shape.lantern && i === bands - 1 }),
         );
       }
@@ -119,6 +122,21 @@ export default defineGenerator({
           break;
         }
         case 'cap': {
+          if (f.variant === 'belvedere') {
+            // R-L02: an open belvedere: four slim posts on a kerb under a little dome, a finial on top.
+            draw(f.id, translation(0, deck, 0), (mb) => {
+              const r = Math.min(0.2, RT - 0.06);
+              mb.with({ color: PALETTE.stoneShade, pattern: PATTERN.none, ink: 'kerb' }, () => mb.lathe([[r + 0.035, 0], [r + 0.035, 0.08], [r, 0.08]], { segments: 12 }));
+              mb.with({ color: PALETTE.stone, pattern: PATTERN.none, ink: 'posts' }, () => around(mb, 4, r - 0.02, Math.PI / 4, () => mb.boxAt([0, 0.08, 0], [0.045, 0.32, 0.045], { skip: ['bottom', 'top'] })));
+              mb.with({ color: PALETTE.stone, pattern: PATTERN.none, ink: 'entablature' }, () => mb.lathe([[r + 0.01, 0.4], [r + 0.05, 0.4], [r + 0.05, 0.46], [r * 0.2, 0.46]], { segments: 12 }));
+              mb.with({ color: PALETTE.glass, pattern: PATTERN.shingles, ink: 'dome' }, () =>
+                mb.lathe([[r + 0.05, 0.46], [r * 0.95, 0.56], [r * 0.7, 0.64], [r * 0.35, 0.69], [0, 0.7]], { segments: 14 }),
+              );
+              mb.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => ball(mb, 0, 0.74, 0, 0.035, 0.04, 8));
+              return { 'tower-top': translation(0, 0.78, 0), 'flag-mount': translation(0, 0.78, 0) };
+            });
+            break;
+          }
           if (f.variant !== 'lantern-room') break;
           draw(f.id, translation(0, deck, 0), (mb) => {
             const r = Math.min(0.2, RT - 0.06);

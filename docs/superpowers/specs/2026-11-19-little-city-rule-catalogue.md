@@ -160,6 +160,12 @@ type and which later rules apply.
 
 ### Lighthouse
 
+- **R-L02 · 2 · Folly tower** (discovery 1, RC-21) — a lighthouse structure
+  with no open water (terrain at sea level) within 6 columns of its foot →
+  plain coursed stone instead of the bands, the gallery with its rail, and
+  an open belvedere (four posts, a dome, a gilt finial) in place of the
+  lantern room: no lantern socket, so no beam (L09); a house touching it is
+  no keeper's cottage (R-H02). Priority 7995 (before R-L01).
 - **R-L01 · 1 · Lighthouse** — always → red and white bands per storey,
   gallery rail and lantern room on top, beam (L09). ≥ 6 tall adds a second
   gallery halfway up.
