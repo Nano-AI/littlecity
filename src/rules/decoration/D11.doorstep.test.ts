@@ -20,7 +20,7 @@ const LEAF = ['plain', 'shop', 'double'] as const;
 
 describe('D11 doormats lie on one surface, a hair over it, clear of the leaf and of everything else', () => {
   for (const name of TOWNS) {
-    test(name, { timeout: 240_000 }, () => {
+    test(name, () => {
       const scn = findScenario(name)!;
       const built = buildScenario(scn);
       const opts = scenarioResolveOptions(scn);
