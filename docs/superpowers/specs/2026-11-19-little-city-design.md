@@ -484,6 +484,27 @@ and walk through it as one of its people.
 - **Limits.** Walk mode never changes the town or the save. On phones it
   uses the same performance fallbacks as the builder.
 
+**Time, season and weather sliders** (Derek, 2026-11-19; replaces the
+click-to-cycle buttons). Clicking the sun, season or weather button opens a
+small slider beside it. Time of day: a track from dawn round to night with
+a "running" stop at one end. Season: spring to winter (with the festival
+at its end) and a "running" stop. Weather: clear, cloudy, wind, mist, rain,
+storm, snow, and "auto". Dragging scrubs the town through the values, and
+letting go eases to the chosen one over a few seconds: nothing ever
+switches instantly, whether set by the slider or by the town's own clock.
+
+**Field** (Derek, 2026-11-19). A new ground piece in the Ground drawer:
+a playing field, painted like path and plaza. What a patch of field
+becomes depends on its shape and size, and people come and play on it:
+small rectangles become hard courts (a basketball court with hoops, a
+tennis court with a net), larger ones grass pitches (a kickabout pitch
+with goals, a bowling or croquet lawn), a long thin one a running track or
+bowling alley, and so on; the builder chooses the exact table, makes the
+shapes easy to hit, and lists them in the field guide. Residents turn up,
+play real little games you can follow (a ball that moves, a rally, a shot
+at the hoop, a goal and a cheer), take turns, and others watch from the
+edge. A field with nobody free is just a quiet court.
+
 **Placement rules**
 
 - The target cell must be inside the grid and hold no block. Because the

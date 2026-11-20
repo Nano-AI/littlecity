@@ -649,3 +649,23 @@ swing. Guide conflict resolved by hand; guide picture budget raised to 3 MB.
 solid.test overlap bounds, two crowd.test cases). Living-town agent has the
 people ones; fill agent has U16. DO NOT PUBLISH until `npm test` is green.
 Last published build: land shaping (`3fb3f2e`).
+
+**Discovery round 1 fully merged and PUBLISHED** (`28717dd`): living-town
+integration (`0904e3b`: any shop bakes, hands keep their load, café seats;
+L62 school, smithy, theatre, bandstand, vendors, maypole, orchard pickers)
+and fill follow-up (`ed8972d`: booths and vault doors agree, the podium
+scene, drying lines join washing day, orchard fruit trees). Orchestrator
+removed a market-cross guide entry duplicated by the merge. Full check
+clean: 1,950 tests. NP-01 hedge not built (needs frozen core kinds).
+**Derek's new list (20:30), dispatched:**
+- Mischief (liked; stays UNMERGED; revise): bigger real chunks, better fire
+  (attached, not floating cut-outs), smoke that fuses, Mend progressive and
+  automatic over time, people respond (firefighters with hoses, bucket
+  chains) → mischief agent.
+- Bug: new houses get festival lights out of season; sliders for time,
+  season, weather with gradual transitions → seasons agent (plus its
+  pending follow-up).
+- Bug: Level tool does not work → landshaping agent.
+- Bug: the sweeper's broom is not in her hands → living-town agent.
+- New: Field ground piece (basketball, tennis, grass pitch by shape) with
+  people playing → new Opus agent `swarm/field`.
