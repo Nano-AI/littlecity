@@ -12,6 +12,7 @@
 // A sailboat anchored to a cell does not sail: it lies there with its sails
 // trimmed to the wind (the gallery).
 
+import { boatPose } from '../mischief/boatwreck';
 import { SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { ActorOf, DressingPlan, ShapePlan } from '@/resolve/plan';
@@ -60,6 +61,8 @@ function sailIn(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
     state.sails.trim(step, wind.dirX * cos - wind.dirZ * sin, wind.dirX * sin + wind.dirZ * cos, wind.strength);
   }
   fly(state.x, SEA_Y + state.swell.heave, state.z, state.yaw, state.swell.pitch, state.swell.roll * 0.5, 1, state.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  boatPose(ctx.stage, ctx.item.id, 'sailboat', state.m, signals.time.seconds);
   ctx.instance.setMatrix(state.m);
   notePose(ctx.stage, ctx.item.id, state.m, 'sailboat');
   state.sails.pose(state.m);
@@ -204,6 +207,8 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   const sw = state.swell;
   // Sailing, the bow lifts a touch with speed.
   fly(state.x, SEA_Y + sw.heave, state.z, state.yaw, sw.pitch + 0.03 * Math.min(1, state.speed / BOATS.speed), sw.roll * 0.5 + state.heel, 1, state.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  boatPose(ctx.stage, ctx.item.id, 'sailboat', state.m, signals.time.seconds);
   ctx.instance.setMatrix(state.m);
   notePose(ctx.stage, ctx.item.id, state.m, 'sailboat');
   state.sails.pose(state.m);
@@ -255,7 +260,7 @@ export default defineBehaviour<'sailboat', SailboatState>({
     const step = state.twos.tick(dt);
     if (step > 0) state.sails.trim(step, lee, along, wind.strength);
     const heel = -BOATS.heel * 0.5 * Math.min(1, wind.strength) * state.sails.fill * Math.sqrt(Math.max(0, 1 - along * along));
-    if (poseFloating(f, signals, ctx.instance, ctx.stage, ctx.dressing, heel)) state.sails.pose(f.m);
+    if (poseFloating(f, signals, ctx.instance, ctx.stage, ctx.dressing, heel, { id: ctx.item.id, type: 'sailboat' })) state.sails.pose(f.m);
   },
   dispose(state, ctx) {
     state.sails.release();

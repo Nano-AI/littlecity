@@ -7,6 +7,7 @@
 //
 // Travel is smooth, every frame; the swell is posed on twos.
 
+import { boatPose } from '../mischief/boatwreck';
 import { notePose } from '../ships/ferry.system';
 import { standAside } from '../ships/news';
 import { SEA_Y } from '@/core/grid';
@@ -141,6 +142,8 @@ export default defineBehaviour({
     const aside = standAside(ctx.stage, state, state.x, state.z, state.yaw, dt, ctx.item.id);
     state.slow = aside.slow;
     fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch - surge * 0.035, state.swell.roll, 1, state.m);
+    // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+    boatPose(ctx.stage, ctx.item.id, 'rower', state.m, signals.time.seconds);
     ctx.instance.setMatrix(state.m);
     notePose(ctx.stage, ctx.item.id, state.m, 'rower');
   },

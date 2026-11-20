@@ -13,6 +13,10 @@ import { harbourOf } from '../ships/visit';
 import { mischiefOf } from './director';
 import mischiefSystem from './mischief.system';
 import shipwreckSystem from './shipwreck.system';
+import rowboat from '../boats/rowboat.behaviour';
+import sailboat from '../boats/sailboat.behaviour';
+import { SEA_Y } from '@/core/grid';
+import { boatWrecksOf } from './boatwreck';
 
 test('a ship bombed alongside: down it goes, its crew over the side and swimming away; nothing left after', () => {
   const town = resolveScenario(scn);
@@ -51,3 +55,39 @@ test('a ship bombed alongside: down it goes, its crew over the side and swimming
   expect(swimmers().length).toBe(0);
   expect(d.drawn()).toBe(0);
 }, 300_000);
+
+test('a rowing boat by a blast capsizes: hull up, then under; whoever was in it swims; undo forgets it', () => {
+  const town = resolveScenario(scn);
+  const rec = recordingStage(town);
+  const signals = createSignals(scn.seed);
+  signals.setPhase(partPhases().day.start + 0.02);
+  signals.hold('run');
+  const life = createLife(rec.stage, signals, { behaviours: [rowboat, sailboat], systems: [mischiefSystem, shipwreckSystem] });
+  life.sync(town);
+  const d = mischiefOf(rec.stage);
+  const step = (s: number): void => {
+    for (let t = 0; t < s; t += 1 / 20) {
+      life.update(signals.advance(1 / 20));
+      d.flush();
+    }
+  };
+  step(2);
+  const boat = town.dressing.actors.find((a) => a.type === 'rowboat')!;
+  const r = rec.of(boat.id);
+  const at: [number, number] = [r.matrix[12]!, r.matrix[14]!];
+  // A bomb in the water right beside it.
+  d.dropBomb([at[0] + 0.3, 0.4, at[1]]);
+  for (let i = 0; i < 100 && boatWrecksOf(rec.stage).size === 0; i++) step(0.1);
+  expect(boatWrecksOf(rec.stage).get(boat.id)?.stage).toBe(3);
+  step(2);
+  // Hull up: its up axis points down.
+  expect(rec.of(boat.id).matrix[5]!).toBeLessThan(-0.8);
+  expect((globalThis as unknown as { __lcSwimmers: unknown[] }).__lcSwimmers.length).toBeGreaterThanOrEqual(1);
+  step(40);
+  expect(rec.of(boat.id).matrix[13]!).toBeLessThan(SEA_Y - 1);
+  // Undo: the boat as it was.
+  d.undoing();
+  step(1);
+  expect(boatWrecksOf(rec.stage).size).toBe(0);
+  expect(rec.of(boat.id).matrix[5]!).toBeGreaterThan(0.8);
+}, 120_000);

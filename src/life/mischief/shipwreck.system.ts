@@ -28,6 +28,7 @@ import { harbourOf, type Ship, type ShipHit } from '../ships/visit';
 import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director';
 import { wakeRing } from '../boats/afloat';
 import { flameMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
+import { forgetBoatWrecks, strikeBoats } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -103,6 +104,8 @@ interface State {
   /** A nuke's strike waits for its shockwave. */
   pending: { at: number; x: number; z: number; power: number }[];
   time: number;
+  /** The signals' clock (the small boats' wrecks are timed by it). */
+  now: number;
   off: () => void;
 }
 
@@ -249,10 +252,17 @@ function piece(st: State, kind: number, x: number, y: number, z: number, vx: num
 }
 
 function strike(st: State, stage: LifeStage, x: number, z: number, power: number): void {
+  const r3 = BLAST.rubble * power * 0.9, r2 = BLAST.wreck * power, r1 = BLAST.shake * power;
   const harbour = harbourOf(stage);
-  if (!harbour) return;
-  const hits = harbour.strike(x, z, BLAST.rubble * power * 0.9, BLAST.wreck * power, BLAST.shake * power);
-  for (const h of hits) hit(st, stage, h, [x, z]);
+  if (harbour) for (const h of harbour.strike(x, z, r3, r2, r1)) hit(st, stage, h, [x, z]);
+  // The small boats: swamped or capsized (their behaviours draw that); whoever was aboard a capsized one swims.
+  for (const b of strikeBoats(stage, x, z, st.now, r3, r2, r1)) {
+    const seed = Math.floor(b.x * 97 + b.z * 53) + b.stage;
+    if (b.stage === 3) {
+      abandon(st, { ship: null, stage: 3, d: 0, kind: 'barge', x: b.x, z: b.z, yaw: b.yaw, stern: -0.4, bow: 0.4, halfBeam: 0.2, crew: b.type === 'fishing-boat' ? 2 : 1 }, seed);
+      for (let i = 0; i < 2; i++) st.pieces.push(piece(st, i ? 0 : 2, b.x, SEA_Y + 0.4, b.z, (rand(seed, 'bx', i) - 0.5) * 1.4, 1.4, (rand(seed, 'bz', i) - 0.5) * 1.4, seed + i));
+    }
+  }
 }
 
 function clearAll(st: State): void {
@@ -275,6 +285,7 @@ function clearAll(st: State): void {
 function onEvent(st: State, stage: LifeStage, e: MischiefEvent): void {
   if (e.type === 'reset' || e.type === 'undo') {
     clearAll(st);
+    forgetBoatWrecks(stage);
     harbourOf(stage)?.clearWrecks();
     return;
   }
@@ -288,7 +299,7 @@ export default defineSystem<State>({
   id: 'mischief.shipwreck',
   order: 41,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, off: () => {} };
+    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, now: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, ctx.stage, e));
     // For tests and watching (like __lcPeople): the harbour on this stage.
     Object.defineProperty(globalThis, '__lcHarbour', { get: () => harbourOf(ctx.stage), configurable: true });
@@ -300,6 +311,7 @@ export default defineSystem<State>({
   },
   update(st, dt, signals, ctx) {
     st.time += dt;
+    st.now = signals.time.seconds;
     const stage = ctx.stage;
     for (let i = st.pending.length - 1; i >= 0; i--) {
       const p = st.pending[i]!;
@@ -477,8 +489,9 @@ export default defineSystem<State>({
       }
     }
   },
-  dispose(st) {
+  dispose(st, ctx) {
     st.off();
+    forgetBoatWrecks(ctx.stage);
     st.own.releaseAll();
   },
 });

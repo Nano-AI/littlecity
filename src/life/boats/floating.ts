@@ -2,6 +2,7 @@
 // until L18 sends it to sea, and any boat anchored to a cell (the gallery).
 // It bobs, rolls and pitches on the swell and leaves a ring now and then.
 
+import { boatPose } from '../mischief/boatwreck';
 import { SEA_Y } from '@/core/grid';
 import { positionOf, type Mat4, type Mat4Like } from '@/core/mat4';
 import type { DressingPlan } from '@/resolve/plan';
@@ -45,7 +46,7 @@ export function refloat(f: Floating, base: Mat4Like): void {
  * Poses a floating boat on twos. Returns true when a new drawing was made (f.m holds its matrix), so
  * a caller with things fixed to the hull can pose them too. `heel` is added to the roll.
  */
-export function poseFloating(f: Floating, signals: Signals, instance: InstanceHandle, stage: LifeStage, dressing: DressingPlan, heel = 0): boolean {
+export function poseFloating(f: Floating, signals: Signals, instance: InstanceHandle, stage: LifeStage, dressing: DressingPlan, heel = 0, boat?: { id: string; type: string }): boolean {
   const now = onTwos(signals.time.seconds, f.phase);
   if (now === f.drawn && dressing === f.dressing) return false;
   f.drawn = now;
@@ -53,6 +54,8 @@ export function poseFloating(f: Floating, signals: Signals, instance: InstanceHa
   const wind = signals.wind(f.x, f.z).strength;
   const sw = swellAt(now, f.phase, f.length, wind, f.swell);
   fly(f.x, SEA_Y + sw.heave, f.z, f.yaw, sw.pitch, sw.roll + heel, 1, f.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  if (boat) boatPose(stage, boat.id, boat.type, f.m, signals.time.seconds);
   instance.setMatrix(f.m);
   const beat = Math.floor(now / BOATS.wakeEvery + f.phase);
   if (beat !== f.ring) {

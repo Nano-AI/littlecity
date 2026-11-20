@@ -10,6 +10,7 @@
 // twos; it leaves a wake of rings under way. The legs between the berth and
 // the lane keep to open water (waterRoute): round a headland, not over it.
 
+import { boatPose } from '../mischief/boatwreck';
 import { SEA_Y } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { ShapePlan } from '@/resolve/plan';
@@ -107,7 +108,7 @@ export default defineBehaviour({
   },
   update(state, dt, signals, ctx) {
     if (state.moored) {
-      poseFloating(state.moored, signals, ctx.instance, ctx.stage, ctx.dressing);
+      poseFloating(state.moored, signals, ctx.instance, ctx.stage, ctx.dressing, 0, { id: ctx.item.id, type: 'fishing-boat' });
       return;
     }
     if (ctx.shape !== state.shape) {
@@ -227,6 +228,8 @@ export default defineBehaviour({
       swellAt(now, state.phase, BOATS.fishLength, signals.wind(state.x, state.z).strength, state.swell);
     }
     fly(aside.x, SEA_Y + state.swell.heave, aside.z, state.yaw, state.swell.pitch, state.swell.roll + state.bank, 1, state.m);
+    // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+    boatPose(ctx.stage, ctx.item.id, 'fishing-boat', state.m, signals.time.seconds);
     ctx.instance.setMatrix(state.m);
     notePose(ctx.stage, ctx.item.id, state.m, 'fishing-boat');
   },
