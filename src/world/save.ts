@@ -22,6 +22,12 @@
 // generator 1 is written exactly as before (version 1 or 2), so every old
 // link and file still opens on the island it was built on.
 //
+// Version 4 (2026-11-19, mischief: design section 13b) is version 3 plus,
+// after the edge list, the damaged blocks: count, then per damaged block its
+// index in the block list (delta varint) and its damage byte (settling
+// dropped). Only a town with a damaged block is written as version 4, so a
+// town with no ruins encodes exactly as before.
+//
 // None of the functions here throw. decodeTown rejects garbage, truncation
 // and other versions with a plain sentence (plan Review Focus 2); saveTown
 // and the autosaver report storage trouble instead of failing (Focus 5).
@@ -30,6 +36,7 @@ import { inBounds, key, keyX, keyY, keyZ, NO_CELL, edgeCells, type CellKey, type
 import { EDGE_KINDS, FLOOR_KINDS, PALETTE_SIZE, type EdgeKind, type FloorKind, type PlacedKind } from '@/core/kinds';
 import type { Block, Rot, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
+import { isRuin, savedRuin } from './damage';
 import { deflateRaw, fromBase64Url, inflateRaw, toBase64Url } from './deflate';
 
 export type DecodeResult = { ok: true; world: World } | { ok: false; reason: string };
@@ -42,6 +49,8 @@ const VERSION_1 = 1;
 const VERSION_2 = 2;
 /** Version 2 plus the island generator (a byte after the seed). */
 const VERSION_3 = 3;
+/** Version 3 plus damaged blocks after the edges (mischief). */
+const VERSION_4 = 4;
 /** Kind codes in the share format. Append only: the order is part of the format. */
 const PLACED: readonly PlacedKind[] = [
   'auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar',
@@ -124,7 +133,7 @@ export function encodeTown(w: World): string {
   const version = codecVersion(w);
   const p = new Writer();
   p.u32(w.seed | 0);
-  if (version === VERSION_3) p.byte(w.terrainGen ?? 1);
+  if (version >= VERSION_3) p.byte(w.terrainGen ?? 1);
   p.varint(w.nextSeq);
   // Blocks in placement order, each relative to the one placed before it:
   // towns grow in stacks and rows, so the steps are small and repetitive.
@@ -161,6 +170,20 @@ export function encodeTown(w: World): string {
     prev = e;
     p.byte(EDGE_KINDS.indexOf(w.edges.get(e)!));
   }
+  if (version === VERSION_4) {
+    const ruined: [number, number][] = [];
+    blocks.forEach(([, b], i) => {
+      const r = savedRuin(b.ruin);
+      if (r) ruined.push([i, r]);
+    });
+    p.varint(ruined.length);
+    let pi = -1;
+    for (const [i, r] of ruined) {
+      p.varint(i - pi);
+      pi = i;
+      p.byte(r);
+    }
+  }
   const payload = Uint8Array.from(p.bytes);
   const head = new Writer();
   head.byte(0x4c);
@@ -174,8 +197,9 @@ export function encodeTown(w: World): string {
   return toBase64Url(all);
 }
 
-/** The codec version a town needs: 3 on generator 2's island, else 2 if any block has a house style, else 1. */
-export function codecVersion(w: World): 1 | 2 | 3 {
+/** The codec version a town needs: 4 with a damaged block, 3 on generator 2's island, else 2 if any block has a house style, else 1. */
+export function codecVersion(w: World): 1 | 2 | 3 | 4 {
+  for (const b of w.blocks.values()) if (savedRuin(b.ruin)) return VERSION_4;
   if (w.terrainGen === 2) return VERSION_3;
   for (const b of w.blocks.values()) if (b.style) return VERSION_2;
   return VERSION_1;
@@ -200,7 +224,7 @@ function decode(code: string): DecodeResult {
   if (!bytes || bytes.length < 2 || bytes[0] !== 0x4c || bytes[1] !== 0x43) return { ok: false, reason: NOT_A_TOWN };
   if (bytes.length < 3) return { ok: false, reason: DAMAGED };
   const version = bytes[2];
-  if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3) return { ok: false, reason: OTHER_VERSION };
+  if (version !== VERSION_1 && version !== VERSION_2 && version !== VERSION_3 && version !== VERSION_4) return { ok: false, reason: OTHER_VERSION };
   if (bytes.length < 8) return { ok: false, reason: DAMAGED };
   const head = new Reader(bytes.subarray(3, 7));
   const sum = head.u32();
@@ -215,7 +239,7 @@ function decode(code: string): DecodeResult {
   const r = new Reader(payload);
   const seed = r.u32() | 0;
   let terrainGen: 1 | 2 = 1;
-  if (version === VERSION_3) {
+  if (version === VERSION_3 || version === VERSION_4) {
     const g = r.byte();
     if (g !== 1 && g !== 2) return { ok: false, reason: OTHER_VERSION };
     terrainGen = g;
@@ -226,6 +250,8 @@ function decode(code: string): DecodeResult {
   const nBlocks = r.varint();
   if (nBlocks > 48 * 48 * 32) return { ok: false, reason: DAMAGED };
   let px = 0, py = 0, pz = 0, pseq = 0;
+  /** Cells in the order they were read (version 4's damage list points into it). */
+  const order: CellKey[] = [];
   for (let i = 0; i < nBlocks; i++) {
     const seq = pseq + 1 + r.varint();
     pseq = seq;
@@ -235,6 +261,7 @@ function decode(code: string): DecodeResult {
     if (!inBounds(px, py, pz)) return { ok: false, reason: DAMAGED };
     const cell = key(px, py, pz);
     if (blocks.has(cell) || seq >= nextSeq) return { ok: false, reason: DAMAGED };
+    order.push(cell);
     const kc = r.byte();
     const kind = PLACED[kc & 15];
     const styled = version !== VERSION_1 && (kc & 0x80) !== 0;
@@ -277,6 +304,20 @@ function decode(code: string): DecodeResult {
     const kind = EDGE_KINDS[r.byte()];
     if (!kind) return { ok: false, reason: DAMAGED };
     edges.set(e, kind);
+  }
+  if (version === VERSION_4) {
+    const n = r.varint();
+    if (n === 0 || n > order.length) return { ok: false, reason: DAMAGED };
+    let pi = -1;
+    for (let i = 0; i < n; i++) {
+      pi += r.varint();
+      const cell = order[pi];
+      const ruin = r.byte();
+      if (cell === undefined || !isRuin(ruin) || savedRuin(ruin) !== ruin) return { ok: false, reason: DAMAGED };
+      const b = blocks.get(cell)!;
+      if (b.ruin) return { ok: false, reason: DAMAGED };
+      blocks.set(cell, { ...b, ruin });
+    }
   }
   if (!r.done) return { ok: false, reason: DAMAGED };
   const world: World = { version: 1, seed, nextSeq, blocks, floors, edges };

@@ -39,3 +39,13 @@ export function redo(h: History): History {
   if (!canRedo(h)) return h;
   return { past: [...h.past, h.present], present: h.future[0]!, future: h.future.slice(1) };
 }
+
+/**
+ * Replaces the present without a new undo step (mischief, design section
+ * 13b: builders mending a ruin change the town without a click; undoing then
+ * goes straight back past the damage, as if it had never happened).
+ */
+export function replacePresent(h: History, w: World): History {
+  if (w === h.present) return h;
+  return { past: h.past, present: w, future: [] };
+}
