@@ -883,6 +883,27 @@ export function buildTerrainChunk(chunk: Chunk, plan: ShapePlan): MeshBuilder {
   return b;
 }
 
+/**
+ * The ground of a few columns on their own (shaping the land): their terrace tops and banks, no sea and
+ * no slab, as the chunk draws them. The view moves this for the bounce of a raised or dug column and
+ * draws it for the ghost. Columns are column indices (x + z * 48).
+ */
+export function buildTerrainColumns(cols: Iterable<number>, plan: ShapePlan, ink = 'terrain'): MeshBuilder {
+  const g = groundOf(plan);
+  const b = new MeshBuilder({ ink });
+  for (const i of cols) {
+    const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+    const top = Math.min(g.h(x, z), MAX_LEVEL);
+    for (let level = 1; level <= top; level++) {
+      emitQuarter(b, g, x, z, -1, -1, level);
+      emitQuarter(b, g, x, z, 1, -1, level);
+      emitQuarter(b, g, x, z, -1, 1, level);
+      emitQuarter(b, g, x, z, 1, 1, level);
+    }
+  }
+  return b;
+}
+
 export const terrainLayer = defineLayer({
   layer: 'terrain',
 

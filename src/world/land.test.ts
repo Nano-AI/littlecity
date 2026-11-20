@@ -67,7 +67,7 @@ describe('dig', () => {
     for (const [x, z] of [[20, 20], [21, 20], [20, 21], [21, 21]] as const) w = applyEdit(w, flat, down(c(x, z)));
     const t = islandOf(w, flat);
     expect(t.material[c(20, 20)]).toBe(MAT_POND);
-    expect(t.material[c(19, 20)]).toBe(MAT.sand);
+    expect(t.material[c(19, 20)]).toBe(MAT.grass); // grass banks, not a beach
   });
   test('water cannot be dug', () => {
     expect(canApply(w0, flat, down(c(3, 20)))).toEqual({ ok: false, reason: 'the outer five columns of the map stay sea' });

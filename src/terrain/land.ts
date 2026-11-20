@@ -12,8 +12,8 @@
 //           shut in. Water the generator made keeps its own material unless
 //           it is shut in.
 //   land    columns whose neighbourhood did not change keep the generator's
-//           material exactly. Elsewhere: sand at height 1 beside the sea or
-//           a pond (and beside a river near its mouth), grass, and rock on
+//           material exactly. Elsewhere: sand at height 1 beside the sea
+//           (and beside a river near its mouth), grass, and rock on
 //           cliff rims, gorge walls and high summits (generator 2's rules).
 //
 // islandOf(world, terrain) is the one way to get the island for a world: it
@@ -173,7 +173,7 @@ function deriveMaterials(base: Terrain, h: Uint8Array, changed: Uint8Array): Uin
     if (!dirty[i] || h[i] === 0) continue;
     const x = xOf(i), z = zOf(i);
     const here = h[i]!;
-    let bySea = false, byPond = false, byRiver = false, drop = 0, highest = true;
+    let bySea = false, byRiver = false, drop = 0, highest = true;
     for (const [dx, dz] of D4) {
       const nx = x + dx, nz = z + dz;
       const v = at(nx, nz);
@@ -182,12 +182,12 @@ function deriveMaterials(base: Terrain, h: Uint8Array, changed: Uint8Array): Uin
       if (v !== 0 || !inColumnBounds(nx, nz)) continue;
       const j = columnIndex(nx, nz);
       if (m[j] === MAT_RIVER) byRiver = true;
-      else if (m[j] === MAT_POND) byPond = true;
-      else bySea = true;
+      else if (m[j] !== MAT_POND) bySea = true;
     }
     const same = here === bh[i];
     if (here === 1) {
-      if (bySea || byPond) m[i] = MAT.sand;
+      // A pond in the fields has grass banks, as a river inland does; the sea has a beach.
+      if (bySea) m[i] = MAT.sand;
       else if (byRiver) m[i] = seaDistance(i) >= 0 && seaDistance(i) <= 3 ? MAT.sand : same && bm[i] === MAT.sand ? MAT.sand : MAT.grass;
       else m[i] = MAT.grass;
       continue;
