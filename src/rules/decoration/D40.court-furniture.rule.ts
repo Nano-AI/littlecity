@@ -67,7 +67,7 @@ export default defineRule<Piece>({
   id: RULE,
   part: 'decoration',
   tier: 2,
-  priority: 600,
+  priority: 601,
   about: 'Reads: field regions with a court (R-G03), clearways, houses, paths and plazas near them. Claims: the floor slot of each piece.',
   find({ facts, plan }) {
     const clear = clearways(facts);

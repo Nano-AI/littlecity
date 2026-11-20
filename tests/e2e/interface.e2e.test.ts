@@ -70,7 +70,7 @@ const debug = <T>(page: Page, field: string): Promise<T> => js(page, `window.__l
 async function pick(page: Page, item: string, tap = false): Promise<void> {
   const drawer = ['change', 'paint', 'erase'].includes(item)
     ? 'tools'
-    : ['path', 'plaza', 'fence', 'wall', 'stall'].includes(item)
+    : ['path', 'plaza', 'field', 'fence', 'wall', 'stall'].includes(item)
       ? 'ground'
       : ['tree', 'garden', 'fountain'].includes(item)
         ? 'nature'
@@ -254,7 +254,7 @@ describe('desktop: mouse and keys', () => {
     expect(await items()).toEqual(['auto', 'house', 'tower', 'lighthouse', 'arch', 'dock', 'marble', 'pillar', 'stairs', 'windmill']);
 
     await page.click('[data-drawer="ground"]');
-    expect(await items()).toEqual(['path', 'plaza', 'fence', 'wall', 'stall']);
+    expect(await items()).toEqual(['path', 'plaza', 'field', 'fence', 'wall', 'stall']);
     // Opening a drawer does not change the tool in hand.
     expect(await debug(page, 'item')).toBe('auto');
     await page.click('[data-drawer="nature"]');

@@ -366,7 +366,7 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
     case 'bowl': {
       const k = phase < 0.25 ? 0 : 1;
       p.lean = 0.6;
-      p.lift = -0.025;
+      p.lift = -0.01;
       p.legL = 0.75;
       p.legR = -0.35;
       p.armR = k === 0 ? -0.6 : 1.1;

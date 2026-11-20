@@ -17,4 +17,5 @@
 - `src/life/town/index.ts`: `fieldChain()` added to `allChains()` (before market day).
 - `src/ui/pieces.ts`, `src/ui/icons.ts`: the Field piece (Ground drawer, after Plaza) and icon.
 - Test lists: `townmaker.test.ts` (ROLES and PENDING), `guide.test.ts` (ALL),
-  `coplanar.test.ts` (scans `field-courts` too).
+  `coplanar.test.ts` (scans `field-courts` too), `gallery/specimens.ts` (a field specimen),
+  `tests/e2e/interface.e2e.test.ts` and `held-length.e2e.test.ts` (Field in the Ground drawer).

@@ -12,7 +12,7 @@ export default scenario({
     for (let i = 0; i < 7; i++) b.house(7 + i * 4, 9, { w: 2, d: 3, floors: 2, color: i });
     for (let i = 0; i < 3; i++) b.house(7 + i * 4, 13, { w: 3, d: 2, floors: 2, color: (i + 3) % 8 });
     b.floor('field', 22, 13, 28, 16);
-    b.floor('field', 18, 13, 20, 14).floor('field', 18, 15, 18, 16);
+    b.floor('field', 18, 13, 20, 13).floor('field', 18, 14, 18, 16);
   },
   cameras: [
     { name: 'pitch', yaw: 30, pitch: 36, zoom: 5, target: [25.5, 1, 15] },
