@@ -959,3 +959,5 @@ Derek, same morning: the torch should become a lightning bolt (a small
 storm cloud, a strike, the fire) → mischief agent. A dark flickering
 X-shaped patch on the sea west of a castle town (screenshot
 `/tmp/lc-black-patch.png`) → a new agent to find the cause.
+
+Running: mischief (lightning), sea-patch agent (`a26d2645a4786eb14`, `swarm/sea-patch`, Opus).
