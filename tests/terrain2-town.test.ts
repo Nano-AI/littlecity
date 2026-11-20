@@ -17,14 +17,16 @@ import { positionOf } from '@/core/mat4';
 import { createLife } from '@/life/runtime';
 import { createSignals } from '@/life/signals';
 import { recordingStage } from '@/life/testing/stage';
+import { sized } from './helpers/tier';
 
-vi.setConfig({ testTimeout: 300_000 });
+vi.setConfig({ testTimeout: sized(60_000, 600_000) });
 
-/** Ten seeds of each character, and the rivers each has. */
+/** Five seeds of each character in the gate, ten in the full run (LC_FULL=1), and the rivers each has. */
+const EACH = sized(5, 10);
 function spread(): { seed: number; character: IslandCharacter; rivers: number }[] {
-  const want: Record<IslandCharacter, number> = { gentle: 10, hilly: 10, steep: 10, archipelago: 10 };
+  const want: Record<IslandCharacter, number> = { gentle: EACH, hilly: EACH, steep: EACH, archipelago: EACH };
   const out: { seed: number; character: IslandCharacter; rivers: number }[] = [];
-  for (let seed = 1; seed < 400 && out.length < 40; seed++) {
+  for (let seed = 1; seed < 400 && out.length < EACH * 4; seed++) {
     const isl = generateIsland2(seed, (s) => generateTerrain(s, 1));
     if (want[isl.character] <= 0) continue;
     want[isl.character]--;
@@ -87,6 +89,7 @@ describe('generator 2 islands in the rest of the game', () => {
     expect(build(t, growTown(t, seed)).blocks.size).toBeGreaterThan(200);
   });
 
+  // Half a minute of game time in the gate, a minute in the full run.
   test('life on grown towns of every character: a minute of boats and people, nothing thrown, boats afloat', () => {
     for (const character of ['gentle', 'hilly', 'steep', 'archipelago'] as const) {
       const { seed } = SPREAD.find((s) => s.character === character && s.rivers > 0) ?? SPREAD.find((s) => s.character === character)!;
@@ -98,7 +101,7 @@ describe('generator 2 islands in the rest of the game', () => {
       const life = createLife(rec.stage, signals);
       life.sync({ shape, dressing });
       const boats = dressing.actors.filter((a) => a.type === 'sailboat' || a.type === 'fishing-boat' || a.type === 'rowboat');
-      for (let f = 0; f < 60 * 60; f++) {
+      for (let f = 0; f < 60 * sized(30, 60); f++) {
         life.update(signals.advance(1 / 60));
         if (f % 60) continue;
         for (const b of boats) {

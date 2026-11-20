@@ -1,12 +1,10 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { columnIndex, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { MAT } from '@/core/world';
 import { checkTerrain2, generateIsland2, MAT_RIVER, MAX_HEIGHT_2, type IslandCharacter } from './terrain2';
 import { generateTerrain, initialWorld } from './terrain';
 import { components, D4, hAt } from './noise';
 
-// 500 islands: slow when the machine is busy.
-vi.setConfig({ testTimeout: 240_000 });
 
 const SEEDS = Array.from({ length: 500 }, (_, i) => i * 7919 - 400);
 const gen1 = (s: number) => generateTerrain(s, 1);
@@ -30,7 +28,7 @@ describe('generator 2', () => {
       through += isl.through;
       rolls += isl.attempts;
       highest[isl.character].push(r.highest);
-      for (let i = 0; i < isl.terrain.height.length; i++) expect(isl.terrain.height[i]).toBeLessThanOrEqual(MAX_HEIGHT_2);
+      expect(Math.max(...isl.terrain.height), `seed ${seed}`).toBeLessThanOrEqual(MAX_HEIGHT_2); // one expect a seed, not one a column
     }
     expect(failures).toEqual([]);
     const pct = (n: number): number => Math.round((n / SEEDS.length) * 100);
@@ -57,32 +55,38 @@ describe('generator 2', () => {
       const t = generateTerrain(seed, 2);
       const h = t.height;
       const water = components((i) => h[i] === 0);
-      for (let i = 0; i < h.length; i++) if (h[i] === 0) expect(water.label[i], `seed ${seed}`).toBe(water.label[0]);
+      // Problems gathered, then one expect a seed (an expect a column was most of this test's time).
+      const cut: string[] = [];
+      for (let i = 0; i < h.length; i++) if (h[i] === 0 && water.label[i] !== water.label[0]) cut.push(`water at ${i % SIZE_X},${Math.floor(i / SIZE_X)} cut off`);
       for (let z = 0; z + 1 < SIZE_Z; z++) {
         for (let x = 0; x + 1 < SIZE_X; x++) {
           const a = hAt(h, x, z) === 0, b = hAt(h, x + 1, z) === 0, c = hAt(h, x, z + 1) === 0, d = hAt(h, x + 1, z + 1) === 0;
-          expect((a && d && !b && !c) || (b && c && !a && !d), `seed ${seed} at ${x},${z}`).toBe(false);
+          if ((a && d && !b && !c) || (b && c && !a && !d)) cut.push(`corner-only water at ${x},${z}`);
         }
       }
+      expect(cut, `seed ${seed}`).toEqual([]);
     }
   });
 
   test('materials: water at 0, sand only at height 1 beside water, rock only on high ground', () => {
     for (const seed of SEEDS.slice(0, 80)) {
       const t = generateTerrain(seed, 2);
+      const wrong: string[] = []; // gathered, then one expect a seed
       for (let z = 0; z < SIZE_Z; z++) {
         for (let x = 0; x < SIZE_X; x++) {
           const h = hAt(t.height, x, z);
           const m = t.material[columnIndex(x, z)];
-          if (h === 0) expect([MAT.water, MAT_RIVER]).toContain(m);
-          else expect(m).not.toBe(MAT.water);
+          const at = `${x},${z} (height ${h}, material ${m})`;
+          if (h === 0 && m !== MAT.water && m !== MAT_RIVER) wrong.push(`${at}: not water at height 0`);
+          if (h !== 0 && m === MAT.water) wrong.push(`${at}: water above the sea`);
           if (m === MAT.sand) {
-            expect(h).toBe(1);
-            expect(D4.some(([dx, dz]) => hAt(t.height, x + dx, z + dz) === 0)).toBe(true);
+            if (h !== 1) wrong.push(`${at}: sand off height 1`);
+            if (!D4.some(([dx, dz]) => hAt(t.height, x + dx, z + dz) === 0)) wrong.push(`${at}: sand away from water`);
           }
-          if (m === MAT.rock) expect(h).toBeGreaterThanOrEqual(3);
+          if (m === MAT.rock && h < 3) wrong.push(`${at}: rock on low ground`);
         }
       }
+      expect(wrong, `seed ${seed}`).toEqual([]);
     }
   });
 

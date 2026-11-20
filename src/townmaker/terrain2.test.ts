@@ -15,8 +15,9 @@ import { generateTerrain } from '@/terrain/terrain';
 import { generateIsland2 } from '@/terrain/terrain2';
 import { applyEdit, emptyWorld, type World } from '@/world/world';
 import { growTown, planTown } from './index';
+import { FULL, sized } from '../../tests/helpers/tier';
 
-vi.setConfig({ testTimeout: 300_000 });
+vi.setConfig({ testTimeout: sized(60_000, 600_000) });
 
 function build(t: Terrain, edits: ReturnType<typeof growTown>): World {
   let w = emptyWorld(t.seed, 2);
@@ -30,9 +31,10 @@ function rolesOf(w: World, t: Terrain): Set<string> {
 }
 
 describe('grow a town on generator 2', () => {
-  test('seeds 1 to 50: every edit legal, none throws; sizes reported', () => {
+  // Seeds 1 to 12 in the gate, 1 to 50 in the full run (LC_FULL=1).
+  test('seeds 1 to 12 (50 in full): every edit legal, none throws; sizes reported', () => {
     const sizes: string[] = [];
-    for (let seed = 1; seed <= 50; seed++) {
+    for (let seed = 1; seed <= sized(12, 50); seed++) {
       const t = generateTerrain(seed, 2);
       const edits = growTown(t, seed);
       let w!: World;
@@ -46,7 +48,8 @@ describe('grow a town on generator 2', () => {
   test('deterministic, and under 200 ms', () => {
     const t = generateTerrain(12, 2);
     expect(JSON.stringify(growTown(t, 12))).toBe(JSON.stringify(growTown(t, 12)));
-    for (const seed of [3, 11, 19, 27]) {
+    // The wall-clock budget only in the full run (LC_FULL=1): in the gate a busy machine fails it with nothing wrong.
+    for (const seed of FULL ? [3, 11, 19, 27] : []) {
       const ts = generateTerrain(seed, 2);
       let ms = Infinity;
       for (let run = 0; run < 3; run++) {

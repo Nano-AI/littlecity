@@ -9,6 +9,7 @@ import { inkGroups, validateMesh } from '../checks';
 import { EDGE_FAR, PATTERN, triangleCount, type MeshData } from '../mesh';
 import { terraceGrass } from '@/style/terrain';
 import { buildTerrainChunk, terrainLayer } from './terrain.gen';
+import { FULL } from '../../../tests/helpers/tier';
 
 /** A hand-made island with everything the mesh must handle: beach, steps, a 2-level cliff, a cove, a peak. */
 function island(build?: (b: TownBuilder) => void): ShapePlan {
@@ -245,7 +246,9 @@ describe('the terrain layer', () => {
     expect(terrainLayer.hash(other, corner)).toBe(terrainLayer.hash(other, plan));
   });
 
-  test('building a chunk is quick enough to do on an edit', () => {
+  // Wall-clock budget: only in the full run (LC_FULL=1), where nothing else shares the machine's time with it;
+  // in the gate a busy machine failed it with nothing wrong (docs/swarm/test-diet.md).
+  test.runIf(FULL)('building a chunk is quick enough to do on an edit', () => {
     const chunk = chunkOf(20, 20);
     buildTerrainChunk(chunk, plan);
     const t0 = performance.now();

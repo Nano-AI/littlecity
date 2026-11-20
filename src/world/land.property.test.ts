@@ -34,8 +34,10 @@ function checkCarried(before: World, after: World, t: Terrain): void {
   expect(after.nextSeq).toBe(before.nextSeq);
   expect(blockList(after)).toEqual(blockList(before));
   const isl = islandOf(after, t);
-  for (const c of after.blocks.keys()) expect(keyY(c), 'a block inside the ground').toBeGreaterThanOrEqual(isl.height[columnIndex(keyX(c), keyZ(c))]!);
-  for (const c of after.floors.keys()) expect(keyY(c), 'a floor inside the ground').toBeGreaterThanOrEqual(isl.height[columnIndex(keyX(c), keyZ(c))]!);
+  // Gathered, then one expect (an expect a block every step was much of this file's time).
+  const buried = (cells: Iterable<number>): number[] => [...cells].filter((c) => keyY(c) < isl.height[columnIndex(keyX(c), keyZ(c))]!);
+  expect(buried(after.blocks.keys()), 'blocks inside the ground').toEqual([]);
+  expect(buried(after.floors.keys()), 'floors inside the ground').toEqual([]);
 }
 
 const sameContent = (a: World, b: World): void => {
@@ -96,9 +98,9 @@ function play(name: string, steps: number, seed: number): void {
 }
 
 describe('carrying, by seeded chance', () => {
-  test('grown town (generator 2): 160 steps', () => play('grown-town-1', 160, 31), 120_000);
-  test('everything: 120 steps', () => play('everything', 120, 32), 120_000);
-  test('split-level houses on stepped ground: 120 steps', () => play('J02.split-level', 120, 33), 120_000);
+  test('grown town (generator 2): 160 steps', () => play('grown-town-1', 160, 31));
+  test('everything: 120 steps', () => play('everything', 120, 32));
+  test('split-level houses on stepped ground: 120 steps', () => play('J02.split-level', 120, 33));
 });
 
 describe('the extremes never throw', () => {
