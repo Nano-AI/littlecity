@@ -875,3 +875,29 @@ farming better but the scenario seed shows one wheat field and a big
 village core; river, hill, market weakest (agent agrees). Town wall has
 gaps where houses stand on its ring.
 Running: mischief (mending over water).
+
+**Orchestrator's checkout moved (2026-11-20, about 00:35).** Another
+session switched the workspace folder
+(`/Users/yaoderek/conductor/workspaces/littlecity/prague`) to a new branch
+`capture/promo` (brand and promo-capture work, its own agent worktree
+`agent-a072417d202503b83`) and is working there with uncommitted files.
+Two orchestrator commits landed on that branch by accident (the pass 5 run
+log and the nuke-on-water fix); both were cherry-picked onto the working
+branch. From here on the orchestrator works in
+`/Users/yaoderek/conductor/repos/littlecity/.claude/worktrees/orchestrator`
+(branch `yaoderek/bloom-s-monkey-city-builder`): merge, gate and deploy
+from there, and leave the workspace folder to the other session. Lint in
+the workspace folder fails on that session's `tools/capture/lib.mjs` and
+`shots/drone.mjs`; not ours.
+
+**Nuke on water (orchestrator, `a72c359`).** Derek: "the first nuke
+seems to always do nothing". Cause: `blastPlan` returned no hits when the
+point was water (river, pond, sea), so the cloud rose and nothing was
+touched; 3 of 10 random grown towns have water under the middle of the
+screen. Fix: the nuke plans with `wet: true` and always craters the land
+round the point. Unit test in `engine.test.ts`; checked in a browser on
+the three islands that were duds (337/346, 375/414, 380/405 blocks
+ruined). Full gate not completed: load 40 (two agents, the other
+session), only timeouts; typecheck, lint, mischief unit and browser
+tests pass serially.
+Running: mischief (mending over water, scorch fade), grow-town pass 5b.
