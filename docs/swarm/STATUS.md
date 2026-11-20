@@ -786,3 +786,23 @@ full tier; route.test.ts assert on search count; drop 120 s timeouts in
 solid.test.ts. Open question for logic: the incremental content key's
 resolved-kind part is untested (or redundant).
 Running: grow-town pass 4, mischief (nuke redo).
+
+**Grow a town pass 4 merged** (`08b8b96` → merge `df3a0b9`, Opus). A town
+now has a character rolled from the seed and weighted by what the island
+offers: harbour town, marble city, castle town, market town, river town,
+farming village, hill town, garden town; a second character flavours it.
+A budgeted planner builds each character's list in priority order; the
+marble city gets the forum (temple on a podium, basilica, obelisk,
+rotunda, grand steps). Banner names the town ("A marble city is
+growing."); the dice avoid repeating the last character. Survey test:
+seeds 1–30 on both generators, every character rolled, promises kept
+(≤15 % misses), every placeable role and guide entry appears somewhere.
+`grown-town-1..7` are frozen legacy replays
+(`scenarios/core/grown-town-legacy.ts`); new `grown-<character>`
+scenarios. Conflicts resolved by hand: `townmaker.test.ts` (pass 4's
+survey; the old wall-clock test is gone), `interface.ts` (kept
+`mischief.undo()` in `grow`). Gate: 2,104 passed, 8 skipped, 196 s.
+Published `df3a0b9`. Caveats from the agent: marble city is rare (4 of
+60 towns); the forum stair may face away from the default camera; hand
+pump vs fountain still waits on Derek.
+Running: mischief (nuke redo). Unmerged experiments: walk, big-islands.
