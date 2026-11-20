@@ -1226,3 +1226,19 @@ shrines to stay temples).
 Also: `crowd.test.ts` mean-step-time budget moved to the full tier.
 Gate: 2,185 passed, 10 skipped, clean.
 Running: pavilion round 2.
+
+**Pavilion round 2 merged** (`9dcdc5c`, Opus). The band plays on the
+bandstand's floor (floor cells are walkable at plinth height, linked
+outside only across the open side; rail openings exactly where people
+walk in; layout moved to `src/rules/roles/pavilion.lib.ts`), the
+audience gathers in front of the opening; new test in
+`src/life/town/places.test.ts`. Trigger widened: any four marble cells
+on four pillars standing on the ground are a pavilion; five cells or
+more, or on a podium, stay temples. Marble-city shrines stand on a
+one-block podium so they stay temples (layout unchanged; structure
+renumbering re-rolled roof colours). Fixtures R-M01 and D22 rebuilt as
+2×3. Lanterns under the ridge of the long shelters. Not done: the far
+view where rail and columns blur into a dark band (needs a renderer
+change). Gate: 2,186 passed, 10 skipped, clean.
+Running: nothing. Unmerged: big-islands (experiment); walk
+(superseded). Separate session: `capture/promo`.
