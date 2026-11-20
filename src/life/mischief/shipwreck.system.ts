@@ -14,7 +14,7 @@
 //                drift a while and sink. Its berth comes free and another ship calls.
 // Nothing shrinks or fades: what goes, goes under the water.
 
-import { columnIndex, inColumnBounds, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
+import { CELL_H, columnIndex, inColumnBounds, key, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
 import { compose, rotationY, translation, type Mat4 } from '@/core/mat4';
 import { rand } from '@/core/rand';
 import { allParts } from '@/gen/discover';
@@ -27,7 +27,9 @@ import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import { harbourOf, type Ship, type ShipHit } from '../ships/visit';
 import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director';
 import { wakeRing } from '../boats/afloat';
-import { flameMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
+import { crowdOf } from '../doors/table';
+import { flameMesh, shockRingMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
+import { boatAt, forgetBoatWrecks, strikeBoats } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -58,6 +60,11 @@ interface Piece {
  */
 interface Swimmer {
   h: [InstanceHandle, InstanceHandle];
+  /** A pale ring on the water round them (so a head in the water reads from far off, and at night). */
+  halo: InstanceHandle;
+  /** Where they climb out (a quay, a beach), if one is in reach: the crowd takes them from there. */
+  shore: { x: number; y: number; z: number } | null;
+  look: number;
   x: number;
   y: number;
   z: number;
@@ -103,6 +110,10 @@ interface State {
   /** A nuke's strike waits for its shockwave. */
   pending: { at: number; x: number; z: number; power: number }[];
   time: number;
+  /** The signals' clock (the small boats' wrecks are timed by it). */
+  now: number;
+  /** A small boat burning (its sail caught, or hit at the edge of a blast): flames and smoke on it a while. */
+  boatFires: { id: string; age: number; flame: InstanceHandle; puff: number }[];
   off: () => void;
 }
 
@@ -225,6 +236,33 @@ function wayOut(shape: ShapePlan, x: number, z: number): [number, number] | null
 }
 
 /** The crew of a ship going down jump clear and swim for it. */
+/** The nearest place to climb out within a few cells of (x, z), reached over open water: its edge, and the ground's height. */
+function shoreNear(shape: ShapePlan, x: number, z: number): { x: number; y: number; z: number; dx: number; dz: number } | null {
+  let best: { x: number; y: number; z: number; dx: number; dz: number; d: number } | null = null;
+  const R = 7;
+  for (let cz = Math.floor(z) - R; cz <= Math.floor(z) + R; cz++) {
+    for (let cx = Math.floor(x) - R; cx <= Math.floor(x) + R; cx++) {
+      if (!inColumnBounds(cx, cz)) continue;
+      const h = shape.terrain.height[columnIndex(cx, cz)]!;
+      const dock = shape.kinds.get(key(cx, 0, cz)) === 'dock';
+      if (h === 0 && !dock) continue;
+      const tx = cx + 0.5, tz = cz + 0.5;
+      const d = Math.hypot(tx - x, tz - z);
+      if (d > R || (best && d >= best.d)) continue;
+      // Over open water all the way to within a cell of it.
+      const ux = (tx - x) / d, uz = (tz - z) / d;
+      let open = true;
+      for (let t = 0.4; t < d - 1 && open; t += 0.4) {
+        const sx = Math.floor(x + ux * t), sz = Math.floor(z + uz * t);
+        if (!inColumnBounds(sx, sz) || shape.terrain.height[columnIndex(sx, sz)]! > 0 || shape.kinds.has(key(sx, 0, sz))) open = false;
+      }
+      if (!open) continue;
+      best = { x: tx, y: dock ? CELL_H : h * CELL_H, z: tz, dx: ux, dz: uz, d };
+    }
+  }
+  return best;
+}
+
 function abandon(st: State, h: ShipHit, seed: number): void {
   if (!st.shape) return;
   const n = h.crew;
@@ -235,9 +273,14 @@ function abandon(st: State, h: ShipHit, seed: number): void {
     const x0 = h.x + sin * along + cos * side * h.halfBeam * 0.6, y0 = SEA_Y + 0.75, z0 = h.z + cos * along - sin * side * h.halfBeam * 0.6;
     // Over the side, a body's length out, then away.
     const ox = cos * side, oz = -sin * side;
-    const out = wayOut(st.shape, x0 + ox * 1.2, z0 + oz * 1.2) ?? [ox, oz];
+    // For the nearest quay or beach if there is one in reach; else away to the edge of the map.
+    const shore = shoreNear(st.shape, x0 + ox * 1.1, z0 + oz * 1.1);
+    const out = shore ? [shore.dx, shore.dz] : (wayOut(st.shape, x0 + ox * 1.2, z0 + oz * 1.2) ?? [ox, oz]);
     const look = Math.floor(rand(seed, 'swimmer', i) * 60);
     st.swimmers.push({
+      halo: st.own.stage.spawnMesh(shockRingMesh(), HIDDEN),
+      shore: shore ? { x: shore.x, y: shore.y, z: shore.z } : null,
+      look,
       h: [st.own.stage.spawnMesh(swimmerMesh(look, 0), HIDDEN), st.own.stage.spawnMesh(swimmerMesh(look, 1), HIDDEN)],
       x: x0 + ox * 1.1, y: SEA_Y, z: z0 + oz * 1.1, x0, y0, z0, dx: out[0], dz: out[1], age: -i * 0.35, jump: 0.7, ring: 0, seed: seed + i,
     });
@@ -249,15 +292,30 @@ function piece(st: State, kind: number, x: number, y: number, z: number, vx: num
 }
 
 function strike(st: State, stage: LifeStage, x: number, z: number, power: number): void {
+  const r3 = BLAST.rubble * power * 0.9, r2 = BLAST.wreck * power, r1 = BLAST.shake * power;
   const harbour = harbourOf(stage);
-  if (!harbour) return;
-  const hits = harbour.strike(x, z, BLAST.rubble * power * 0.9, BLAST.wreck * power, BLAST.shake * power);
-  for (const h of hits) hit(st, stage, h, [x, z]);
+  if (harbour) for (const h of harbour.strike(x, z, r3, r2, r1)) hit(st, stage, h, [x, z]);
+  // The small boats: swamped or capsized (their behaviours draw that); whoever was aboard a capsized one swims.
+  for (const b of strikeBoats(stage, x, z, st.now, r3, r2, r1)) {
+    if (b.stage < 3) burnBoat(st, b.id);
+    const seed = Math.floor(b.x * 97 + b.z * 53) + b.stage;
+    if (b.stage === 3) {
+      abandon(st, { ship: null, stage: 3, d: 0, kind: 'barge', x: b.x, z: b.z, yaw: b.yaw, stern: -0.4, bow: 0.4, halfBeam: 0.2, crew: b.type === 'fishing-boat' ? 2 : 1 }, seed);
+      for (let i = 0; i < 2; i++) st.pieces.push(piece(st, i ? 0 : 2, b.x, SEA_Y + 0.4, b.z, (rand(seed, 'bx', i) - 0.5) * 1.4, 1.4, (rand(seed, 'bz', i) - 0.5) * 1.4, seed + i));
+    }
+  }
+}
+
+function burnBoat(st: State, id: string): void {
+  if (st.boatFires.some((f) => f.id === id)) return;
+  st.boatFires.push({ id, age: 0, flame: st.own.stage.spawnMesh(flameMesh(id.length % 3), HIDDEN), puff: 0 });
 }
 
 function clearAll(st: State): void {
+  for (const f of st.boatFires) f.flame.release();
+  st.boatFires = [];
   for (const p of st.pieces) p.h.release();
-  for (const w of st.swimmers) for (const h of w.h) h.release();
+  for (const w of st.swimmers) for (const h of [...w.h, w.halo]) h.release();
   st.swimmers = [];
   for (const b of st.burning) for (const f of b.flames) f.release();
   for (const p of st.puffs) {
@@ -275,7 +333,16 @@ function clearAll(st: State): void {
 function onEvent(st: State, stage: LifeStage, e: MischiefEvent): void {
   if (e.type === 'reset' || e.type === 'undo') {
     clearAll(st);
+    forgetBoatWrecks(stage);
     harbourOf(stage)?.clearWrecks();
+    return;
+  }
+  // Lightning on a vessel: its sails catch, and it is scorched as at the edge of a blast.
+  if (e.type === 'strike' && e.strike.cell === -1) {
+    const [x, , z] = e.strike.point;
+    const harbour = harbourOf(stage);
+    if (harbour) for (const h of harbour.strike(x, z, -1, -1, 0.7)) hit(st, stage, h, [x, z]);
+    for (const b of strikeBoats(stage, x, z, st.now, -1, -1, 0.7)) burnBoat(st, b.id);
     return;
   }
   if (e.type !== 'blast') return;
@@ -288,7 +355,7 @@ export default defineSystem<State>({
   id: 'mischief.shipwreck',
   order: 41,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, off: () => {} };
+    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), shape: null, pieces: [], swimmers: [], burning: [], puffs: [], spouts: [], pending: [], time: 0, now: 0, boatFires: [], off: () => {} };
     st.off = st.d.on((e) => onEvent(st, ctx.stage, e));
     // For tests and watching (like __lcPeople): the harbour on this stage.
     Object.defineProperty(globalThis, '__lcHarbour', { get: () => harbourOf(ctx.stage), configurable: true });
@@ -300,6 +367,8 @@ export default defineSystem<State>({
   },
   update(st, dt, signals, ctx) {
     st.time += dt;
+    st.now = signals.time.seconds;
+    st.d.clock = st.now;
     const stage = ctx.stage;
     for (let i = st.pending.length - 1; i >= 0; i--) {
       const p = st.pending[i]!;
@@ -373,7 +442,26 @@ export default defineSystem<State>({
         continue;
       }
       if (w.ring === 0) wakeRing(stage, w.x, w.z, 0.12, 2.4, 1.2);
-      // Swimming: two drawings in turn (on twos), a ripple each stroke.
+      // Swimming: two drawings in turn (on twos), a ripple each stroke; toward the shore, they steer for it.
+      if (w.shore) {
+        const ex = w.shore.x - w.x, ez = w.shore.z - w.z, el = Math.hypot(ex, ez) || 1;
+        w.dx = ex / el;
+        w.dz = ez / el;
+        // Close: they climb out, and are one of the town from here (the crowd takes them, same frame).
+        if (el < 0.75) {
+          const p = crowdOf(stage)?.ashore(w.x + w.dx * 0.6, w.shore.y, w.z + w.dz * 0.6, Math.atan2(w.dx, w.dz), w.look);
+          if (p) {
+            for (const h of [...w.h, w.halo]) h.release();
+            st.swimmers.splice(i, 1);
+            continue;
+          }
+          // Nowhere to stand after all: away to the edge instead.
+          w.shore = null;
+          const out = st.shape ? wayOut(st.shape, w.x, w.z) : null;
+          if (out) [w.dx, w.dz] = out;
+          else [w.dx, w.dz] = [-w.dx, -w.dz];
+        }
+      }
       w.x += w.dx * dt * 0.42;
       w.z += w.dz * dt * 0.42;
       w.ring += dt;
@@ -389,12 +477,40 @@ export default defineSystem<State>({
       show.setMatrix(m);
       show.setVisible(true);
       hide.setVisible(false);
+      const k = 0.26 + 0.03 * Math.sin(st.time * 3 + w.seed);
+      w.halo.setMatrix([k, 0, 0, 0, 0, 1, 0, 0, 0, 0, k, 0, w.x, SEA_Y + 0.01, w.z, 1]);
+      w.halo.setParams(0.8);
+      w.halo.setVisible(true);
       // At the edge of the map the renderer cuts them off, as it does a ship sailing out.
       const out = Math.min(w.x, SIZE_X - w.x, w.z, SIZE_Z - w.z);
       for (const h of w.h) h.setParams(1, 0, 0, out < 1.5 ? -2 : 0);
+      w.halo.setParams(0.8, 0, 0, out < 1.5 ? -2 : 0);
       if (out < -0.6) {
-        for (const h of w.h) h.release();
+        for (const h of [...w.h, w.halo]) h.release();
         st.swimmers.splice(i, 1);
+      }
+    }
+
+    // ── small boats burning: flames on the boat (its sail alight), smoke, then out ──
+    for (let i = st.boatFires.length - 1; i >= 0; i--) {
+      const f = st.boatFires[i]!;
+      f.age += dt;
+      const at = boatAt(stage, f.id);
+      const life = 14;
+      if (!at || f.age > life) {
+        f.flame.release();
+        st.boatFires.splice(i, 1);
+        continue;
+      }
+      const k = Math.min(1, (life - f.age) / 3) * Math.min(1, f.age * 3);
+      const s = 0.2 + 0.4 * k;
+      f.flame.setMatrix(compose(translation(at.x, at.y + 0.18, at.z), rotationY((st.d.camera.yaw * Math.PI) / 180), [s, 0, 0, 0, 0, s * (1.4 + 0.15 * Math.sin(st.time * 9)), 0, 0, 0, 0, s, 0, 0, 0, 0, 1]));
+      f.flame.setParams(1);
+      f.flame.setVisible(k > 0.05);
+      f.puff += dt * 1.5;
+      if (f.puff >= 1 && st.puffs.length < 60) {
+        f.puff = 0;
+        st.puffs.push({ h: st.own.stage.spawnMesh(smokeMesh(false, st.puffs.length % 3, 0), HIDDEN), mist: null, x: at.x, y: at.y + 0.6, z: at.z, age: 0 });
       }
     }
 
@@ -477,8 +593,9 @@ export default defineSystem<State>({
       }
     }
   },
-  dispose(st) {
+  dispose(st, ctx) {
     st.off();
+    forgetBoatWrecks(ctx.stage);
     st.own.releaseAll();
   },
 });

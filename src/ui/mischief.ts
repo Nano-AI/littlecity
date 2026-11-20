@@ -217,8 +217,17 @@ export function createMischiefTools(host: {
         return true;
       }
       const cell = blockOf(pick);
+      // Lightning on a ship or a boat (the nearest under the pointer): its sails catch.
+      if (tool === 'torch' && cell === null && pick) {
+        const v = director.vesselAt(pick.point[0], pick.point[2]);
+        if (v) {
+          director.strikeVessel([v[0], pick.point[1] + 0.9, v[1]]);
+          hint(tool);
+          return true;
+        }
+      }
       if (cell === null) {
-        host.refuse(tool === 'mend' ? 'click something that needs mending' : 'click a building');
+        host.refuse(tool === 'mend' ? 'click something that needs mending' : tool === 'torch' ? 'click a building or a boat' : 'click a building');
         return false;
       }
       let ok: boolean;

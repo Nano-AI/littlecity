@@ -14,6 +14,7 @@
 //
 // A rowboat anchored to a cell just floats there (the gallery).
 
+import { boatPose } from '../mischief/boatwreck';
 import { CELL_H, DIR4, keyX, keyZ, SEA_Y, type Dir4 } from '@/core/grid';
 import { positionOf, transformPoint, type Mat4, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { rowboatBow } from '@/parts/actors/boats/rowboat.part';
@@ -233,6 +234,8 @@ function pose(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals
   const sw = swellAt(now, state.phase, BOATS.rowLength, wind.strength, state.swell);
   // A tight line holds the bow down a touch.
   fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch - 0.035 * state.taut, sw.roll, 1, state.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  boatPose(ctx.stage, ctx.item.id, 'rowboat', state.m, signals.time.seconds);
   ctx.instance.setMatrix(state.m);
   notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
 
@@ -266,6 +269,8 @@ function rowIn(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signal
   const a = standAside(ctx.stage, state, p.x, p.z, Math.atan2(p.dx, p.dz), dt, ctx.item.id);
   c.s = Math.max(0, c.s - 0.55 * dt * (1 - a.slow));
   fly(a.x, SEA_Y + sw.heave, a.z, Math.atan2(p.dx, p.dz), sw.pitch, sw.roll, 1, state.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  boatPose(ctx.stage, ctx.item.id, 'rowboat', state.m, signals.time.seconds);
   ctx.instance.setMatrix(state.m);
   notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
   if (c.s >= c.len - 1e-6) {
@@ -324,6 +329,8 @@ function rowAside(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, sig
   const now = signals.time.seconds;
   const sw = swellAt(now, state.phase, BOATS.rowLength, signals.wind(x, z).strength, state.swell);
   fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch, sw.roll, 1, state.m);
+  // Mischief: a blast may have swamped or capsized it (src/life/mischief/boatwreck.ts).
+  boatPose(ctx.stage, ctx.item.id, 'rowboat', state.m, signals.time.seconds);
   ctx.instance.setMatrix(state.m);
   notePose(ctx.stage, ctx.item.id, state.m, 'rowboat');
   // Where it is now, in the mooring's frame, for when it comes home.
@@ -376,7 +383,7 @@ export default defineBehaviour<'rowboat', RowboatState>({
   },
   update(state, dt, signals, ctx) {
     if (state.floating) {
-      poseFloating(state.floating, signals, ctx.instance, ctx.stage, ctx.dressing);
+      poseFloating(state.floating, signals, ctx.instance, ctx.stage, ctx.dressing, 0, { id: ctx.item.id, type: 'rowboat' });
       return;
     }
     const fresh = ctx.dressing !== state.dressing;
