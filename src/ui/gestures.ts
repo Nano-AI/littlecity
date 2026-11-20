@@ -7,6 +7,13 @@
 //   pan             right drag                       two-finger drag
 //   zoom            scroll or pinch                  pinch
 //   paint a run     Shift + drag                     (not in v1)
+//   shape the land  drag (Raise, Dig, Level held)    one-finger drag (Raise, Dig, Level held)
+//
+// While a land tool is held (sink.dragPaints), a plain drag that starts on
+// the land paints a stroke instead of turning the camera: the drag shapes
+// the ground, as the tool promises. A drag that starts on the sea or beside
+// the island still orbits; Shift-drag paints from anywhere; right drag pans;
+// two fingers pan and zoom. A click or tap is still a click.
 //
 // createGestures() is the recogniser: it is fed plain pointer samples and
 // calls a sink with what they mean. It knows nothing about the DOM or the
@@ -53,6 +60,11 @@ export interface GestureSink {
   hoverEnd(): void;
   /** Shift + press with the mouse. Return false to decline; the drag then orbits as usual. */
   runStart(x: number, y: number): boolean;
+  /**
+   * True while a plain drag (no Shift; one finger on touch) should paint a run: the land tools. The
+   * run starts once the pointer has moved past the click slop, from where it went down.
+   */
+  dragPaints?(x: number, y: number): boolean;
   runMove(x: number, y: number): void;
   runEnd(): void;
   /** A drag (orbit or pan) began or ended; for the cursor. */
@@ -83,7 +95,7 @@ export interface Gestures {
 }
 
 type MouseMode = 'idle' | 'press' | 'orbit' | 'pan' | 'run';
-type TouchMode = 'idle' | 'press' | 'orbit' | 'two' | 'spent';
+type TouchMode = 'idle' | 'press' | 'orbit' | 'two' | 'spent' | 'run';
 
 interface Finger {
   x: number;
@@ -133,6 +145,7 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
       return;
     }
     cancelPress();
+    if (touch === 'run') sink.runEnd();
     if (fingers.size === 2 && touch !== 'spent') {
       if (touch === 'orbit') setDragging(false);
       touch = 'two';
@@ -153,9 +166,18 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
     if (!finger) return;
     finger.x = p.x;
     finger.y = p.y;
+    if (touch === 'run') {
+      sink.runMove(p.x, p.y);
+      return;
+    }
     if (touch === 'press') {
       if (Math.hypot(p.x - startX, p.y - startY) <= INPUT.tapSlop) return;
       cancelPress();
+      if (sink.dragPaints?.(startX, startY) && sink.runStart(startX, startY)) {
+        touch = 'run';
+        sink.runMove(p.x, p.y);
+        return;
+      }
       touch = 'orbit';
       lastX = p.x;
       lastY = p.y;
@@ -188,6 +210,7 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
       if (!cancelled && quick && still) sink.use(startX, startY);
       return;
     }
+    if (touch === 'run') sink.runEnd();
     if (touch === 'orbit' || touch === 'two') setDragging(false);
     // After a two-finger gesture the finger that stays down does nothing: no sudden orbit.
     touch = fingers.size === 0 ? 'idle' : 'spent';
@@ -216,6 +239,11 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
       if (mouse === 'run') return sink.runMove(p.x, p.y);
       if (mouse === 'press') {
         if (Math.hypot(p.x - startX, p.y - startY) <= INPUT.clickSlop) return;
+        if (mouseButton === 0 && sink.dragPaints?.(startX, startY) && sink.runStart(startX, startY)) {
+          mouse = 'run';
+          sink.runMove(p.x, p.y);
+          return;
+        }
         mouse = mouseButton === 0 ? 'orbit' : 'pan';
         setDragging(true);
       }
@@ -249,6 +277,7 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
 
     reset() {
       cancelPress();
+      if (touch === 'run') sink.runEnd();
       if (touch === 'orbit' || touch === 'two') setDragging(false);
       fingers.clear();
       touch = 'idle';

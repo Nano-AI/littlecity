@@ -213,3 +213,45 @@ describe('touch', () => {
     expect(log.some((l) => l.startsWith('hover'))).toBe(false);
   });
 });
+
+describe('a land tool held (shaping the land): a plain drag on the land paints', () => {
+  const painting = (paints: (x: number) => boolean): Gestures => createGestures({ ...sink, dragPaints: (x) => paints(x) }, scheduler);
+
+  test('mouse: a drag that starts on the land is a stroke from where it went down; a click is still a click', () => {
+    const gp = painting(() => true);
+    gp.down(mouse(10, 10));
+    gp.up(mouse(10, 10));
+    gp.down(mouse(10, 10));
+    gp.move(mouse(12, 10));
+    gp.move(mouse(30, 10));
+    gp.move(mouse(40, 10));
+    gp.up(mouse(40, 10));
+    expect(acts()).toEqual(['use 10,10', 'runStart 10,10', 'runMove 30,10', 'runMove 40,10', 'runEnd']);
+  });
+
+  test('mouse: a drag that starts on the sea turns the camera; the right button still pans', () => {
+    const gp = painting((x) => x > 100);
+    gp.down(mouse(10, 10));
+    gp.move(mouse(30, 10));
+    gp.up(mouse(30, 10));
+    gp.down(mouse(200, 10, 2));
+    gp.move(mouse(220, 10, 2));
+    gp.up(mouse(220, 10, 2));
+    expect(acts()).toEqual(['orbit 20,0', 'pan 20,0']);
+  });
+
+  test('touch: one finger paints; a tap is still a tap; a second finger ends the stroke and pans', () => {
+    const gp = painting(() => true);
+    gp.down(finger(1, 10, 10));
+    gp.up(finger(1, 10, 10));
+    gp.down(finger(1, 10, 10));
+    gp.move(finger(1, 40, 10));
+    gp.move(finger(1, 60, 10));
+    gp.down(finger(2, 100, 10));
+    gp.move(finger(2, 110, 10));
+    gp.up(finger(1, 60, 10));
+    gp.up(finger(2, 110, 10));
+    expect(acts().slice(0, 5)).toEqual(['use 10,10', 'runStart 10,10', 'runMove 40,10', 'runMove 60,10', 'runEnd']);
+    expect(acts().slice(5).every((a) => a.startsWith('pan') || a.startsWith('zoom'))).toBe(true);
+  });
+});

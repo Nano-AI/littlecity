@@ -127,7 +127,7 @@ describe('desktop: shaping the land', () => {
     await page.mouse.move(b[0], b[1], { steps: 10 });
     await page.mouse.up();
     await page.keyboard.up('Shift');
-    await page.waitForFunction(`window.__lc.terrain().height[${25 + 20 * 48}] === 2`); // one step per stroke
+    await page.waitForFunction(`window.__lc.terrain().height[${25 + 20 * 48}] === 1`); // all the way, in one stroke
     expect(errors).toEqual([]);
   });
 });
