@@ -5,7 +5,8 @@
 //   a flight of grand steps is cut into it (R-M04's shape) that climbs to its
 //   top level (steps up to the foot of a tower are a keep's) though it is
 //   not mostly stair, or a quarter or more of its open top holds a floor, a
-//   plinth, pillars, a fountain, a stall or a tree;
+//   plinth, pillars, a fountain, a stall, a tree or stairs (ledges a
+//   staircase street climbs);
 //
 // and nothing of a castle touches it: no wall piece or wall edge, no
 // gateway arch, no castle turret, no gatehouse. (With any of those it is a
@@ -29,7 +30,7 @@ import { railVariantAt, standable } from '../joinery/edges-lib';
 import { columnCount, grandSteps } from './R-M04.steps';
 
 /** Kinds that, standing on a top, put it to use. */
-const USES = new Set(['pillar', 'marble', 'fountain', 'stall', 'tree']);
+const USES = new Set(['pillar', 'marble', 'fountain', 'stall', 'tree', 'stairs']);
 const CASTLE = new Set(['gateway', 'castle-turret', 'gatehouse', 'keep']);
 
 /** A 2 × 2 somewhere in the footprint. */

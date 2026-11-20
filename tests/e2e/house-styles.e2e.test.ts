@@ -252,9 +252,10 @@ describe('desktop: one building, not a row of strangers', () => {
     for (let s = 0; s < storeys; s++) for (const [x, z] of order) await clickTop(page, x, z);
   }
 
-  test('a style, six ground clicks beside a path and a storey on each: one inn', async () => {
+  test('a style, six ground clicks beside a square and a storey on each: one inn', async () => {
     const { page, errors } = await open();
-    for (let x = 14; x <= 20; x++) expect(await js(page, `window.__lc.edit({ type: 'placeFloor', cell: ${key(x, 1, 30)}, floor: 'path' })`)).toBe(true);
+    // A square (a plaza holding a 3 × 3) in front: an inn stands where travellers arrive (R-H06, FX-02).
+    for (let x = 14; x <= 20; x++) for (let z = 30; z <= 32; z++) expect(await js(page, `window.__lc.edit({ type: 'placeFloor', cell: ${key(x, 1, z)}, floor: 'plaza' })`)).toBe(true);
     await chooseStyle(page, 4);
     const cells = rect(16, 28, 3, 2);
     await build(page, cells, 2);
@@ -266,7 +267,7 @@ describe('desktop: one building, not a row of strangers', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a 5 × 2 footprint in one style is one manor; the ghost frames the building a block would join', async () => {
+  test('a 5 × 2 footprint in one style is one building; the ghost frames the building a block would join', async () => {
     const { page, errors } = await open();
     await chooseStyle(page, 6);
     const cells = rect(14, 28, 5, 2);
@@ -280,7 +281,8 @@ describe('desktop: one building, not a row of strangers', () => {
     await page.screenshot({ path: path.join(SHOTS, 'house-styles-ghost-join.png') });
     await page.mouse.click(gx, gy);
     await page.waitForFunction('window.__lc.world().blocks.size === 15');
-    expect(await buildingOf(page, cells.map(([x, z]) => [x, 1, z]))).toEqual({ ids: [expect.any(Number)], role: 'manor' });
+    // One storey: a home, not a manor (R-H09 wants two storeys for a big footprint, FX-06).
+    expect(await buildingOf(page, cells.map(([x, z]) => [x, 1, z]))).toEqual({ ids: [expect.any(Number)], role: 'cottage' });
     // Placed apart, a house of the same style is a building of its own, and its ghost frames nothing.
     const [ax, ay] = await ground(page, 26, 30);
     await page.mouse.move(ax, ay);

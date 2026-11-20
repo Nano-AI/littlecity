@@ -232,7 +232,7 @@ type and which later rules apply.
   in its footprint that carries a temple (one of R-M01's pillars stands on
   it), or has R-M04's steps cut into it, climbing to its top level, without
   being mostly stair (steps up to the foot of a tower are a keep's), or has a
-  floor, plinth, pillar, fountain, stall or tree on a quarter or more of its
+  floor, plinth, pillar, fountain, stall, tree or stairs on a quarter or more of its
   open top; and no wall piece or wall edge, gateway arch, castle turret,
   gatehouse or keep touching it → no battlements and no garrison: marble
   (not castle stone), flat pilasters on every second cell line, a stone

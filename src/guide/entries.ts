@@ -307,21 +307,6 @@ export const ENTRIES: readonly GuideEntry[] = [
     view: FRONT,
   },
   {
-    id: 'warehouse',
-    group: 'waterfront',
-    name: 'Warehouse',
-    how: 'Build a house of six or more blocks, two or more storeys tall, facing a dock across the harbour street: loading doors climb its wall to a hoist.',
-    proof: { role: 'warehouse' },
-    seed: 7117,
-    ground: seaSouth,
-    build(b) {
-      b.house(18, 17, { w: 3, d: 2, floors: 3, color: 7 });
-      b.path(16, 19, 23, 19);
-      for (let x = 19; x <= 20; x++) b.block('dock', x, 0, 21);
-    },
-    view: FRONT,
-  },
-  {
     id: 'watermill',
     group: 'houses',
     name: 'Watermill',
@@ -833,6 +818,21 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   // Boats and ships ("Boats and ships": whatever fits comes). The picture shows the ship moored: a town opened
   // with a port has its biggest ship in.
+  {
+    id: 'warehouse',
+    group: 'waterfront',
+    name: 'Warehouse',
+    how: 'Build a house of six or more blocks, two or more storeys tall, facing a dock across the harbour street: loading doors climb its wall to a hoist.',
+    proof: { role: 'warehouse' },
+    seed: 7117,
+    ground: seaSouth,
+    build(b) {
+      b.house(18, 17, { w: 3, d: 2, floors: 3, color: 7 });
+      b.path(16, 19, 23, 19);
+      for (let x = 19; x <= 20; x++) b.block('dock', x, 0, 21);
+    },
+    view: FRONT,
+  },
   {
     id: 'ships',
     group: 'waterfront',
