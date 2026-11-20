@@ -8,6 +8,8 @@ import { definePart } from '@/gen/api';
 import { SLOT_INSET } from '@/gen/frames';
 import { PATTERN } from '@/gen/mesh';
 import { barrel } from '@/parts/ground/dock-goods.part';
+import { hingesOf } from '@/parts/openings/door-leaf';
+import { FLOOR } from '@/style/ground';
 import { PALETTE } from '@/style/palette';
 import { clothColors, dab, flowerColors, lantern, localTone, lump, mixColor, posy, pot, rngOf, tube, vary } from './kit';
 
@@ -149,12 +151,36 @@ export const creeper = definePart({
 });
 
 /**
- * Doorstep: what stands at a front door. Always a mat; by the rule's
- * choice a pair of potted plants, a barrel, a bicycle leaning on the wall,
- * a lantern on the wall beside the door (glowing; socket 'lamp-head').
- * Frame: the 'door' socket (the ground just outside the door, +Z out). The
- * wall is 0.37 behind it, plus 0.1 for every stoop step.
+ * Doorstep: what stands at a front door. A mat where D11 found a flat place
+ * for one; by the rule's choice a pair of potted plants, a barrel, a bicycle
+ * leaning on the wall, a lantern on the wall beside the door (glowing;
+ * socket 'lamp-head').
+ * Frame: the 'door' socket (the ground line just outside the door, +Z out).
+ * The wall is 0.37 behind it, plus 0.1 for every stoop step.
+ *
+ * The mat is a thin slab (0.008) lying 0.004 over what it lies on (`ground`:
+ * bare ground, a path, a plaza, a deck or terrace, a marble top), as wide as
+ * the door's leaves and a little more, beyond the stoop and beyond the swing
+ * of the leaf (doors open outward: door-leaf.ts).
  */
+/** The stoop's width and the leaf kind of each `door` param (door.part.ts). */
+const DOORS = [
+  { stoop: 0.46, leaf: 'plain', mat: 0.3 },
+  { stoop: 0.3, leaf: 'shop', mat: 0.24 },
+  { stoop: 0.62, leaf: 'double', mat: 0.46 },
+] as const;
+
+/** The height over the ground line of what a doormat lies on (D11's `ground`). */
+function groundHeight(code: number): number {
+  switch (code) {
+    case 1: return FLOOR.pathLift;
+    case 2: return FLOOR.plazaLift + 0.002; // over the plaza's motif
+    case 3: return 0.004; // a dock deck, an arch's deck, a house's terrace
+    case 4: return 0.008; // a marble top
+    case 5: return 0.012; // a courtyard's cobbles (commons.part.ts)
+    default: return 0;
+  }
+}
 export const doorstep = definePart({
   prop: 'doorstep',
   build(item, ctx) {
@@ -162,8 +188,20 @@ export const doorstep = definePart({
     const p = item.params ?? {};
     const r = rngOf(ctx.seed ^ ((p.look ?? 0) * 743));
     const steps = Math.max(0, p.steps ?? 0);
-    const zw = -(0.37 + steps * 0.1);
-    b.with({ color: r('mat') < 0.5 ? PALETTE.redDark : PALETTE.trunk, pattern: PATTERN.cloth, ink: 'mat' }, () => b.box([-0.1, 0, -0.15], [0.1, 0.012, -0.02], { skip: ['bottom'] }));
+    const out = 0.17 + steps * 0.1; // the stoop's depth from the wall
+    const zw = -(out + 0.2);
+    const door = DOORS[Math.min(2, Math.max(0, p.door ?? 0))]!;
+    const matColor = r('mat') < 0.5 ? PALETTE.redDark : PALETTE.trunk;
+    if (p.mat ?? 1) {
+      // Beyond the stoop, and (on the doorstep's level) beyond the reach of the leaf swinging out.
+      const reach = Math.max(...hingesOf(door.leaf).map((h) => h.z + h.width));
+      const near = steps > 0 ? out + 0.02 : Math.max(out + 0.02, reach + 0.015);
+      const y0 = groundHeight(p.ground ?? 0) + 0.004, w = door.mat / 2;
+      // On a path, within its body (a shop door stands 0.26 left of the cell's middle).
+      const atX = door.leaf === 'shop' ? -0.26 : 0, room = 0.5 - FLOOR.pathMargin - 0.05; // its edges wander
+      const cx = p.ground === 1 ? Math.min(Math.max(0, -room + w - atX), room - w - atX) : 0;
+      b.with({ color: matColor, pattern: PATTERN.cloth, ink: 'mat' }, () => b.box([cx - w, y0, zw + near], [cx + w, y0 + 0.008, zw + near + 0.14], { skip: ['bottom'] }));
+    }
     const flowers = flowerColors();
     const flower = flowers[(((p.flowers ?? 0) % flowers.length) + flowers.length) % flowers.length]!;
     // Which side the big things take; the pots take whatever side is left.
@@ -190,15 +228,21 @@ export const doorstep = definePart({
         b.with({ color: PALETTE.trunk, pattern: PATTERN.none, ink: 'bike' }, () => b.box([-0.07, cy + 0.14, -0.012], [-0.01, cy + 0.155, 0.012]));
       });
     }
+    // A shop door stands at the left end of its shopfront: nothing on that side but the wall's corner.
+    if (door.leaf === 'shop') taken.add(-1);
+    // Pots and barrel stand clear of the stoop's sides.
+    const half = door.stoop / 2;
     if (p.barrel) {
       const side = taken.has(barrelSide) ? -barrelSide : barrelSide;
-      taken.add(side);
-      b.at(translation(side * 0.36, 0, zw + 0.1), () => barrel(b, 0.065, 0.19, vary(PALETTE.wood, r('barrel')), 'barrel'));
+      if (!taken.has(side)) {
+        taken.add(side);
+        b.at(translation(side * Math.max(0.36, half + 0.09), 0, zw + 0.1), () => barrel(b, 0.065, 0.19, vary(PALETTE.wood, r('barrel')), 'barrel'));
+      }
     }
     if (p.pots) {
       for (const side of [-1, 1]) {
         if (taken.has(side)) continue;
-        b.at(translation(side * 0.25, 0, zw + 0.075), () => {
+        b.at(translation(side * Math.max(0.25, half + 0.06), 0, zw + 0.075), () => {
           pot(b, 0.045, 0.075, PALETTE.brick, `pot${side}`);
           b.setInk(`pot${side}`);
           posy(b, 0, 0.07, 0, 0.055, flower, r, side, `pot${side}`, 3);
@@ -207,7 +251,8 @@ export const doorstep = definePart({
     }
     let head: Mat4 | undefined;
     if (p.lantern) {
-      const y = steps * 0.16 + 0.5, x = -0.215;
+      // Beside the door frame (a chapel's double door is wider, under its porch).
+      const y = steps * 0.16 + 0.5, x = door.leaf === 'double' ? -0.42 : -0.215;
       b.with({ color: PALETTE.metal, pattern: PATTERN.metal, ink: 'lantern-cap' }, () => b.box([x - 0.008, y, zw], [x + 0.008, y + 0.016, zw + 0.06], { skip: ['n'] }));
       const size = 0.06;
       b.at(translation(x, y - size * 1.77, zw + 0.045), () => void lantern(b, size, 'lantern'));
@@ -243,7 +288,8 @@ export const lobsterPot = definePart({
           // A half-barrel lying on its flat side.
           b.at(compose(translation(0, 0, -0.09), rotationX(Math.PI / 2)), () => b.lathe([[0.075, 0], [0.075, 0.18]], { segments: 6, start: Math.PI, sweep: Math.PI, capTop: true, capBottom: true }));
         });
-        b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: k }, () => b.box([-0.078, 0, -0.012], [0.078, 0.012, 0.012], { skip: ['bottom'] }));
+        // The skid's top clear of a path's (0.012).
+        b.with({ color: PALETTE.metal, pattern: PATTERN.none, ink: k }, () => b.box([-0.078, 0, -0.012], [0.078, 0.016, 0.012], { skip: ['bottom'] }));
       });
     };
     one(-0.06, 0, 0, (r('t0') - 0.5) * 0.6, 'a');
