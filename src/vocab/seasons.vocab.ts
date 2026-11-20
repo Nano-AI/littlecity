@@ -27,8 +27,8 @@ declare module '@/core/vocab' {
     'wreath': true;
     'wreath.look': number;
     'wreath.steps': number; //   the door's stoop (door.steps): the wreath hangs on the door, up its steps
-    // The big decorated tree with a star, on the town's main square (at a corner slot, so it stands
-    // between four paving cells and nobody's way is changed by it).
+    // The big decorated tree with a star, on the town's main square (from a festival-anchor on a paving
+    // cell, standing at its north-west corner between four cells: nobody's way is changed by it).
     'festival-tree': true;
     'festival-tree.look': number;
   }

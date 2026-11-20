@@ -153,7 +153,10 @@ export default defineRule<Festive>({
     } else if (d.kind === 'square') {
       out.prop({ type: 'festival-lights', variant: 'square', at: { from: d.a, to: d.b }, params: { look, drop: 0.06 } });
     } else {
-      out.prop({ type: 'festival-tree', at: { cell: d.cell, pos: 'nw' }, params: { look } });
+      // From a socket, not a floor slot: nothing that finds its way by the props on the ground (people,
+      // pigeons) changes its mind in summer because of a tree that is not up.
+      const top = out.socket({ type: 'festival-anchor', cell: d.cell });
+      out.prop({ type: 'festival-tree', at: { socket: top }, params: { look } });
     }
   },
 });

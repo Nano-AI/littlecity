@@ -119,7 +119,8 @@ function star(b: MeshBuilder, R: number): void {
 
 /**
  * The town's tree: a tall fir hung with a spiral of coloured lights and a few glass baubles, with a
- * star on top, standing in a wooden tub. Frame: a corner slot of the square, on the paving.
+ * star on top, standing in a wooden tub. Frame: the top of a square's cell (a festival-anchor); the tree
+ * stands on the paving at that cell's north-west corner.
  */
 export const festivalTree = definePart({
   prop: 'festival-tree',
@@ -127,6 +128,7 @@ export const festivalTree = definePart({
     const b = ctx.mesh();
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 7));
     const S = 1.45;
+    b.push(translation(-0.5, -0.8, -0.5));
     b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'tub' }, () =>
       b.lathe([[0.17, 0], [0.2, 0.16], [0.21, 0.16]], { segments: 10, capTop: true }),
     );
@@ -160,6 +162,7 @@ export const festivalTree = definePart({
     b.with({ color: PALETTE.yellow, pattern: PATTERN.glow, ink: 'star' }, () => {
       for (const a of [0, Math.PI / 2]) b.at(compose(translation(0, top + 0.06, 0), rotationY(a)), () => star(b, 0.12));
     });
+    b.pop();
     return { mesh: b.build() };
   },
 });
