@@ -169,7 +169,7 @@ interface State {
   /** A wrecked windmill's sails, down on the ground beside it (falling there when it happens). */
   sails: Map<StructureId, { h: InstanceHandle; burnt: boolean; age: number; fall: boolean; x0: number; y0: number; z0: number; x1: number; y1: number; z1: number; yaw: number }>;
   dust: Dust[];
-  samplers: Map<StructureId, { hash: number; sample: (x: number, z: number, minY: number) => number | null }>;
+  samplers: Map<StructureId, { hash: number; at: number; sample: (x: number, z: number, minY: number) => number | null }>;
   /** Seconds to the next fright for the birds round each fire. */
   scareIn: number;
   /** Firelight round each burning building. */
@@ -398,10 +398,11 @@ function samplerOf(st: State, shape: ShapePlan, sid: StructureId | undefined): (
   const s = shape.structures.get(sid);
   if (!s) return null;
   const had = st.samplers.get(sid);
-  if (had && had.hash === s.hash) return had.sample;
+  // Drawing the building again to find its top is dear: at most every second and a half per building.
+  if (had && (had.hash === s.hash || st.time - had.at < 1.5)) return had.sample;
   const mesh = allGenerators().build(s, shape, allParts()).mesh;
   const sample = roofSampler(polysOf(mesh), 0.22);
-  st.samplers.set(sid, { hash: s.hash, sample });
+  st.samplers.set(sid, { hash: s.hash, sample, at: st.time });
   return sample;
 }
 
@@ -527,13 +528,16 @@ export default defineSystem<State>({
       const sid = b.structure;
       const sHash = sid === undefined ? 0 : (shape.structures.get(sid)?.hash ?? 0);
       let f = st.flames.get(b.cell);
-      if (!f || f.shapeHash !== sHash) {
+      // The building's top as last sampled (refreshed now and then while it changes under the fire).
+      const sample = samplerOf(st, shape, sid);
+      const topHash = sid === undefined ? sHash : (st.samplers.get(sid)?.hash ?? sHash);
+      if (!f || f.shapeHash !== topHash) {
         // New, or its building changed under it (the roof fell in): find where the flames stand now.
         if (f) release(f);
-        const spots = spotsOf(shape, b.cell, samplerOf(st, shape, sid));
+        const spots = spotsOf(shape, b.cell, sample);
         const seed = hash(shape.world.seed, 'flame', b.cell);
         const looks = spots.map((_, i) => Math.floor(rand(seed, 'look', i) * 3));
-        f = { cell: b.cell, spots, handles: [], looks, glows: [], phase: f?.phase ?? rand(seed, 'phase'), intensity: f?.intensity ?? 0, frame: -1, shapeHash: sHash };
+        f = { cell: b.cell, spots, handles: [], looks, glows: [], phase: f?.phase ?? rand(seed, 'phase'), intensity: f?.intensity ?? 0, frame: -1, shapeHash: topHash };
         for (let i = 0; i < spots.length; i++) {
           const h = flamePools[looks[i]!]!.take();
           h.setParams(1);
