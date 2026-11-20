@@ -224,3 +224,32 @@ describe('grow a town: the survey (seeds 1 to 30, both generators)', () => {
     expect(survey().some((s) => s.roles.has('town-hall'))).toBe(true);
   });
 });
+
+describe('grow a town: the dice', () => {
+  test('rolling with what was shown never repeats a character until every suited one has had a turn', () => {
+    let shown: Character[] = [];
+    const order: Character[] = [];
+    let repeatsBeforeFull = 0;
+    for (let roll = 0; roll < 24; roll++) {
+      const seed = 100 + roll * 7;
+      const t = generateTerrain(seed, 2);
+      const c = planTown(t, seed, { avoid: shown }).character;
+      order.push(c);
+      // A repeat is allowed only as the start of a new round, and never the one just shown.
+      if (shown.includes(c)) {
+        expect(c, `roll ${roll}: the same character twice running`).not.toBe(shown[shown.length - 1]);
+        if (shown.length < 4) repeatsBeforeFull++;
+        shown = [c];
+      } else shown = [...shown, c];
+    }
+    console.log(`dice order: ${order.join(', ')}`);
+    expect(repeatsBeforeFull, 'a round ended after fewer than four characters').toBe(0);
+    expect(new Set(order).size).toBeGreaterThanOrEqual(6);
+    expect(order).toContain('marble');
+  });
+
+  test('a first roll is not changed by the dice: no characters shown, same town as before', () => {
+    const t = generateTerrain(9, 2);
+    expect(planTown(t, 9, { avoid: [] }).character).toBe(planTown(t, 9).character);
+  });
+});

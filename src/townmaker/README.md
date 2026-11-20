@@ -1,6 +1,6 @@
 # Grow a town
 
-`growTown(terrain, seed, { avoid?, character? })` returns the ordered edits
+`growTown(terrain, seed, { avoid?, character? })` (`avoid`: the characters the dice showed already) returns the ordered edits
 of a whole town; `planTown` returns the same with what it decided (the
 character, the districts, the square). Pure and seeded; every edit passes
 `canApply` against the town grown so far (`grower.ts`).

@@ -1088,15 +1088,24 @@ town is meant to show off every building combination the rules know.
   carved steps up the terraces; and a vertical quarter of viaducts, sky
   bridges, towers on arches and houses on generated supports. Streets
   connect everything so residents can walk it.
-- **Coverage.** Across seeds 1 to 5 every role in catalogue part R must
-  appear at least once, and any single grown town must show at least 30
-  distinct roles. A test enforces both.
+- **Character.** A town does not show everything: it is one kind of place
+  (harbour town, marble city, castle town, market town, river town, farming
+  village, hill town, garden town) with a second kind flavouring it, rolled
+  from the seed and weighted by what the island offers. The banner names
+  it. `src/townmaker/README.md` lists what each character builds and
+  leaves out.
+- **Coverage.** The showcase is across towns, not within one: over seeds 1
+  to 30 on both island generators every character is rolled, each town
+  shows what its character promises, and every role and guide entry the
+  generator can place appears in some town. A test enforces this.
 - **In the game.** Choosing it asks for confirmation if the island has
   anything on it besides the starting trees, clears those, then plays the
   edits in order at about 25 a second so the town visibly builds itself with
   the landing bounce, district by district. A click or key skips to the end.
   The whole growth is one undo step. A dice button beside the entry grows a
-  different town on a new island.
+  different town on a new island. The dice do not repeat a character
+  until every character that suits the island rolled has had a turn, so a
+  handful of rolls shows the whole range.
 - **Speed.** Generating the edit list takes under 200 ms for a full island.
 
 ## 16. Code layout and contracts

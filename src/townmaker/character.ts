@@ -88,16 +88,30 @@ function weightedPick(seed: number, salt: string, w: Record<Character, number>, 
   return CHARACTERS.find((c) => !skip.has(c)) ?? 'market';
 }
 
+/** Below this weight the island does not suit a character: the dice need not show it before they repeat. */
+const SUITED = 0.3;
+
 /**
- * The town's primary character and a secondary one that flavours it. A
- * character to avoid (the last one the dice showed) is left out when the
- * island allows anything else.
+ * The town's primary character and a secondary one that flavours it.
+ * `avoid` lists the characters the dice showed already, oldest first: none
+ * of them is rolled again while a character the island suits has not been
+ * shown, so a few rolls show the whole range. When all have been shown only
+ * the latest is left out. `never` is left out whatever happens.
  */
-export function rollCharacter(site: Site, seed: number, avoid?: Character, force?: Character): { primary: Character; secondary: Character; traits: IslandTraits } {
+export function rollCharacter(site: Site, seed: number, avoid: readonly Character[] = [], force?: Character, never?: Character): { primary: Character; secondary: Character; traits: IslandTraits } {
   const traits = islandTraits(site);
   const w = characterWeights(traits);
-  const skip = new Set<Character>();
-  if (avoid && CHARACTERS.some((c) => c !== avoid && w[c] > 0)) skip.add(avoid);
+  let skip = new Set<Character>(avoid);
+  if (never) skip.add(never);
+  if (!CHARACTERS.some((c) => !skip.has(c) && w[c] >= SUITED)) {
+    // Every suited character has had its turn: start again, without repeating the latest.
+    skip = new Set<Character>(never ? [never] : []);
+    const last = avoid[avoid.length - 1];
+    if (last && CHARACTERS.some((c) => c !== last && !skip.has(c) && w[c] > 0)) skip.add(last);
+  } else if (avoid.length > 0) {
+    // Among those not shown yet, only the suited ones: an unsuited one keeps its small odds for a first roll.
+    for (const c of CHARACTERS) if (w[c] < SUITED) skip.add(c);
+  }
   const primary = force ?? weightedPick(seed, 'primary', w, skip);
   const secondary = weightedPick(seed, 'secondary', w, new Set([primary]));
   return { primary, secondary, traits };

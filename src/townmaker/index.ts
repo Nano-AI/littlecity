@@ -60,8 +60,10 @@ export interface GrownTown {
 }
 
 export interface GrowOptions {
-  /** A character not to roll (the last one the dice showed), when the island allows another. */
-  avoid?: Character;
+  /** The characters the dice showed already, oldest first: not rolled again until every character the island suits has been shown. */
+  avoid?: readonly Character[];
+  /** A character never to roll (the planner's own fallback when a marble city has no site for its forum). */
+  never?: Character;
   /** Grow this character whatever the island leans to (scenarios, tools). */
   character?: Character;
 }
@@ -157,13 +159,13 @@ export function planFor(primary: Character, secondary: Character): string[] {
 export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {}): GrownTown {
   const g = new Grower(terrain, seed);
   const site = readSite(terrain);
-  const { primary, secondary } = rollCharacter(site, seed, opts.avoid, opts.character);
+  const { primary, secondary } = rollCharacter(site, seed, opts.avoid, opts.character, opts.never);
   // One town in five has no fountain anywhere, so the hand pump (D33, which needs a town without one) shows too.
   const town: Town = { g, site, square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 && primary !== 'marble', marketCross: primary === 'market' || secondary === 'market' };
 
   const plan = planFor(primary, secondary);
   // A marble city stands or falls by its forum: on an island with no site for one, grow another kind of town.
-  if (primary === 'marble' && !opts.character && plan[0] === 'forum' && !buildForum(town)) return planTown(terrain, seed, { avoid: 'marble' });
+  if (primary === 'marble' && !opts.character && plan[0] === 'forum' && !buildForum(town)) return planTown(terrain, seed, { avoid: opts.avoid, never: 'marble' });
   if (primary === 'marble' && town.square) plan.shift();
   for (const step of plan) {
     const [name, a, b] = step.split(':');

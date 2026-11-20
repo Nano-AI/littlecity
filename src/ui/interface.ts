@@ -223,14 +223,14 @@ export function createInterface(host: InterfaceHost): Interface {
       api.sync();
     },
   });
-  /** The character the last grown town had: the dice favour another, so rolls show the range. */
-  let lastCharacter: Character | undefined;
-  const grow = (avoid?: Character): void => {
+  /** The characters the dice have shown, oldest first: none repeats until all that suit an island have had a turn. */
+  let shown: Character[] = [];
+  const grow = (avoid: readonly Character[] = []): void => {
     mischief.undo();
     growth.stop();
     setGhost(null, '');
     const plan = planTown(game.terrain, game.world.seed, { avoid });
-    lastCharacter = plan.character;
+    shown = shown.includes(plan.character) ? [plan.character] : [...shown, plan.character];
     growth.start(plan.edits);
     const name = CHARACTER_NAMES[plan.character];
     const article = /^[aeiou]/.test(name) ? 'An' : 'A';
@@ -242,7 +242,7 @@ export function createInterface(host: InterfaceHost): Interface {
     growNewIsland() {
       growth.stop();
       host.newIsland();
-      grow(lastCharacter);
+      grow(shown);
     },
     hasTown: () => !onlyStartingTrees(game.world, game.terrain),
     newIsland: () => {

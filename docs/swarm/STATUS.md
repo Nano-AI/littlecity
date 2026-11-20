@@ -806,3 +806,13 @@ Published `df3a0b9`. Caveats from the agent: marble city is rare (4 of
 60 towns); the forum stair may face away from the default camera; hand
 pump vs fountain still waits on Derek.
 Running: mischief (nuke redo). Unmerged experiments: walk, big-islands.
+
+**After pass 4 (orchestrator).** Derek: "I don't see the grown town update
+at all". The build was live (checked in a fresh browser: banners name the
+town), but eight dice rolls gave only market, river and castle towns.
+Two changes: the marble city's weight raised (expected share about 17 %
+on generator 1, 9 % on generator 2; was 3 of 60), and the dice now work
+through every character that suits an island before repeating any
+(`GrowOptions.avoid` is the list shown so far; `never` is the planner's
+own marble fallback). A first roll with nothing shown is unchanged, so
+the scenarios and survey are as before. Gate: 2,106 passed, 8 skipped.
