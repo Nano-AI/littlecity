@@ -182,6 +182,23 @@ describe('blast', () => {
     expect(ev.water).toBe(true);
     expect(sim.stage(20, 0, 2)).toBe(0);
   });
+
+  test('the nuke on water still plans its hits (it used to plan none: a cloud and an untouched town)', () => {
+    const terrain = flatTerrain(3);
+    const b = new TownBuilder(emptyWorld(3), terrain);
+    b.block('dock', 20, 0, 2);
+    b.house(20, 6, { color: 1 });
+    const sim = new Sim(terrain, b.world);
+    const point = [20.5, 0.4, 1.5] as const;
+    // A bomb's plan in water is empty; the nuke's is not.
+    expect(sim.engine.blastPlan(point, 7).hits).toEqual([]);
+    const plan = sim.engine.blastPlan(point, 7, { rim: true, wet: true });
+    expect(plan.water).toBe(true);
+    expect(plan.hits.length).toBeGreaterThan(1);
+    for (const h of plan.hits) sim.engine.hit(h);
+    sim.flush();
+    expect(sim.stage(20, 1, 6)).toBeGreaterThan(0);
+  });
 });
 
 describe('knocks and repairs', () => {

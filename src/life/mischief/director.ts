@@ -248,12 +248,12 @@ export class Director {
         this.bombs.splice(i, 1);
         if (b.nuke) {
           // The big one: decided now, done block by block as the shockwave reaches each (./nuke-timing.ts).
-          const plan = this.engine.blastPlan(b.point, NUKE.power, { fly: NUKE.fly, rim: true });
-          if (plan.water) for (const h of plan.hits) this.engine.douse(h.cell, 1);
-          else {
-            this.crater(b.point);
-            this.waves.push({ t: 0, hits: plan.hits, next: 0 });
-          }
+          // It does not matter that it landed in a river, a pond or the sea: the town round it goes all the
+          // same (a nuke on water used to plan no hits at all: the cloud rose and nothing was touched).
+          // The crater takes the land round the point; columns that are water already are left as they are.
+          const plan = this.engine.blastPlan(b.point, NUKE.power, { fly: NUKE.fly, rim: true, wet: true });
+          this.crater(b.point);
+          this.waves.push({ t: 0, hits: plan.hits, next: 0 });
           const blast: BlastEvent = { point: [...b.point], power: NUKE.power, water: plan.water, hit: plan.hits.map((h) => ({ cell: h.cell, stage: h.stage })), lit: [] };
           this.emit({ type: 'blast', bomb: b.id, blast, nuke: true });
           continue;
