@@ -96,6 +96,8 @@ export const PEOPLE = defineStyle(
     lampPace: 1.45,
     /** L51 and up: the share of their pace somebody keeps under a heavy load (a sack, a crate, two pails). */
     laden: 0.8,
+    /** How much dearer a cluttered cell (café tables, a bench) is to walk through while somebody sits in it. */
+    seatedExtra: 20,
     /** L28: wind strength above which a child at a kite spot flies a kite; how far downwind and how high it flies. */
     kiteWind: 0.24,
     kiteOut: 0.95,

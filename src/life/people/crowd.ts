@@ -309,6 +309,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const doors = createDoors();
   /** Cells with something standing in them a while, and how much dearer they are to cross (setCrowded). */
   const crowdedCells = new Map<CellKey, number>();
+  /** Cluttered cells (café tables, benches) where somebody sits now: routes go round them while they do. */
+  let seated = new Set<number>();
+  const updateSeated = (): void => {
+    if (!nav || !router) return;
+    const now = new Set<number>();
+    for (const p of people) if (p.mode === 'linger' && p.seat >= 0 && p.node >= 0 && nav.nodes[p.node]!.clutter) now.add(p.node);
+    for (const n of now) if (!seated.has(n)) router.setExtra(n, Math.max(PEOPLE.seatedExtra, crowdedCells.get(nav.nodes[n]!.cell) ?? 0));
+    for (const n of seated) if (!now.has(n)) router.setExtra(n, crowdedCells.get(nav.nodes[n]!.cell) ?? 0);
+    seated = now;
+  };
   /** Shop doors (they stand open by day). */
   let shopDoors: string[] = [];
 
@@ -402,7 +412,14 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const door = h.structure !== undefined ? usableDoors(nav!, h.structure).find((d) => d.node === h.node) : undefined;
         if (door && r(p, 'go-in') < 0.5) g.door = door;
         else {
-          facing(door ? 0.2 : 0.1);
+          // At the window, close to the wall and off to one side of the doorway: the middle of the street is
+          // left to whoever walks past (a shop on a lane one cell wide is the common case).
+          const side = r(p, 'window') < 0.5 ? -0.27 : 0.27;
+          if (h.dir !== undefined) {
+            const [dx, dz] = DIR4[h.dir]!;
+            g.spot = { x: c.x + dx * 0.3 - dz * side, z: c.z + dz * 0.3 + dx * side };
+            g.face = DIR_HEADING[h.dir]!;
+          }
           g.pose = r(p, 'pose') < 0.5 ? 'chat' : 'stand';
         }
         break;
@@ -421,8 +438,16 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           g.spot = { x: seat.x, z: seat.z };
           g.face = seat.face;
           g.seat = Math.max(0, seat.y - keyY(h.cell) * 0.8);
-        } else {
+        } else if (h.dir !== undefined) {
           facing(0.05);
+          g.seat = 0;
+        } else {
+          // Where the seat is not known (no frame for it), round the table: each seat its own place by its
+          // number, facing the middle (two seats of one table never one spot).
+          const n = Number((h.name ?? '').match(/(\d+)$/)?.[1] ?? 0);
+          const a = n * (Math.PI / 2) + 0.4;
+          g.spot = { x: c.x + Math.sin(a) * 0.24, z: c.z + Math.cos(a) * 0.24 };
+          g.face = a + Math.PI;
           g.seat = 0;
         }
         break;
@@ -1630,6 +1655,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       shopDoors = shape.features.filter((f) => f.type === 'door' && f.variant === 'shop').map((f) => f.id);
       nav = dressing.nav;
       router = createRouter(nav);
+      seated = new Set();
       for (const [cell, extra] of crowdedCells) {
         const node = nav.nodeAt.get(cell);
         if (node !== undefined) router.setExtra(node, extra);
@@ -1922,6 +1948,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       // L50: the scuffle, after everybody's own reactions (it sets the poses of the two and of the ring).
       scuffles.step(dt, time);
+      updateSeated();
       // Routes: a few a frame, taking turns, so sixty people asking at once never show in a frame.
       for (let k = 0; k < n && plans > 0; k++) {
         const p = people[(planCursor + k) % n]!;
@@ -1968,7 +1995,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       if (extra > 0) crowdedCells.set(cell, extra);
       else crowdedCells.delete(cell);
       const node = nav?.nodeAt.get(cell);
-      if (router && node !== undefined) router.setExtra(node, extra);
+      if (router && node !== undefined) router.setExtra(node, Math.max(extra, seated.has(node) ? PEOPLE.seatedExtra : 0));
     },
     rethink(p) {
       if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit' || p.mode === 'wait') p.timer = Math.min(p.timer, 0);
