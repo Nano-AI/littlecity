@@ -14,15 +14,15 @@ export const SHIPS = defineStyle(
 
     // ── how many: boats come wherever they fit, up to these caps so the water never looks crowded ──
     /** Rowboats moored in the whole town (desktop, phone). */
-    rowboatsMax: 14,
-    rowboatsPhone: 8,
-    /** Quays a big ship calls at, the longest first (desktop, phone). */
-    shipBerthsMax: 3,
-    shipBerthsPhone: 2,
+    rowboatsMax: 24,
+    rowboatsPhone: 12,
+    /** Big ships in the town at once at most, one to a berth (desktop, phone): a performance cap, not a rule. */
+    shipsMax: 8,
+    shipsPhone: 4,
     /** Sailboats looping the island: always this many, one more per this many dock cells, at most … */
     sailBase: 2,
     sailPerDocks: 14,
-    sailMax: 4,
+    sailMax: 5,
     /** How much more often a tall ship passes with a lighthouse in the town. */
     passLighthouse: 1.6,
 
@@ -49,15 +49,16 @@ export const SHIPS = defineStyle(
     turn: 0.9,
 
     // ── a visit ──
-    /** Seconds from the berth existing to the first ship appearing on the horizon. */
-    firstCall: 18,
+    /** Seconds from a berth existing to its first ship setting out for it; new berths after the first follow about this far apart. */
+    firstCall: 12,
+    callEvery: 11,
     /** Seconds between one ship leaving and the next call (galleon, cog, galley), at least … at most. */
-    galleonGapMin: 160,
-    galleonGapMax: 280,
-    cogGapMin: 70,
-    cogGapMax: 140,
-    galleyGapMin: 120,
-    galleyGapMax: 220,
+    galleonGapMin: 40,
+    galleonGapMax: 100,
+    cogGapMin: 25,
+    cogGapMax: 70,
+    galleyGapMin: 35,
+    galleyGapMax: 90,
     /** Seconds at the berth. */
     galleonStay: 75,
     cogStay: 45,
@@ -83,8 +84,8 @@ export const SHIPS = defineStyle(
   {
     rowboatsMax: [0, 40, 1],
     rowboatsPhone: [0, 40, 1],
-    shipBerthsMax: [0, 8, 1],
-    shipBerthsPhone: [0, 8, 1],
+    shipsMax: [0, 16, 1],
+    shipsPhone: [0, 16, 1],
     sailBase: [0, 4, 1],
     sailPerDocks: [4, 40, 1],
     sailMax: [0, 8, 1],
@@ -103,6 +104,7 @@ export const SHIPS = defineStyle(
     heel: [0, 0.2, 0.005],
     turn: [0.2, 3, 0.05],
     firstCall: [2, 120, 1],
+    callEvery: [2, 60, 1],
     galleonGapMin: [10, 600, 5],
     galleonGapMax: [10, 900, 5],
     cogGapMin: [10, 600, 5],

@@ -172,11 +172,11 @@ describe('big ships (L38–L40)', () => {
           const sx = Math.sin(s.pose.yaw), cz = Math.cos(s.pose.yaw);
           last.set(s.id, { phase: s.phase, edge: Math.min(mapEdge(s.pose.x + sx * s.hull.bow, s.pose.z + cz * s.hull.bow), mapEdge(s.pose.x + sx * s.hull.stern, s.pose.z + cz * s.hull.stern)) });
           if (!s.body || mapEdge(s.pose.x, s.pose.z) > -4) continue;
-          if (!hullClear(field, hullSize(s.kind as 'galleon'), s.pose.x, s.pose.z, s.pose.yaw, 0)) hits.push(`${t.toFixed(1)} ${s.kind} ${s.phase}`);
+          if (!hullClear(field, hullSize(s.kind as 'galleon'), s.pose.x, s.pose.z, s.pose.yaw, 0)) hits.push(`${t.toFixed(1)} ${s.kind} ${s.phase} ${s.pose.x.toFixed(2)},${s.pose.z.toFixed(2)},${s.pose.yaw.toFixed(2)} s ${s.s.toFixed(1)}/${s.voyage?.path.length.toFixed(1)} swing ${s.voyage?.swing.toFixed(2)}`);
         }
       },
     });
-    expect(hits.slice(0, 8)).toEqual([]);
+    expect(hits.slice(0, 8).join(' | ')).toBe('');
     expect(kinds.size).toBeGreaterThanOrEqual(2);
     expect(outAt.length).toBeGreaterThanOrEqual(2);
     // Gone only once all of it is beyond the edge of the map.

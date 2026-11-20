@@ -10,8 +10,9 @@
 // hull, its hull lies clear alongside, and a whole hull can sail in from an
 // edge of the map, line up and come alongside, and leave again: checked by
 // sailing it (ship-routes.ts). There are no other conditions: no count of
-// docks, no lighthouse. The HARBOUR is every big ship that fits each of the
-// longest few berths (SHIPS.shipBerthsMax, so the water never looks crowded).
+// docks, no lighthouse. A long quay is split into several berths end to end.
+// The HARBOUR is every big ship that fits each berth, up to SHIPS.shipsMax
+// berths (a performance cap), longest first.
 // Small boats are not kept out: they share the quay, and row aside when a
 // big ship comes in to their stretch.
 //
@@ -76,6 +77,10 @@ export function hullSize(ship: BigShip | 'barge'): HullSize {
   }
 }
 
+/** A berth on a long quay is this many cells (a galleon's length), and the last at least this many (a cog's). */
+const SLOT = 7;
+const SLOT_MIN = 4;
+
 /** Quay columns: a dock at sea level, or a quay wall's low cell. Value: the level people stand on (+1), 0 if none. */
 function quayColumns(f: Facts): Uint8Array {
   const q = new Uint8Array(SIZE_X * SIZE_Z);
@@ -135,18 +140,32 @@ export function findBerths(f: Facts): Berth[] {
         const [bx, bz] = at(i0 - 1), [fx, fz] = at(i1 + 1);
         if (!(inColumnBounds(bx, bz) && wet(bx, bz))) i0++;
         if (!(inColumnBounds(fx, fz) && wet(fx, fz))) i1--;
-        if (i1 - i0 + 1 >= 3) {
-          const [x0, z0] = at(i0);
+        // A long quay holds several ships end to end: it is split into berths a galleon long with a cell's gap
+        // between them, the last taking what is left (a cog's worth or more; less is added to the one before).
+        const slots: [number, number][] = [];
+        for (let a = i0, left = i1 - i0 + 1; left > 0; ) {
+          if (left >= SLOT + 1 + SLOT_MIN) {
+            slots.push([a, a + SLOT - 1]);
+            a += SLOT + 1;
+            left -= SLOT + 1;
+          } else {
+            slots.push([a, i1]);
+            left = 0;
+          }
+        }
+        for (const [s0, s1] of slots) {
+          if (s1 - s0 + 1 < 3) continue;
+          const [x0, z0] = at(s0);
           const water: number[] = [];
-          for (let q = i0 - 1; q <= i1 + 1; q++) {
+          for (let q = s0 - 1; q <= s1 + 1; q++) {
             const [qx, qz] = at(q);
             for (let k = 1; k <= W; k++) if (inColumnBounds(qx + ox * k, qz + oz * k)) water.push(columnIndex(qx + ox * k, qz + oz * k));
           }
-          const len = i1 - i0 + 1;
+          const len = s1 - s0 + 1;
           const fx0 = along === 1 ? x0 : side === 1 ? x0 + 1 : x0;
           const fz0 = along === 2 ? z0 : side === 2 ? z0 + 1 : z0;
           let level = 0;
-          for (let q = i0; q <= i1; q++) {
+          for (let q = s0; q <= s1; q++) {
             const [qx, qz] = at(q);
             level = Math.max(level, quay[columnIndex(qx, qz)]! - 1);
           }
@@ -224,10 +243,13 @@ export const BIG_SHIPS: readonly BigShip[] = ['galleon', 'galley', 'cog'];
 export const harbour = defineFact<Harbour>('harbour', (f) => {
   const berths = findBerths(f);
   const plans: ShipPlan[] = [];
+  if (!berths.length) return { berths, plans };
+  // One field for every berth: small boats' moorings in any berth's water are not in the way (they row aside).
+  const own: Berth = { ...berths[0]!, water: [...new Set(berths.flatMap((b) => b.water))] };
+  const field = planningField(f, own);
   let used = 0;
   for (const b of berths) {
-    if (used >= Math.round(SHIPS.shipBerthsMax)) break;
-    const field = planningField(f, b);
+    if (used >= Math.round(SHIPS.shipsMax)) break;
     let any = false;
     for (const ship of BIG_SHIPS) {
       const plan = planBerth(f, ship, b, field);
