@@ -554,3 +554,8 @@ Viking raid): design section 13b written; new Opus agent on
 `swarm/mischief`. Touches saves (`Block.ruin`), the tray (a Mischief
 drawer), people (bucket chain, fleeing, rebuilding), ships (longship).
 Running: seasons, disc1-structures, disc1-fill, living-town, mischief.
+**Mischief is EXPERIMENTAL (Derek): preview only.** Do NOT merge
+`swarm/mischief` or publish it until he has tried it locally and said yes
+(same treatment as `swarm/walk`). Serve its worktree on a local port when
+the agent reports. The design section 13b is on the main branch as a spec
+only.
