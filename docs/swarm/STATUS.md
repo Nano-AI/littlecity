@@ -1176,3 +1176,12 @@ the page (`src/ui/mischief.ts`) and the orange starburst in the scene
 (`flashes` in `mischief.system.ts`, `flashMesh` in `meshes.ts`). Dust,
 smoke, flying chunks, fire and the water spout stay. Gate: 2,165 passed,
 9 skipped, clean. Do not add either back.
+
+**Pavilion (Derek, 2026-11-20 afternoon).** The bandstand (R-M11: a
+square marble block on four fat pillars with an octagon roof) "looks
+ugly"; he wants a proper many-sided pavilion with a ring of slim
+columns. Screenshot `/tmp/lc-pavilion.png`. → new agent
+`a9ecfa9e3ad089280` on `swarm/pavilion` (Opus): octagonal plan, slender
+columns at the corners, a light entablature, tented roof, plinth and
+rail; the trigger stays as it is unless it reports otherwise.
+Running: pavilion.
