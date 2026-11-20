@@ -917,3 +917,19 @@ one walking test; great market does not fit on some small islands; two
 market towns lack a town hall. Orchestrator's eye: farming and market
 overviews have few trees and no orchard shows in `grown-farming`.
 Running: mischief (mending over water, scorch fade; running its checks).
+
+**Mischief fixes merged** (`f3fb606`, Opus). Mending over water: the
+agent could not reproduce buildings that never mend (five grown towns,
+every over-water structure mended in 105–210 s), but found crews could
+only stand at a building's own floor level, so docks, jetties and
+bridges never got a crew and mended slowly with nothing to see. Now
+crews stand on a dock's deck or the shore within 4 cells, and anything
+with nowhere to stand mends at a crew's pace. Scorch fades: the nuke's
+from 30 s to 210 s (black, brown, the ground's own colour, edge first;
+not saved, so a reload shows none); the scorch round a destroyed
+building fades with its saved mending progress. Undo clears a water
+nuke's cloud; browser tests for opening a file and growing on the same
+island mid-cloud. Gate: 2,119 passed, 8 skipped, clean. Not verified by
+the agent: a lighthouse on an offshore rock; the building-scorch fade
+and the water nuke's bank scorch in pictures.
+Running: grow-town (orchards and trees tuning).
