@@ -647,6 +647,14 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   are 2+ across both ways) → 2–3 washing lines on posts, each two cells
   long and a cell apart ('activity'/'hang-washing'), a basket of washing
   ('activity'/'basket'), one or two sheets bleaching on the grass.
+- **U18 · 2 · Orchard** (RC-04) — 6+ trees on the ground on grass or garden
+  (not plaza or sand), each 2 from another along x or z and none right
+  beside another, holding a full 2 × 2 of the lattice (the `orchards` fact,
+  base-only) → the grass between the rows mown (sward), a ladder into one
+  tree in four ('activity'/'pick'), a basket of apples under another one in
+  four ('activity'/'basket'), two beehives on the south edge. Not a grove,
+  a single row, or planter trees. The trees become fruit trees once R-P01
+  reads the fact.
 
 ---
 

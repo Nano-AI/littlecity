@@ -803,6 +803,19 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: -0.1,
   },
   {
+    id: 'orchard',
+    group: 'green',
+    name: 'Orchard',
+    how: 'Plant six or more trees in rows, two squares apart each way: they become an orchard, with ladders, baskets of apples and beehives.',
+    proof: { prop: { rule: 'U18.orchard', type: 'ladder' } },
+    seed: 7655,
+    build(b) {
+      for (let x = 17; x <= 23; x += 2) for (let z = 18; z <= 22; z += 2) b.put('tree', x, z);
+    },
+    view: { yaw: 35, pitch: 36 },
+    pad: -0.1,
+  },
+  {
     id: 'pocket-park',
     group: 'green',
     name: 'Pocket park',

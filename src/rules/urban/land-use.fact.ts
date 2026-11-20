@@ -7,6 +7,8 @@
 // park, never both), so they are decided in one place, in this order:
 //
 //   front garden (U03)   the one grass cell between a main door and a street
+//   orchard (U18)        the grass between trees planted on a grid (the
+//                        orchards fact), before any field it stands in
 //   burgage plots (U14)  more than DRESSING.yardMax cells of grass shut in by
 //                        placed fences or walls and the backs (no main door)
 //                        of two or more houses in a row: one long garden per
@@ -47,6 +49,7 @@ import { edgeBetween } from '@/resolve/facts/lib';
 import type { StructureId } from '@/resolve/plan';
 import { DRESSING } from '@/style/dressing';
 import { heightAt, onGround } from '../decoration/lib';
+import { orchards, type Orchard } from './orchards.fact';
 
 /** U03: the one grass cell between a house's main door and a street. */
 export interface FrontGarden {
@@ -89,6 +92,13 @@ export interface Burgage {
   houses: readonly { id: StructureId; along: readonly number[] }[];
 }
 
+/** U18 (discovery round 1, RC-04): an orchard and the bare grass between its rows. */
+export interface OrchardUse {
+  orchard: Orchard;
+  /** The bare grass cells of its box (no other use), ascending. */
+  cells: readonly CellKey[];
+}
+
 /** U15 (discovery round 1, UF-02): the open grass a ring of houses looks across. */
 export interface Green {
   /** Ascending. */
@@ -102,6 +112,7 @@ export type LandUse =
   | { use: 'burgage'; burgage: Burgage }
   | { use: 'green'; green: Green }
   | { use: 'drying-green'; patch: Patch }
+  | { use: 'orchard'; orchard: OrchardUse }
   | { use: 'field'; field: Field }
   | { use: 'courtyard'; patch: Patch }
   | { use: 'back-yard'; patch: Patch }
@@ -118,6 +129,7 @@ export interface LandUses {
   pocketParks: readonly Patch[];
   greens: readonly Green[];
   dryingGreens: readonly Patch[];
+  orchards: readonly OrchardUse[];
 }
 
 /** U15: how far a house looks across a green, and the green's size and ring of houses. */
@@ -179,6 +191,16 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     };
     const minus = ((g.dir + 3) % 4) as Dir4, plus = ((g.dir + 1) % 4) as Dir4;
     (g as { closed: readonly [boolean, boolean] }).closed = [flank(minus), flank(plus)];
+  }
+
+  // ── U18 orchards: the grass between trees planted in rows ──
+  const orchardUses: OrchardUse[] = [];
+  for (const o of orchards(f).list) {
+    const cells = o.cells.filter((c) => grass.has(c) && !byCell.has(c));
+    if (!cells.length) continue;
+    const use: OrchardUse = { orchard: o, cells };
+    orchardUses.push(use);
+    for (const c of cells) byCell.set(c, { use: 'orchard', orchard: use });
   }
 
   // ── leftovers: burgage plots, fields, back yards, pocket parks ──
@@ -315,7 +337,7 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     for (const c of cells) byCell.set(c, { use: 'green', green });
   }
 
-  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens, dryingGreens };
+  return { byCell, frontGardens: gardens, fields, burgages, courtyards, backYards, pocketParks, greens, dryingGreens, orchards: orchardUses };
 
   /** The row of houses whose backs (no main door) face the land on one side, if two or more. */
   function burgageOf(cells: readonly CellKey[]): Burgage | null {

@@ -65,6 +65,19 @@ your side would make it better:
    joinery rule) and its props would stand in the recess with `inset`
    0.18. Until then, the props are the look.
 
+## For the structures builder (R-P01, tree species)
+
+RC-04 orchard: `src/rules/urban/orchards.fact.ts` exports `orchards(facts)`,
+which reads only the shape-stage base (kinds, terrain, floors), so a roles
+rule may call it. To make orchard trees fruit trees, R-P01 needs one line
+before its grove line in `treeSpecies`:
+
+    if (orchards(f).byTree.has(cell)) return 'fruit-tree';
+
+(and the import). U18 already dresses the orchard (mown rows, ladders,
+apple baskets, beehives); with the line, the cypresses and bushes in a
+planted grid become apple and pear trees.
+
 ## Dropped items
 
 LF-01 to LF-05 were dropped from my list before I started them; nothing of
