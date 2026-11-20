@@ -534,7 +534,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'temple',
     group: 'stone',
     name: 'Temple',
-    how: 'Rest marble on four or more pillars, each two or more blocks tall.',
+    how: 'Rest marble of five blocks or more on four or more pillars, each two or more blocks tall; or a smaller one on pillars up on a marble podium.',
     proof: { role: 'temple' },
     seed: 7301,
     build(b) {
@@ -612,7 +612,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'bandstand',
     group: 'stone',
     name: 'Bandstand',
-    how: 'Rest marble of four blocks or fewer on four pillars two or more tall, standing on a plaza or garden of nine or more squares.',
+    how: 'Rest four marble blocks on four pillars two or more tall, standing on the ground: an open pavilion where a band plays. A square of four is an octagon; a row or a bent line, a garden shelter.',
     proof: { role: 'bandstand' },
     seed: 7310,
     build(b) {

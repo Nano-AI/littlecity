@@ -218,6 +218,13 @@ export interface NavNode {
    * one side. Nobody is sent to linger in one, except to sit at its seats.
    */
   clutter?: boolean;
+  /**
+   * The floor of a bandstand (R-M11), up on its plinth: the floor stands this far above the cell's foot.
+   * The pavilion's floor cells link only to each other and, through its open bay, out on the `entry` side.
+   */
+  lift?: number;
+  pavilion?: StructureId;
+  entry?: Dir4;
 }
 
 export type NavVia = 'walk' | 'stairs' | 'steps' | 'gate' | 'interior';

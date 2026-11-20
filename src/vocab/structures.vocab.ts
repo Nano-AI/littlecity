@@ -44,6 +44,11 @@ declare module '@/core/vocab' {
     'pavilion-bay.z0': number;
     'pavilion-bay.ground': number;
     'pavilion-bay.low': number;
+    // R-M11: on the bandstand (the marble), one per floor cell of the pavilion (cell = the cell a person stands
+    // in, at the foot of a pillar): the walking graph makes it a node `lift` above the cell's foot. With `dir`, a
+    // way in: people step in across that side (the rail is open there), and nowhere else.
+    'pavilion-floor': true;
+    'pavilion-floor.lift': number;
   }
   interface SocketVocab {
     'loading-door': true; //     R-H17: the threshold of a warehouse's ground-storey loading door, +Z out

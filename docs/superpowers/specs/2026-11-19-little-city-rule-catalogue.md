@@ -193,28 +193,34 @@ type and which later rules apply.
 
 - **R-M01 · 2 · Temple** — a marble structure resting on 4+ placed pillar
   shafts, each ≥ 2 tall, in a row or rectangle → pediment on the short ends, frieze
-  band, steps at the base of the pillars.
+  band, steps at the base of the pillars. A small one (four cells) is a temple
+  only up on a podium (or any block): on the ground it is a bandstand (R-M11),
+  so a small temple on grass is built 2 × 3 on its corner pillars, or raised
+  (Grow a town's shrines stand on a one-block marble podium).
 - **R-M02 · 2 · Gatehouse** — marble touching one end of a gateway arch
   (R-A04) whose other end also touches marble or a wall → portcullis in the
   arch, lanterns either side.
 - **R-M11 · 3 · Bandstand** (discovery 1, RC-14) — R-M01's shape (marble on
   4+ placed pillar shafts of 2+) with 4 cells or fewer, its pillars standing
-  on the ground (not up on a podium), on a plaza or garden region of 9+
-  cells (so exactly four cells at one level, one shaft under each: a 2 × 2,
-  a 1 × 4, an L, a T or an S) → a park pavilion: the marble becomes a
+  on the ground (not up on a podium), anywhere: on a square, in a park or on
+  bare grass (so exactly four cells at one level, one shaft under each: a
+  2 × 2, a 1 × 4, an L, a T or an S) → a park pavilion: the marble becomes a
   stepped many-sided plinth, a light entablature and a tented roof in facets
   with a roll on each hip; the pillars become a ring of slender columns with
   bases and capitals (the rule claims each pillar's role and pins a
   `pavilion-bay` feature on it: each draws the columns in its own cell); a
   low balustrade between them, open in the bay on the side tagged
   bandstand:<side> (toward a path within 4 cells, else the most paving or
-  lawn). A 2 × 2 is a regular octagon of eight columns under a lantern with
+  lawn). Its floor is in the walking graph: each floor cell is pinned
+  (`pavilion-floor`, with the plinth's height) and the way in carries the
+  open side; people step in only through the open bay (three bays on the
+  octagon's front), so the rail is never crossed and it is never a short
+  cut. A 2 × 2 is a regular octagon of eight columns under a lantern with
   lit windows; a one-wide plan has half-octagon ends and a hipped roof with
   a finial at each ridge end. Pillars 3+ tall: a higher plinth, longer
   columns and a second roof tier over a glazed clerestory drum. No
-  pediments, no stylobates. Not: a temple on a podium; a slab of 5+ cells; a
-  small temple on bare grass (it stays the temple it was built as). Priority
-  5995.
+  pediments, no stylobates, no braziers (D22 is a temple's). Not: a temple
+  on a podium; a slab of 5+ cells. Priority 5995.
 - **R-M12 · 3 · Stoa** (discovery 1, RC-13) — R-M01's shape with 7+ cells, a
   rectangular top at one level 3+ times as long as wide, and plaza at the
   foot of one long side's pillars or 1–2 cells out from it (tag
@@ -930,9 +936,11 @@ its carrier. Nothing is ever left floating or vanishes in view.
   - *Smithy* (R-H19): the smith hammers 9 s at the anvil, sparks flying with
     the blows, then works the forge inside; the forge chimney smokes while
     the forge is hot.
-  - *Shows* (R-M09 theatre, R-M11 bandstand): a show of 60 s every 210 s, by
+  - *Shows* (R-M09 theatre, R-M11 bandstand; at a bandstand the band plays
+    on its floor at the way in, facing out, the listeners in front of the
+    open bay): a show of 60 s every 210 s, by
     day and dusk. Up to three players on the stage (the theatre's backdrop
-    and its neighbours; the cells at the bandstand's foot) gesture and bow;
+    and its neighbours; the bandstand's floor) gesture and bow;
     residents within 24 steps (p=0.35, when 25 s or more are left) come to
     sit on the tiers or stand round, some clapping. A stage that cannot be
     walked to from the houses has no show.

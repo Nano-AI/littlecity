@@ -1,12 +1,12 @@
-// R-M11 · tier 3 · Bandstand (RC-14). A small open pavilion on a green or a
-// square, where a band plays on summer evenings:
+// R-M11 · tier 3 · Bandstand (RC-14). A small open pavilion, where a band
+// plays on summer evenings:
 //
 //   marble resting on 4 or more placed pillar shafts, each 2 or more tall
 //   (R-M01's temple shape), its roof on 4 cells or fewer;
-//   the pillars stand on the ground (not up on a podium of more than 4
-//   cells: that stays a temple);
-//   at their feet a plaza or garden region of 9 or more cells (on bare grass
-//   a small temple is left the temple it was built as).
+//   the pillars stand on the ground (on a podium, or any block, it stays a
+//   temple), anywhere: on a square, in a park or on bare grass.
+//
+// A temple is built bigger (five cells or more) or up on a podium.
 //
 // (Four shafts under four cells or fewer means exactly four cells, one shaft
 // under each, all at one level: a 2 × 2, a 1 × 4, an L, a T or an S.)
@@ -23,9 +23,10 @@
 //
 // Priority 5995: before the temple (5990).
 
-import { above, below, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, neighbor, NO_CELL, type Dir4 } from '@/core/grid';
+import { below, CELL_H, columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, NO_CELL, type Dir4 } from '@/core/grid';
 import { defineRule, slot } from '@/resolve/engine/api';
 import type { ShapePlan, Structure, StructureId } from '@/resolve/plan';
+import { pavilionEntries, pavilionLayout } from './pavilion.lib';
 import { pillarsUnder } from './R-M01.temple.rule';
 
 export function isBandstand(s: Structure, plan: ShapePlan): boolean {
@@ -42,15 +43,7 @@ export function isBandstand(s: Structure, plan: ShapePlan): boolean {
     if (keyY(u) >= plan.terrain.height[columnIndex(keyX(u), keyZ(u))]!) return false;
     feet.add(u);
   }
-  // The cells the pillars stand in and those beside them (a pillar takes the floor of its own cell).
-  const ground = [...feet].map(above).flatMap((c) => [c, ...([0, 1, 2, 3] as Dir4[]).map((d) => neighbor(c, d))]);
-  for (const c of ground) {
-    const k = c === NO_CELL ? undefined : plan.world.floors.get(c);
-    if (k !== 'plaza' && k !== 'garden') continue;
-    const region = plan.floorAt.get(c);
-    if (region !== undefined && (plan.structures.get(region)?.cells.length ?? 0) >= 9) return true;
-  }
-  return false;
+  return feet.size > 0;
 }
 
 /** The pillar structures under a marble structure. */
@@ -98,7 +91,7 @@ export default defineRule<{ pillars: StructureId[] }>({
   tier: 3,
   priority: 5995,
   about:
-    'Reads: marble of 4 cells or fewer on 4+ pillar shafts of 2+, standing on the ground on a plaza or garden of 9+; the floors round it. Claims: the role of each pillar under it. Emits: role bandstand; tag bandstand:<side> (the open bay); a pavilion-bay feature on each pillar (it draws the columns in its cell).',
+    'Reads: marble of 4 cells or fewer on 4+ pillar shafts of 2+ standing on the ground; the floors round it. Claims: the role of each pillar under it. Emits: role bandstand; tag bandstand:<side> (the open bay); a pavilion-bay feature on each pillar (it draws the columns in its cell).',
   find({ plan }) {
     const out = [];
     for (const s of plan.structures.values()) {
@@ -111,6 +104,7 @@ export default defineRule<{ pillars: StructureId[] }>({
     const s = plan.structures.get(c.structure!)!;
     out.role(s.id, 'bandstand');
     out.tag(s.id, (['bandstand:n', 'bandstand:e', 'bandstand:s', 'bandstand:w'] as const)[doorSide(s, plan)]);
+    // Each pillar draws its columns (it needs the footprint); each floor cell is pinned for the walking graph.
     // The footprint, as the pillars need it to work out the same layout.
     const xs = s.cells.map(keyX), zs = s.cells.map(keyZ);
     const x0 = Math.min(...xs), z0 = Math.min(...zs);
@@ -121,10 +115,17 @@ export default defineRule<{ pillars: StructureId[] }>({
       ground = Math.max(ground, h);
       low = Math.min(low, h);
     }
+    const door = doorSide(s, plan);
+    const cells = s.cells.map((cell) => [keyX(cell), keyZ(cell)] as [number, number]);
+    const pv = pavilionLayout({ cells, ground, low, level: Math.min(...s.cells.map(keyY)) });
+    const entries = pavilionEntries(cells, door);
     for (const id of c.data.pillars) {
       const p = plan.structures.get(id)!;
-      const top = p.cells[p.cells.length - 1]!;
+      const top = p.cells[p.cells.length - 1]!, bottom = p.cells[0]!;
       out.feature({ type: 'pavilion-bay', structure: id, cell: top, params: { mask, x0, z0, ground, low } });
+      // The floor, where people stand: in the pillar's foot cell, up on the plinth.
+      const entry = entries.some(([x, z]) => x === keyX(bottom) && z === keyZ(bottom));
+      out.feature({ type: 'pavilion-floor', structure: s.id, cell: bottom, ...(entry ? { dir: door } : {}), params: { lift: pv.floor - keyY(bottom) * CELL_H } });
     }
   },
 });

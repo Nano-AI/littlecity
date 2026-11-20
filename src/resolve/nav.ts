@@ -12,14 +12,18 @@
 //   - a ground arch (an arch block standing on a walkable top), crossed only
 //     along its passage (J15);
 //   - a cell fence or wall that J20 made a gate, crossed only along the way
-//     through.
+//     through;
+//   - a bandstand's floor (R-M11 'pavilion-floor': the foot cells of its
+//     pillars, up on its plinth), entered only through its open bay.
 // A cell holding a tree, fountain, stall, windmill or a plain cell fence or
 // wall is not a node: people walk round it.
 //
 // LINKS:
 //   walk      two nodes side by side at one level, unless an edge piece
 //             stands between them;
-//   gate      the same through an edge piece or cell piece J20 made a gate;
+//   gate      the same through an edge piece or cell piece J20 made a gate,
+//             or into a bandstand through its open bay (its rail closes the
+//             other sides, so it is never a short cut);
 //   stairs    from a stairs cell to the cell at its head, one level up. The
 //             foot of a flight is a plain 'walk' link from the cell on its
 //             low side;
@@ -164,6 +168,7 @@ export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
   const trails = new Set<CellKey>();
   const steps: { cell: CellKey; dir: Dir4 }[] = [];
   const doorFeatures: ShapePlan['features'][number][] = [];
+  const pavilionFloors: ShapePlan['features'][number][] = [];
   let regions: ReturnType<typeof roofRegions> | null = null;
   for (const f of shape.features) {
     switch (f.type) {
@@ -198,6 +203,9 @@ export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
         break;
       case 'door':
         doorFeatures.push(f);
+        break;
+      case 'pavilion-floor':
+        if (f.cell !== undefined) pavilionFloors.push(f);
         break;
       default:
     }
@@ -248,6 +256,10 @@ export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
       if (h > 0 && h < SIZE_Y) stand(key(x, h, z));
     }
   }
+  for (const f of pavilionFloors) {
+    const lift = ((f.params ?? {}) as { lift?: number }).lift ?? 0;
+    node(f.cell!, 'deck', { lift, pavilion: f.structure, ...(f.dir !== undefined ? { entry: f.dir as Dir4 } : {}) });
+  }
   for (const [c, k] of kinds) {
     if (k === 'stairs') {
       node(c, 'stairs', { rot: (world.blocks.get(c)?.rot ?? 0) as Dir4 });
@@ -296,6 +308,19 @@ export function buildNav(shape: ShapePlan, draft: DressingDraft): NavGraph {
         edge = prop === 2 && oneFloor ? 3 : prop;
       }
       if (edge === 2) continue;
+      // A bandstand's floor: open to its own floor, and out only across its way in.
+      if (n.pavilion !== undefined || m.pavilion !== undefined) {
+        if (n.pavilion === m.pavilion) {
+          links.push({ a: i, b: j, via: 'walk', cost: 0 });
+          continue;
+        }
+        const inside = n.pavilion !== undefined ? n : m;
+        const out = inside === n ? d : opposite(d);
+        if (inside.entry !== out || (n.pavilion !== undefined && m.pavilion !== undefined)) continue;
+        if (!opens(inside === n ? m : n, opposite(out))) continue;
+        links.push({ a: i, b: j, via: 'gate', cost: NAV.gate });
+        continue;
+      }
       // Two cells of one wide flight, side by side.
       const sameFlight = n.rot !== undefined && m.rot === n.rot && (d & 1) !== (n.rot & 1);
       if (!sameFlight && !(opens(n, d) && opens(m, opposite(d)))) continue;

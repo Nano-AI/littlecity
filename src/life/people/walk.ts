@@ -96,14 +96,17 @@ export function nodeCentre(nav: NavGraph, node: number): Point {
 /** The floor height of a node at its middle. */
 export function nodeHeight(nav: NavGraph, node: number): number {
   const n = nav.nodes[node]!;
-  return keyY(n.cell) * CELL_H + (n.rot !== undefined ? CELL_H / 2 : 0);
+  return keyY(n.cell) * CELL_H + (n.rot !== undefined ? CELL_H / 2 : 0) + (n.lift ?? 0);
 }
 
 function flatHeight(nav: NavGraph, node: number): number {
   const n = nav.nodes[node]!;
   const floor = n.surface === 'path' || n.surface === 'plaza' || n.surface === 'garden';
-  return keyY(n.cell) * CELL_H + (floor ? FLOOR_LIFT : 0);
+  return keyY(n.cell) * CELL_H + (floor ? FLOOR_LIFT : 0) + (n.lift ?? 0);
 }
+
+/** Over the plinth of a bandstand's floor: up the steps from the side it is entered by. */
+const PLINTH_RUN = 0.3;
 
 /** The rise of a stairs cell, as a ramp. */
 function stairsRamp(nav: NavGraph, node: number): Ramp | null {
@@ -336,6 +339,8 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
       // of either cell.
       const wide = link!.post === true || nav.nodes[node]!.clutter === true || nav.nodes[next]!.clutter === true;
       let off = wide ? PEOPLE.laneWide : lane * (nav.runOf[links[i]!]! >= 0 ? 0.55 : 1);
+      // Into or about a bandstand: down the middle, clear of its columns.
+      if (nav.nodes[node]!.pavilion !== undefined || nav.nodes[next]!.pavilion !== undefined) off = 0;
       // Going wide past a door, go wide on the side away from it: its leaf swings out there (L29).
       if (wide && (towardDoor(nav, node, -dz * off, dx * off) || towardDoor(nav, next, -dz * off, dx * off))) off = -off;
       exit = { x: c.x + dx * 0.5 - dz * off, z: c.z + dz * 0.5 + dx * off };
@@ -348,6 +353,17 @@ export function buildWalk(nav: NavGraph, route: Route, opts: WalkOptions = {}): 
         if (up) ramp = edgeRamp(nav, node, d, STEPS_RUN, h, h + CELL_H);
         else startRamp = edgeRamp(nav, next, opposite(d), STEPS_RUN, h, h + CELL_H);
       }
+    }
+
+    // A bandstand's floor stands on its plinth: up its steps from the cell outside (or down to it).
+    if (nav.nodes[node]!.pavilion !== undefined) {
+      for (const o of [i > 0 ? nodes[i - 1]! : -1, last ? -1 : nodes[i + 1]!]) {
+        if (o < 0 || nav.nodes[o]!.pavilion !== undefined || link?.via === 'interior') continue;
+        ramp = edgeRamp(nav, node, dirBetween(nav, node, o), PLINTH_RUN, flatHeight(nav, node), flatHeight(nav, o));
+      }
+      // Square through the open bay, as through a door, before turning: clear of the columns either side.
+      if (i > 0 && nav.nodes[nodes[i - 1]!]!.pavilion === undefined && entryDoor === undefined) entryDoor = dirBetween(nav, nodes[i - 1]!, node);
+      if (!last && link!.via !== 'interior' && nav.nodes[nodes[i + 1]!]!.pavilion === undefined && exitDoor === undefined) exitDoor = opposite(dirBetween(nav, node, nodes[i + 1]!));
     }
 
     // A turn: in at one edge and out at another that is not opposite it.
