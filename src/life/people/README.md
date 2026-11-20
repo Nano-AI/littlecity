@@ -51,6 +51,19 @@ if the Animation owner's file says otherwise for shared things, that wins.
   At the shore: they climb up out of the water, or walk off into it
   (`edgeX/edgeZ`). Only with no water or edge anywhere do they still shrink
   out of sight.
+- **People are solid** (the owner's request). Each walker looks at the
+  nearest person in its way and makes one decision: oncoming, both keep
+  right; slower ahead, overtake on the outside if there is room, else fall
+  in behind; crossing, give way to whoever comes from the right; standing,
+  go round the side away from them (a tie by id). The step aside is a world
+  offset (`offX`, `offZ`) eased at `AVOID.rate`, turned into by the body,
+  kept inside the cell, away from door walls, never into anybody beside, and
+  back to the line before doorways, single-file stretches and the walk's
+  end. Nobody steps closer than `KEEP` to anybody ahead. Standing spots are
+  spread (`freeSpot`); nobody comes out of a door onto an occupied doorstep;
+  walks leave and reach doors square to the wall. A knot is undone by
+  thinking again once, then by squeezing past (counted honestly by
+  `overlap.ts`; see `solid.test.ts`).
 - **Castle life** (L36, L37): `troop.ts`, `rider.ts` on `track.ts`, drawn by
   `garrison.system.ts`.
 

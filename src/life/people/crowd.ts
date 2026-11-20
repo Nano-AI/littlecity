@@ -29,11 +29,14 @@ import type { TimeSignal } from '@/life/api';
 import type { PoseName } from '@/parts/people/pose';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavDoor, NavGraph, ShapePlan, StructureId } from '@/resolve/plan';
-import { PEOPLE, PERSON } from '@/style/people';
+import { AVOID, PEOPLE, PERSON } from '@/style/people';
 import { DOORS } from '@/style/animation';
 import { createDoors, type DoorTable } from './doors';
+import { BODY } from './overlap';
+/** How close anybody lets another come: a body and a hand's breadth (steady following sits just outside an overlap). */
+const KEEP = BODY + 0.025;
 import { createRouter, type Router } from './route';
-import { buildWalk, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
+import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
 
@@ -170,6 +173,18 @@ export interface Person {
   react: PoseName | null;
   /** L28: a child flying a kite right now (at a kite spot, with the wind up). */
   flying: boolean;
+  /**
+   * Stepping aside (L24, people are solid): how far right (+) or left (−) of their line they walk now, where
+   * they mean to be, and how fast the step aside is going (for the facing).
+   */
+  dodge: number;
+  dodgeTo: number;
+  dodgeV: number;
+  /** The step aside as a world offset from their line. */
+  offX: number;
+  offZ: number;
+  /** Held up, they thought again once; cleared once they get going. */
+  rethought: boolean;
 }
 
 export interface CrowdEvents {
@@ -231,7 +246,7 @@ const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
   'haunt-visit': 1.5,
 };
 /** Where a walker waiting for a single-file stretch stops in their cell (0 = where they came in, 1 = the far edge). */
-const WAIT_AT = 0.42;
+const WAIT_AT = 0.2;
 const TURN_RATE = 9;
 /** L28: how much a child prefers somewhere to play over anywhere else (a square weighs 4). */
 const PLAY_WEIGHT = 5;
@@ -484,7 +499,42 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       default:
         anywhere();
     }
+    if (g.spot && g.seat < 0) g.spot = freeSpot(p, h.node, g.spot);
     return g;
+  };
+  /**
+   * People are solid: a spot to stand at that nobody else stands at or is on the way to (a busy square
+   * shows people near each other, not inside each other). The spot asked for if it is free, else the
+   * nearest free one round the cell.
+   */
+  const freeSpot = (p: Person, node: number, want: Point): Point => {
+    const taken: Point[] = [];
+    for (const q of people) {
+      if (q === p || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit') continue;
+      if (q.mode === 'linger' || q.mode === 'wait') {
+        if (q.node === node) taken.push({ x: q.x, z: q.z });
+      } else if (q.goal?.node === node && q.goal.spot) taken.push(q.goal.spot);
+    }
+    const free = (s: Point): boolean => taken.every((t) => Math.hypot(t.x - s.x, t.z - s.z) >= BODY + 0.08);
+    if (free(want)) return want;
+    const c = nodeCentre(nav!, node);
+    let best = want, bestD = Infinity;
+    for (let ring = 1; ring <= 2; ring++) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + ring * 0.4;
+        const r = ring * 0.17;
+        const s = { x: Math.max(c.x - 0.36, Math.min(c.x + 0.36, want.x + Math.cos(a) * r)), z: Math.max(c.z - 0.36, Math.min(c.z + 0.36, want.z + Math.sin(a) * r)) };
+        // Not out where a door's leaf swings, by its wall.
+        if (doorDirs(nav!, node).some((dir) => (s.x - c.x) * -DIR4[dir]![0] + (s.z - c.z) * -DIR4[dir]![1] > -0.05)) continue;
+        const d = Math.hypot(s.x - want.x, s.z - want.z);
+        if (free(s) && d < bestD) {
+          bestD = d;
+          best = s;
+        }
+      }
+      if (bestD < Infinity) break;
+    }
+    return best;
   };
   const pickHaunt = (p: Person, time: TimeSignal): Haunt | null => {
     if (!nav || p.node < 0) return null;
@@ -633,6 +683,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.walk = pieces;
     p.inside = null;
     p.mode = 'walk';
+    p.dodge = p.dodgeTo = p.dodgeV = p.offX = p.offZ = 0;
     p.visible = true;
     p.pose = p.child ? 'run' : 'walk';
     p.seat = -1;
@@ -727,7 +778,23 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
 
   // ── doors (L29) ───────────────────────────────────────────────────────
   /** The doors this walker needs open now: the one they are in, about to reach, or just came out of. */
+  /** The doors opening onto each node (for whoever stands on a doorstep). */
+  let doorsAt = new Map<number, NavDoor[]>();
+  let doorsFor: NavGraph | null = null;
   const claimDoors = (p: Person): void => {
+    // Nobody is shut in a door's swing: somebody standing on its doorstep holds it open.
+    if (nav && p.visible && p.node >= 0 && p.mode !== 'home' && p.mode !== 'visit' && p.mode !== 'gone') {
+      if (doorsFor !== nav) {
+        doorsFor = nav;
+        doorsAt = new Map();
+        for (const d of nav.doors) if (d.node >= 0 && d.dir !== undefined) doorsAt.set(d.node, [...(doorsAt.get(d.node) ?? []), d]);
+      }
+      for (const d of doorsAt.get(p.node) ?? []) {
+        const [dx, dz] = DIR4[d.dir!]!;
+        const tx = keyX(d.cell) + 0.5 + dx * 0.5, tz = keyZ(d.cell) + 0.5 + dz * 0.5;
+        if (doors.open(d.feature) > 0 && Math.abs(p.x - tx) < 0.45 && Math.abs(p.z - tz) < 0.45 && Math.hypot(p.x - tx, p.z - tz) < 0.42) doors.claim(d.feature);
+      }
+    }
     if (p.mode !== 'walk' || !p.walk) return;
     const walk = p.walk;
     const cur = walk[p.at]!, next = walk[p.at + 1], prev = walk[p.at - 1];
@@ -749,7 +816,119 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const max = TURN_RATE * dt;
     p.heading += d > max ? max : d < -max ? -max : d;
   };
+  /** How far aside a walker may step on this piece now: none in a doorway or a single-file stretch, little by clutter, and less and less toward where the walk ends or narrows. */
+  const asideRoom = (p: Person, piece: Piece): number => {
+    if (piece.kind !== 'move' || !nav) return 0;
+    const node = nav.nodes[piece.node]!;
+    const inRun = (link: number): boolean => link >= 0 && nav!.runOf[link]! >= 0;
+    const prev = p.walk![p.at - 1];
+    // Inside a single-file stretch (both ends of the piece in it): no room at all.
+    if (prev && inRun(prev.link) && inRun(piece.link)) return 0;
+    // By a door the leaf swings out over the side of the cell: little room there.
+    let room = node.clutter ? AVOID.roomCluttered : AVOID.room;
+    const next = p.walk![p.at + 1];
+    const narrows = !next || next.kind !== 'move' || inRun(piece.link);
+    // Queued at the mouth of a single-file stretch, they stand aside to let the others out.
+    if (narrows && !p.queued) room *= Math.min(1, ((1 - p.t) * piece.length) / AVOID.settle);
+    if ((prev && prev.kind !== 'move') || (prev && inRun(prev.link))) room *= Math.min(1, (p.t * piece.length) / AVOID.settle);
+    return room;
+  };
+  /** Moves a walker aside from their line by `dodge`, eased toward `dodgeTo`, and keeps them in their cell. */
+  const stepAside = (p: Person, piece: Piece, dt: number, moved: number, turning: boolean): void => {
+    const len = Math.hypot(scratch.dx, scratch.dz);
+    if (len < 1e-8) return;
+    const rx = -scratch.dz / len, rz = scratch.dx / len; // right of the way it goes
+    const room = asideRoom(p, piece);
+    const want = Math.max(-room, Math.min(room, p.dodgeTo));
+    const was = p.dodge;
+    // The step aside is kept as a world offset (offX, offZ), so a change of direction from one piece to
+    // the next turns it smoothly instead of swinging the walker across. `dodge` is its part to the right.
+    p.dodge = p.offX * rx + p.offZ * rz;
+    // Mostly while walking, as part of a stride. Held up, a slower side step out (to get by), and only when
+    // facing the way (else it would be a step backwards); never a shuffle back and forth (the target
+    // changes only with the one person in the way).
+    let off = Math.atan2(scratch.dx, scratch.dz) - p.heading;
+    off -= Math.round(off / (Math.PI * 2)) * Math.PI * 2;
+    const facing = Math.abs(off) < 0.5;
+    const outward = Math.abs(want) > Math.abs(p.dodge);
+    let rate = turning || !facing ? 0 : moved > 1e-6 ? AVOID.rate : p.queued && outward ? AVOID.rate * 0.6 : 0;
+    // A side step gathers pace (a third of a second), so the body has turned into it first.
+    rate = Math.min(rate, Math.abs(p.dodgeV) + 1.2 * dt);
+    // Where the offset should be: `want` to the right, nothing along the way (that part is let go at once
+    // as the way turns, at the walker's own pace, never faster than it walks).
+    let tx = rx * want, tz = rz * want;
+    if (Math.abs(p.dodge) > room + 1e-9) {
+      const keep = Math.sign(p.dodge) * room;
+      tx = rx * keep;
+      tz = rz * keep;
+    }
+    // By a door, never aside toward its wall: its leaf swings out there.
+    for (const d of doorDirs(nav!, piece.node)) {
+      const [wx, wz] = DIR4[d]!;
+      const toward = -(tx * wx + tz * wz);
+      if (toward > 0) {
+        tx += wx * toward;
+        tz += wz * toward;
+      }
+    }
+    // Across the way: at the side-step rate. Along it (left over from before a turn): let go no faster
+    // than half of what it walked this frame, so it never puts a step backwards into the walk.
+    const fx = scratch.dx / len, fz = scratch.dz / len;
+    const ex = tx - p.offX, ez = tz - p.offZ;
+    const eLat = ex * rx + ez * rz, eAlong = ex * fx + ez * fz;
+    const shrinkRoom = Math.abs(p.dodge) > room + 1e-9 ? AVOID.rate * 2 : 0;
+    const latMost = Math.max(rate, shrinkRoom) * dt;
+    const alongMost = moved * 0.5;
+    const dLat = Math.max(-latMost, Math.min(latMost, eLat));
+    const dAlong = Math.max(-alongMost, Math.min(alongMost, eAlong));
+    let nx = p.offX + rx * dLat + fx * dAlong, nz = p.offZ + rz * dLat + fz * dAlong;
+    if (nx !== p.offX || nz !== p.offZ) {
+      // Never a step aside into somebody beside.
+      for (const q of people) {
+        if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'home' || q.mode === 'visit') continue;
+        const dx = q.x - p.x, dz = q.z - p.z;
+        if (dx > 0.4 || dx < -0.4 || dz > 0.4 || dz < -0.4 || Math.abs(q.y - p.y) > 0.3) continue;
+        // p.x, p.z is the line here (the offset is added below).
+        const dNew = Math.hypot(dx - nx, dz - nz), dOld = Math.hypot(dx - p.offX, dz - p.offZ);
+        if (dNew < KEEP && dNew < dOld) {
+          nx = p.offX;
+          nz = p.offZ;
+          break;
+        }
+      }
+    }
+    p.offX = nx;
+    p.offZ = nz;
+    p.dodge = nx * rx + nz * rz;
+    p.dodgeV = dt > 0 ? (p.dodge - was) / dt : 0;
+    if (nx === 0 && nz === 0) return;
+    const bx = p.x, bz = p.z;
+    p.x += nx;
+    p.z += nz;
+    // Never out of its cell across the way it goes (a wall, a fence, water or a building may be there);
+    // the line itself may run nearer the side, and stays where it is.
+    const c = nav!.nodes[piece.node]!.cell;
+    const x0 = keyX(c), z0 = keyZ(c);
+    if (Math.abs(scratch.dx) < Math.abs(scratch.dz)) p.x = Math.max(Math.min(bx, x0 + AVOID.margin), Math.min(Math.max(bx, x0 + 1 - AVOID.margin), p.x));
+    else p.z = Math.max(Math.min(bz, z0 + AVOID.margin), Math.min(Math.max(bz, z0 + 1 - AVOID.margin), p.z));
+    // And on a turn, not across its other sides either.
+    p.x = Math.max(x0 + 1e-4, Math.min(x0 + 1 - 1e-4, p.x));
+    p.z = Math.max(z0 + 1e-4, Math.min(z0 + 1 - 1e-4, p.z));
+  };
+
+  /** Somebody stands on the doorstep (or the spot under a hatch): whoever is inside waits to come out. */
+  const doorstepTaken = (p: Person, piece: Piece): boolean => {
+    for (const q of people) {
+      if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit' || q.mode === 'hop') continue;
+      if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
+      if (Math.abs(q.y - piece.base) > 0.3) continue;
+      if (Math.hypot(q.x - piece.x1, q.z - piece.z1) < BODY + 0.06) return true;
+    }
+    return false;
+  };
+
   const advance = (p: Person, dt: number): void => {
+    const px0 = p.x, pz0 = p.z;
     const walk = p.walk!;
     let left = dt;
     let moved = 0;
@@ -786,7 +965,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (piece.kind === 'move' && next?.kind === 'door' && next.enter && next.door && (!doors.ready(next.door.feature) || doors.comingOut(next.door.feature) > 0)) {
           limit = Math.min(limit, Math.max(p.t, 1 - DOORS.wait / piece.length));
           p.queued = true;
-        } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && doors.goingIn(piece.door.feature) > 0))) {
+        } else if (piece.kind === 'door' && piece.door && p.t === 0 && (!doors.ready(piece.door.feature) || (!piece.enter && (doors.goingIn(piece.door.feature) > 0 || doorstepTaken(p, piece))))) {
           limit = 0;
           p.queued = true;
         }
@@ -825,7 +1004,22 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.y = scratch.y;
     p.z = scratch.z;
     p.visible = piece.kind !== 'hide';
-    if (!turning && scratch.dx * scratch.dx + scratch.dz * scratch.dz > 1e-8 && piece.kind !== 'hide') turnTo(p, Math.atan2(scratch.dx, scratch.dz), dt);
+    const fx = scratch.dx, fz = scratch.dz;
+    stepAside(p, piece, dt, moved, turning);
+    if (!turning && fx * fx + fz * fz > 1e-8 && piece.kind !== 'hide') {
+      // The body turns with the way it really goes, a step aside included (nobody strafes), but never
+      // more than a little off the way of the walk.
+      const way = Math.atan2(fx, fz);
+      const mx = p.x - px0, mz = p.z - pz0;
+      let want = way;
+      if (mx * mx + mz * mz > 1e-7) {
+        let d = Math.atan2(mx, mz) - way;
+        d -= Math.round(d / (Math.PI * 2)) * Math.PI * 2;
+        want = way + Math.max(-0.75, Math.min(0.75, d));
+      }
+      turnTo(p, want, dt);
+    }
+    if (moved > 0.02 * dt * 30) p.rethought = false;
     if (moved > 1e-6) {
       p.stride += (moved * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
       p.pose = p.child ? 'run' : 'walk';
@@ -842,13 +1036,21 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   /** Too busy to stop: on the lamp round, or called home by the dusk. */
   let now: TimeSignal | null = null;
   const onDutyNow = (p: Person): boolean => now !== null && (onDuty(p, now) || mustBeHome(p, now));
-  const follow = (): void => {
+  const follow = (dt: number): void => {
     const bodies = opts.obstacles?.() ?? null;
     for (const p of people) {
       p.slow = 1;
       if (p.mode !== 'walk' || !p.visible) continue;
-      // Never a standstill: after three seconds behind somebody, step round them (stuck < 0 counts that down).
-      if (p.stuck > 3) p.stuck = -1.5;
+      // Never a standstill. Held up five seconds (a knot nobody can step out of), think again and go
+      // another way, or somewhere else; only if there is nowhere else, squeeze past (stuck < 0 counts that down).
+      if (p.stuck > 3 && !p.rethought && !p.want && now && p.walk![p.at]!.kind === 'move' && p.walk![p.at + 1]?.kind !== 'door') {
+        p.want = nextGoal(p, now, false);
+        p.rethought = true;
+        // Thinking again is not being held up: the new walk starts afresh. Held up again before getting
+        // anywhere, the count runs on to squeezing past.
+        if (p.want) p.stuck = 0;
+      }
+      if (p.stuck > 4.5) p.stuck = -1.5;
       if (p.stuck < 0) continue;
       const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
       for (const q of people) {
@@ -873,12 +1075,87 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         }
         const ahead = dx * fx + dz * fz;
         if (ahead <= 0.02 || ahead >= PEOPLE.slowAt) continue;
-        if (Math.abs(dx * fz - dz * fx) > 0.09) continue;
+        if (Math.abs(dx * fz - dz * fx) > 0.16) continue;
         // Only somebody going my way holds me up; somebody coming the other way passes on their side.
         if (Math.sin(q.heading) * fx + Math.cos(q.heading) * fz < 0.5) continue;
         const k = (ahead - PEOPLE.gap) / (PEOPLE.slowAt - PEOPLE.gap);
         const keep = k < 0 ? 0 : k;
         if (keep < p.slow) p.slow = keep;
+      }
+      // People are solid (the owner's request). Each walker looks at whoever is nearest in its way, from
+      // just beside it to AVOID.look ahead, and makes one decision about them:
+      //   coming the other way    both keep right: step right
+      //   going the same way      slower and room to pass: step out to the left; else fall in behind (the
+      //                           slowing above); shoulder to shoulder: ease apart
+      //   crossing its way        give way to whoever comes from the right: slow, and wait if close
+      //   standing still          go round the side away from them
+      // A tie (straight ahead) goes by id, so two people meeting resolve it the same way every time. One
+      // decision at a time, the nearest first: no dancing left and right.
+      {
+        const piece = p.walk![p.at]!;
+        const room = piece.kind === 'move' ? asideRoom(p, piece) : 0;
+        const rx = -fz, rz = fx;
+        let nearest = Infinity, target = 0, blocked = false;
+        for (const q of people) {
+          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop') continue;
+          if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
+          const dx = q.x - p.x, dz = q.z - p.z;
+          if (dx > 1.4 || dx < -1.4 || dz > 1.4 || dz < -1.4 || Math.abs(q.y - p.y) > 0.3) continue;
+          const ahead = dx * fx + dz * fz;
+          const lat = dx * rx + dz * rz;
+          if (ahead < -AVOID.clear * 0.7 || ahead > AVOID.look || Math.abs(lat) >= AVOID.clear) continue;
+          const d = Math.hypot(dx, dz);
+          if (d >= nearest) continue;
+          const moving = q.mode === 'walk' && q.slow > 0.05 && !q.queued && q.startled <= 0 && q.chat <= 0;
+          const along = Math.sin(q.heading) * fx + Math.cos(q.heading) * fz;
+          const right = lat + AVOID.clear, left = -(AVOID.clear - lat);
+          const away = (): number => {
+            const goRight = Math.abs(lat) < 0.02 ? p.id < q.id : lat < 0;
+            let s = goRight ? right : left;
+            if (Math.abs(p.dodge + s) > room) s = goRight ? left : right; // no room that side: the other
+            return s;
+          };
+          let shift: number;
+          let yieldTo = false;
+          if (ahead < 0.02) {
+            // Beside: keep the step aside that got me here, or ease apart from a shoulder.
+            shift = away();
+          } else if (moving && along > 0.5) {
+            // The same way: overtake on the outside only if they are slower and there is room.
+            if (q.speed * q.slow >= p.speed * 0.92 || p.dodge + left < -room) continue;
+            shift = left;
+          } else if (moving && along < -0.3) shift = right;
+          else if (moving) {
+            // Across my way: whoever has the other coming from the right gives way.
+            shift = 0;
+            yieldTo = lat > 0;
+          } else shift = away();
+          nearest = d;
+          target = p.dodge + shift;
+          // Not enough room to get by, or giving way: wait for them (meeting head on, one waits: the tie by id).
+          blocked = ahead > 0.02 && ahead < AVOID.wait && (yieldTo || (Math.abs(target) > room + 0.01 && (!moving || along > -0.3 || p.id > q.id)));
+          if (yieldTo && ahead < AVOID.look) p.slow = Math.min(p.slow, Math.max(0, (ahead - AVOID.wait) / (AVOID.look - AVOID.wait)));
+        }
+        p.dodgeTo = nearest < Infinity ? target : 0;
+        // Waiting their turn at a single-file stretch: to the right, out of the way of whoever comes out.
+        if (p.queued && p.walk![p.at + 1]?.kind !== 'door') p.dodgeTo = room * 0.85;
+        if (blocked) p.slow = 0;
+        // And whatever was decided, never a step into somebody: no closer than a body to anyone ahead.
+        const reach = p.speed * dt * 1.4;
+        if (reach > 0) {
+          for (const q of people) {
+            if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'home' || q.mode === 'visit') continue;
+            if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
+            const dx = q.x - p.x, dz = q.z - p.z;
+            if (dx > 0.5 || dx < -0.5 || dz > 0.5 || dz < -0.5 || Math.abs(q.y - p.y) > 0.3) continue;
+            const ahead = dx * fx + dz * fz;
+            const lat = dx * rx + dz * rz;
+            if (ahead <= 0 || Math.abs(lat) >= KEEP) continue;
+            const allowed = ahead - Math.sqrt(KEEP * KEEP - lat * lat) - 0.005;
+            const keep = Math.max(0, Math.min(1, allowed / reach));
+            if (keep < p.slow) p.slow = keep;
+          }
+        }
       }
       // L36, L37: they wait for the garrison's column or the rider's horse to pass, without counting it as
       // being held up (nobody steps round a soldier).
@@ -1178,6 +1455,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       goal: null, want: null, timer: 0, held: -1, trips: 0, stuck: 0, slow: 1, queued: false,
       inside: null, hop: null, leaving: false, startled: 0, startledFace: 0, edgeX: 0, edgeZ: 0, fadeTime: PEOPLE.fade,
       jumpy: false, jump: 0, lift: 0, chat: 0, chatFace: 0, lastMet: null, chatWith: null, bubble: false, chatRest: 0, react: null, flying: false,
+      dodge: 0, dodgeTo: 0, dodgeV: 0, offX: 0, offZ: 0, rethought: false,
     };
   };
 
@@ -1328,7 +1606,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       for (const key of shopDoors) doors.stand(key, time.isDay, rand(seed, 'shop-door', key) * DOORS.shopSpread);
       for (const p of people) claimDoors(p);
       doors.step(dt);
-      follow();
+      follow(dt);
       let plans = Math.max(1, Math.round(PEOPLE.plansPerFrame));
       const n = people.length;
       for (let i = 0; i < n; i++) {

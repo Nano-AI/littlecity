@@ -162,6 +162,30 @@ once, `people-town` row landing, `everything` lamplighter at dusk
   item, so neighbours are not in step.
 - Sailboats heel to the wind already; rowboats tug their lines (taut).
 
+## People are solid (the owner's request)
+
+Walkers step round each other, give way, overtake on the outside, and
+never step closer than a body and a hand's breadth to anyone ahead;
+standing spots are spread; nobody comes out of a door onto an occupied
+doorstep. Counted by `src/life/people/overlap.ts` (an overlap: centres
+closer than 0.15 on one floor, both in the open; sustained: longer than a
+quarter of a second). Seven and a half minutes of day and evening:
+
+| Town | before | after |
+|---|---|---|
+| people-town (43 people) | 121 | ~20 |
+| everything (59) | 162 | ~80 |
+| a dense square (47 in it at once, 3 min) | 131 | ~27 |
+
+Head on in a one-cell corridor, a two-cell street, an open square with
+four walkers crossing, overtaking, and walking round somebody standing:
+none. **Still wrong**: knots at single-file stretches in busy places (the
+everything town's arch passage under the bridge beside the carved steps;
+a mill-yard gate): somebody waits, thinks again once, and if still held up
+squeezes past, which shows as two people overlapping for a moment. Watched:
+a crowd by the mill house and a meeting on the street in the everything
+town at zoom 12.
+
 ## Found and still open
 
 - **Gust front by eye.** Even with the fixes (no shiver, slower and sharper
