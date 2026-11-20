@@ -93,3 +93,25 @@ export const CHAINS = defineStyle(
     fill: [0.5, 8, 0.1],
   },
 );
+
+/** L54: builders and onlookers when a building lands. */
+export const BUILD = defineStyle(
+  'build',
+  {
+    /** Seconds between two building jobs at least; jobs going at once at most. */
+    gap: 6,
+    most: 2,
+    /** More than this many pieces landing in five seconds is a paste or a playback: then a job only every floodGap seconds. */
+    flood: 10,
+    floodGap: 40,
+    /** Seconds a job waits for its builders before it lapses. */
+    lapse: 25,
+    /** The farthest (grid steps) a builder or onlooker comes from. */
+    reach: 12,
+    /** Seconds of hammering; onlookers for something big, and how long they look. */
+    hammer: 4.5,
+    watchers: 4,
+    look: 7,
+  },
+  { gap: [0, 60, 1], most: [0, 6, 1], flood: [2, 60, 1], floodGap: [0, 300, 5], lapse: [5, 120, 1], reach: [2, 40, 1], hammer: [1, 15, 0.5], watchers: [0, 10, 1], look: [1, 20, 0.5] },
+);

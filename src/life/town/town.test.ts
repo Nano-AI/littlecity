@@ -5,6 +5,7 @@
 // story.
 
 import { describe, expect, test } from 'vitest';
+import { keyX, keyZ } from '@/core/grid';
 import type { DressingPlan } from '@/resolve/plan';
 import breadTown from '../../../scenarios/life/L51.bread.scenario';
 import type { Person } from '../people/crowd';
@@ -23,6 +24,7 @@ interface Ledger {
 }
 
 function run(seconds: number, part: 'day' | 'dawn' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void) {
+  // (`then` is called once a second, before that second's steps' checks.)
   const c = clock(town.world.seed, part);
   const t = createLivingTown({ seed: town.world.seed });
   t.sync(town.shape, dressing, c.time);
@@ -88,6 +90,32 @@ describe('L51 bread and L52 water', () => {
     expect(w.problems).toEqual([]);
     expect(ledger.lost).toEqual([]);
     expect((carrier as Person | null)?.load ?? null).not.toBe('tray');
+  });
+
+  test('L54: a house goes up, two builders come with a ladder and a hod, hammer, and take them home; a tower draws onlookers', () => {
+    const after = scenarioTown({ ...breadTown, build: (b) => (breadTown.build(b), b.house(14, 26, { floors: 1, w: 2, d: 2 }), b.tower(22, 27, { floors: 4 })) });
+    const houseCell = [...after.shape.structureAt].find(([c, id]) => keyX(c) === 14 && keyZ(c) === 26 && after.shape.structures.get(id)?.kind === 'house')![0];
+    const towerCell = [...after.shape.structureAt].find(([c, id]) => keyX(c) === 22 && keyZ(c) === 27 && after.shape.structures.get(id)?.kind === 'tower')![0];
+    const seen = { hammer: new Set<string>(), look: new Set<string>(), ladder: 0, hod: 0 };
+    const { w, ledger } = run(140, 'day', town.dressing, (t, second) => {
+      if (second === 20) {
+        t.sync(after.shape, null, clock(town.world.seed, 'day').time);
+        t.landed(houseCell);
+        t.sync(after.shape, after.dressing, clock(town.world.seed, 'day').time);
+      }
+      if (second === 30) t.landed(towerCell);
+      for (const p of t.crowd.people) {
+        if (p.mode === 'linger' && p.goal?.errand?.tag === 'build:hammer') seen.hammer.add(p.id);
+        if (p.mode === 'linger' && p.goal?.errand?.tag === 'build:look') seen.look.add(p.id);
+      }
+    });
+    expect(w.problems).toEqual([]);
+    expect(ledger.lost).toEqual([]);
+    expect(seen.hammer.size).toBeGreaterThanOrEqual(2);
+    expect(ledger.setDown.get('ladder@build:set-down') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(ledger.setDown.get('hod@build:set-down') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(ledger.pickedUp.get('ladder@build:pick-up') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(seen.look.size).toBeGreaterThanOrEqual(1);
   });
 
   test('the same town stepped the same way tells the same story', () => {

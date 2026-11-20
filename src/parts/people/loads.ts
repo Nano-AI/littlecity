@@ -8,7 +8,7 @@
 // pixels. Figure units (a person is 0.42 tall; the figure's scale takes
 // them to the world).
 
-import { translation, type Mat4Like } from '@/core/mat4';
+import { multiply, rotationX, translation, type Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
@@ -221,7 +221,13 @@ export function restingMesh(kind: Load): MeshData {
   if (!m) {
     const b = new MeshBuilder({ ink: `rest-${kind}` });
     // The figure's units to the world's (PERSON.height ÷ DESIGN_HEIGHT, about 1.1).
-    b.at([1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1], () => drawLoad(b, kind));
+    b.at([1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1], () => {
+      if (kind === 'ladder') {
+        // Set down, a ladder leans against the wall ahead (+Z), its foot at the origin.
+        const a = 1.2, h = 0.3 * BIG;
+        b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind));
+      } else drawLoad(b, kind);
+    });
     cache.set(k, (m = b.build()));
   }
   return m;

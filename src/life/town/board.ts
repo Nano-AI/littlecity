@@ -121,7 +121,8 @@ export interface Board {
   homeStep(p: Person, opts: Partial<PlanStep> & { tag: string }): PlanStep | null;
   /** Grid steps between two cells on the ground plan. */
   dist(a: CellKey, b: CellKey): number;
-  sync(shape: ShapePlan, dressing: DressingPlan): void;
+  /** The town changed. With no dressing yet (just after an edit) only the shape is taken. */
+  sync(shape: ShapePlan, dressing: DressingPlan | null): void;
   step(dt: number, time: TimeSignal): void;
   dispose(): void;
 }
@@ -289,6 +290,7 @@ export function createBoard(opts: BoardOptions): Board {
     dist: (a, b) => Math.abs(keyX(a) - keyX(b)) + Math.abs(keyZ(a) - keyZ(b)),
     sync(nextShape, nextDressing) {
       shape = nextShape;
+      if (!nextDressing) return;
       dressing = nextDressing;
       posts = new Map();
       for (const s of nextDressing.sockets) {

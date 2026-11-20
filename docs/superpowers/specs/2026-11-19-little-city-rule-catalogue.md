@@ -595,6 +595,19 @@ its carrier. Nothing is ever left floating or vanishes in view.
   and then (p=0.1) walks there, bends to fill a bucket (2.6 s; it appears in
   the hand) and carries it home at their side. **Must not:** send two to one
   post at once.
+- **L54 · 2 · Builders and onlookers** (run time, `chains/build.ts`) — a
+  piece of a house, tower, marble, lighthouse or windmill lands → the two
+  nearest free grown-ups within 12 steps hurry over, one with a ladder on
+  the shoulder and one with a hod of bricks; the ladder is leant against the
+  new wall, the hod set down; each hammers 4.5 s, picks up and goes home.
+  Something big (a tower, marble, a lighthouse, a windmill, or a house of 6+
+  cells) also draws up to 4 onlookers who stand a step back looking up at it
+  for 7 s. Anything erased → those within 4 cells turn and look (L26's
+  reaction, now for erasing too). **Must not:** start a job less than 6 s
+  after the last, run more than 2 at once, or (when more than 10 pieces
+  landed in 5 s: a paste, Grow a town's playback) start one less than 40 s
+  after the last; at night. A job nobody came to lapses after 25 s; a
+  building erased mid-job ends it and what was set down is picked up.
 
 ### Animals and small motion
 

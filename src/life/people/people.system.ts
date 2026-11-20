@@ -396,7 +396,15 @@ export default defineSystem<State>({
       },
     });
     const crowd = town.crowd;
-    const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
+    const offs = [
+      ctx.signals.on('blockLanded', (cell) => {
+        crowd.blockLanded(cell);
+        town.landed(cell); // L54: builders come
+      }),
+      // Something taken away: those near turn and look too.
+      ctx.signals.on('blockRemoved', (cell) => crowd.blockLanded(cell)),
+    ];
+    const unsubscribe = (): void => offs.forEach((off) => off());
     // L29: the door leaves swing as the crowd's door table says.
     setDoorTable(ctx.stage, crowd.doors);
     setCrowd(ctx.stage, crowd);
@@ -406,7 +414,11 @@ export default defineSystem<State>({
     return { crowd, town, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe, art: null };
   },
   sync(state, next, _prev, ctx) {
-    if (!next.dressing) return;
+    if (!next.dressing) {
+      // Just after an edit: the town's chains take the new shape now (L54 reads what landed).
+      state.town.sync(next.shape, null, ctx.signals.time);
+      return;
+    }
     state.standIns = [];
     for (const a of next.dressing.actors) {
       if (a.type !== 'resident') continue;
