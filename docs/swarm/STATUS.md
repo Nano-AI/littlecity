@@ -669,3 +669,20 @@ clean: 1,950 tests. NP-01 hedge not built (needs frozen core kinds).
 - Bug: the sweeper's broom is not in her hands → living-town agent.
 - New: Field ground piece (basketball, tennis, grass pitch by shape) with
   people playing → new Opus agent `swarm/field`.
+
+**Orchestrator: nothing-in-hand state** (Derek): clicking the selected
+tray piece again, or Escape, puts it down (`TrayState.idle`): no ghost, no
+placing or erasing, wheel zooms; test `tests/e2e/idle.e2e.test.ts`. Not yet
+committed or published: the full check was still running under load.
+**Derek: harvest must really cut the wheat** (no flat overlay, no smoke) →
+living-town agent (after the broom fix).
+**Derek: bigger islands** (3–4× the map, size chosen at New island, varied
+regions) → new Opus agent `swarm/big-islands`, PREVIEW: study, prototype
+and measurements first; do not merge without his say.
+Running: mischief (preview), seasons, landshaping, living-town, field,
+big-islands (preview).
+**Nothing-in-hand state committed and published.** Test helpers in three
+e2e files no longer re-click a selected piece (that now deselects). New
+tests by other agents must do the same. `traffic.test.ts` timeout 300 s
+(machine at load 32). Full run under load: only load timeouts; affected
+files pass serially. Mischief preview server (5175) hit its two-hour limit.

@@ -350,6 +350,7 @@ export function createInterface(host: InterfaceHost): Interface {
     if (placingRun) return;
     if (growth.active) return setGhost(null, '');
     const ghostOf = (): void => {
+      if (tray.state.idle) return setGhost(null, '');
       if (!hoverAt || isToolId(tray.state.item)) return setGhost(null, '');
       const seen = look(hoverAt.x, hoverAt.y);
       if (!seen) return setGhost(null, '');
@@ -385,7 +386,9 @@ export function createInterface(host: InterfaceHost): Interface {
   const lengths = new Map<string, number>();
   /** The land tools share one brush. */
   const lengthKey = (item: ItemId): string => (isLandTool(item) ? 'brush' : item);
-  const heldLength = (): number | null => (growthOf(tray.state.item) === null ? null : (lengths.get(lengthKey(tray.state.item)) ?? 1));
+  // Nothing in hand: no length to set, so the stepper hides and the wheel zooms.
+  const heldLength = (): number | null =>
+    tray.state.idle || growthOf(tray.state.item) === null ? null : (lengths.get(lengthKey(tray.state.item)) ?? 1);
   const showStepper = (): void => stepper.show(heldLength(), maxLengthOf(tray.state.item), isLandTool(tray.state.item) ? 'Brush' : 'Length');
   const stepper = createStepper((by) => changeLength(by));
   tray.el.append(stepper.el);
@@ -584,6 +587,7 @@ export function createInterface(host: InterfaceHost): Interface {
       if (dismissing) return;
       if (growth.active) return growth.skip();
       if (copying) return copyAt(x, y);
+      if (tray.state.idle) return; // just looking: a click does nothing
       const seen = look(x, y);
       if (!seen) return;
       const length = heldLength();
@@ -593,6 +597,7 @@ export function createInterface(host: InterfaceHost): Interface {
     erase(x, y) {
       if (dismissing) return;
       if (growth.active) return growth.skip();
+      if (tray.state.idle) return; // just looking: no erasing by a stray right click or long press
       const seen = look(x, y);
       if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) navigator.vibrate?.(12);
     },
@@ -614,7 +619,7 @@ export function createInterface(host: InterfaceHost): Interface {
       showCount();
     },
     runStart(x, y) {
-      if (dismissing || growth.active || copying || !paintsRuns(tray.state.item)) return false;
+      if (dismissing || growth.active || copying || tray.state.idle || !paintsRuns(tray.state.item)) return false;
       if (isLandTool(tray.state.item)) return strokeStart(x, y);
       const seen = look(x, y);
       if (!seen) return false;
@@ -650,6 +655,11 @@ export function createInterface(host: InterfaceHost): Interface {
   const detachPointer = attachPointer(canvas, sink);
 
   // ── the keyboard ───────────────────────────────────────────────────────
+  const putDown = (): boolean => {
+    if (tray.state.idle) return false;
+    tray.setIdle(true);
+    return true;
+  };
   const onKey = (e: KeyboardEvent): void => {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
@@ -672,7 +682,8 @@ export function createInterface(host: InterfaceHost): Interface {
       return;
     }
     if (e.altKey) return;
-    if (key === 'escape') return void (closePopups() || guide.close());
+    // Escape closes what is open; with nothing open it puts the piece down (nothing in hand).
+    if (key === 'escape') return void (closePopups() || guide.close() || putDown());
     if (/^[0-9]$/.test(e.key)) tray.pickNumber(Number(e.key));
   };
   window.addEventListener('keydown', onKey);
@@ -716,7 +727,12 @@ export function createInterface(host: InterfaceHost): Interface {
   window.addEventListener('dragover', onDragOver);
   window.addEventListener('drop', onDrop);
 
-  tray.onChange(() => {
+  let toldIdle = false;
+  tray.onChange((state) => {
+    if (state.idle && !toldIdle) {
+      toldIdle = true;
+      feedback.toast('Nothing in hand: just look around. Pick a piece to build again.');
+    }
     ghostKey = '';
     scrollSteps.reset();
     showStepper();
@@ -737,7 +753,7 @@ export function createInterface(host: InterfaceHost): Interface {
     frame() {
       flushStroke();
       growth.tick(performance.now());
-      markers.update(tray.state.item === 'change', game.world, game.terrain);
+      markers.update(tray.state.item === 'change' && !tray.state.idle, game.world, game.terrain);
     },
     sync() {
       worldVersion++;

@@ -19,6 +19,11 @@ export interface TrayState {
   swatch: number | 'auto';
   /** The house style new houses get: 0 = Random (the default), 1–6 a named style. For the session. */
   style: number;
+  /**
+   * Nothing in hand: the player is just looking round. Clicking the selected piece again (or Escape)
+   * puts it down; picking any piece takes one up. `item` keeps the last piece for the drawer's sake.
+   */
+  idle: boolean;
 }
 
 export interface Tray {
@@ -26,6 +31,8 @@ export interface Tray {
   readonly state: Readonly<TrayState>;
   /** Selects a piece or tool and opens its drawer. */
   select(item: ItemId): void;
+  /** Puts the piece down (true) so nothing is in hand, or takes the last one up again (false). */
+  setIdle(idle: boolean): void;
   openDrawer(drawer: DrawerId): void;
   setSwatch(swatch: number | 'auto'): void;
   /** Chooses the house style (0 = Random) without changing the selected piece. */
@@ -50,7 +57,7 @@ export function swatchColors(item: ItemId): readonly string[] {
 }
 
 export function createTray(start: Partial<TrayState> = {}): Tray {
-  const state: TrayState = { drawer: 'build', item: 'auto', swatch: 'auto', style: RANDOM_STYLE, ...start };
+  const state: TrayState = { drawer: 'build', item: 'auto', swatch: 'auto', style: RANDOM_STYLE, idle: false, ...start };
   const listeners: ((s: Readonly<TrayState>) => void)[] = [];
   const emit = (): void => listeners.forEach((fn) => fn(state));
 
@@ -117,8 +124,9 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
         class: 'lc-item',
         showLabel: true,
         title: key ? `${item.hint} (${key})` : item.hint,
-        attrs: { 'data-item': item.id, 'aria-pressed': String(item.id === state.item) },
-        on: { click: () => api.select(item.id) },
+        attrs: { 'data-item': item.id, 'aria-pressed': String(item.id === state.item && !state.idle) },
+        // Clicking the piece already in hand puts it down: nothing selected, just looking.
+        on: { click: () => (item.id === state.item && !state.idle ? api.setIdle(true) : api.select(item.id)) },
       });
       // The Land group (Raise, Dig, Level) is set off from the pieces after it.
       if (item.group === 'land') button.classList.add('lc-group-start');
@@ -172,7 +180,7 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
       tab.classList.toggle('lc-tab-holds', id === drawerOf(state.item) && id !== state.drawer);
     }
     for (const button of row.querySelectorAll<HTMLElement>('[data-item]')) {
-      button.setAttribute('aria-pressed', String(button.dataset.item === state.item));
+      button.setAttribute('aria-pressed', String(button.dataset.item === state.item && !state.idle));
     }
     row.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   };
@@ -186,9 +194,16 @@ export function createTray(start: Partial<TrayState> = {}): Tray {
   const api: Tray = {
     el: root,
     state,
+    setIdle(idle) {
+      if (state.idle === idle) return;
+      state.idle = idle;
+      renderSelection();
+      emit();
+    },
     select(item) {
       const drawer = drawerOf(item);
       const drawerChanged = drawer !== state.drawer;
+      state.idle = false;
       state.item = item;
       state.drawer = drawer;
       if (drawerChanged) renderRow();

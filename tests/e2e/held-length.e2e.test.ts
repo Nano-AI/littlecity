@@ -48,7 +48,8 @@ async function pick(page: Page, item: string, tap = false): Promise<void> {
   const drawer = ['path', 'plaza', 'fence', 'wall', 'stall'].includes(item) ? 'ground' : ['tree', 'garden', 'fountain'].includes(item) ? 'nature' : 'build';
   const press = (selector: string): Promise<void> => (tap ? page.tap(selector) : page.click(selector));
   await press(`[data-drawer="${drawer}"]`);
-  await press(`[data-item="${item}"]`);
+  // Clicking the piece already in hand puts it down, so only press one that is not selected.
+  if ((await page.getAttribute(`[data-item="${item}"]`, 'aria-pressed')) !== 'true') await press(`[data-item="${item}"]`);
   expect(await debug(page, 'item')).toBe(item);
 }
 

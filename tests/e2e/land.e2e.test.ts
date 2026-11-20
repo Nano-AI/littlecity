@@ -45,7 +45,8 @@ async function top(page: Page, x: number, z: number, fx = 0.5, fz = 0.5): Promis
 async function pick(page: Page, item: 'raise' | 'dig' | 'level', tap = false): Promise<void> {
   const press = (selector: string): Promise<void> => (tap ? page.tap(selector) : page.click(selector));
   await press('[data-drawer="nature"]');
-  await press(`[data-item="${item}"]`);
+  // Clicking the piece already in hand puts it down, so only press one that is not selected.
+  if ((await page.getAttribute(`[data-item="${item}"]`, 'aria-pressed')) !== 'true') await press(`[data-item="${item}"]`);
   expect(await debug(page, 'item')).toBe(item);
 }
 
