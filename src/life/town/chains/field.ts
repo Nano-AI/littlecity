@@ -317,7 +317,7 @@ export function fieldChain(): FieldChain {
           roster: [],
           game: null,
           games: 0,
-          next: board.now + 4 + rand(board.seed, 'field-first', s.id) * 25,
+          next: board.now + 2 + rand(board.seed, 'field-first', s.id) * 10,
           since: 0,
           idle,
           lying: kept,
