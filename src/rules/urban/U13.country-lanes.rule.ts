@@ -31,6 +31,7 @@ import { keyX, keyY, keyZ, neighbor, NO_CELL, opposite, type CellKey, type Dir4 
 import { hash } from '@/core/rand';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
 import { wildGrass } from '@/resolve/facts/grass.fact';
+import { streets } from '@/resolve/facts/streets.fact';
 import { edgeBetween } from '@/resolve/facts/lib';
 import { clearways, edgePos } from '../decoration/clearways.fact';
 import { countryside } from './countryside.fact';
@@ -42,6 +43,8 @@ const RULE = 'U13.country-lanes';
 const MILE = 8;
 /** A field gate breaks a hedge of this many pieces or more. */
 const GATE_RUN = 5;
+/** No two milestones nearer than this (two lanes' lattices can fall close by a crossing). */
+const MILE_GAP = 5;
 
 export default defineRule<Placed[]>({
   id: RULE,
@@ -58,7 +61,8 @@ export default defineRule<Placed[]>({
     const look = (k: string, c: CellKey, d = 0): number => hash(seed, RULE, k, c, d) % 1000;
     const out: Candidate<Placed[]>[] = [];
 
-    for (const run of country.runs) {
+    // Helpers for a run: its links, the verge on a side, the hedge sides of a cell.
+    const lane = (run: (typeof country.runs)[number]) => {
       const links = (c: CellKey): Dir4[] => (run.street.links.get(c) ?? []).map((l) => l.dir);
       // The verge on side d of a lane cell: level wild grass with no other use, no edge piece between.
       const verge = (c: CellKey, d: Dir4): CellKey => {
@@ -77,7 +81,12 @@ export default defineRule<Placed[]>({
         if (alongZ) out2.push(hand ? 3 : 1);
         return out2;
       };
-      const hedged = new Map<CellKey, Dir4[]>();
+      return { links, verge, sides };
+    };
+    // First, every hedge in town (lane cell -> sides), so hedges of two lanes can meet at a corner.
+    const hedged = new Map<CellKey, Dir4[]>();
+    for (const run of country.runs) {
+      const { links, verge, sides } = lane(run);
       for (const c of run.cells) {
         const want: Dir4[] = [];
         for (const d of sides(c)) {
@@ -87,7 +96,15 @@ export default defineRule<Placed[]>({
         }
         if (want.length) hedged.set(c, want);
       }
-      const isHedged = (c: CellKey, d: Dir4): boolean => hedged.get(c)?.includes(d) ?? false;
+    }
+    const isHedged = (c: CellKey, d: Dir4): boolean => c !== NO_CELL && (hedged.get(c)?.includes(d) ?? false);
+    // Milestones keep apart: none within MILE_GAP of another, nor within 3 of a junction.
+    const junctions: CellKey[] = streets(facts).list.flatMap((st) => [...st.junctions]);
+    const miles: CellKey[] = [];
+    const near = (a: CellKey, b: CellKey, k: number): boolean => Math.abs(keyX(a) - keyX(b)) + Math.abs(keyZ(a) - keyZ(b)) <= k;
+
+    for (const run of country.runs) {
+      const { links, verge } = lane(run);
       // A gap a player left in a fence along the lane: fenced on that side either side of it.
       const fenceGap = (c: CellKey, d: Dir4): boolean => {
         const a = neighbor(c, ((d + 1) % 4) as Dir4), b = neighbor(c, ((d + 3) % 4) as Dir4);
@@ -119,7 +136,9 @@ export default defineRule<Placed[]>({
             continue;
           }
           // An end runs on if the next lane cell along is hedged on this side, or the hedge turns the corner here.
-          const end = (side: Dir4): number => (isHedged(c, side) && side !== d ? 0 : isHedged(neighbor(c, side), d) ? 0 : 1);
+          // Or another lane's hedge meets it in the corner of the same verge cell (two lanes at a crossing).
+          const end = (side: Dir4): number =>
+            (isHedged(c, side) && side !== d) || isHedged(neighbor(c, side), d) || (n !== NO_CELL && isHedged(neighbor(n, side), opposite(side))) ? 0 : 1;
           // The frame faces away from the lane (+Z into the verge); its +X runs to the (face + 3) side.
           const face = d;
           const right = ((face + 3) % 4) as Dir4, left = ((face + 1) % 4) as Dir4;
@@ -128,10 +147,13 @@ export default defineRule<Placed[]>({
         // A milestone on the lattice, on a straight stretch, on the side away from the hedge.
         const ls = links(c);
         const straight = ls.length === 2 && ls[0] === opposite(ls[1]!);
-        if (straight && (keyX(c) + keyZ(c) * (MILE - 1)) % MILE === 0) {
+        if (straight && (keyX(c) + keyZ(c) * (MILE - 1)) % MILE === 0 && !miles.some((m) => near(m, c, MILE_GAP)) && !junctions.some((j) => near(j, c, 3))) {
           const open = ([0, 1, 2, 3] as Dir4[]).filter((d) => !ls.includes(d) && !isHedged(c, d));
           for (const d of open) {
-            if (p.put({ type: 'milestone', cell: c, pos: edgePos(d), face: opposite(d), params: { look: look('mile', c) } })) break;
+            if (p.put({ type: 'milestone', cell: c, pos: edgePos(d), face: opposite(d), params: { look: look('mile', c) } })) {
+              miles.push(c);
+              break;
+            }
           }
         }
       }

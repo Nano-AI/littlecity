@@ -351,6 +351,20 @@ export const landUse = defineFact<LandUses>('landUse', (f) => {
     const houses = new Set<StructureId>();
     for (const c of cells) for (const h of seers.get(c)!) houses.add(h);
     if (houses.size < GREEN_HOUSES) continue;
+    // The green lies between its houses: nothing more than a cell past the ends of their rows.
+    let bx0 = 99, bx1 = -1, bz0 = 99, bz1 = -1;
+    for (const h of houses) {
+      for (const c of f.structures.get(h)?.cells ?? []) {
+        bx0 = Math.min(bx0, c & 63);
+        bx1 = Math.max(bx1, c & 63);
+        bz0 = Math.min(bz0, (c >> 6) & 63);
+        bz1 = Math.max(bz1, (c >> 6) & 63);
+      }
+    }
+    const inside = cells.filter((c) => (c & 63) >= bx0 - 1 && (c & 63) <= bx1 + 1 && ((c >> 6) & 63) >= bz0 - 1 && ((c >> 6) & 63) <= bz1 + 1);
+    cells.length = 0;
+    cells.push(...inside);
+    if (cells.length < GREEN_MIN) continue;
     const street = cells.some((c) => [0, 1, 2, 3].some((d) => f.world.floors.get(neighbor(c, d as Dir4)) === 'path'));
     if (!street) continue;
     const col = (c: CellKey): [number, number] => [c & 63, (c >> 6) & 63];

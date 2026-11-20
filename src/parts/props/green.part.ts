@@ -222,19 +222,27 @@ export const pergola = definePart({
     const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 211));
     const h = 0.62, s = 0.36;
     b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'columns' }, () => {
-      for (const [x, z] of [[-s, -s], [s, -s], [-s, s], [s, s]] as const) b.at(translation(x, 0, z), () => b.lathe([[0.035, 0], [0.03, h]], { segments: 7, capTop: true }));
+      for (const [x, z] of [[-s, -s], [s, -s], [-s, s], [s, s]] as const) {
+        b.at(translation(x, 0, z), () => {
+          // A square base, a stout round column, a square cap.
+          b.box([-0.06, 0, -0.06], [0.06, 0.05, 0.06], { skip: ['bottom'] });
+          b.lathe([[0.048, 0.05], [0.042, h - 0.04]], { segments: 8 });
+          b.box([-0.06, h - 0.04, -0.06], [0.06, h, 0.06], { skip: ['bottom'] });
+        });
+      }
     });
     b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'beams' }, () => {
-      for (const z of [-s, s]) b.box([-s - 0.08, h, z - 0.02], [s + 0.08, h + 0.04, z + 0.02]);
+      for (const z of [-s, s]) b.box([-s - 0.1, h, z - 0.035], [s + 0.1, h + 0.07, z + 0.035]);
       for (let i = 0; i < 5; i++) {
         const x = -s + (i * 2 * s) / 4;
-        b.box([x - 0.015, h + 0.04, -s - 0.08], [x + 0.015, h + 0.07, s + 0.08]);
+        b.box([x - 0.025, h + 0.07, -s - 0.1], [x + 0.025, h + 0.11, s + 0.1]);
       }
     });
     const leaf = vary(PALETTE.leaf, r('vine'));
     b.with({ color: leaf, pattern: PATTERN.leaves, ink: 'vine', sway: 0.2 }, () => {
-      for (let i = 0; i < 5; i++) lump(b, -s + 0.1 + r('vx', i) * (2 * s - 0.2), h + 0.09, -s + 0.1 + r('vz', i) * (2 * s - 0.2), 0.13, 0.04, 0.11, { seg: 7, rings: 3, normal: TONE.lit, twist: i });
-      lump(b, s, h * 0.6, s, 0.05, h * 0.4, 0.05, { seg: 6, rings: 4, normal: TONE.mid });
+      for (let i = 0; i < 7; i++) lump(b, -s + 0.08 + r('vx', i) * (2 * s - 0.16), h + 0.13, -s + 0.08 + r('vz', i) * (2 * s - 0.16), 0.16, 0.05, 0.13, { seg: 7, rings: 3, normal: TONE.lit, twist: i });
+      // The vine climbing two of the columns.
+      for (const [x, z] of [[s, s], [-s, -s]] as const) lump(b, x, h * 0.55, z, 0.07, h * 0.45, 0.07, { seg: 6, rings: 4, normal: TONE.mid });
     });
     b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'table' }, () => b.lathe([[0.03, 0], [0.025, 0.2], [0.13, 0.2], [0.13, 0.22], [0, 0.22]], { segments: 10 }));
     return { mesh: b.build(), anchors: { 'seat-0': translation(-0.2, 0.12, 0), 'seat-1': compose(translation(0.2, 0.12, 0), rotationY(Math.PI)) } };
