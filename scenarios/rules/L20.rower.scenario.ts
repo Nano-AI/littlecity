@@ -1,14 +1,14 @@
-// Fixture for L20 (the rower). Three piers out into the bay, from the west:
-//   at x 10   pairs with the pier at x 24 (14 apart): a rower between them
-//   at x 24   taken by the first pair
-//   at x 30   only 6 from x 24, too near; x 10 is taken: no rower of its own
+// Fixture for L20 (the rower: any two docks joined by water, nearest pairs
+// first). Three piers out into the bay, from the west:
+//   at x 24 and x 30   the nearest pair (6 apart): a rower between them
+//   at x 10            left over: both others are taken
 
 import { scenario } from '@/scenario';
 
 export default scenario({
   name: 'L20.rower',
   seed: 220,
-  about: 'Two piers 10+ apart share a rower that crosses between them through open water; a third pier too near the second gets none.',
+  about: 'The two nearest piers share a rower that crosses between them through open water; the third, left over, gets none.',
   terrain(t) {
     t.flat(1);
     t.water(4, 30, 43, 43);
@@ -25,9 +25,9 @@ export default scenario({
   ],
   expect(_plan, dressing, check) {
     const rowers = dressing.actors.filter((a) => a.type === 'rower');
-    check.equal(rowers.length, 1, 'one rower, between the piers at x 10 and x 24');
+    check.equal(rowers.length, 1, 'one rower, between the piers at x 24 and x 30');
     const p = rowers[0]?.params as { ax: number; az: number; bx: number; bz: number } | undefined;
-    check.ok(p !== undefined && Math.floor(p.ax) === 10 && Math.floor(p.bx) === 24, `it waits off the ends of the piers at x 10 and x 24 (got ${JSON.stringify(p)})`);
+    check.ok(p !== undefined && Math.floor(p.ax) === 24 && Math.floor(p.bx) === 30, `it waits off the ends of the piers at x 24 and x 30 (got ${JSON.stringify(p)})`);
     check.ok(p !== undefined && p.az > 33 && p.bz > 33, 'its waiting places are out beyond the pier ends');
   },
 });

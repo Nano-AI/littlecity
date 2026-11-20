@@ -130,6 +130,11 @@ export class Sails {
     pair[1 - which]!.setVisible(false);
   }
 
+  /** Cut off at the edge of the map as the boat sails out through it (src/life/ships/ferry.system.ts). */
+  cutAtEdge(on: boolean): void {
+    for (const h of [...this.main, ...this.jib]) h.setParams(1, 0, 0, on ? -1 : 0);
+  }
+
   release(): void {
     for (const h of [...this.main, ...this.jib]) h.release();
   }

@@ -58,6 +58,7 @@ flat out vec4 vParams;
 flat out float vPat;
 flat out vec2 vId;
 flat out vec3 vOrigin;   // the slot's origin in the world (a glow centre)
+flat out float vCut;     // EDGECUT: 1 if this is cut off at the edge of the map (2: and its cross-section filled)
 
 ${COLOR}
 
@@ -79,7 +80,15 @@ void main(){
   }
   float pat = color.a * 255.0;
   // The AIRBORNE bit (src/gen/airborne.ts) only matters to the grounding picture.
-  if (pat > 127.5) pat -= 128.0;
+  bool aloft = pat > 127.5;
+  if (aloft) pat -= 128.0;
+  // The edge of the map is a wall things pass through (EDGECUT, the movers): anything that moves on the
+  // water is cut off there; things in the air only when their instance asks (params.w < 0: escort gulls),
+  // and an instance with params.w < -1.5 (a ship crossing the edge) has its cross-section filled.
+  vCut = s > 0 && (!aloft || params.w < -0.5) ? (params.w < -1.5 ? 2.0 : 1.0) : 0.0;
+#if defined(CAP)
+  if (vCut < 1.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+#endif
   // Three passes share this shader and each draws its own triangles: the page (everything solid),
   // OVERLAY (light beams and mist) and GHOST (the preview: slots whose glow is negative).
   bool beam = abs(pat - 27.0) < 0.5 || abs(pat - 28.0) < 0.5;
@@ -143,8 +152,10 @@ flat in vec4 vParams;
 flat in float vPat;
 flat in vec2 vId;
 flat in vec3 vOrigin;
+flat in float vCut;
 
 uniform vec3 uLight;
+uniform float uSlab;      // the slab's corner radius: the map's edge is a rounded square
 uniform float uTime;
 uniform float uPx;        // device pixels per world unit in the render target
 uniform float uCss;       // CSS pixels per world unit
@@ -321,7 +332,24 @@ vec3 shade(vec3 c, float s){
   return c * s * mix(vec3(1.0), vec3(0.93, 0.92, 1.06), (1.0 - s) * 3.0);
 }
 
+/** Signed distance from the map's edge (a rounded square 48 across): negative inside, positive beyond. */
+float mapEdge(vec2 p) {
+  vec2 q = abs(p - vec2(24.0)) - vec2(24.0 - uSlab);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uSlab;
+}
+
 void main(){
+#if defined(EDGECUT)
+  // The edge of the map is a wall: what crosses it is cut off there, bow first, and shown again bow first.
+  if (vCut > 0.5 && mapEdge(vW.xz) > 0.0) discard;
+#endif
+#if defined(CAP)
+  // The cut face of a ship crossing the edge: its back faces, seen through the cut, drawn as a flat dark
+  // section, with its own ink id so the pen draws a line round the cut.
+  oColor = vec4(toSrgb(mix(vCol * 0.32, uInk, 0.35)), 0.0);
+  oId = vec4(0.5, 0.5, vId.y, 1.0 - vId.x);
+  return;
+#endif
   vec3 n = normalize(vN);
   int pat = int(vPat + 0.5);
   float s = toneOf(n);

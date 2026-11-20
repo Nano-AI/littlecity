@@ -1,20 +1,22 @@
-// Berths for the big ships (catalogue L38–L40, "Big ships").
+// Berths for the big ships (catalogue "Boats and ships": fit is the only test).
 //
 // A BERTH is a straight run of quay: dock cells at sea level, or quay-wall
-// marble (R-M05) at level 0 or 1, all with open water on the same side, and
-// that water open at least SHIPS.berthWater (3) columns out for the run's
-// whole length plus one column past each end. Open water here means no land
-// and nothing built in the column at any height (a bridge over the water
-// would catch a mast).
+// marble (R-M05) at level 0 or 1, all with open water on the same side for
+// SHIPS.berthWater columns out (a quick sieve). Open water here means no
+// land and nothing built in the column at any height (a bridge would catch
+// a mast).
 //
-// The HARBOUR is which berth each kind of ship would use, with the way it
-// lies there (bow one way or the other along the quay), checked by sailing
-// it: a whole hull must be able to come in from an edge of the map, line up
-// and come alongside, and leave by going on ahead and round to an edge
-// (ship-routes.ts). A berth no ship can reach is no berth.
+// A big ship FITS a berth if there is quay enough to make fast to along its
+// hull, its hull lies clear alongside, and a whole hull can sail in from an
+// edge of the map, line up and come alongside, and leave again: checked by
+// sailing it (ship-routes.ts). There are no other conditions: no count of
+// docks, no lighthouse. The HARBOUR is every big ship that fits each of the
+// longest few berths (SHIPS.shipBerthsMax, so the water never looks crowded).
+// Small boats are not kept out: they share the quay, and row aside when a
+// big ship comes in to their stretch.
 //
-// The water a chosen berth needs is RESERVED: the small boats keep out of it
-// (L17 puts no rowboat on a mooring there; L18's fishing boat lies elsewhere).
+// EDGE WATER is the open water a boat could reach from the edge of the map:
+// a boat may moor only where it could have come in.
 //
 // Dressing stage only (it reads the quay walls' roles from the finished
 // shape). Pure; computed once per resolve.
@@ -23,7 +25,6 @@ import { columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_
 import { hash } from '@/core/rand';
 import { defineFact, type Facts } from '@/resolve/facts/api';
 import { socketsOfType } from '@/resolve/facts/plan-index.fact';
-import { townFacts } from '@/resolve/facts/town.fact';
 import { SHIPS } from '@/style/ships';
 import { hullClear as hullClearAt, mooringAt, obstacleColumns, planArrival, planDeparture, seaField, type HullSize, type Mooring, type SeaField } from './ship-routes';
 
@@ -48,6 +49,7 @@ export interface Berth {
 }
 
 export interface ShipPlan {
+  ship: BigShip;
   berth: Berth;
   /** Bow along the run (+1) or against it (−1). */
   dir: 1 | -1;
@@ -56,11 +58,8 @@ export interface ShipPlan {
 
 export interface Harbour {
   berths: readonly Berth[];
-  galleon: ShipPlan | null;
-  cog: ShipPlan | null;
-  galley: ShipPlan | null;
-  /** Columns of water reserved for the ships that call. */
-  reserved: ReadonlySet<number>;
+  /** Every big ship that fits at each of the longest few berths, longest berth first, biggest ship first. */
+  plans: readonly ShipPlan[];
 }
 
 /** The hull each ship keeps clear with (its drawn hull plus a little; see rig.ts). */
@@ -75,13 +74,6 @@ export function hullSize(ship: BigShip | 'barge'): HullSize {
     default:
       return { stern: -1.65, bow: 1.62, halfBeam: SHIPS.bargeBeam / 2 };
   }
-}
-
-/** How many cells of berth a ship needs, and how big a port. */
-export function needs(ship: BigShip): { berth: number; port: number } {
-  if (ship === 'galleon') return { berth: SHIPS.galleonBerth, port: SHIPS.galleonPort };
-  if (ship === 'cog') return { berth: SHIPS.cogBerth, port: SHIPS.cogPort };
-  return { berth: SHIPS.galleyBerth, port: 0 };
 }
 
 /** Quay columns: a dock at sea level, or a quay wall's low cell. Value: the level people stand on (+1), 0 if none. */
@@ -205,6 +197,8 @@ export const SEA_MARGIN = 0.22;
 /** Can this ship use this berth? The plan if so: which way it lies, checked by sailing in and out. */
 export function planBerth(f: Facts, ship: BigShip, berth: Berth, field: SeaField = planningField(f, berth)): ShipPlan | null {
   const h = hullSize(ship);
+  // It lies along the quay: there must be quay enough to make fast to (it may overhang a little at each end).
+  if (h.bow - h.stern > berth.cells + 0.6) return null;
   const first: 1 | -1 = hash(f.seed, 'berth-dir', ship, berth.key) % 2 === 0 ? 1 : -1;
   for (const dir of [first, -first as 1 | -1]) {
     const m = mooringAt(h, berth.face, dir, SHIPS.alongside, SHIPS.warpGap);
@@ -213,7 +207,7 @@ export function planBerth(f: Facts, ship: BigShip, berth: Berth, field: SeaField
     if (!arrive) continue;
     const leave = planDeparture(field, h, m, SHIPS.edgeIn, SEA_MARGIN);
     if (!leave) continue;
-    return { berth, dir, mooring: m };
+    return { ship, berth, dir, mooring: m };
   }
   return null;
 }
@@ -224,45 +218,56 @@ export function mooredClear(field: SeaField, h: HullSize, m: Mooring): boolean {
   return hullClearAt(field, h, m.x, m.z, m.yaw, SHIPS.alongside * 0.5) && hullClearAt(field, h, m.wx, m.wz, m.yaw, 0.1);
 }
 
-function choose(f: Facts, ship: BigShip, berths: readonly Berth[], taken: Set<string>, fields: Map<string, SeaField>): ShipPlan | null {
-  const need = needs(ship).berth;
-  const fieldOf = (b: Berth): SeaField => {
-    let field = fields.get(b.key);
-    if (!field) fields.set(b.key, (field = planningField(f, b)));
-    return field;
-  };
-  for (const b of berths) {
-    if (b.cells < need) continue;
-    // Two kinds of ship may share a berth (they call at different times), but a free one is better.
-    if (taken.has(b.key)) continue;
-    const plan = planBerth(f, ship, b, fieldOf(b));
-    if (plan) return plan;
-  }
-  for (const b of berths) {
-    if (b.cells < need || !taken.has(b.key)) continue;
-    const plan = planBerth(f, ship, b, fieldOf(b));
-    if (plan) return plan;
-  }
-  return null;
-}
+/** The big ships, biggest first. */
+export const BIG_SHIPS: readonly BigShip[] = ['galleon', 'galley', 'cog'];
 
 export const harbour = defineFact<Harbour>('harbour', (f) => {
-  const town = townFacts(f);
-  const docks = town.cellsByKind.get('dock') ?? 0;
-  const lighthouses = town.structuresByKind.get('lighthouse') ?? 0;
-  const none: Harbour = { berths: [], galleon: null, cog: null, galley: null, reserved: new Set() };
-  // No ship calls at a port of fewer docks than the smallest needs (a quay wall alone makes no port).
-  if (docks < Math.min(SHIPS.cogPort, SHIPS.galleonPort) && lighthouses === 0) return none;
   const berths = findBerths(f);
-  if (!berths.length) return { ...none, berths };
-  const taken = new Set<string>();
-  const fields = new Map<string, SeaField>();
-  const galleon = docks >= SHIPS.galleonPort ? choose(f, 'galleon', berths, taken, fields) : null;
-  if (galleon) taken.add(galleon.berth.key);
-  const cog = docks >= SHIPS.cogPort ? choose(f, 'cog', berths, taken, fields) : null;
-  if (cog) taken.add(cog.berth.key);
-  const galley = lighthouses > 0 ? choose(f, 'galley', berths, taken, fields) : null;
-  const reserved = new Set<number>();
-  for (const p of [galleon, cog, galley]) if (p) for (const i of p.berth.water) reserved.add(i);
-  return { berths, galleon, cog, galley, reserved };
+  const plans: ShipPlan[] = [];
+  let used = 0;
+  for (const b of berths) {
+    if (used >= Math.round(SHIPS.shipBerthsMax)) break;
+    const field = planningField(f, b);
+    let any = false;
+    for (const ship of BIG_SHIPS) {
+      const plan = planBerth(f, ship, b, field);
+      if (plan) {
+        plans.push(plan);
+        any = true;
+      }
+    }
+    if (any) used++;
+  }
+  return { berths, plans };
+});
+
+/**
+ * Open water a boat can reach from the edge of the map (1 = reachable): a flood over open-water columns
+ * (no land, nothing built at sea level) from every column on the map's edge. A boat may moor only where it
+ * could have come in.
+ */
+export const edgeWater = defineFact<Uint8Array>('edgeWater', (f) => {
+  const m = new Uint8Array(SIZE_X * SIZE_Z);
+  const free = (x: number, z: number): boolean => inColumnBounds(x, z) && f.terrain.height[columnIndex(x, z)] === 0 && !f.kinds.has(key(x, 0, z));
+  const stack: number[] = [];
+  for (let i = 0; i < SIZE_X; i++) {
+    for (const [x, z] of [[i, 0], [i, SIZE_Z - 1], [0, i], [SIZE_X - 1, i]] as const) {
+      if (free(x, z) && !m[columnIndex(x, z)]) {
+        m[columnIndex(x, z)] = 1;
+        stack.push(columnIndex(x, z));
+      }
+    }
+  }
+  while (stack.length) {
+    const c = stack.pop()!;
+    const x = c % SIZE_X, z = (c - x) / SIZE_X;
+    for (const [dx, dz] of DIR4) {
+      const ax = x + dx, az = z + dz;
+      if (free(ax, az) && !m[columnIndex(ax, az)]) {
+        m[columnIndex(ax, az)] = 1;
+        stack.push(columnIndex(ax, az));
+      }
+    }
+  }
+  return m;
 });

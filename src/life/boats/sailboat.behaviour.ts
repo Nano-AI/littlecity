@@ -23,6 +23,7 @@ import { fly } from '../motion/pose';
 import { Twos } from '../motion/twos';
 import { swellAt, wakeRing, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
+import { notePose } from '../ships/ferry.system';
 import { giveWay } from '../ships/news';
 import { Sails } from './sails';
 
@@ -159,6 +160,7 @@ function follow(state: SailboatState, ctx: LifeContext<ActorOf<'sailboat'>>, sig
   // Sailing, the bow lifts a touch with speed.
   fly(state.x, SEA_Y + sw.heave, state.z, state.yaw, sw.pitch + 0.03 * Math.min(1, state.speed / BOATS.speed), sw.roll * 0.5 + state.heel, 1, state.m);
   ctx.instance.setMatrix(state.m);
+  notePose(ctx.stage, ctx.item.id, state.m);
   state.sails.pose(state.m);
 }
 

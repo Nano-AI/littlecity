@@ -35,6 +35,7 @@ import type { InstanceHandle, LifeStage, Signals, SpawnSpec } from '@/life/api';
 import type { Actor, DressingPlan, Prop, ShapePlan, StructureId } from '@/resolve/plan';
 import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
+import { TERRAIN } from '@/style/terrain';
 import type { CameraPose, Ghost, Ray, TownView, ViewOptions, ViewStats } from './api';
 import {
   CAMERA_FAR,
@@ -247,6 +248,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     uFoam: v3(),
     uSeaKeep: { value: new THREE.Vector3(1, 1, 1) },
     uSeaY: { value: SEA_Y },
+    uSlab: { value: TERRAIN.slabRadius },
     uWhite: v3(),
     uTimber: v3(),
     uLamp: v3(),
@@ -274,6 +276,24 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     vertexShader: surfaceVertex,
     fragmentShader: surfaceFragment,
     uniforms: surfaceUniforms,
+  });
+  // The movers (actors and spawned things) are drawn the same way, except that the edge of the map is a
+  // wall they are cut off at (a ship sailing in or out); a ship crossing it also has its cut face filled
+  // (CAP: its back faces, flat and dark). Nothing inside the map is touched by either.
+  const moverMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { EDGECUT: 1 },
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+  });
+  const capMaterial = new THREE.RawShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    defines: { EDGECUT: 1, CAP: 1 },
+    vertexShader: surfaceVertex,
+    fragmentShader: surfaceFragment,
+    uniforms: surfaceUniforms,
+    side: THREE.BackSide,
   });
   const overlayMaterial = new THREE.RawShaderMaterial({
     glslVersion: THREE.GLSL3,
@@ -468,8 +488,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
 
   // ── pools ────────────────────────────────────────────────────────────────
   const chunkPools = new Map<string, PoolMesh>();
-  const addPool = (cull: boolean): PoolMesh => {
-    const p = new PoolMesh(surfaceMaterial, overlayMaterial, cull);
+  const addPool = (cull: boolean, material: THREE.Material = surfaceMaterial): PoolMesh => {
+    const p = new PoolMesh(material, overlayMaterial, cull);
     scene.add(p.mesh);
     overlayScene.add(p.overlay);
     return p;
@@ -478,7 +498,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const dynamic = addPool(false);
   // Actors and spawned things (people, birds, boats, smoke) move every frame. They live in a pool of
   // their own that is left out of the grounding picture, so their moving never makes it redraw.
-  const movers = addPool(false);
+  const movers = addPool(false, moverMaterial);
+  const moverCaps = movers.addView(capMaterial);
+  moverCaps.renderOrder = 1;
+  scene.add(moverCaps);
   const ghostScene = new THREE.Scene().add(dynamic.addView(ghostMaterial));
   const ghostPostScene = new THREE.Scene().add(screenMesh(ghostComposite));
   const allPools = [...chunkPools.values(), dynamic, movers];
@@ -1116,6 +1139,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         const moversShown = movers.mesh.visible;
         paperMesh.visible = false;
         movers.mesh.visible = false;
+        moverCaps.visible = false;
         scene.overrideMaterial = heightMaterial;
         renderer.setRenderTarget(heightRT);
         renderer.clear(true, true, false);
@@ -1126,6 +1150,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         renderer.setRenderTarget(shadeRT);
         renderer.render(shadeScene, postCamera);
       }
+      moverCaps.visible = movers.mesh.visible;
+      surfaceUniforms.uSlab.value = TERRAIN.slabRadius;
       renderer.setRenderTarget(sceneRT);
       renderer.clear(true, true, false);
       renderer.render(scene, camera);
@@ -1173,7 +1199,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       windTex.dispose();
       noiseTex.dispose();
       screenGeometry.dispose();
-      for (const m of [surfaceMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
+      for (const m of [surfaceMaterial, moverMaterial, capMaterial, overlayMaterial, paperMaterial, compositeMaterial, inkMaterial, heightMaterial, shadeMaterial, ghostMaterial, ghostComposite]) m?.dispose();
       renderer.dispose();
     },
   };

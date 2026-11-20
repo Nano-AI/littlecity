@@ -1,5 +1,5 @@
-// L38: a harbour town with a long quay and a pier, fourteen dock cells in
-// all, calls a galleon. It comes up over the edge of the map, lines up with
+// L38: a harbour town with a long quay and a pier. Whatever fits calls: the
+// galleon most often, with the galley and the cog taking turns at the quay. It comes up over the edge of the map, lines up with
 // the quay (the pier stands in the way from the east, so from that side it
 // comes in at an angle and swings its stern in), comes alongside and moors.
 //
@@ -12,7 +12,7 @@ import { scenario } from '@/scenario';
 export default scenario({
   name: 'L38.galleon',
   seed: 3801,
-  about: 'A long quay and a pier: a galleon calls (L38), and a cog shares the berth (L39).',
+  about: 'A long quay and a pier: a galleon, a galley and a cog take turns at the quay (L38–L40); rowboats moor along both.',
   terrain(t) {
     t.flat(0);
     t.rect(14, 12, 34, 26, 1);
@@ -39,9 +39,10 @@ export default scenario({
     check.equal(p.out, 2, 'with the water to the south');
     check.ok(p.dir === 1 || p.dir === -1, 'it lies along the quay, one way or the other');
     check.hasSocket({ type: 'haunt-ship' }, 2);
-    // The cog shares the quay (there is no other berth five long): it calls at other times.
-    check.equal(check.actors({ type: 'ship-call', rule: 'L39.cog' }).length, 1, 'a cog calls too');
-    // The lighthouse brings the galley, which needs a berth of six: the quay again.
-    check.equal(check.actors({ type: 'ship-call', rule: 'L40.galley' }).length, 1, 'and a galley');
+    // Everything that fits calls, and takes turns: a galley and a cog at the quay too (the pier is too short for any).
+    check.equal(check.actors({ type: 'ship-call', rule: 'L40.galley' }).length, 1, 'a galley at the quay');
+    check.equal(check.actors({ type: 'ship-call', rule: 'L39.cog' }).length, 1, 'a cog at the quay');
+    // And the quay still has its rowboats: no water is kept for a ship that is not there.
+    check.hasActor({ type: 'rowboat', rule: 'L17.rowboats' }, 2);
   },
 });

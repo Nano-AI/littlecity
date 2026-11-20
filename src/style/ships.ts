@@ -8,19 +8,23 @@ import { defineStyle } from '@/core/style';
 export const SHIPS = defineStyle(
   'ships',
   {
-    // ── what a port needs (L38–L40) ──
-    /** Galleon: a berth this long, in a port of this many dock cells in all. */
-    galleonBerth: 8,
-    galleonPort: 12,
-    /** Cog: the same. */
-    cogBerth: 5,
-    cogPort: 6,
-    /** Galley: a berth this long and a lighthouse. */
-    galleyBerth: 6,
-    /** Open water beside a berth, in columns out from the quay face, for its whole length plus one each end. */
-    berthWater: 3,
-    /** L41: the two docks of a barge's run are at least this far apart by water. */
-    bargeReach: 10,
+    // ── berths ──
+    /** A quick sieve for berths: open water this many columns out from the quay face (the real test is the hull's fit). */
+    berthWater: 2,
+
+    // ── how many: boats come wherever they fit, up to these caps so the water never looks crowded ──
+    /** Rowboats moored in the whole town (desktop, phone). */
+    rowboatsMax: 14,
+    rowboatsPhone: 8,
+    /** Quays a big ship calls at, the longest first (desktop, phone). */
+    shipBerthsMax: 3,
+    shipBerthsPhone: 2,
+    /** Sailboats looping the island: always this many, one more per this many dock cells, at most … */
+    sailBase: 2,
+    sailPerDocks: 14,
+    sailMax: 4,
+    /** How much more often a tall ship passes with a lighthouse in the town. */
+    passLighthouse: 1.6,
 
     // ── the hulls: half-breadth used for keeping clear (the drawn beam is in rig.ts) ──
     galleonBeam: 1.5,
@@ -37,10 +41,8 @@ export const SHIPS = defineStyle(
     poleSpeed: 0.4,
     /** Full speed is lost over this many columns before the berth (sails come in on the way). */
     slowing: 7,
-    /** How many columns from the edge of the map a ship appears and is gone. */
+    /** How many columns in from the edge of the map a route starts and ends (a ship comes in through the edge, square to it). */
     edgeIn: 1.4,
-    /** Seconds a ship takes to come up over the edge of the map (and to go down over it). */
-    rise: 5,
     /** How far a ship heels with its sails full in a fresh breeze. */
     heel: 0.07,
     /** How fast a hull swings round to its course (per second). */
@@ -70,8 +72,6 @@ export const SHIPS = defineStyle(
     warpGap: 0.38,
     /** Crates and barrels the crew land on each visit, at most. */
     goodsMax: 6,
-    /** Seconds the goods stay on the quay after the ship has gone, before they are carted off. */
-    goodsLinger: 40,
 
     // ── L42 passing sails ──
     /** Seconds between tall ships crossing the horizon, at least … at most. */
@@ -81,13 +81,15 @@ export const SHIPS = defineStyle(
     passSpeed: 0.75,
   },
   {
-    galleonBerth: [5, 12, 1],
-    galleonPort: [6, 30, 1],
-    cogBerth: [3, 10, 1],
-    cogPort: [3, 20, 1],
-    galleyBerth: [4, 10, 1],
+    rowboatsMax: [0, 40, 1],
+    rowboatsPhone: [0, 40, 1],
+    shipBerthsMax: [0, 8, 1],
+    shipBerthsPhone: [0, 8, 1],
+    sailBase: [0, 4, 1],
+    sailPerDocks: [4, 40, 1],
+    sailMax: [0, 8, 1],
+    passLighthouse: [1, 4, 0.1],
     berthWater: [2, 5, 1],
-    bargeReach: [4, 30, 1],
     galleonBeam: [1, 2, 0.05],
     cogBeam: [1, 2, 0.05],
     galleyBeam: [0.6, 1.4, 0.05],
@@ -98,7 +100,6 @@ export const SHIPS = defineStyle(
     poleSpeed: [0.1, 1.5, 0.05],
     slowing: [2, 15, 0.5],
     edgeIn: [0.5, 4, 0.1],
-    rise: [1, 12, 0.5],
     heel: [0, 0.2, 0.005],
     turn: [0.2, 3, 0.05],
     firstCall: [2, 120, 1],
@@ -116,7 +117,6 @@ export const SHIPS = defineStyle(
     warp: [1, 15, 0.5],
     warpGap: [0, 1, 0.02],
     goodsMax: [0, 12, 1],
-    goodsLinger: [0, 300, 5],
     passGapMin: [10, 600, 5],
     passGapMax: [10, 900, 5],
     passSpeed: [0.2, 3, 0.05],

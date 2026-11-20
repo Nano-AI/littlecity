@@ -25,6 +25,9 @@ import { defineBehaviour, type InstanceHandle, type LifeContext, type Signals, t
 import { angleDelta } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { Twos } from '../motion/twos';
+import { SHIPS } from '@/style/ships';
+import { notePose } from '../ships/ferry.system';
+import { berthZoneAt } from '../ships/news';
 import { hullRing, swellAt, type Swell } from './afloat';
 import { floatingAt, poseFloating, refloat, type Floating } from './floating';
 
@@ -70,6 +73,10 @@ export interface RowboatState {
   ropes: InstanceHandle[];
   m: Mat4;
   rope: Mat4;
+  /** L38–L40: rowed aside out of a big ship's way: how far along the dock it has gone (0 at its mooring). */
+  aside: number;
+  /** On a phone, past the town's phone cap: never shown. */
+  spare: boolean;
 }
 
 /** Writes the matrix that stretches the unit rope (along +X) from a to b. */
@@ -222,6 +229,7 @@ function pose(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals
   // A tight line holds the bow down a touch.
   fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch - 0.035 * state.taut, sw.roll, 1, state.m);
   ctx.instance.setMatrix(state.m);
+  notePose(ctx.stage, ctx.item.id, state.m);
 
   // ── the line ──
   const bow = transformPoint(state.m, rowboatBow());
@@ -242,6 +250,66 @@ function pose(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals
   }
 }
 
+/** True on a phone-sized viewport (the crowd's test). */
+function isPhone(): boolean {
+  return typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
+}
+
+/**
+ * Where to wait out of a big ship's way: how far along the dock (in columns, signed) to the nearest open
+ * water no ship's zone covers; 0 if its own water is clear.
+ */
+function asideTarget(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>): number {
+  const at = (u: number): [number, number] => [state.ax + state.alongX * u + state.outX * 0.6, state.az + state.alongZ * u + state.outZ * 0.6];
+  const [x, z] = at(0);
+  if (!berthZoneAt(ctx.stage, x, z)) return 0;
+  const f = { terrain: ctx.shape.terrain, kinds: ctx.shape.kinds };
+  for (let k = 1; k <= 12; k++) {
+    for (const u of [k, -k]) {
+      const [px, pz] = at(u);
+      if (!berthZoneAt(ctx.stage, px, pz) && freeWater(f, Math.floor(px), Math.floor(pz))) {
+        // The whole way there is water.
+        let ok = true;
+        for (let w = 0; Math.abs(w) < Math.abs(u) && ok; w += Math.sign(u) * 0.5) {
+          const [qx, qz] = at(w);
+          ok = freeWater(f, Math.floor(qx), Math.floor(qz));
+        }
+        if (ok) return u;
+      }
+    }
+  }
+  // Nowhere along the dock: out from it instead (it keeps its distance from the ship's side).
+  return 0.0001;
+}
+
+/** Rows (bow first) along the dock to `target` (or home to the mooring when it is 0), its line in. */
+function rowAside(state: RowboatState, ctx: LifeContext<ActorOf<'rowboat'>>, signals: Signals, dt: number, target: number): void {
+  const pace = 0.45;
+  const d = target - state.aside;
+  const move = Math.sign(d) * Math.min(Math.abs(d), pace * dt);
+  state.aside += move;
+  if (Math.abs(state.aside) < 1e-3 && target === 0) {
+    state.aside = 0;
+    for (const r of state.ropes) r.setVisible(state.ok);
+    if (!state.bollard && state.ropes[2]) state.ropes[2].setVisible(false);
+    return;
+  }
+  for (const r of state.ropes) r.setVisible(false);
+  const x = state.ax + state.alongX * state.aside + state.outX * 0.6, z = state.az + state.alongZ * state.aside + state.outZ * 0.6;
+  // Heading along the dock the way it is going (or lying along it, waiting).
+  const dir = move !== 0 ? Math.sign(move) : Math.sign(state.aside || 1);
+  const yaw = Math.atan2(state.alongX * dir, state.alongZ * dir);
+  const now = signals.time.seconds;
+  const sw = swellAt(now, state.phase, BOATS.rowLength, signals.wind(x, z).strength, state.swell);
+  fly(x, SEA_Y + sw.heave, z, yaw, sw.pitch, sw.roll, 1, state.m);
+  ctx.instance.setMatrix(state.m);
+  notePose(ctx.stage, ctx.item.id, state.m);
+  // Where it is now, in the mooring's frame, for when it comes home.
+  state.u = 0;
+  state.v = REST;
+  state.heading = Math.PI;
+}
+
 export default defineBehaviour<'rowboat', RowboatState>({
   actor: 'rowboat',
   create(item, ctx) {
@@ -260,6 +328,8 @@ export default defineBehaviour<'rowboat', RowboatState>({
       ropes: [],
       m: new Array<number>(16).fill(0),
       rope: new Array<number>(16).fill(0),
+      aside: 0,
+      spare: isPhone() && (item.params?.rank ?? 0) >= Math.round(SHIPS.rowboatsPhone),
     };
     if (moored) {
       moor(state, ctx);
@@ -286,8 +356,15 @@ export default defineBehaviour<'rowboat', RowboatState>({
       if (state.ok !== was) for (const r of state.ropes) r.setVisible(state.ok);
       if (!state.bollard && state.ropes[2]) state.ropes[2].setVisible(false);
     }
-    if (!state.ok) {
+    if (!state.ok || state.spare) {
       if (fresh) ctx.instance.setVisible(false);
+      return;
+    }
+    // A big ship coming in to this stretch of quay (or lying there): cast off and row aside along the dock
+    // until it has gone, then back (src/life/ships/news.ts).
+    const away = asideTarget(state, ctx);
+    if (away !== 0 || state.aside !== 0) {
+      rowAside(state, ctx, signals, dt, away);
       return;
     }
     const step = state.twos.tick(dt);

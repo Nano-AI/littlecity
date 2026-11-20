@@ -1,23 +1,24 @@
-// L41 · tier 3 · River barge (town-wide). A river with a dock on it and
-// another dock at least SHIPS.bargeReach (10) cells away by water → a flat
-// barge poled along the river between them, carrying sacks, hay or barrels,
-// passing under bridges (it lowers its short mast).
+// L41 · tier 3 · River barge (town-wide; "Boats and ships"). Any dock on a
+// river → a flat barge poled along the river, carrying sacks, hay or
+// barrels: between two river docks if there are two or more, else between
+// the one dock and the river's mouth; it passes under bridges (it lowers its
+// short mast).
 //
-// Islands have no rivers yet; this rule asks only about WATER, so it works
-// whatever makes one: RIVER WATER is open water at sea level (a bridge over
-// it is fine) lying in a channel: within RIVER_REACH of a bank, with land on
-// both sides no more than about five columns off (across, along or
-// diagonally), so a coast or a wide lagoon is not a river. A dock is ON the
-// river if river water lies beside it. Two such docks are joined if a barge
-// fits all the way between them through river water.
+// RIVER WATER is open water at sea level marked as river by generator 2
+// (MAT_RIVER), or, on a hand-made island, water lying in a channel: within
+// RIVER_REACH of a bank with land on both sides (across x or across z) no
+// more than about five columns off, so a coast or a wide lagoon is not a
+// river. A bridge's arch
+// over the water is no obstacle. A dock is ON the river if river water lies
+// beside it.
 //
-// The harbour system poles the barge to and fro (barge.ts).
+// The harbour system poles the barge to and fro (src/life/ships/barge.ts).
 
 import { columnIndex, DIR4, inColumnBounds, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z } from '@/core/grid';
 import { hash } from '@/core/rand';
 import { defineRule } from '@/resolve/engine/api';
 import type { Facts } from '@/resolve/facts/api';
-import { SHIPS } from '@/style/ships';
+import { MAT_RIVER } from '@/terrain/terrain2';
 import { graphFrom, routeTo, seaField, type Pt } from './ship-routes';
 
 /** River water lies within this many columns of a bank. */
@@ -35,48 +36,52 @@ export interface RiverRun {
   length: number;
 }
 
-/** Land columns, and the columns where something stands at sea level (a dock, a pier): what a barge sails round. */
+/**
+ * Land columns, and the columns where something stands at sea level (a dock, a pier): what a barge sails
+ * round. A bridge's arch over the water is not in the way: the barge goes under it (its mast lowered).
+ */
 export function lowObstacles(f: Facts): Uint8Array {
   const m = new Uint8Array(SIZE_X * SIZE_Z);
   for (let i = 0; i < m.length; i++) if (f.terrain.height[i]! > 0) m[i] = 1;
-  for (const c of f.kinds.keys()) if (keyY(c) === 0) m[columnIndex(keyX(c), keyZ(c))] = 1;
+  for (const [c, k] of f.kinds) if (keyY(c) === 0 && k !== 'arch') m[columnIndex(keyX(c), keyZ(c))] = 1;
   return m;
 }
 
-/** The barge's run for a town, or null. Pure. */
-export function riverRun(f: Facts): RiverRun | null {
-  const docks = [...f.structures.values()].filter((s) => s.kind === 'dock').sort((a, b) => a.id - b.id);
-  if (docks.length < 2) return null;
-  const land = new Uint8Array(SIZE_X * SIZE_Z);
-  for (let i = 0; i < land.length; i++) if (f.terrain.height[i]! > 0) land[i] = 1;
-  const low = lowObstacles(f);
-  // Banks on both sides: land within reach one way and the other, across x, across z, or across a diagonal;
-  // and a bank near (within RIVER_REACH) in one of those directions.
-  const landAt = (x: number, z: number): boolean => inColumnBounds(x, z) && land[columnIndex(x, z)] === 1;
+/** Is the water at a column river water? Generator 2 marks it (MAT_RIVER); a hand-dug channel counts by its shape. */
+export function riverWater(f: Facts, low: Uint8Array): (x: number, z: number) => boolean {
+  const landAt = (x: number, z: number): boolean => inColumnBounds(x, z) && f.terrain.height[columnIndex(x, z)]! > 0;
   const reach = Math.ceil(RIVER_REACH * 2);
   const bank = (x: number, z: number, dx: number, dz: number, n: number): boolean => {
     for (let k = 1; k <= n; k++) if (landAt(x + dx * k, z + dz * k)) return true;
     return false;
   };
-  const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]] as const;
-  const river = (x: number, z: number): boolean =>
-    inColumnBounds(x, z) &&
-    low[columnIndex(x, z)] === 0 &&
-    DIRS.some(([dx, dz]) => bank(x, z, dx, dz, reach) && bank(x, z, -dx, -dz, reach)) &&
-    DIRS.some(([dx, dz]) => bank(x, z, dx, dz, Math.floor(RIVER_REACH)) || bank(x, z, -dx, -dz, Math.floor(RIVER_REACH)));
-  // Only now, with docks that may be on a river, the distances the barge keeps.
-  let near = 0;
-  for (const s of docks) {
-    if (s.cells.some((c) => keyY(c) === 0 && DIR4.some(([dx, dz]) => river(keyX(c) + dx, keyZ(c) + dz)))) near++;
-  }
-  if (near < 2) return null;
+  const DIRS = [[1, 0], [0, 1]] as const;
+  return (x, z) => {
+    if (!inColumnBounds(x, z) || low[columnIndex(x, z)] !== 0) return false;
+    if (f.terrain.material[columnIndex(x, z)] === MAT_RIVER) return true;
+    // A channel: banks on both sides within reach (across x or across z), one of them near.
+    return (
+      DIRS.some(([dx, dz]) => bank(x, z, dx, dz, reach) && bank(x, z, -dx, -dz, reach)) &&
+      DIRS.some(([dx, dz]) => bank(x, z, dx, dz, Math.floor(RIVER_REACH)) || bank(x, z, -dx, -dz, Math.floor(RIVER_REACH)))
+    );
+  };
+}
+
+/** The barge's run for a town, or null. Pure. */
+export function riverRun(f: Facts): RiverRun | null {
+  const docks = [...f.structures.values()].filter((s) => s.kind === 'dock').sort((a, b) => a.id - b.id);
+  if (!docks.length) return null;
+  const low = lowObstacles(f);
+  const river = riverWater(f, low);
+  // Only docks with river water beside them; then the distances the barge keeps.
+  const onRiver = docks.filter((s) => s.cells.some((c) => keyY(c) === 0 && DIR4.some(([dx, dz]) => river(keyX(c) + dx, keyZ(c) + dz))));
+  if (!onRiver.length) return null;
   const water = seaField(low);
-  // Docks on the river: the river column beside each, one per dock structure.
+  // Each river dock: the place beside it the barge lies, along its long side if it has one.
   const ends: Pt[] = [];
-  for (const s of docks) {
+  for (const s of onRiver) {
     let best: Pt | null = null;
     let room = -1;
-    // Beside the dock's long side, where the barge lies along it, before off its end.
     const alongZ = s.cells.some((c) => keyZ(c) !== keyZ(s.cells[0]!));
     for (const c of [...s.cells].sort((a, b) => a - b)) {
       if (keyY(c) !== 0) continue;
@@ -94,25 +99,38 @@ export function riverRun(f: Facts): RiverRun | null {
     }
     if (best) ends.push(best);
   }
-  // The first pair (in dock order) joined through the water far enough apart.
+  if (!ends.length) return null;
+  const run = (a: Pt, b: Pt, route: Pt[]): RiverRun => {
+    let length = 0;
+    for (let k = 1; k < route.length; k++) length += Math.hypot(route[k]![0] - route[k - 1]![0], route[k]![1] - route[k - 1]![1]);
+    return { a, b, route, length };
+  };
+  // Two or more: between the first pair (in dock order) joined through the water, not side by side.
   for (let i = 0; i < ends.length; i++) {
     const g = graphFrom(water, ends[i]!, BARGE_CLEAR);
     for (let j = i + 1; j < ends.length; j++) {
+      if (Math.hypot(ends[j]![0] - ends[i]![0], ends[j]![1] - ends[i]![1]) < 3) continue;
       const route = routeTo(g, ends[i]!, ends[j]!);
-      if (!route) continue;
-      let length = 0, wet = 0;
-      for (let k = 1; k < route.length; k++) {
-        const a = route[k - 1]!, b = route[k]!;
-        const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        length += d;
-        const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
-        if (river(Math.floor(mx), Math.floor(mz))) wet += d;
-      }
-      // By the river: most of the way is river water, not out round the coast.
-      if (length >= SHIPS.bargeReach && wet >= length * 0.7) return { a: ends[i]!, b: ends[j]!, route, length };
+      if (route) return run(ends[i]!, ends[j]!, route);
     }
   }
-  return null;
+  // One: between the dock and the river's mouth (the nearest open water that is not river).
+  const a = ends[0]!;
+  const g = graphFrom(water, a, BARGE_CLEAR);
+  let mouth = -1, best = Infinity;
+  for (let z = 0; z < SIZE_Z; z++) {
+    for (let x = 0; x < SIZE_X; x++) {
+      const i = columnIndex(x, z);
+      if (low[i] || river(x, z) || g.cost[i]! === Infinity || g.cost[i]! >= best) continue;
+      if (!DIR4.some(([dx, dz]) => river(x + dx, z + dz))) continue;
+      best = g.cost[i]!;
+      mouth = i;
+    }
+  }
+  if (mouth < 0) return null;
+  const b: Pt = [(mouth % SIZE_X) + 0.5, Math.floor(mouth / SIZE_X) + 0.5];
+  const route = routeTo(g, a, b);
+  return route ? run(a, b, route) : null;
 }
 
 export default defineRule<RiverRun>({
@@ -121,7 +139,7 @@ export default defineRule<RiverRun>({
   tier: 3,
   priority: 590,
   townWide: true,
-  about: 'Reads: docks, open water, the banks (water in a channel is a river). Emits: one ship-call (barge) between two docks on a river 10+ cells apart by water.',
+  about: 'Reads: docks, river water (MAT_RIVER, or a channel), open water. Emits: one ship-call (barge) between two river docks, or between a river dock and the river mouth.',
   find({ facts }) {
     const run = riverRun(facts);
     return run ? [{ anchor: key(Math.floor(run.a[0]), 0, Math.floor(run.a[1])), key: 'barge', data: run }] : [];
