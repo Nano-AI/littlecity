@@ -19,7 +19,7 @@ import type { TimeHold } from '@/life/api';
 import type { SeasonHold, WeatherHold } from '@/life/season';
 import type { Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
-import { brushAt, copyLook, landColumn, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
+import { brushAt, copyLook, landColumn, levelSteps, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
 import { el, iconButton, installTheme, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
@@ -137,6 +137,9 @@ const WEATHER_LABEL: Record<WeatherHold, string> = {
   wind: 'Holding a windy day. Press to let the weather change by itself',
 };
 const SOUND_KEY = 'little-city.sound';
+const LAND_HINT_KEY = 'little-city.land-hint';
+/** Told once, the first time Raise, Dig or Level is picked. */
+export const LAND_HINT = 'Drag the land to shape it. Drag the sea to turn the view.';
 
 function readSound(): boolean {
   try {
@@ -309,6 +312,10 @@ export function createInterface(host: InterfaceHost): Interface {
         if (structure !== undefined) wiggle(view.stage, structure, plan.at);
       } else if (plan.refusal) refuse(plan.refusal, x, y);
       return false;
+    }
+    if (plan.steps && plan.steps.length > 1) {
+      // Level: all the way to the target height, as one undo step and one redraw.
+      if (game.editAll(plan.steps) > 0) return true;
     }
     let reason = '';
     for (const edit of plan.tries) {
@@ -492,6 +499,9 @@ export function createInterface(host: InterfaceHost): Interface {
     done: Set<number>;
     pending: number[];
     last: { x: number; z: number };
+    /** Why some of the stroke could not be done (told once, when it ends). */
+    refused: string;
+    at: [number, number];
   } | null = null;
 
   const strokeAt = (x: number, y: number): Pick | null => (stroke ? pickCell(view.screenToRay(x, y), stroke.world0, stroke.terrain0) : null);
@@ -505,17 +515,22 @@ export function createInterface(host: InterfaceHost): Interface {
     }
   };
 
-  /** Applies the columns gathered since the last frame, as one edit. Refusals stay quiet: the stroke goes on. */
+  /** Applies the columns gathered since the last frame, as one edit. Refusals are noted and told once, at the end. */
   const flushStroke = (): void => {
     if (!stroke || stroke.pending.length === 0) return;
     const cols = stroke.pending;
     stroke.pending = [];
-    const heights = game.terrain.height;
-    let e: Edit;
-    if (stroke.item === 'raise') e = { type: 'land', up: cols, down: [] };
-    else if (stroke.item === 'dig') e = { type: 'land', up: [], down: cols };
-    else e = { type: 'land', up: cols.filter((c) => heights[c]! < stroke!.levelTo), down: cols.filter((c) => heights[c]! > stroke!.levelTo) };
-    if (e.up.length + e.down.length > 0) game.edit(e);
+    if (stroke.item === 'level') {
+      // Level goes all the way to the stroke's height (design section 6, as the name promises).
+      const level = levelSteps(game.world, game.terrain, cols, stroke.levelTo);
+      if (level.edits.length > 0) game.editAll(level.edits);
+      const h = game.terrain.height;
+      if (cols.some((c) => h[c] !== stroke!.levelTo)) stroke.refused ||= level.reason;
+      return;
+    }
+    const e: Edit = stroke.item === 'raise' ? { type: 'land', up: cols, down: [] } : { type: 'land', up: [], down: cols };
+    const v = game.edit(e);
+    if (!v.ok) stroke.refused ||= v.reason;
   };
 
   const strokeStart = (x: number, y: number): boolean => {
@@ -524,13 +539,12 @@ export function createInterface(host: InterfaceHost): Interface {
     const { x: cx, z: cz } = landColumn(seen.pick);
     const brush = heldLength() ?? 1;
     const levelTo = game.terrain.height[columnIndex(cx, cz)]!;
+    setGhost(null, '');
     game.begin();
-    stroke = { item: tray.state.item, world0: game.world, terrain0: game.terrain, levelTo, brush, done: new Set(), pending: [], last: { x: cx, z: cz } };
-    const plan = planUse({ ...tool(), levelTo }, seen.pick, seen.ctx);
-    for (const e of plan.tries) if (e.type === 'land') for (const c of [...e.up, ...e.down]) stroke.done.add(c);
-    // Level: the columns already at the height count as done too, so the brush's first dab is the whole brush.
-    for (const c of brushAt(seen.pick, brush)) stroke.done.add(c);
-    if (plan.tries.length > 0) perform(plan, x, y);
+    stroke = { item: tray.state.item, world0: game.world, terrain0: game.terrain, levelTo, brush, done: new Set(), pending: [], last: { x: cx, z: cz }, refused: '', at: [x, y] };
+    // The first dab is the brush where the stroke began.
+    strokeAdd(brushAt(seen.pick, brush));
+    flushStroke();
     return true;
   };
 
@@ -548,12 +562,16 @@ export function createInterface(host: InterfaceHost): Interface {
     }
     strokeAdd(brushAt(pick, stroke.brush));
     stroke.last = { x: tx, z: tz };
+    stroke.at = [x, y];
   };
 
   const strokeEnd = (): void => {
     flushStroke();
+    const told = stroke?.refused;
+    const at = stroke?.at;
     stroke = null;
     game.end();
+    if (told && at) refuse(told, at[0], at[1]);
   };
 
   // ── the pointer ────────────────────────────────────────────────────────
@@ -617,6 +635,12 @@ export function createInterface(host: InterfaceHost): Interface {
       shownRun = null;
       setGhost(null, '');
       showCount();
+    },
+    // A land tool held: a drag that starts on the land shapes it; one that starts on the sea turns the view.
+    dragPaints(x, y) {
+      if (tray.state.idle || !isLandTool(tray.state.item) || growth.active || dismissing || copying) return false;
+      const seen = look(x, y);
+      return seen !== null && seen.pick.hit !== 'water';
     },
     runStart(x, y) {
       if (dismissing || growth.active || copying || tray.state.idle || !paintsRuns(tray.state.item)) return false;
@@ -727,11 +751,27 @@ export function createInterface(host: InterfaceHost): Interface {
   window.addEventListener('dragover', onDragOver);
   window.addEventListener('drop', onDrop);
 
+  // Shaping the land: the first time a land tool is picked, one line on how it is used.
+  let landHintShown = false;
+  try {
+    landHintShown = localStorage.getItem(LAND_HINT_KEY) === 'seen';
+  } catch {
+    // No storage: the hint shows once per visit.
+  }
   let toldIdle = false;
   tray.onChange((state) => {
     if (state.idle && !toldIdle) {
       toldIdle = true;
       feedback.toast('Nothing in hand: just look around. Pick a piece to build again.');
+    }
+    if (!state.idle && isLandTool(tray.state.item) && !landHintShown) {
+      landHintShown = true;
+      feedback.toast(LAND_HINT);
+      try {
+        localStorage.setItem(LAND_HINT_KEY, 'seen');
+      } catch {
+        // as above
+      }
     }
     ghostKey = '';
     scrollSteps.reset();

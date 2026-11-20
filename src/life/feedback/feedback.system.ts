@@ -442,8 +442,60 @@ function groundMoved(state: State, ctx: SystemContext, prev: ShapePlan, next: Sh
     if (most < 1 && rand(ctx.seed, 'ground', state.n, i) > most) continue;
     const x = (i % 48) + 0.5, z = Math.floor(i / 48) + 0.5;
     const was = prev.terrain.height[i]!, now = next.terrain.height[i]!;
-    if (now === 0 || was === 0) burst(state, ctx, x, SEA_Y + 0.05, z, 4, 0.8); // a splash
+    if (now === 0 && was > 0) {
+      // Water rushes in from the side where it already was (a dug channel fills from its open end).
+      const from = waterSide(prev, next, i);
+      if (from) rush(state, ctx, x, z, from[0], from[1], from[2]);
+      else burst(state, ctx, x, SEA_Y + 0.05, z, 4, 0.8);
+    } else if (was === 0) burst(state, ctx, x, SEA_Y + 0.05, z, 4, 0.8); // a splash
     else dust(state, ctx, x, Math.max(was, now) * CELL_H, z, dy > 0 ? 0.85 : 0.6);
+  }
+}
+
+/**
+ * The way water comes into a newly dug column: from a side whose water was there before this edit, or
+ * failing that from a side dug in the same edit (then later, by how far that is from old water).
+ * [dx, dz, delay in seconds] pointing into the column, or null for a pool with no water beside it.
+ */
+function waterSide(prev: ShapePlan, next: ShapePlan, i: number): [number, number, number] | null {
+  // Breadth first over the newly wet columns, back to the old water; `first` is the step out of column i.
+  const first = new Map<number, number>([[i, -1]]);
+  const depth = new Map<number, number>([[i, 0]]);
+  const queue = [i];
+  for (let k = 0; k < queue.length && k < 64; k++) {
+    const c = queue[k]!;
+    const cx = c % 48, cz = Math.floor(c / 48);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= 48 || nz >= 48) continue;
+      const j = nx + nz * 48;
+      if (first.has(j) || next.terrain.height[j] !== 0) continue;
+      const step = c === i ? j : first.get(c)!;
+      if (prev.terrain.height[j] === 0) {
+        const sx = (step % 48) - (i % 48), sz = Math.floor(step / 48) - Math.floor(i / 48);
+        return [-sx, -sz, depth.get(c)! * 0.045];
+      }
+      first.set(j, step);
+      depth.set(j, depth.get(c)! + 1);
+      queue.push(j);
+    }
+  }
+  return null;
+}
+
+/** Foam rushing across a dug column from the side the water comes in by. */
+function rush(state: State, ctx: SystemContext, x: number, z: number, dx: number, dz: number, delay: number): void {
+  const fx = fxOf(ctx.stage);
+  const k = state.n++;
+  const along = Math.atan2(dz, dx);
+  for (let n = 0; n < 4; n++) {
+    const side = (rand(ctx.seed, 'rush', k, n) - 0.5) * 0.7;
+    const big = 0.16 + 0.1 * rand(ctx.seed, 'rush', k, n, 's');
+    fx.play(POPS[n % POPS.length]!, FEEDBACK.dustTime * 1.1, (t, m) => {
+      const d = -0.55 + 1.1 * easeOut(t);
+      const s = big * (t < 0.2 ? lerp(0.4, 1, t / 0.2) : 1 - easeIn((t - 0.2) / 0.8));
+      place(x + dx * d - dz * side, SEA_Y + 0.04 + arc(t) * 0.05, z + dz * d + dx * side, along, s, s * 0.6, s, m);
+    }, { smooth: true, delay: delay + n * 0.03 });
   }
 }
 

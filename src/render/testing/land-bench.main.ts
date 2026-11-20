@@ -16,6 +16,8 @@ import { applyEdit } from '@/world/world';
 import { createStagedResolver } from '@/resolve/staged';
 
 export interface LandBench {
+  /** The slowest shape rules after a land edit, mean ms. */
+  slowest: string[];
   blocks: number;
   /** Warm (as the app runs it): resolveShape after one land edit, and dressing. */
   shapeMs: number[];
@@ -48,9 +50,10 @@ export function main(runs = 30): LandBench {
   const opts = scenarioResolveOptions(scn);
   const base: Terrain = built.terrain;
   let world: World = built.world;
-  const resolver = createStagedResolver(base, opts);
+  const resolver = createStagedResolver(base, { ...opts, clock: now });
   let prev = resolver.update(world);
   resolver.poll();
+  const ruleMs = new Map<string, number>();
   const shapeMs: number[] = [], dressingMs: number[] = [], chunks: number[] = [], chunkMs: number[] = [];
   for (let i = 0; i < runs + 5; i++) {
     // A single dab, brush 1, in the town: raise or dig.
@@ -63,6 +66,7 @@ export function main(runs = 30): LandBench {
     world = applyEdit(world, base, e);
     const a = now();
     const shape = resolver.update(world);
+    if (i >= 5) for (const t of shape.trace) ruleMs.set(t.rule, (ruleMs.get(t.rule) ?? 0) + (t.ms ?? 0));
     const b = now();
     resolver.poll();
     const c = now();
@@ -88,5 +92,6 @@ export function main(runs = 30): LandBench {
       if (k === 2) steepChunkMs.push(now() - a);
     }
   }
-  return { blocks: world.blocks.size, shapeMs, dressingMs, chunks, chunkMs, steepSeed, steepChunkMs };
+  const slowest = [...ruleMs].sort((p, q) => q[1] - p[1]).slice(0, 10).map(([r, ms]) => `${r} ${(ms / runs).toFixed(2)}`);
+  return { slowest, blocks: world.blocks.size, shapeMs, dressingMs, chunks, chunkMs, steepSeed, steepChunkMs };
 }

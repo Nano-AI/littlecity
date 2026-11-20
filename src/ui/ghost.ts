@@ -95,7 +95,10 @@ export function ghostForLand(plan: Plan, host: GhostHost): Ghost | null {
   const edit = plan.tries.find((e) => e.type === 'land');
   if (!edit || edit.type !== 'land') return null;
   if (!host.can(edit).ok) return plan.at === NO_CELL ? null : { plan: host.shape, show: [], refuse: plan.at };
-  const preview = host.preview(applyEdit(host.world, host.terrain, edit));
+  let after = applyEdit(host.world, host.terrain, edit);
+  // Level: every step to the target height, so the ghost shows where the ground ends up.
+  for (const e of plan.steps?.slice(1) ?? []) after = applyEdit(after, host.terrain, e);
+  const preview = host.preview(after);
   const moved = new Set([...edit.up, ...edit.down]);
   const show = new Set<StructureId>();
   for (const [cell, id] of preview.structureAt) if (moved.has(columnIndex(keyX(cell), keyZ(cell))) && !host.world.blocks.has(cell)) show.add(id);
