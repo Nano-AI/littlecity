@@ -15,10 +15,7 @@ Design section 13b. Experimental, on `swarm/mischief` only (not merged).
 ## 2. Everything else outside my own files (small, additive)
 
 - `src/world/world.ts`: the two edits. `src/world/history.ts`: `replacePresent`.
-- `src/world/save.ts`: codec version 4 = version 3 plus a trailing list of
-  damaged blocks (index delta, byte; the settling bit is never saved). Only a
-  town with a damaged block is written as v4; any other town encodes byte for
-  byte as before (tested in `src/world/damage.test.ts`).
+- `src/world/save.ts`: ruins are version 4's optional section bit 1 (beside the land's bit 0): count, then per damaged block its index in the block list (delta varint) and its damage (varint; settling never saved). A town with no ruins (and no land) encodes byte for byte as before. `src/world/land-save.test.ts`'s "unknown section" case now uses bit 2.
 - `src/resolve/engine/hash.ts`, `src/resolve/staged.ts` (`sameWorld`),
   `src/resolve/facts/content-keys.fact.ts`: a block's damage is part of the
   structure hash and the content keys, as `style` is.
@@ -34,6 +31,8 @@ Design section 13b. Experimental, on `swarm/mischief` only (not merged).
   `src/ui/interface.ts` (tool clicks, undo cancels an act, `?mischief`),
   `src/ui/guide.ts` (appends the Mischief section).
 - `src/life/testing/sequence.mjs`: verbs fire, bomb, knock, mend, mendall, undo.
+- `src/life/town/index.ts`: `allChains()` lists the two mischief chains first (`src/life/mischief/response.ts`).
+- `src/ui/menu.ts`: an optional Rebuild switch (shown when the app wires it).
 
 ## 3. Asked of others
 

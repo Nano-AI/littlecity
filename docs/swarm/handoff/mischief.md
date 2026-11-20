@@ -1,25 +1,21 @@
 # Mischief handoff (branch `swarm/mischief`, experimental, not merged)
 
-Design section 13b. Phase A (the destruction kit) is done; Phase B (bell, bucket chains, fleeing, crews that rebuild on their own, the raid) is not started.
+Design section 13b. Phase A (the kit) and the owner's first round of notes are in: rooted fire, fused smoke, solid chunks, mending in many stages done by the town, people answering fires and bombs. The raid is not started.
 
 ## Try it
-- `npm run dev`, open `/?seed=4242&mischief`: a grown town, the Mischief drawer open, the torch in hand. Torch, Bomb, Mallet, Mend (Shift: mend at once). Undo calls off anything going on.
-- Galleries: `npm run shots -- mischief-ruins-houses`, `mischief-ruins-kinds` (every kind × sound, scorched, half-burnt, burnt out, cracked, half-wrecked, rubble, mending 3→0; long inns damaged at one end), `mischief-street`.
-- Sequences: `node src/life/testing/sequence.mjs mischief-street --edit 'fire@12,1,18' --frames 8 --every 4000 --zoom 5 --target 15,1,19 --yaw 30 --pitch 32` (add `--time night`); bomb: `--edit 'bomb@16,1,19' --frames 8 --every 900 --zoom 6 --target 16,1,19 --yaw 20 --pitch 45`. Verbs: fire, bomb, knock, mend, mendall, undo.
+- `npm run dev`, `/?seed=4242&mischief`: a grown town, the Mischief drawer open (Torch, Bomb, Mallet, Mend). Undo calls off anything going on. Menu: Rebuild on/off.
+- Galleries: `npm run shots -- mischief-ruins-houses` / `mischief-ruins-kinds` (every kind × every state, mending phases); `mischief-street` for sequences.
+- Sequences: `node src/life/testing/sequence.mjs mischief-street --edit 'fire@18,1,21' --warm 3000 --frames 4 --every 5500 --zoom 10 --target 19,1,22.5 --yaw 20 --pitch 38` (the brigade); `--edit 'knock@26,1,18; knock@26,1,18; knock@26,1,18' --every 9000` (rubble, then the town rebuilds); `bomb@19,1,23` (people scatter). Verbs: fire, bomb, knock, mend, mendall, undo.
 
 ## How it is built
-- Saved: `Block.ruin` (packed byte, `src/world/damage.ts`): stage 0–3, cause fire/blast, mending, settling (never saved). Edits `setRuin`, `repair`. Codec v4 only when a block is damaged.
-- Drawn: `src/gen/damage/`: every generator's own mesh is cut per column by a seeded field of tilted tiles (`field.ts`, `damage.ts`): jagged shells, inside faces, wall-top caps, partitions where a broken column meets a sound one, soot over openings, cracks, rafters, fallen beams, ash, scorch, scaffolding and materials (`scaffold.ts`). Blast debris is the building's own geometry diced into chunks with seeded resting places (`debris.ts`): baked as the heap, flown by the animation (same function, `blastChunks`). Trees and pillars topple.
-- Plan: damaged blocks keep kind, structure and role (so a burnt chapel still looks like a chapel); stage ≥ 2 or scaffolding: no residents, no dressing (`src/resolve/ruins.ts`).
-- Engine: `src/life/mischief/engine.ts`: fixed-step seeded fire (catch by kind and house style, climb, spread by distance and wind, walls and stone stop it, douse, rain hook `signals.rain?.()`), blast (rubble/wreck/shake radii, collapse upward, chain ignition, water = spout + douse), knock, repair. Emits ordinary edits.
-- `director.ts` (`mischiefOf(stage)`): acts. One click opens a game batch; it closes when quiet; undo mid-act aborts it. `mischief.system.ts` draws: flames on twos, smoke (inked puffs that turn to fading mist), sparks, firelight wash at night, embers, bomb, flash, dust, chunk flights, shakes, spout, birds scatter.
-- UI: `src/ui/mischief.ts` (tools, red dashed drawer, first-use hints, DOM "BOOM!"), guide section.
-
-## Numbers
-30 buildings alight (67 blocks): 60 fps in the app (same as quiet). `npm run bench` browser: 60 fps, 14 draw calls, resolveShape 8.7 ms, resolveDressing 13.9 ms.
+- Saved: `Block.ruin` (`src/world/damage.ts`): stage 0–3, cause, mending, 32 mending steps (progress), settling (never saved). Edits `setRuin`, `repair`. Share codec v4 section bit 1 (beside the land's bit 0).
+- Drawn: `src/gen/damage/` cuts each generator's own mesh per column by a seeded tile field; ruins, debris (whole wall slabs and roof halves with depth, `debris.ts`), mending phases (`field.ts` `mendPhases`), scaffolding (`scaffold.ts`).
+- Engine `src/life/mischief/engine.ts` (fire, blast, knock, repair, douse; pure, seeded); `director.ts` (acts = undo steps, camera yaw for flames, Rebuild switch, `autoMend` via `Game.amend`).
+- Live drawing: `mischief.system.ts` (flames rooted on sampled tops and openings, facing the reader; fused smoke and dust; sparks; firelight; embers; bomb; flash; chunk flights; fallen mill sails), `brigade.system.ts` (pump cart, hoses, helmets, jets, bucket, steam), `sound.system.ts`.
+- People: `response.ts`: two chains in the living town (`src/life/town/index.ts` lists them first): fire (clear out, glum residents, onlookers, ≤2 brigades from the nearest water, everyone home after; bombs: duck, run, creep back) and rebuild (after 8 s quiet, a crew of three from their homes with ladder, hod, cart mends one building at a time, a step every ~3.5 s).
 
 ## Not done / watch
-- Phase B entirely. No sound for fire or bang yet. No phone-specific caps (puffs ≤ 160, sparks ≤ 140 everywhere).
-- Floors and edge fences/walls cannot be damaged (only blocks carry `ruin`); gardens do not scorch.
-- Windmill sails vanish when the mill is half-destroyed (the sail actor is dressing); they should fall.
-- Firelight wash has a visible round edge at night.
+- Raid. Garrison does not help at fires. Dogs do not bark at fires. Residents of a burnt-out house stand glum, then wander (no lodging).
+- Pigeons kept off by repeated frights still wheel through the smoke; they no longer perch, but the bird code was not changed.
+- Floors and edge pieces cannot be damaged (no scorched gardens).
+- Bomb: people near the bomb are a little slow to run.
