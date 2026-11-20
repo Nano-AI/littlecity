@@ -9,6 +9,7 @@ import { courtLocal, courtOf, type Court, type FieldRole } from '@/rules/roles/f
 import { basketball } from './basketball';
 import { tennis } from './tennis';
 import { football } from './football';
+import { bowls, croquet, race } from './lawn';
 import type { Athlete, Game } from './kit';
 
 function athletes(c: Court, n: number): Athlete[] {
@@ -54,6 +55,43 @@ export function run(game: Game, limit: number, dt = 1 / 30): Run {
   for (const e of game.events) kinds.set(e.kind, (kinds.get(e.kind) ?? 0) + 1);
   return { game, kinds, problems };
 }
+
+describe('the slow games', () => {
+  test('bowls: the jack, bowls by turns, an end scored, the next end back the other way', () => {
+    const green = courtFor('bowling-green', 4, 4, 'grass');
+    const r = run(bowls(green, athletes(green, 2), { seed: 6, length: 150 }), 300);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('jack') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(r.kinds.get('bowl') ?? 0).toBeGreaterThanOrEqual(8);
+    expect(r.kinds.get('point') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(r.game.phase).toBe('over');
+  });
+
+  test('boules on a strip', () => {
+    const strip = courtFor('boules-court', 1, 4, 'clay');
+    const r = run(bowls(strip, athletes(strip, 3), { seed: 2, length: 100 }), 240);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('point') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(r.game.phase).toBe('over');
+  });
+
+  test('croquet: strokes by turns, and hoops run', () => {
+    const lawn = courtFor('croquet-lawn', 5, 4, 'grass');
+    const r = run(croquet(lawn, athletes(lawn, 2), { seed: 1, length: 120 }), 220);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('stroke') ?? 0).toBeGreaterThanOrEqual(10);
+    expect(r.kinds.get('hoop') ?? 0).toBeGreaterThanOrEqual(1);
+    expect(r.game.phase).toBe('over');
+  });
+
+  test('races down the track', () => {
+    const track = courtFor('running-track', 1, 6, 'clay');
+    const r = run(race(track, athletes(track, 3), { seed: 1, length: 60 }), 140);
+    expect(r.problems).toEqual([]);
+    expect(r.kinds.get('win') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(r.game.phase).toBe('over');
+  });
+});
 
 describe('football', () => {
   const pitch = courtFor('football-pitch', 6, 4, 'grass');

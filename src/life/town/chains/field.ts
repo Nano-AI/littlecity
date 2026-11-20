@@ -69,6 +69,8 @@ interface Venue {
   since: number;
   /** The ball while nobody plays (it settles where it was left). */
   idle: Ball;
+  /** Any other balls the last game left lying (a game of bowls leaves its woods). */
+  lying: Ball[];
   /** Drawings of the balls, by index. */
   drawn: (InstanceHandle | null)[];
   /** The events already reacted to. */
@@ -110,6 +112,9 @@ const BALL_OF: Partial<Record<Court['role'], BallKind>> = {
   'tennis-court': 'tennis',
   'football-pitch': 'football',
   'kickabout-green': 'football',
+  'bowling-green': 'jack',
+  'boules-court': 'jack',
+  'croquet-lawn': 'croquet-a',
 };
 
 /** How much dearer a court cell is to walk through while a game is on (a street tree's clutter is 20). */
@@ -170,7 +175,7 @@ export function fieldChain(): FieldChain {
   const drawBalls = (v: Venue, board: Board): void => {
     const stage = board.stage;
     if (!stage) return;
-    const balls = v.game ? v.game.balls : [v.idle];
+    const balls = v.game ? v.game.balls : BALL_OF[v.court.role] ? [v.idle, ...v.lying] : [];
     for (let i = 0; i < balls.length; i++) {
       const b = balls[i]!;
       let h = v.drawn[i] ?? null;
@@ -201,7 +206,7 @@ export function fieldChain(): FieldChain {
     v.game = v.sport.make(
       v.court,
       here.map((s) => s.p),
-      { seed: (board.seed ^ (v.id * 7919) ^ (v.games * 104729)) >>> 0, length: GAME.length + (rand(board.seed, 'field-len', v.id, v.games) - 0.5) * GAME.lengthVary, ball: { x: v.idle.x, z: v.idle.z } },
+      { seed: (board.seed ^ (v.id * 7919) ^ (v.games * 104729)) >>> 0, length: GAME.length + (rand(board.seed, 'field-len', v.id, v.games) - 0.5) * GAME.lengthVary, ball: { x: v.idle.x, z: v.idle.z }, lying: v.lying.map((b) => ({ x: b.x, z: b.z })) },
     );
     v.state = 'play';
     v.seen = 0;
@@ -212,13 +217,11 @@ export function fieldChain(): FieldChain {
 
   const endGame = (v: Venue, board: Board): void => {
     const g = v.game;
-    if (g) {
-      // The ball stays where the game left it.
-      const b = g.balls[0]!;
-      v.idle = { ...b, holder: null, state: b.state === 'held' ? 'flight' : b.state };
-      if (v.idle.state === 'flight' && b.state === 'held') {
-        v.idle.vx = v.idle.vy = v.idle.vz = 0;
-      }
+    if (g && g.balls.length > 0) {
+      // The balls stay where the game left them (one in a hand drops where it is).
+      const [first, ...rest] = g.balls.map(settled);
+      v.idle = first!;
+      v.lying = rest;
     }
     for (const h of v.drawn) h?.release();
     v.drawn = [];
@@ -269,7 +272,7 @@ export function fieldChain(): FieldChain {
   const chain: FieldChain = {
     id: 'field',
     get venues() {
-      return venues.map((v) => ({ id: v.id, state: v.state, game: v.game, roster: v.roster.map((s) => s.p), watchers: [...v.watchers.keys()], balls: v.game ? v.game.balls : [v.idle] }));
+      return venues.map((v) => ({ id: v.id, state: v.state, game: v.game, roster: v.roster.map((s) => s.p), watchers: [...v.watchers.keys()], balls: v.game ? v.game.balls : BALL_OF[v.court.role] ? [v.idle, ...v.lying] : [] }));
     },
     call() {
       calling = true;
@@ -294,15 +297,11 @@ export function fieldChain(): FieldChain {
           next.push(had);
           continue;
         }
+        // Balls lying on the old court stay where they are if this is the same game and they are on it; the rest go with a puff.
         const old = before.find((v) => v.id === s.id);
-        // A ball lying on the old court stays where it is if it is still on this one.
-        let idle: Ball | null = null;
-        if (old) {
-          const b = old.game ? old.game.balls[0]! : old.idle;
-          const [u, vv] = courtLocal(court, b.x, b.z);
-          if (Math.abs(u) < court.rl && Math.abs(vv) < court.rw && Math.abs(b.y - court.y) < 1) idle = { ...b, holder: null, state: 'flight', vx: 0, vz: 0, vy: 0 };
-        }
+        const kept = old && old.court.role === court.role ? ballsOf(old).filter((b) => onCourt(court, b)).map(settled) : [];
         const kind = BALL_OF[court.role] ?? 'basketball';
+        let idle = kept.shift() ?? null;
         if (!idle) {
           const [x, z] = courtPoint(court, -court.hl * 0.45, -court.hw * 0.62);
           idle = makeBall(kind, RADIUS[kind], x, court.y + RADIUS[kind], z);
@@ -321,6 +320,7 @@ export function fieldChain(): FieldChain {
           next: board.now + 4 + rand(board.seed, 'field-first', s.id) * 25,
           since: 0,
           idle,
+          lying: kept,
           drawn: [],
           seen: 0,
           watchers: new Map(),
@@ -331,10 +331,14 @@ export function fieldChain(): FieldChain {
       // Courts gone or changed: the game stops at once; the ball goes with a puff unless it lies on the new court.
       for (const v of before) {
         if (next.includes(v)) continue;
-        const kept = next.find((n) => n.id === v.id);
-        if (!kept && board.stage) {
-          const b = v.game ? v.game.balls[0]! : v.idle;
-          fxOf(board.stage).play({ actor: 'puff', variant: 'dust' }, 0.45, (t, m) => place(b.x, b.y + t * 0.1, b.z, 0, 0.3 + t * 0.4, 0.3 + t * 0.4, 0.3 + t * 0.4, m));
+        const now = next.find((n) => n.id === v.id);
+        const stay = now ? [now.idle, ...now.lying] : [];
+        if (board.stage) {
+          for (const b of ballsOf(v)) {
+            // Kept balls are copies at the same place: those not kept puff away where they were.
+            if (stay.some((k) => Math.abs(k.x - b.x) < 1e-6 && Math.abs(k.z - b.z) < 1e-6)) continue;
+            fxOf(board.stage).play({ actor: 'puff', variant: 'dust' }, 0.45, (t, m) => place(b.x, b.y + t * 0.1, b.z, 0, 0.3 + t * 0.4, 0.3 + t * 0.4, 0.3 + t * 0.4, m));
+          }
         }
         for (const h of v.drawn) h?.release();
         v.drawn = [];
@@ -349,7 +353,7 @@ export function fieldChain(): FieldChain {
       for (const v of venues) {
         switch (v.state) {
           case 'idle':
-            stepBall(v.idle, v.court, dt);
+            for (const b of [v.idle, ...v.lying]) stepBall(b, v.court, dt);
             if (open && (board.now >= v.next || calling) && total() + v.sport.min <= cap) {
               v.state = 'gather';
               v.since = board.now;
@@ -357,7 +361,7 @@ export function fieldChain(): FieldChain {
             }
             break;
           case 'gather': {
-            stepBall(v.idle, v.court, dt);
+            for (const b of [v.idle, ...v.lying]) stepBall(b, v.court, dt);
             // Those who stopped coming (called away) leave the list.
             v.roster = v.roster.filter((s) => s.arrived ? isMine(s.p, board) : isMine(s.p, board) || s.p.mode === 'walk');
             const here = v.roster.filter((s) => s.arrived);
@@ -481,6 +485,21 @@ function edgeOf(board: Board, cells: ReadonlySet<CellKey>, court: Court): CellKe
     }
   }
   return [...out];
+}
+
+/** Every ball on a court now: the game's, or those lying there. */
+function ballsOf(v: { game: Game | null; idle: Ball; lying: Ball[]; court: Court }): Ball[] {
+  if (v.game) return v.game.balls.slice();
+  return BALL_OF[v.court.role] ? [v.idle, ...v.lying] : [];
+}
+/** A copy of a ball left to itself: out of any hand, falling if it was held. */
+function settled(b: Ball): Ball {
+  const held = b.state === 'held';
+  return { ...b, rot: b.rot.slice(), holder: null, state: held ? 'flight' : b.state, ...(held ? { vx: 0, vy: 0, vz: 0 } : {}) };
+}
+function onCourt(c: Court, b: Ball): boolean {
+  const [u, v] = courtLocal(c, b.x, b.z);
+  return Math.abs(u) < c.rl && Math.abs(v) < c.rw && Math.abs(b.y - c.y) < 1;
 }
 
 /** A ball's drawing: its turn and where it is. */

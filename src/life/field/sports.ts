@@ -5,6 +5,7 @@ import type { Court, FieldRole } from '@/rules/roles/field.lib';
 import { basketball } from './basketball';
 import { tennis } from './tennis';
 import { football } from './football';
+import { bowls, croquet, race } from './lawn';
 import type { Athlete, Game } from './kit';
 
 export interface Sport {
@@ -15,7 +16,7 @@ export interface Sport {
   tag: 'field:play' | 'field:racket' | 'field:mallet';
   /** Who comes: grown-ups, children, or both. */
   who: 'all' | 'adults' | 'children';
-  make(court: Court, athletes: readonly Athlete[], opts: { seed: number; length?: number; ball?: { x: number; z: number } }): Game;
+  make(court: Court, athletes: readonly Athlete[], opts: { seed: number; length?: number; ball?: { x: number; z: number }; lying?: { x: number; z: number }[] }): Game;
   /** Where player i of n (team i % 2) stands to begin, in court terms. */
   spot(court: Court, i: number, n: number): [number, number];
 }
@@ -53,6 +54,38 @@ export const SPORTS: Partial<Record<FieldRole, Sport>> = {
     who: 'all',
     make: (c, a, o) => football(c, a, o),
     spot: (c, i, n) => lines(c, i, n, c.hl * 0.45),
+  },
+  'bowling-green': {
+    min: 2,
+    max: 4,
+    tag: 'field:play',
+    who: 'adults',
+    make: (c, a, o) => bowls(c, a, o),
+    spot: (c, i, n) => lines(c, i, n, c.hl * 0.5),
+  },
+  'boules-court': {
+    min: 2,
+    max: 4,
+    tag: 'field:play',
+    who: 'adults',
+    make: (c, a, o) => bowls(c, a, o),
+    spot: (c, i) => [-c.hl + 0.15 + i * 0.22, 0],
+  },
+  'croquet-lawn': {
+    min: 2,
+    max: 4,
+    tag: 'field:mallet',
+    who: 'adults',
+    make: (c, a, o) => croquet(c, a, o),
+    spot: (c, i) => [-c.hl * 0.8, -c.hw * 0.6 + i * 0.25],
+  },
+  'running-track': {
+    min: 2,
+    max: 4,
+    tag: 'field:play',
+    who: 'children',
+    make: (c, a, o) => race(c, a, o),
+    spot: (c, i) => [-c.hl + 0.2 + i * 0.2, 0],
   },
   'kickabout-green': {
     min: 3,
