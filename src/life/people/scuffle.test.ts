@@ -110,6 +110,35 @@ describe('L50 the street scuffle', () => {
     }
   });
 
+  test('what is their own is set down first and picked up after; hats go askew; somebody coming breaks it up', () => {
+    const c = clock(town.world.seed, 'day');
+    let sent: Person | null = null;
+    const crowd = createCrowd({ respond: (s) => (sent = crowd.people.find((p) => p.visible && p !== s.a && p !== s.b) ?? null) });
+    crowd.sync(town.shape, town.dressing, c.time);
+    for (let i = 0; i < 20 * 30; i++) crowd.step(c.tick(1 / 30), c.time);
+    // Everybody out has a loaf.
+    for (const p of crowd.people) if (p.mode === 'walk' && !p.child) p.load = 'loaf';
+    const s = crowd.scuffles.provoke()!;
+    expect(s).not.toBeNull();
+    expect(s.setDown.size).toBe(2);
+    expect(s.a.load).toBeNull();
+    let askew = false;
+    let t = 0;
+    while (crowd.scuffles.now === s && t < 40) {
+      crowd.step(c.tick(1 / 30), c.time);
+      t += 1 / 30;
+      if (s.a.costume === 'askew' || s.b.costume === 'askew') askew = true;
+      // The peace-keeper gets there two seconds in: the cloud goes then.
+      if (Math.abs(t - 2) < 1 / 60) crowd.scuffles.breakUp();
+      if (t > 2.1 && t < 2.2) expect(s.phase).not.toBe('fight');
+    }
+    expect(sent).not.toBeNull();
+    expect(askew).toBe(true);
+    expect(s.a.load).toBe('loaf');
+    expect(s.b.load).toBe('loaf');
+    expect(s.a.costume).toBeNull();
+  });
+
   test('the same town stepped the same way has the same scuffles', () => {
     const a = stepped(200, { rest: 20 }).seen.map((s) => [s.a.id, s.b.id, s.cell]);
     const b = stepped(200, { rest: 20 }).seen.map((s) => [s.a.id, s.b.id, s.cell]);

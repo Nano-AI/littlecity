@@ -94,6 +94,8 @@ export const PEOPLE = defineStyle(
     lampStep: 5.5,
     /** L08: how much brisker than their own pace the lamplighter walks the round. */
     lampPace: 1.45,
+    /** L51 and up: the share of their pace somebody keeps under a heavy load (a sack, a crate, two pails). */
+    laden: 0.8,
     /** L28: wind strength above which a child at a kite spot flies a kite; how far downwind and how high it flies. */
     kiteWind: 0.24,
     kiteOut: 0.95,

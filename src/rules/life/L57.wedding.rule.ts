@@ -51,6 +51,6 @@ export default defineRule<{ role: 'door' | 'square'; place: Place | null }>({
   },
   apply(c, out) {
     const p = c.data.place;
-    out.socket({ type: 'errand', cell: c.anchor, ...(p ? { dir: p.dir, structure: p.structure } : {}), name: `wedding|${c.data.role}|` });
+    out.socket({ id: `L57.wedding@${c.anchor}:${String(c.key)}`, type: 'errand', cell: c.anchor, ...(p ? { dir: p.dir, structure: p.structure } : {}), name: `wedding|${c.data.role}|` });
   },
 });

@@ -555,8 +555,13 @@ under `src/rules/life/` with its fixture.
   dust off (1.1 s) and either stomp off their own ways or (p=0.35) shake
   hands and walk to the nearest inn together. One at a time in the town,
   then a rest of 75–130 s. With sound on: a rumble of thumps and boings.
+  Anybody carrying their own things (a loaf, a fish, a basket, pails) sets
+  them down beside them first and picks them up after; hats sit askew from
+  the dazed moment until they walk off. At night the watchman (L55) on his
+  round within 12 cells, or by day a guard on duty, trots over: the cloud
+  rolls on (up to 16 s) until he gets there and breaks up as he arrives.
   **Must not:** involve children, anybody on a job, a round or called home,
-  anybody carrying something, leaving, in a doorway or single-file
+  anybody carrying work (a sack, a tray, a crate), leaving, in a doorway or single-file
   stretch, or in an event's party; happen on stairs, gates, docks, roofs,
   bridges or any cell standing on a structure, or in a cluttered cell.
   Building over the spot ends it at once; anybody in it taken off the
@@ -579,8 +584,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   and cafés, at the door; with none, the bakery's own door). The miller (the
   L23 miller if any, else whoever lives nearest the mill) goes into the mill,
   comes out hugging a sack of flour, carries it to the bakery and sets it
-  against the wall by the door, where up to 4 stack (a trip every 18 s at
-  most). The baker (the bakery's L23 baker, else whoever lives there or
+  against the wall by the door, where up to 6 heap up (three, two, one); a
+  helper (whoever else lives nearest) carries too, and both shuttle briskly
+  while the heap has room. The baker (the bakery's L23 baker, else whoever lives there or
   nearest) picks up a sack, takes it in, bakes 5 s, comes out with a tray of
   loaves, walks it to the selling place with the most room and sets up to 3
   loaves out on the counter or by the door, then goes back in. Residents
@@ -640,8 +646,9 @@ its carrier. Nothing is ever left floating or vanishes in view.
   (p=0.12), some cheering. At closing the traders pack the goods into the
   crate, the stall folds away with a puff, and they carry the crate home; a
   stall nobody packs folds by itself 20 s after closing. A pitch built over
-  folds its stall at once. **Must not:** put a pitch where people must pass
-  single file, on a doorstep, or beside a stall.
+  folds its stall at once. While a stall stands its cell costs 30 more to
+  cross, so walkers go round it. **Must not:** put a pitch where people must
+  pass single file, on a doorstep, or beside a stall.
 - **L57 · 2 · A wedding** (LF-01) — a chapel (R-H01) whose door opens onto
   the walking graph, with a square (else a street) within 12 steps that can
   be walked to → posts outside the chapel door (`wedding|door`) and at the
@@ -651,7 +658,8 @@ its carrier. Nothing is ever left floating or vanishes in view.
   grown-ups living nearest the chapel, from different houses (seeded), walk
   there and go in; up
   to 8 guests (children too) within 22 steps gather in a loose half-ring
-  outside the door looking at it; 4 s after enough are there (or 40 s) the
+  round the doorstep, two to a cell over its neighbours and the cells in
+  front of it, looking at the door; 4 s after enough are there (or 40 s) the
   couple comes out, she in white with flowers, he in a dark coat and hat;
   every bell in the town peals (L29) and petals burst over the doorstep;
   they walk to the square, the guests following, children running ahead,
@@ -659,6 +667,54 @@ its carrier. Nothing is ever left floating or vanishes in view.
   where the couple change back. Everybody in it is in the party (L50 never
   takes them). **Must not:** happen at night; the chapel erased or the
   couple gone calls it off and everybody goes about their day.
+
+- **L58 · 2 · Trade from the quay** — a town with a quay (R-D01) → up to 5
+  shops, inns and market stalls within 24 steps of it that can be walked to
+  (`trade|to|door`, `trade|to|stall`). Two carters (grown-ups with no job,
+  living nearest) keep a handcart parked outside their front doors. By day,
+  when goods a ship's crew landed lie on the quay (the harbour's piles,
+  L38–L40), a carter wheels the cart down, loads up to three of the crates,
+  barrels and sacks lying together there (the quay's stack goes down piece by
+  piece), pushes it to the place with the most room, sets the goods down in a
+  heap by its door or stall, and wheels the empty cart home. Goods a sailor
+  takes back aboard first are simply not there to load. **Must not:** send
+  two carters for one piece; carry more than fits where it is going.
+  Somebody who lives or works where goods were left takes them in one at a
+  time once two or more lie there. *Not yet:* a horse-drawn cart on wide
+  streets.
+
+- **L59 · 2 · The harvest** — a wheat field (R-G01) → posts on up to 12 of
+  its walkable cells (`harvest|field`) and outside the nearest windmill it
+  can walk to (`harvest|mill`). In late summer (past a third of it) and
+  autumn, by day and not in rain, two farmhands (a gardener or anybody with
+  no job, living nearest) go out with scythes on their shoulders and mow a
+  cell at a time (4.5 s of wide swings); the cell is drawn as pale stubble
+  and a stook stands on it, so the cut part of the field grows through the
+  day. Between cuts they lay the scythe down by a stook, carry its sheaf on
+  the shoulder to the mill, heap it by the door (up to 6), and go back for
+  the scythe. The miller (L51) takes a sheaf in before each sack of flour
+  comes out. At dawn the field stands again. The gulls of a harbour (L11)
+  wheel over anybody carrying the catch (L53) within 10 cells.
+
+- **L60 · 2 · Washing day** — every laundry line (D05) → a post on the
+  walkable cell under its first anchor (`laundry|line|<prop>`), its house
+  the one that anchor is on. Somebody from that house carries the wash out
+  in a basket on the head in the morning, stands under the line reaching up
+  (3 s) and the washing is out; at dusk, or when it rains (rain over 0.25),
+  somebody comes out, reaches up, and carries the wash home; when the rain
+  stops it goes out again. A puff as it goes up or comes in. The town as first
+  seen keeps its washing as drawn. *Simplified:* D05 draws rope and washing
+  as one piece, so the whole line shows or hides.
+
+- **L61 · 3 · Dogs** — one per 6 house structures, at most 3: every sixth
+  house by its door cell from the fourth (`dog|home|<coat>`, 4 coats). The
+  dog trots at the heels of whoever of its house is out (a step behind and to
+  the side), sits when they stop, and sits on the doorstep looking out while
+  they are all indoors. Now and then (6–14 s apart, by day) it trots up to a
+  passer-by to say hello (a little bark, front feet up), or dashes at a cat
+  (L33) within 2.5 cells, which leaps up arched and stays sitting up a while;
+  it runs to bark at a scuffle (L50) within 5 cells. The crowd never waits
+  for a dog.
 
 ### Animals and small motion
 

@@ -16,6 +16,7 @@ import type { ActorOf, DressingPlan, ShapePlan } from '@/resolve/plan';
 import { BIRDS } from '@/style/birds';
 import { defineBehaviour, type LifeContext, type Signals } from '../api';
 import { fishingBoatOf } from '../boats/fishing-boat.behaviour';
+import { crowdOf } from '../doors/table';
 import { arc, easeInOut, glide, lerp } from '../motion/ease';
 import { fly, yawOf } from '../motion/pose';
 import { onTwos } from '../motion/twos';
@@ -82,6 +83,16 @@ export interface GullState {
 const TAU = Math.PI * 2;
 /** Gulls whose home circle is within this many columns of the homeward fishing boat follow it in. */
 const FOLLOW_REACH = 18;
+/** L53: how near its harbour a gull notices somebody carrying a basket of the catch. */
+const CATCH_REACH = 10;
+
+/** Somebody carrying a basket of the catch near (x, z), from the running crowd. */
+function carrierOfCatch(stage: Ctx['stage'], x: number, z: number): { x: number; z: number } | null {
+  const crowd = crowdOf(stage);
+  if (!crowd) return null;
+  for (const p of crowd.people) if (p.load === 'fish' && p.visible && Math.hypot(p.x - x, p.z - z) < CATCH_REACH) return { x: p.x, z: p.z };
+  return null;
+}
 const spot = { x: 0, y: 0, z: 0 };
 
 /** Where the gull's circle is at its clock and angle (into `spot`). */
@@ -207,9 +218,12 @@ export function updateGull(s: GullState, dt: number, signals: Signals, ctx: Ctx)
   // L18: the fishing boat coming home at dusk draws the harbour's gulls out to it, wheeling over its wake.
   const boat = fishingBoatOf(ctx.stage);
   const trailing = boat !== null && boat.homeward && !signals.time.isNight && Math.hypot(boat.x - s.cx, boat.z - s.cz) < FOLLOW_REACH;
+  // L53: and the fisher carrying the catch up the pier draws them over the basket.
+  const catchAt = trailing ? null : carrierOfCatch(ctx.stage, s.cx, s.cz);
   const k = glide(0.6, dt);
-  s.followX += ((trailing ? boat.x - s.cx : 0) - s.followX) * k;
-  s.followZ += ((trailing ? boat.z - s.cz : 0) - s.followZ) * k;
+  const fx = trailing ? boat.x - s.cx : catchAt ? catchAt.x - s.cx : 0, fz = trailing ? boat.z - s.cz : catchAt ? catchAt.z - s.cz : 0;
+  s.followX += (fx - s.followX) * k;
+  s.followZ += (fz - s.followZ) * k;
 
   const b = s.body;
   if (s.mode === 'sit') {

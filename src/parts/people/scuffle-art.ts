@@ -10,10 +10,10 @@ import { rand } from '@/core/rand';
 import { PALETTE } from '@/style/palette';
 
 /** A ball: a lathe from the bottom pole to the top. */
-function ball(b: MeshBuilder, r: number, segments = 8): void {
+function ball(b: MeshBuilder, r: number, segments = 8, rings = 6): void {
   const prof: [number, number][] = [];
-  for (let i = 0; i <= 6; i++) {
-    const a = Math.PI * (1 - i / 6);
+  for (let i = 0; i <= rings; i++) {
+    const a = Math.PI * (1 - i / rings);
     prof.push([Math.max(0, Math.sin(a) * r), Math.cos(a) * r]);
   }
   b.lathe(prof, { segments });
@@ -36,7 +36,7 @@ export function cloudMesh(variant: number, radius = 0.3, height = 0.5): MeshData
     const y = i < 7 ? pr * 0.9 + r('y') * height * 0.35 : height * 0.55 + r('y') * height * 0.25;
     const x = Math.cos(a) * radius * 0.62 * ring, z = Math.sin(a) * radius * 0.62 * ring;
     b.setInk(`puff${i}`).setColor(i % 3 === 0 ? '#d9c8a4' : i % 3 === 1 ? '#fbf6ea' : '#efe5cf');
-    b.at(translation(x, y, z), () => ball(b, pr));
+    b.at(translation(x, y, z), () => ball(b, pr, 16, 10)); // round enough to read as a soft puff close up
   }
   // Speed lines of dust at the foot: little flat streaks.
   b.setInk('streaks').setColor('#bfae8c');

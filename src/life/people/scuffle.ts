@@ -17,7 +17,8 @@
 //
 // One at a time in the whole town, and then a rest (SCUFFLE.restMin–Max), so
 // a watcher sees one every couple of minutes. Never children, anybody at
-// work or on duty, anybody carrying something, leaving, in a doorway or a
+// work or on duty, anybody carrying work (a sack, a tray: what is their own,
+// a loaf, a fish, a basket, a pail, they set down first and pick up after), leaving, in a doorway or a
 // single-file stretch, and never on stairs, docks, bridges, roofs or any
 // cell standing on a structure. Building on the spot ends it at once.
 //
@@ -31,6 +32,10 @@ import type { TimeSignal } from '@/life/api';
 import type { NavGraph, ShapePlan } from '@/resolve/plan';
 import { SCUFFLE } from '@/style/town-life';
 import type { Goal, Person } from './crowd';
+import type { Load } from './errand';
+
+/** What somebody may set down to fight: their own things, not work they are carrying for somebody. */
+const OWN: ReadonlySet<Load> = new Set<Load>(['loaf', 'fishes', 'basket', 'bucket']);
 
 export type ScufflePhase = 'fight' | 'dazed' | 'up' | 'shake';
 
@@ -51,7 +56,12 @@ export interface Scuffle {
   /** Seconds into the phase, and seconds since it began. */
   t: number;
   age: number;
-  readonly fight: number;
+  /** Seconds the cloud lasts (lengthened while somebody comes to break it up, cut short when they arrive). */
+  fight: number;
+  /** What each of the two set down before it started (picked up again after). */
+  readonly setDown: Map<Person, Load>;
+  /** Somebody coming to break it up (the night watchman, a guard), once one is on the way. */
+  responder: Person | null;
   readonly makeUp: boolean;
   /** The cloud's middle now (it rolls along the street a little). */
   cx: number;
@@ -69,6 +79,8 @@ export interface ScuffleHost {
   busy(p: Person): boolean;
   /** Where the two go together when they make it up: the inn, if there is one they can walk to. */
   innGoal(p: Person, other: Person): Goal | null;
+  /** Sends somebody to break it up, if anybody keeps the peace near (returns them), else null. */
+  respond?(s: Scuffle): Person | null;
   seed(): number;
   /** A fixture's own dials, over SCUFFLE's. */
   dials?: { chance?: number; squeeze?: number; rest?: number };
@@ -88,6 +100,8 @@ export interface Scuffles {
   sync(): void;
   /** Ends it now, cleanly. */
   end(): void;
+  /** Somebody has come to break it up: the cloud goes now. */
+  breakUp(): void;
 }
 
 const GROUND = new Set(['path', 'plaza', 'grass', 'trail', 'sand', 'garden']);
@@ -105,7 +119,7 @@ export function createScuffles(host: ScuffleHost): Scuffles {
     p.scuffle === null &&
     p.fade >= 1 &&
     !p.leaving &&
-    !p.carrying &&
+    (!p.carrying || (p.load !== null && OWN.has(p.load))) &&
     !p.brisk &&
     !p.party &&
     p.chat <= 0 &&
@@ -159,6 +173,8 @@ export function createScuffles(host: ScuffleHost): Scuffles {
       t: 0,
       age: 0,
       fight: SCUFFLE.fightMin + r('fight') * (SCUFFLE.fightMax - SCUFFLE.fightMin),
+      setDown: new Map(),
+      responder: null,
       makeUp: r('make-up') < SCUFFLE.makeUp,
       cx: x,
       cz: z,
@@ -168,6 +184,12 @@ export function createScuffles(host: ScuffleHost): Scuffles {
     for (const w of [p, q]) {
       w.scuffle = s;
       w.inCloud = true;
+      // What is their own goes down on the ground first.
+      if (w.load) {
+        s.setDown.set(w, w.load);
+        w.load = null;
+        w.carrying = false;
+      }
       w.chat = 0;
       w.chatWith = null;
       w.dodgeTo = 0;
@@ -202,6 +224,12 @@ export function createScuffles(host: ScuffleHost): Scuffles {
 
   const release = (s: Scuffle, done: boolean): void => {
     for (const w of [s.a, s.b]) {
+      const had = s.setDown.get(w);
+      if (had && w.mode !== 'gone') {
+        w.load = had;
+        w.carrying = true;
+      }
+      if (w.costume === 'askew') w.costume = null;
       w.scuffle = null;
       w.inCloud = false;
       w.react = null;
@@ -285,6 +313,11 @@ export function createScuffles(host: ScuffleHost): Scuffles {
           const roll = Math.sin(s.age * 1.6 + (s.seed % 7)) * SCUFFLE.roll;
           s.cx = s.x + s.ax * roll;
           s.cz = s.z + s.az * roll;
+          // Somebody comes to break it up (once, a moment in): it goes on until they get there, at most a while.
+          if (s.responder === null && s.age > 0.8 && host.respond) {
+            s.responder = host.respond(s);
+            if (s.responder) s.fight = Math.max(s.fight, SCUFFLE.waitBreak);
+          }
           if (s.t >= s.fight) {
             s.phase = 'dazed';
             s.t = 0;
@@ -293,6 +326,8 @@ export function createScuffles(host: ScuffleHost): Scuffles {
             faceTo(a, b.x, b.z);
             faceTo(b, a.x, a.z);
             a.seat = b.seat = 0;
+            // Hats knocked askew (people.system draws it).
+            for (const w of [a, b]) if (w.costume === null) w.costume = 'askew';
             a.poseTime = b.poseTime = 0;
           }
           break;
@@ -350,6 +385,10 @@ export function createScuffles(host: ScuffleHost): Scuffles {
     },
     end() {
       if (now) release(now, false);
+    },
+    breakUp() {
+      // The peace-keeper has arrived: the cloud puffs away now.
+      if (now && now.phase === 'fight') now.fight = Math.min(now.fight, now.t);
     },
   };
 }

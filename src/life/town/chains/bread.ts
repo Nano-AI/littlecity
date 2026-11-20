@@ -17,18 +17,19 @@
 import { opposite } from '@/core/grid';
 import { CHAINS } from '@/style/town-life';
 import type { Person } from '../../people/crowd';
-import { wallSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Store } from '../board';
+import { heapSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Store } from '../board';
 import { canWork, keepHand, standAt } from '../hands';
-import { buyerPlan, deliverStep, morning, outletsOf, roomiest, type Outlet } from '../market';
+import { buyerPlan, deliverStep, morning, outletSpots, outletsOf, roomiest, type Outlet } from '../market';
 
 export function breadChain(): Chain {
   let mill: Post | undefined;
   let bakery: Post | undefined;
   let outlets: Outlet[] = [];
   let sacks: Store | null = null;
-  let miller: Person | null = null;
+  /** The miller and a helper: two carrying sacks keeps the road from the mill busy. */
+  let millers: (Person | null)[] = [null, null];
+  const millAtOf = new Map<Person, number>();
   let baker: Person | null = null;
-  let millAt = 0;
   let bakeAt = 0;
 
   const chain: Chain = {
@@ -37,35 +38,39 @@ export function breadChain(): Chain {
       mill = board.posts('bread').find((p) => p.role === 'mill');
       bakery = board.posts('bread').find((p) => p.role === 'bakery');
       // At the bakery's own door the loaves go on the far side from the sacks.
-      outlets = outletsOf(board, 'bread', outlets, (post) => (post.cell === bakery?.cell ? 3 : 0));
-      sacks = bakery && mill ? board.store(`bread:sacks:${bakery.structure}`, wallSpots(bakery.cell, opposite(bakery.dir ?? 0), CHAINS.sacks, board.centre(bakery.cell).y)) : null;
+      outlets = outletsOf(board, 'bread', outlets);
+      // The bakery's own door, for when every other place is a long way round by the streets.
+      const own = bakery && !outlets.some((o) => o.post.cell === bakery!.cell) ? { ...bakery, ref: 'door', role: 'sell' } : null;
+      if (own) outlets.push({ post: own, store: board.store(`bread:own:${bakery!.structure}`, outletSpots(board, own)), coming: 0 });
+      sacks = bakery && mill ? board.store(`bread:sacks:${bakery.structure}`, heapSpots(bakery.cell, opposite(bakery.dir ?? 0), board.centre(bakery.cell).y).slice(0, CHAINS.sacks)) : null;
       if (!bakery) {
-        if (miller) board.unclaim(miller);
+        for (const m of millers) if (m) board.unclaim(m);
         if (baker) board.unclaim(baker);
-        miller = baker = null;
+        millers = [null, null];
+        baker = null;
         return;
       }
       const b = bakery;
       baker = keepHand(board, chain, baker, b.cell, (p) => (p.work?.job === 'baker' && p.work.structure === b.structure) || p.home === b.structure);
       if (mill) {
         const m = mill;
-        miller = keepHand(board, chain, miller, m.cell, (p) => p.work?.job === 'miller');
-      } else if (miller) {
-        board.unclaim(miller);
-        miller = null;
+        millers = millers.map((had, i) => (i < Math.round(CHAINS.millers) ? keepHand(board, chain, had, m.cell, (p) => p.work?.job === 'miller') : (had && board.unclaim(had), null)));
+      } else {
+        for (const x of millers) if (x) board.unclaim(x);
+        millers = [null, null];
       }
     },
     step(_dt, _time, board) {
       // Hands lost (gone, moved out of reach) are found again at the next change of the town; meanwhile a
       // hand that has gone is let go.
-      if (miller && miller.mode === 'gone') miller = null;
+      millers = millers.map((x) => (x && x.mode === 'gone' ? null : x));
       if (baker && baker.mode === 'gone') baker = null;
       void board;
     },
     offer(p, time, board) {
       if (!bakery || !(time.isDay || time.isDawn)) return null;
       const b = bakery;
-      if (p === miller && mill && sacks) return millerPlan(board, p, mill, b, sacks);
+      if (millers.includes(p) && mill && sacks) return millerPlan(board, p, mill, b, sacks);
       if (p === baker) return bakerPlan(board, p, b);
       if (board.claimedBy(p) || !canWork(p)) return null;
       return buyerPlan(board, chain, p, outlets, 'loaf', morning(time) ? CHAINS.buyMorning : CHAINS.buy, CHAINS.buyReach, 'bread:buy');
@@ -73,21 +78,32 @@ export function breadChain(): Chain {
   };
 
   const millerPlan = (board: Board, p: Person, m: Post, b: Post, store: Store): Plan | null => {
-    if (board.now < millAt || board.count(store) >= store.spots.length) return null;
-    const fill = board.stepIn(m.structure!, { cell: m.cell, linger: 3, tag: 'bread:fill' });
+    if (board.now < (millAtOf.get(p) ?? 0) || board.count(store) >= store.spots.length) return null;
+    // Briskly there and back: a shuttle the eye can follow.
+    const fill = board.stepIn(m.structure!, { cell: m.cell, linger: 1.6, brisk: true, tag: 'bread:fill' });
     if (!fill) return null;
-    millAt = board.now + CHAINS.millGap;
+    millAtOf.set(p, board.now + CHAINS.millGap);
     const at = standAt(board, b, 0.05);
+    // L59: sheaves the farmhands heaped by the mill door go in first (the grain the flour is ground from).
+    const heap = board.stores.get(`mill-heap:${m.structure}`);
+    const grain: PlanStep[] = [];
+    if (heap && board.count(heap, 'sheaf') > 0) {
+      fill.load = 'sheaf';
+      fill.done = (q) => void (q.load = null);
+      grain.push(board.stepAt(m.cell, { ...standAt(board, m, 0.05, 0.25), pose: 'tend', linger: 0.9, tag: 'bread:grain', done: (q) => (board.take(heap, 'sheaf') ? void (q.load = 'sheaf') : false) }));
+    }
     return {
       chain,
       at: 0,
       steps: [
+        ...grain,
         fill,
         board.stepAt(b.cell, {
           ...at,
           pose: 'tend',
           linger: 1.2,
           load: 'sack',
+          brisk: true,
           tag: 'bread:sack',
           done: (q) => {
             if (!board.put(store, 'sack')) return false;
@@ -101,7 +117,9 @@ export function breadChain(): Chain {
   const bakerPlan = (board: Board, p: Person, b: Post): Plan | null => {
     if (board.now < bakeAt) return null;
     // Where the tray goes: the place with the most room, then the nearest.
-    const to = roomiest(board, p, outlets, b.cell);
+    // The nearest-by-the-streets place with room; the bakery's own door (the last outlet) only when the others are far.
+    const others = outlets.filter((o) => o.post.cell !== b.cell);
+    const to = roomiest(board, p, others, b.cell) ?? roomiest(board, p, outlets.filter((o) => o.post.cell === b.cell), b.cell);
     if (!to) return null;
     const steps: PlanStep[] = [];
     if (sacks) {

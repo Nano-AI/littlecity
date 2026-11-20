@@ -22,6 +22,8 @@ import type { InstanceHandle, LifeStage, TimeSignal } from '@/life/api';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavGraph, ShapePlan, Socket, StructureId } from '@/resolve/plan';
 import { place } from '../motion/pose';
+import { fxOf } from '../fx/fx';
+import { CLEAR, SUMMER, type SeasonSignal, type WeatherSignal } from '../season';
 import type { Crowd, Person } from '../people/crowd';
 import type { ErrandHost, ErrandStep, Load } from '../people/errand';
 import type { PoseName } from '@/parts/people/pose';
@@ -80,6 +82,8 @@ export interface Chain {
   offer(p: Person, time: TimeSignal, board: Board): Plan | null;
   /** Every frame. */
   step?(dt: number, time: TimeSignal, board: Board): void;
+  /** Its own hands may be offered more work while holding this (a farmhand's scythe); anything else goes home first. */
+  keeps?(load: Load): boolean;
   dispose?(board: Board): void;
 }
 
@@ -99,6 +103,11 @@ export interface Board {
   readonly plans: ReadonlyMap<Person, Plan>;
   /** Life time, seconds. */
   readonly now: number;
+  /** The season and the weather now (summer and a clear sky where nobody says: tests). */
+  readonly season: SeasonSignal;
+  readonly weather: WeatherSignal;
+  /** The people system tells the board the season and weather each frame. */
+  setSky(season: SeasonSignal, weather: WeatherSignal): void;
   posts(chain: string): readonly Post[];
   /** A store at a place (made the first time, kept across changes of the town by its key). */
   store(key: string, spots: Spot[]): Store;
@@ -113,6 +122,8 @@ export interface Board {
   claim(p: Person, chain: Chain): void;
   /** Ends a person's plan now (as a failure: its `fail` runs). */
   drop(p: Person): void;
+  /** Gives somebody a plan now, in place of whatever they were doing (they set off as soon as they can). */
+  assign(p: Person, plan: Plan): void;
   unclaim(p: Person): void;
   claimedBy(p: Person): Chain | null;
   /** A step at a cell: standing at `spot` facing `face`, or going in at a door. */
@@ -125,6 +136,8 @@ export interface Board {
   homeStep(p: Person, opts: Partial<PlanStep> & { tag: string }): PlanStep | null;
   /** Grid steps between two cells on the ground plan. */
   dist(a: CellKey, b: CellKey): number;
+  /** What walking from one cell to another costs (about the steps, more for stairs and grass); Infinity if it cannot be walked. */
+  walk(a: CellKey, b: CellKey): number;
   /** The town changed. With no dressing yet (just after an edit) only the shape is taken. */
   sync(shape: ShapePlan, dressing: DressingPlan | null): void;
   step(dt: number, time: TimeSignal): void;
@@ -149,6 +162,8 @@ export function createBoard(opts: BoardOptions): Board {
   let dressing: DressingPlan | null = null;
   let now = 0;
   let time: TimeSignal | null = null;
+  let season: SeasonSignal = SUMMER;
+  let weather: WeatherSignal = CLEAR;
 
   const draw = (s: Store, i: number): void => {
     const kind = s.items[i];
@@ -176,8 +191,8 @@ export function createBoard(opts: BoardOptions): Board {
         plans.delete(p);
       }
       if (p.child || p.shutIn || p.leaving || p.scuffle) return null;
-      // Something still in the hands from an errand that ended: home with it first.
-      if (p.load) return null;
+      // Something still in the hands from an errand that ended: home with it first (a chain's own hands go on with it).
+      if (p.load && !claimed.get(p)?.keeps?.(p.load)) return null;
       for (const chain of opts.chains) {
         const c = claimed.get(p);
         if (c && c !== chain) continue;
@@ -226,6 +241,16 @@ export function createBoard(opts: BoardOptions): Board {
     get now() {
       return now;
     },
+    get season() {
+      return season;
+    },
+    get weather() {
+      return weather;
+    },
+    setSky(s, w) {
+      season = s;
+      weather = w;
+    },
     posts: (chain) => posts.get(chain) ?? [],
     stores,
     store(key, spots) {
@@ -253,6 +278,11 @@ export function createBoard(opts: BoardOptions): Board {
       if (i < 0 || !s.live) return false;
       s.items[i] = kind;
       draw(s, i);
+      // A small puff where it lands: the eye goes to it.
+      if (opts.stage) {
+        const sp = s.spots[i]!;
+        fxOf(opts.stage).play({ actor: 'puff', variant: 'dust' }, 0.45, (t, m) => place(sp.x, sp.y + 0.04 + t * 0.12, sp.z, 0, 0.35 + t * 0.5, 0.35 + t * 0.5, 0.35 + t * 0.5, m));
+      }
       return true;
     },
     take(s, kind) {
@@ -272,6 +302,11 @@ export function createBoard(opts: BoardOptions): Board {
     },
     drop(p) {
       end(p, true);
+    },
+    assign(p, plan) {
+      end(p, true);
+      plans.set(p, plan);
+      opts.crowd.rethink(p);
     },
     unclaim(p) {
       claimed.delete(p);
@@ -296,6 +331,13 @@ export function createBoard(opts: BoardOptions): Board {
       return s;
     },
     dist: (a, b) => Math.abs(keyX(a) - keyX(b)) + Math.abs(keyZ(a) - keyZ(b)),
+    walk(a, b) {
+      const nav = board.nav, router = opts.crowd.router;
+      const na = nav?.nodeAt.get(a), nb = nav?.nodeAt.get(b);
+      if (!nav || !router || na === undefined || nb === undefined) return Infinity;
+      if (na === nb) return 0;
+      return router.find(na, nb)?.cost ?? Infinity;
+    },
     sync(nextShape, nextDressing) {
       shape = nextShape;
       if (!nextDressing) return;
@@ -357,6 +399,25 @@ export function wallSpots(cell: CellKey, dir: Dir4, n: number, y: number): Spot[
     const side = sides[i % 2]! + (i >= 2 ? Math.sign(sides[i % 2]!) * 0.1 : 0);
     const out_ = -0.36 + Math.floor(i / 4) * 0.13;
     out.push({ x: cx - dz * side + dx * out_, y, z: cz + dx * side + dz * out_, yaw: DIR_HEADING[dir] + (i % 3) * 0.4 });
+  }
+  return out;
+}
+
+/**
+ * A heap beside a door, against the wall, on one side of it: a bottom row of three, two on them, one on
+ * top (sacks lying on their sides). `dir` points out of the door; `side` is +1 or −1.
+ */
+export function heapSpots(cell: CellKey, dir: Dir4, y: number, side = 1, size = 0.2): Spot[] {
+  const [dx, dz] = DIR4[dir]!;
+  const cx = keyX(cell) + 0.5, cz = keyZ(cell) + 0.5;
+  const out: Spot[] = [];
+  const rows: [number, number][] = [[3, 0], [2, 1], [1, 2]];
+  for (const [n, row] of rows) {
+    for (let i = 0; i < n; i++) {
+      // Along the wall, from beside the doorway outward; the rows above sit in the hollows of the one below.
+      const along = side * (0.2 + (i + row * 0.5) * size * 0.95);
+      out.push({ x: cx - dz * along - dx * 0.36, y: y + row * size * 0.8, z: cz + dx * along - dz * 0.36, yaw: DIR_HEADING[dir] + Math.PI / 2 });
+    }
   }
   return out;
 }

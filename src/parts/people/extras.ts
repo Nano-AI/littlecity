@@ -85,10 +85,10 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe'];
 /** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 0 };
 
 export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   const b = new MeshBuilder({ ink: `tool-${tool}` });
@@ -161,6 +161,13 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       });
       break;
     }
+    case 'scythe':
+      // L59: the snath from the hands down across the front, the blade along the ground.
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0.06, 0.2, 0.08], [-0.02, 0.1, 0.2], [-0.08, 0.02, 0.3]], 0.006, { seg: 4 });
+      b.setInk('blade').setColor('#c9ccd6').setPattern(PATTERN.metal);
+      b.box([-0.08, 0.005, 0.28], [0.12, 0.02, 0.32]);
+      break;
     case 'hammer':
       // L54: a builder's hammer in the right fist (arm frame: the hand is at the end of the arm, down −Y).
       b.setColor(PALETTE.trunk);

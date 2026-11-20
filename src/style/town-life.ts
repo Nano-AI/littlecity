@@ -36,6 +36,10 @@ export const SCUFFLE = defineStyle(
     drawRate: 12,
     /** Seconds each grawlix stays up in the bubble. */
     swear: 0.42,
+    /** Seconds the cloud may roll on while somebody comes to break it up. */
+    waitBreak: 16,
+    /** How far off (cells) the watchman or a guard notices a scuffle and comes to break it up. */
+    responderReach: 12,
   },
   {
     chance: [0, 1, 0.01],
@@ -57,6 +61,8 @@ export const SCUFFLE = defineStyle(
     roll: [0, 0.5, 0.01],
     drawRate: [4, 30, 1],
     swear: [0.1, 1.5, 0.02],
+    waitBreak: [0, 60, 1],
+    responderReach: [0, 48, 1],
   },
 );
 
@@ -64,12 +70,14 @@ export const SCUFFLE = defineStyle(
 export const CHAINS = defineStyle(
   'chains',
   {
-    /** L51: seconds between the miller's trips; sacks that fit by the bakery door. */
-    millGap: 18,
-    sacks: 4,
+    /** L51: seconds between the miller's trips (they shuttle while the heap has room); sacks that heap by the bakery door. */
+    millGap: 4,
+    /** L51: how many carry sacks from the mill (the miller and a helper). */
+    millers: 2,
+    sacks: 6,
     /** L51: seconds the baker is in baking; seconds between batches; loaves a tray holds. */
-    bake: 5,
-    bakeGap: 10,
+    bake: 3.5,
+    bakeGap: 4,
     tray: 3,
     /** L51: chance a resident choosing what to do goes for bread when there is some (mornings, and the rest of the day). */
     buyMorning: 0.3,
@@ -77,18 +85,23 @@ export const CHAINS = defineStyle(
     /** L51: the farthest (grid steps) a resident walks for bread. */
     buyReach: 18,
     /** L52: chance a resident choosing what to do goes for water; seconds at the well filling the bucket. */
-    water: 0.1,
+    water: 0.12,
     fill: 2.6,
     /** L53: seconds the fisher fishes before carrying the catch up; seconds between catches at least; chance a resident goes for fish. */
-    fishing: 16,
-    fishGap: 30,
+    fishing: 10,
+    fishGap: 14,
     fishBuyMorning: 0.16,
     fishBuy: 0.08,
+    /** L59: seconds a farmhand mows each cell. */
+    mow: 4.5,
+    /** L58: seconds a carter rests between trips with the cart. */
+    cartGap: 3,
     /** L55: seconds the watchman stops at each post of the beat. */
     watchStop: 2.5,
   },
   {
     millGap: [0, 120, 1],
+    millers: [1, 2, 1],
     sacks: [1, 8, 1],
     bake: [1, 20, 0.5],
     bakeGap: [0, 120, 1],
@@ -103,6 +116,8 @@ export const CHAINS = defineStyle(
     fishBuyMorning: [0, 1, 0.01],
     fishBuy: [0, 1, 0.01],
     watchStop: [0, 10, 0.1],
+    cartGap: [0, 60, 1],
+    mow: [1, 20, 0.5],
   },
 );
 
@@ -137,7 +152,7 @@ export const MARKET = defineStyle(
     /** The phase of the loop at which it packs up (day runs 0–0.56; 0.4 is mid-afternoon). */
     close: 0.4,
     /** Chance a resident choosing what to do goes to buy at the market while it is on, and stops to watch the busker. */
-    buy: 0.35,
+    buy: 0.25,
     watch: 0.12,
     /** The farthest (grid steps) a resident walks to the market. */
     reach: 26,
@@ -167,4 +182,14 @@ export const WEDDING = defineStyle(
     square: 14,
   },
   { chance: [0, 1, 0.01], latest: [0, 0.5, 0.01], first: [0, 300, 1], guests: [0, 16, 1], reach: [4, 48, 1], gather: [5, 120, 1], vows: [0, 30, 0.5], step: [0, 10, 0.5], square: [0, 60, 1] },
+);
+
+/** L51 and up: what people carry. */
+export const LOADS = defineStyle(
+  'loads',
+  {
+    /** How much bigger loads are drawn from the whole-island view than close in (they grow as the camera draws back). */
+    far: 1.9,
+  },
+  { far: [1, 3, 0.05] },
 );
