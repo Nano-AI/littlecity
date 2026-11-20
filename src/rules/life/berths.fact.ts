@@ -240,26 +240,42 @@ export function mooredClear(field: SeaField, h: HullSize, m: Mooring): boolean {
 /** The big ships, biggest first. */
 export const BIG_SHIPS: readonly BigShip[] = ['galleon', 'galley', 'cog'];
 
+/** The last few harbours planned, by the sea they were planned on: an edit ashore changes nothing at sea. */
+const PLANNED = new Map<string, ShipPlan[]>();
+
 export const harbour = defineFact<Harbour>('harbour', (f) => {
   const berths = findBerths(f);
-  const plans: ShipPlan[] = [];
-  if (!berths.length) return { berths, plans };
+  if (!berths.length) return { berths, plans: [] };
   // One field for every berth: small boats' moorings in any berth's water are not in the way (they row aside).
   const own: Berth = { ...berths[0]!, water: [...new Set(berths.flatMap((b) => b.water))] };
   const field = planningField(f, own);
+  let h = 2166136261;
+  for (let i = 0; i < field.blocked.length; i++) h = Math.imul(h ^ field.blocked[i]!, 16777619);
+  const key = `${f.seed}|${h >>> 0}|${berths.map((b) => `${b.key}/${b.cells}/${b.level}`).join(';')}|${SHIPS.shipsMax}`;
+  const cached = PLANNED.get(key);
+  if (cached) return { berths, plans: cached.map((p) => ({ ...p, berth: berths.find((b) => b.key === p.berth.key)! })) };
+  const plans: ShipPlan[] = [];
   let used = 0;
   for (const b of berths) {
     if (used >= Math.round(SHIPS.shipsMax)) break;
-    let any = false;
+    // Sailed in and out with the biggest hull that fits; the smaller ships lie the same way. (Each visit is
+    // planned again with its own hull when it sets out: harbour.system.ts.)
+    let lead: ShipPlan | null = null;
     for (const ship of BIG_SHIPS) {
-      const plan = planBerth(f, ship, b, field);
-      if (plan) {
-        plans.push(plan);
-        any = true;
+      if (!lead) {
+        lead = planBerth(f, ship, b, field);
+        if (lead) plans.push(lead);
+      } else {
+        const h2 = hullSize(ship);
+        if (h2.bow - h2.stern > b.cells + 0.6) continue;
+        const m = mooringAt(h2, b.face, lead.dir, SHIPS.alongside, SHIPS.warpGap);
+        if (mooredClear(field, h2, m)) plans.push({ ship, berth: b, dir: lead.dir, mooring: m });
       }
     }
-    if (any) used++;
+    if (lead) used++;
   }
+  PLANNED.set(key, plans);
+  if (PLANNED.size > 6) PLANNED.delete(PLANNED.keys().next().value!);
   return { berths, plans };
 });
 
