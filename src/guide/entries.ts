@@ -512,6 +512,38 @@ export const ENTRIES: readonly GuideEntry[] = [
     },
     view: FRONT,
   },
+  {
+    id: 'podium',
+    group: 'stone',
+    name: 'Podium',
+    how: 'Build a marble platform two or more blocks high and give it a use: a temple on top, a broad stair up its side, or a plaza over a quarter of its top.',
+    proof: { role: 'podium' },
+    seed: 7307,
+    build(b) {
+      b.fill('marble', 18, 18, 22, 20, { floors: 3 });
+      for (const x of [19, 21]) for (const z of [18, 19]) b.stack('pillar', x, z, { floors: 2 });
+      for (let x = 19; x <= 21; x++) for (const z of [18, 19]) b.block('marble', x, 6, z, { color: 2 });
+      for (let i = 0; i < 2; i++) for (const x of [19, 20, 21]) b.stack('marble', x, 22 - i, { floors: i + 1 });
+    },
+    also: [
+      { build: (b) => void b.fill('marble', 18, 18, 21, 21, { floors: 3 }).plaza(18, 18, 21, 20) },
+      { build: (b) => void b.fill('marble', 18, 18, 22, 20, { floors: 3 }).stack('marble', 20, 22, { floors: 1 }).stack('marble', 20, 21, { floors: 2 }).stack('marble', 21, 22, { floors: 1 }).stack('marble', 21, 21, { floors: 2 }) },
+    ],
+    view: FRONT,
+  },
+  {
+    id: 'theatre',
+    group: 'stone',
+    name: 'Theatre',
+    how: 'Pile marble in rows of seats, each row one block higher and four or more wide, with nothing at the top, facing a plaza or open ground.',
+    proof: { role: 'theatre' },
+    seed: 7308,
+    build(b) {
+      for (let row = 0; row < 3; row++) for (let x = 18; x <= 22; x++) b.stack('marble', x, 20 - row, { floors: row + 1 });
+      b.plaza(18, 21, 22, 22);
+    },
+    view: { yaw: 20, pitch: 30 },
+  },
 
   // ── bridges ───────────────────────────────────────────────────────────
   {

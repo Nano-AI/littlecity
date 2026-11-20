@@ -114,8 +114,31 @@ type and which later rules apply.
 - **R-M02 · 2 · Gatehouse** — marble touching one end of a gateway arch
   (R-A04) whose other end also touches marble or a wall → portcullis in the
   arch, lanterns either side.
-- **R-M03 · 2 · Keep** — ≥ 3 tall and footprint ≥ 2 × 2 → battlements on
-  exposed top edges, arrow slits.
+- **R-M09 · 2 · Theatre** (discovery 1, RC-07) — marble whose columns are
+  tiers of seats facing one way: R-M04's shape cuts 2+ rows of it (3+ tiers
+  with the uncut top row), 4+ wide; 3 of every 4 columns stand one level
+  above or below a neighbouring column; the top row leads nowhere (nothing
+  on it, lower behind it); 4+ open level cells (plaza or bare ground) lie
+  within 2 in front of the lowest row; nothing of a castle touches it (as
+  R-M08) → the steps drawn as deep stone benches (two to a cell), a stone
+  balustrade where the top drops 2+; R-H98 stands a painted backdrop with
+  two masks at the back of the stage and a brazier at each end. Not: a
+  flight up to a platform (R-M04, R-M08). Priority 5977.
+- **R-M08 · 2 · Podium** (discovery 1, FX-01) — marble 2+ tall with a 2 × 2
+  in its footprint that carries a temple (one of R-M01's pillars stands on
+  it), or has R-M04's steps cut into it, climbing to its top level, without
+  being mostly stair (steps up to the foot of a tower are a keep's), or has a
+  floor, plinth, pillar, fountain, stall or tree on a quarter or more of its
+  open top; and no wall piece or wall edge, gateway arch, castle turret,
+  gatehouse or keep touching it → no battlements and no garrison: marble
+  (not castle stone), flat pilasters on every second cell line, a stone
+  balustrade on every top edge that drops 2+ (J19 then leaves those edges).
+  With a castle piece touching it the same mass is a keep with a stair.
+  Priority 5975.
+- **R-M03 · 2 · Keep** — ≥ 3 tall and footprint ≥ 2 × 2, and not mostly a
+  flight of steps (R-M04), a podium (R-M08) or a theatre (R-M09) →
+  battlements on exposed top edges, arrow slits. Only an embattled keep
+  counts as a castle for the garrison and the rider (L36, L37).
 - **R-M04 · 2 · Grand steps** — marble forming 3+ rows each one level higher
   than the last, 2+ wide → broad steps; people may sit (seat sockets).
 - **R-M05 · 2 · Quay wall** — at `y ≤ 1` next to water → mooring rings,
@@ -266,6 +289,13 @@ How pieces meet. Joinery decides geometry and produces sockets.
   half-timber patterning.
 - **J28 · 1 · Shoreline** — foam line where land meets water; a short plank
   ramp where a dock meets a beach.
+- **J29 · 2 · Vault door** (discovery 1, FX-09) — a terrace (R-M07) or podium
+  (R-M08) 2+ storeys tall on 9+ columns with a 2 × 2 among them and no door → one
+  stone-framed door into its vaults, in the middle of its longest
+  ground-storey wall run of 3+ cells standing on level ground with open
+  ground, a path or a plaza at its foot and marble above; the run with a
+  path or plaza nearest in front of it (within 5) wins. Not: a wall one cell
+  thick, a run with steps cut into it, a wall against a bank or a block.
 
 ---
 
@@ -519,8 +549,9 @@ L41 river barge, L42 passing sails.
 
 ### Castle life (Derek's request, 2026-11-19)
 
-- **L36 · 2 · Garrison** — a castle (a keep, or a curtain wall of 8+ cells
-  with a gatehouse or turret) → a troop of 4–6 soldiers in matching tabards
+- **L36 · 2 · Garrison** — a castle (a keep with battlements, or a curtain
+  wall of 8+ cells with a gatehouse or turret; a podium or theatre is never
+  one, FX-11) → a troop of 4–6 soldiers in matching tabards
   and helmets, with pikes, who march in step in a column of twos on a patrol
   round the outside of the walls (or round the keep if there are no walls),
   following walkable ground. They halt and face front at the gate for a few

@@ -3,8 +3,9 @@
 // same answer from the same plan.
 //
 // A castle is a group of touching castle structures (a keep, curtain walls,
-// gatehouses, castle turrets) that holds a keep, or curtain walls of 8+ cells
-// with a gatehouse or a turret. Its gate is where the troop halts each lap
+// gatehouses, castle turrets) that holds a keep with battlements, or curtain
+// walls of 8+ cells with a gatehouse or a turret. (A podium or a theatre is
+// never a keep, R-M08 and R-M09; FX-11.) Its gate is where the troop halts each lap
 // and the rider sets out: a gatehouse's arch, else a gate in a curtain wall,
 // else the keep's door.
 
@@ -101,7 +102,8 @@ export function findCastles(plan: ShapePlan, nav: NavGraph | null): Castle[] {
   const out: Castle[] = [];
   for (const [id, ids] of [...groups].sort((a, b) => a[0] - b[0])) {
     const role = (s: StructureId): string => plan.roles.get(s)?.role ?? '';
-    const keep = ids.find((s) => role(s) === 'keep') ?? null;
+    // A real castle (FX-11): a keep that is embattled, or curtain walls of 8+ cells with a gatehouse or a turret.
+    const keep = ids.find((s) => role(s) === 'keep' && (plan.featuresByStructure.get(s) ?? []).some((f) => f.type === 'battlement')) ?? null;
     const wallCells = ids.filter((s) => role(s) === 'curtain-wall').reduce((n, s) => n + plan.structures.get(s)!.cells.length, 0);
     const guarded = ids.some((s) => role(s) === 'gatehouse' || role(s) === 'castle-turret');
     if (keep === null && !(wallCells >= 8 && guarded)) continue;

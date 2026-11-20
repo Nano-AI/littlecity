@@ -132,7 +132,8 @@ export default defineGenerator({
       const down = carved.get(c.cell);
       if (down !== undefined) {
         // Broad steps (R-M04): four to the cell, climbing away from `down`. Drawn facing downhill (+z).
-        const n = 4, rise = CELL_H / n, run = 1 / n;
+        // A theatre's (R-M09) are two deep stone benches to the cell: a seat and the next row's footway.
+        const n = role === 'theatre' ? 2 : 4, rise = CELL_H / n, run = 1 / n;
         const left = ((down + 3) & 3) as Dir4, right = ((down + 1) & 3) as Dir4;
         const sameFlight = (side: Dir4): boolean => {
           const o = neighbor(c.cell, side);
@@ -234,6 +235,28 @@ export default defineGenerator({
       b.with({ color: castle ? PALETTE.stoneShade : stone, pattern: PATTERN.none, ink: 'course' }, () =>
         band((c, d) => wallOn(c, d) && !c.against[d] && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
       );
+    }
+    if (role === 'podium') {
+      // R-M08: a podium's long walls are ordered by flat pilasters on every second cell line, from the base
+      // course to the cornice, so a big wall reads as a designed base and not as a blank slab.
+      const proud = 0.022, half = 0.065;
+      b.with({ color: stone, pattern: PATTERN.marble, ink: 'pilasters' }, () => {
+        for (const c of cells) {
+          for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+            if (!wallOn(c, d) || c.against[d] || c.bank[d] || besideSteps(c.cell, d)) continue;
+            // On the cell line at its left end (side d − 1, at +x in the side's frame), where the wall runs on.
+            const leftSide = ((d + 3) & 3) as Dir4;
+            const along = neighbor(c.cell, leftSide);
+            const a = along === NO_CELL ? undefined : byCell.get(along);
+            if (!a || !wallOn(a, d) || a.against[d] || a.bank[d] || besideSteps(a.cell, d)) continue;
+            const line = d === 0 || d === 2 ? keyX(c.cell) + (leftSide === 1 ? 1 : 0) : keyZ(c.cell) + (leftSide === 2 ? 1 : 0);
+            if (line % 2 !== 0) continue;
+            const y0 = c.grounded[d] ? baseH : 0;
+            const y1 = c.topOpen ? CELL_H - MONUMENTS.marbleCornice : CELL_H;
+            onSide(c, d, () => b.box([0.5 - half, y0, 0.5], [0.5 + half, y1, 0.5 + proud], { skip: ['n', 'top', 'bottom'] }));
+          }
+        }
+      });
     }
     if (castle) {
       // Quoins up every outer corner: long and short stones in turn, a hair proud (0.024: off the plane of an
@@ -345,7 +368,7 @@ export default defineGenerator({
         const at = faceFrame(f.cell!, f.dir as Dir4, 0.27);
         ownSockets(plan, anchors, f.id, at, slitWindow(mb, 'w', PALETTE.stoneShade, 1.3));
         b.add(mb, at);
-      } else if (f.type === 'door' && face && f.rule.startsWith('R-M')) {
+      } else if (f.type === 'door' && face && (f.rule.startsWith('R-M') || f.rule.startsWith('J29'))) {
         const mb = sub();
         const at = faceFrame(f.cell!, f.dir as Dir4);
         ownSockets(plan, anchors, f.id, at, towerDoor(mb, PALETTE.stoneShade, PALETTE.wood, 0, parts.has('actor', 'door-leaf')));
