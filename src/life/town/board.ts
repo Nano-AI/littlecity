@@ -22,6 +22,7 @@ import type { InstanceHandle, LifeStage, TimeSignal } from '@/life/api';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavGraph, ShapePlan, Socket, StructureId } from '@/resolve/plan';
 import { place } from '../motion/pose';
+import { fxOf } from '../fx/fx';
 import type { Crowd, Person } from '../people/crowd';
 import type { ErrandHost, ErrandStep, Load } from '../people/errand';
 import type { PoseName } from '@/parts/people/pose';
@@ -253,6 +254,11 @@ export function createBoard(opts: BoardOptions): Board {
       if (i < 0 || !s.live) return false;
       s.items[i] = kind;
       draw(s, i);
+      // A small puff where it lands: the eye goes to it.
+      if (opts.stage) {
+        const sp = s.spots[i]!;
+        fxOf(opts.stage).play({ actor: 'puff', variant: 'dust' }, 0.45, (t, m) => place(sp.x, sp.y + 0.04 + t * 0.12, sp.z, 0, 0.35 + t * 0.5, 0.35 + t * 0.5, 0.35 + t * 0.5, m));
+      }
       return true;
     },
     take(s, kind) {
@@ -357,6 +363,25 @@ export function wallSpots(cell: CellKey, dir: Dir4, n: number, y: number): Spot[
     const side = sides[i % 2]! + (i >= 2 ? Math.sign(sides[i % 2]!) * 0.1 : 0);
     const out_ = -0.36 + Math.floor(i / 4) * 0.13;
     out.push({ x: cx - dz * side + dx * out_, y, z: cz + dx * side + dz * out_, yaw: DIR_HEADING[dir] + (i % 3) * 0.4 });
+  }
+  return out;
+}
+
+/**
+ * A heap beside a door, against the wall, on one side of it: a bottom row of three, two on them, one on
+ * top (sacks lying on their sides). `dir` points out of the door; `side` is +1 or −1.
+ */
+export function heapSpots(cell: CellKey, dir: Dir4, y: number, side = 1, size = 0.2): Spot[] {
+  const [dx, dz] = DIR4[dir]!;
+  const cx = keyX(cell) + 0.5, cz = keyZ(cell) + 0.5;
+  const out: Spot[] = [];
+  const rows: [number, number][] = [[3, 0], [2, 1], [1, 2]];
+  for (const [n, row] of rows) {
+    for (let i = 0; i < n; i++) {
+      // Along the wall, from beside the doorway outward; the rows above sit in the hollows of the one below.
+      const along = side * (0.2 + (i + row * 0.5) * size * 0.95);
+      out.push({ x: cx - dz * along - dx * 0.36, y: y + row * size * 0.8, z: cz + dx * along - dz * 0.36, yaw: DIR_HEADING[dir] + Math.PI / 2 });
+    }
   }
   return out;
 }

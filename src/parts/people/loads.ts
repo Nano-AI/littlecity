@@ -40,31 +40,32 @@ function basket(b: MeshBuilder, r: number, h: number, colour = '#b07a3e'): void 
   b.lathe([[0, 0], [r * 0.8, 0], [r, h], [r * 0.88, h]], { segments: 9 });
 }
 
-/** How much bigger than life the loads are drawn, to read at playing zoom. */
-const BIG = 1.3;
+/** How much bigger than life the loads are drawn, to read at playing zoom: in the hands, and set down. */
+const BIG = 1.65;
+const BIG_REST = 1.45;
 
 /** One load, standing on its own bottom (y = 0) at the origin, front +Z. */
-function drawLoad(b: MeshBuilder, kind: Load): void {
-  b.at([BIG, 0, 0, 0, 0, BIG, 0, 0, 0, 0, BIG, 0, 0, 0, 0, 1], () => drawLoadAt(b, kind));
+function drawLoad(b: MeshBuilder, kind: Load, big = BIG): void {
+  b.at([big, 0, 0, 0, 0, big, 0, 0, 0, 0, big, 0, 0, 0, 0, 1], () => drawLoadAt(b, kind));
 }
 
 function drawLoadAt(b: MeshBuilder, kind: Load): void {
   b.setPattern(PATTERN.none);
   switch (kind) {
     case 'sack':
-      b.setInk('sack').setColor('#e6cc97').setPattern(PATTERN.cloth);
+      b.setInk('sack').setColor('#e3b866').setPattern(PATTERN.cloth);
       b.lathe([[0, 0], [0.06, 0.006], [0.068, 0.06], [0.055, 0.12], [0.022, 0.15], [0.03, 0.17], [0, 0.17]], { segments: 8 });
-      b.setInk('band').setColor('#3f67b0').setPattern(PATTERN.none);
+      b.setInk('band').setColor('#2f5fc0').setPattern(PATTERN.none);
       b.lathe([[0.069, 0.065], [0.066, 0.095]], { segments: 8 });
       break;
     case 'tray':
       b.setInk('tray').setColor(PALETTE.wood).setPattern(PATTERN.planks);
       b.box([-0.11, 0, -0.06], [0.11, 0.012, 0.06]);
-      b.setInk('loaves').setColor('#d98b3a').setPattern(PATTERN.none);
+      b.setInk('loaves').setColor('#e8892a').setPattern(PATTERN.none);
       for (const [x, z] of [[-0.06, -0.025], [0.0, -0.025], [0.06, -0.025], [-0.03, 0.028], [0.03, 0.028]] as const) b.at(translation(x, 0.012, z), () => ball(b, 0.03, 0.026));
       break;
     case 'loaf':
-      b.setInk('loaf').setColor('#d4883a');
+      b.setInk('loaf').setColor('#e8892a');
       b.at(translation(0, 0.03, 0), () => {
         tube(b, [[-0.09, 0, 0], [0.09, 0, 0]], 0.03, { seg: 6 });
         b.at(translation(-0.09, 0, 0), () => ball(b, 0.03, 0.03));
@@ -74,23 +75,23 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       for (const x of [-0.04, 0.0, 0.04]) b.box([x - 0.006, 0.055, -0.012], [x + 0.006, 0.062, 0.012]);
       break;
     case 'bucket':
-      b.setInk('bucket').setColor('#7f98a8').setPattern(PATTERN.metal);
+      b.setInk('bucket').setColor('#6f8fb0').setPattern(PATTERN.metal);
       b.lathe([[0, 0], [0.038, 0], [0.048, 0.075], [0.044, 0.075]], { segments: 9 });
-      b.setInk('water').setColor('#58a6d8').setPattern(PATTERN.none);
+      b.setInk('water').setColor('#3fa0ea').setPattern(PATTERN.none);
       b.lathe([[0, 0.068], [0.044, 0.068]], { segments: 9 });
       b.setInk('handle').setColor(PALETTE.metal);
       tube(b, [[-0.046, 0.075, 0], [-0.03, 0.12, 0], [0.03, 0.12, 0], [0.046, 0.075, 0]], 0.004, { seg: 3 });
       break;
     case 'fish':
       basket(b, 0.075, 0.07);
-      b.setInk('catch').setColor('#a8c6dc');
+      b.setInk('catch').setColor('#bfe0f5');
       for (const [x, z, yaw] of [[-0.03, 0, 0.3], [0.02, 0.02, -0.5], [0.0, -0.025, 1.2]] as const)
         b.at(translation(x, 0.07, z), () => b.at([Math.cos(yaw), 0, -Math.sin(yaw), 0, 0, 1, 0, 0, Math.sin(yaw), 0, Math.cos(yaw), 0, 0, 0, 0, 1], () => ball(b, 0.018, 0.016)));
       b.setInk('tails').setColor('#7fa3bd');
       b.box([0.035, 0.07, -0.01], [0.06, 0.09, 0.01]);
       break;
     case 'fishes':
-      b.setInk('fish').setColor('#a8c6dc');
+      b.setInk('fish').setColor('#bfe0f5');
       b.at(translation(0, 0.05, 0), () => ball(b, 0.018, 0.05));
       b.setInk('tail').setColor('#7fa3bd');
       b.box([-0.022, 0.0, -0.004], [0.022, 0.012, 0.004]);
@@ -116,7 +117,7 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       b.box([-0.03, 0.012, -0.06], [0.03, 0.05, 0.06]);
       break;
     case 'crate':
-      b.setInk('crate').setColor('#b9864c').setPattern(PATTERN.planks);
+      b.setInk('crate').setColor('#cf8a43').setPattern(PATTERN.planks);
       b.box([-0.06, 0, -0.05], [0.06, 0.09, 0.05]);
       b.setInk('slats').setColor('#8c5f31').setPattern(PATTERN.none);
       b.box([-0.062, 0.035, -0.052], [0.062, 0.05, 0.052]);
@@ -167,42 +168,90 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
 }
 
 /**
- * Where each load is held, in the figure's body frame (origin at the feet, +Z forward): against the chest
- * in both arms, on a shoulder, or hanging from the right hand at the side.
+ * How each load is carried, so it shows above or in front of the carrier from far off:
+ *   shoulder   on the right shoulder, steadied by the right hand (a sack, a crate, a sheaf, a ladder)
+ *   shoulderL  on the left shoulder (a hod of bricks)
+ *   head       on the head, steadied by the left hand (baskets: the catch, vegetables, washing, petals)
+ *   high       held up over the head on the right hand (the baker's tray)
+ *   yoke       a yoke across the shoulders with a pail at each end (water)
+ *   side       hanging from the right hand (a fish)
+ *   chest      held up in front (a loaf, flowers)
+ *   pole       up on a pole before them (the lantern)
  */
-const HOLD: Record<Load, Mat4Like> = {
-  sack: translation(0, 0.1, 0.13),
-  tray: translation(0, 0.2, 0.12),
-  loaf: translation(0.03, 0.18, 0.1),
-  bucket: translation(0.115, 0.02, 0.02),
-  fish: translation(0, 0.14, 0.13),
-  fishes: translation(0.115, 0.03, 0.03),
-  ladder: translation(0.1, 0.32, 0.02),
-  hod: translation(-0.09, 0.33, -0.01),
-  crate: translation(0, 0.12, 0.13),
-  lantern: translation(0.11, 0.34, 0.12),
-  basket: translation(0, 0.15, 0.12),
-  washing: translation(0, 0.14, 0.12),
-  sheaf: translation(0, 0.11, 0.11),
-  petals: translation(0.1, 0.1, 0.05),
-  bouquet: translation(0, 0.16, 0.12),
+export type Hold = 'shoulder' | 'shoulderL' | 'head' | 'high' | 'yoke' | 'side' | 'chest' | 'pole';
+export const HOLD_OF: Readonly<Record<Load, Hold>> = {
+  sack: 'shoulder',
+  crate: 'shoulder',
+  sheaf: 'shoulder',
+  ladder: 'shoulder',
+  hod: 'shoulderL',
+  fish: 'head',
+  basket: 'head',
+  washing: 'head',
+  petals: 'head',
+  tray: 'high',
+  bucket: 'yoke',
+  fishes: 'side',
+  loaf: 'chest',
+  bouquet: 'chest',
+  lantern: 'pole',
 };
+/** Loads heavy enough that their carrier leans into them and walks slower. */
+export const HEAVY: ReadonlySet<Load> = new Set<Load>(['sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder']);
 
-/** Loads held at the side in one hand (the arms hang; the rest are hugged to the chest or shouldered). */
-export const AT_SIDE: ReadonlySet<Load> = new Set<Load>(['bucket', 'fishes', 'petals']);
-/** Loads carried on a shoulder (one arm up to steady it). */
-export const ON_SHOULDER: ReadonlySet<Load> = new Set<Load>(['ladder', 'hod']);
+const rotX = (a: number): Mat4Like => rotationX(a);
+const rotZ = (a: number): Mat4Like => [Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
+/** Where each load sits, in the figure's body frame (origin at the feet, +Y up, +Z forward; the shoulders are at 0.25, the top of the head 0.42). */
+const HOLD: Record<Load, Mat4Like> = {
+  // Lying fore and aft along the shoulder.
+  sack: multiply(translation(0.075, 0.3, -0.14), rotX(Math.PI / 2)),
+  crate: translation(0.07, 0.26, 0),
+  sheaf: multiply(translation(0.07, 0.27, -0.12), rotX(Math.PI / 2 - 0.4)),
+  ladder: translation(0.1, 0.3, 0.02),
+  hod: translation(-0.085, 0.28, -0.01),
+  fish: translation(0, 0.41, 0),
+  basket: translation(0, 0.41, 0),
+  washing: translation(0, 0.41, 0),
+  petals: translation(0, 0.41, 0),
+  tray: translation(0.06, 0.49, 0.05),
+  bucket: translation(0, 0, 0),
+  fishes: translation(0.115, -0.03, 0.03),
+  // A long loaf held up across the chest, one end up past the shoulder.
+  loaf: multiply(translation(0.02, 0.2, 0.11), rotZ(0.9)),
+  bouquet: translation(0, 0.19, 0.12),
+  lantern: translation(0.11, 0.34, 0.12),
+};
 
 const cache = new Map<string, MeshData>();
 
-/** The load as carried: in the figure's body frame, at the hands (or shoulder). */
+/**
+ * The point of the body frame the load is held about (the carried mesh is built round it, so the people
+ * system can draw a load bigger when the camera is far off without moving it off the shoulder or head).
+ */
+export function holdAnchor(kind: Load): [number, number, number] {
+  if (kind === 'bucket') return [0, 0.26, 0];
+  const m = HOLD[kind];
+  return [m[12]!, m[13]!, m[14]!];
+}
+
+/** The load as carried: in the figure's body frame, about its hold anchor (holdAnchor). */
 export function carriedMesh(kind: Load): MeshData {
   const k = `carried:${kind}`;
   let m = cache.get(k);
   if (!m) {
     const b = new MeshBuilder({ ink: `load-${kind}` });
-    b.at(HOLD[kind], () => {
-      if (kind === 'lantern') {
+    const [ax, ay, az] = holdAnchor(kind);
+    b.at(multiply(translation(-ax, -ay, -az), HOLD[kind]), () => {
+      if (kind === 'bucket') {
+        // A yoke across the shoulders and a pail hanging from each end.
+        b.setInk('yoke').setColor(PALETTE.wood).setPattern(PATTERN.planks);
+        b.box([-0.2, 0.255, -0.015], [0.2, 0.275, 0.015]);
+        b.setInk('ropes').setColor(PALETTE.ink).setPattern(PATTERN.none);
+        for (const x of [-0.19, 0.19]) b.box([x - 0.003, 0.11, -0.003], [x + 0.003, 0.26, 0.003]);
+        for (const x of [-0.19, 0.19]) b.at(translation(x, 0.02, 0), () => drawLoad(b, kind, 1.3));
+      } else if (kind === 'ladder') drawLoad(b, kind, 1.25);
+      else if (kind === 'lantern') {
         // On a short pole held up before them.
         b.setInk('pole').setColor(PALETTE.trunk);
         tube(b, [[0, -0.2, 0], [0, 0.1, 0]], 0.005, { seg: 4 });
@@ -224,9 +273,12 @@ export function restingMesh(kind: Load): MeshData {
     b.at([1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1.1, 0, 0, 0, 0, 1], () => {
       if (kind === 'ladder') {
         // Set down, a ladder leans against the wall ahead (+Z), its foot at the origin.
-        const a = 1.2, h = 0.3 * BIG;
-        b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind));
-      } else drawLoad(b, kind);
+        const a = 1.2, h = 0.3 * 1.25;
+        b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind, 1.25));
+      } else if (kind === 'sack') {
+        // Set down, a sack lies on its side (they heap up by a door), its middle over the origin.
+        b.at(multiply(translation(0, 0.068 * BIG_REST, -0.085 * BIG_REST), rotationX(Math.PI / 2)), () => drawLoad(b, kind, BIG_REST));
+      } else drawLoad(b, kind, BIG_REST);
     });
     cache.set(k, (m = b.build()));
   }

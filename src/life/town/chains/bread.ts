@@ -17,7 +17,7 @@
 import { opposite } from '@/core/grid';
 import { CHAINS } from '@/style/town-life';
 import type { Person } from '../../people/crowd';
-import { wallSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Store } from '../board';
+import { heapSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Store } from '../board';
 import { canWork, keepHand, standAt } from '../hands';
 import { buyerPlan, deliverStep, morning, outletsOf, roomiest, type Outlet } from '../market';
 
@@ -37,8 +37,8 @@ export function breadChain(): Chain {
       mill = board.posts('bread').find((p) => p.role === 'mill');
       bakery = board.posts('bread').find((p) => p.role === 'bakery');
       // At the bakery's own door the loaves go on the far side from the sacks.
-      outlets = outletsOf(board, 'bread', outlets, (post) => (post.cell === bakery?.cell ? 3 : 0));
-      sacks = bakery && mill ? board.store(`bread:sacks:${bakery.structure}`, wallSpots(bakery.cell, opposite(bakery.dir ?? 0), CHAINS.sacks, board.centre(bakery.cell).y)) : null;
+      outlets = outletsOf(board, 'bread', outlets);
+      sacks = bakery && mill ? board.store(`bread:sacks:${bakery.structure}`, heapSpots(bakery.cell, opposite(bakery.dir ?? 0), board.centre(bakery.cell).y).slice(0, CHAINS.sacks)) : null;
       if (!bakery) {
         if (miller) board.unclaim(miller);
         if (baker) board.unclaim(baker);

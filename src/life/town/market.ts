@@ -7,7 +7,7 @@ import type { TimeSignal } from '@/life/api';
 import { STALL } from '@/style/props';
 import type { Person } from '../people/crowd';
 import type { Load } from '../people/errand';
-import { wallSpots, type Board, type Chain, type Plan, type Post, type Spot, type Store } from './board';
+import { heapSpots, type Board, type Chain, type Plan, type Post, type Spot, type Store } from './board';
 import { reaches, standAt } from './hands';
 
 export interface Outlet {
@@ -17,8 +17,8 @@ export interface Outlet {
   coming: number;
 }
 
-/** Where goods lie at a selling post: on a stall's counter (ref 'stall'), or against the wall by a door. `skip` wall spots first. */
-export function outletSpots(board: Board, post: Post, skip = 0): Spot[] {
+/** Where goods lie at a selling post: on a stall's counter (ref 'stall'), or against the wall by a door. */
+export function outletSpots(board: Board, post: Post): Spot[] {
   const out = opposite(post.dir ?? 0);
   const [fx, fz] = DIR4[out]!;
   if (post.ref === 'stall' && post.structure !== undefined) {
@@ -29,16 +29,17 @@ export function outletSpots(board: Board, post: Post, skip = 0): Spot[] {
       return [-0.24, 0, 0.24].map((side, i) => ({ x: c.x + fx * 0.3 - fz * side, y, z: c.z + fz * 0.3 + fx * side, yaw: Math.atan2(fx, fz) + Math.PI / 2 + i * 0.3 }));
     }
   }
-  return wallSpots(post.cell, out, 3 + skip, board.centre(post.cell).y).slice(skip, skip + 3);
+  // By a door: a row of three along the wall on the side away from where sacks heap (heapSpots' side).
+  return heapSpots(post.cell, out, board.centre(post.cell).y, -1, 0.17).slice(0, 3);
 }
 
 /** The outlets of a chain's `sell` posts, keeping who was on the way across a change of the town. */
-export function outletsOf(board: Board, chain: string, before: readonly Outlet[], skipAt?: (post: Post) => number): Outlet[] {
+export function outletsOf(board: Board, chain: string, before: readonly Outlet[]): Outlet[] {
   const was = new Map(before.map((o) => [o.post.id, o]));
   return board
     .posts(chain)
     .filter((p) => p.role === 'sell')
-    .map((post) => ({ post, store: board.store(`${chain}:sell:${post.structure ?? post.cell}:${post.ref}`, outletSpots(board, post, skipAt?.(post) ?? 0)), coming: was.get(post.id)?.coming ?? 0 }));
+    .map((post) => ({ post, store: board.store(`${chain}:sell:${post.structure ?? post.cell}:${post.ref}`, outletSpots(board, post)), coming: was.get(post.id)?.coming ?? 0 }));
 }
 
 /** Where a delivery goes: the outlet with the most room (at least `room` free spots), then the nearest to `from`. */

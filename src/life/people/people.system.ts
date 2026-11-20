@@ -27,12 +27,12 @@ import { type Crowd, type Person } from './crowd';
 import { createLivingTown, type LivingTown } from '../town';
 import { restingMesh } from '@/parts/people/loads';
 import { markCensusReady, recordHome } from './home';
-import { AT_SIDE, carriedMesh, ON_SHOULDER } from '@/parts/people/loads';
+import { carriedMesh, HEAVY, HOLD_OF, holdAnchor } from '@/parts/people/loads';
 import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
 import { cloudMesh, dazeStarMesh, popMesh, POPS, swearMesh, type PopKind } from '@/parts/people/scuffle-art';
 import { rand } from '@/core/rand';
-import { SCUFFLE } from '@/style/town-life';
+import { LOADS, SCUFFLE } from '@/style/town-life';
 import type { Scuffle } from './scuffle';
 
 declare module '@/life/api' {
@@ -173,6 +173,18 @@ interface Drawn {
   costume: Person['costume'];
 }
 
+const loadM = new Float32Array(16);
+/**
+ * How much bigger to draw what people carry, from how far off the camera is: 1 close in (zoom 6 and
+ * more), up to LOADS.far from the whole-island view. Read from the app's view (window.__lc), as the
+ * scuffle's bubble does; 1 where there is none (tests, shots without the app).
+ */
+function loadScale(): number {
+  const z = (globalThis as { __lc?: { view?: { getCamera?(): { zoom: number } } } }).__lc?.view?.getCamera?.().zoom;
+  if (z === undefined) return 1;
+  return 1 + (LOADS.far - 1) * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
+}
+
 /** L57: a bride in white with her hair up, a groom in a dark coat and top hat. */
 export function costumeLook(base: Look, costume: Person['costume']): Look {
   if (costume === 'bride') return { ...base, top: '#fbf8f2', bottom: '#fbf8f2', dress: true, hat: 'none', hairStyle: 'bun', girth: base.girth * 1.08 };
@@ -268,20 +280,39 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     pose.outR = -0.2;
   }
   const holding = p.load !== null && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave');
-  if (holding && AT_SIDE.has(p.load!)) {
-    // Hanging from the right hand at the side: that arm hangs still.
-    pose.armR = 0.05;
-    pose.outR = 0.12;
-  } else if (holding && ON_SHOULDER.has(p.load!)) {
-    // On a shoulder, steadied by a hand.
-    if (p.load === 'hod') {
-      pose.armL = 2.75;
-      pose.outL = -0.15;
-    } else {
-      pose.armR = 2.75;
-      pose.outR = -0.15;
+  if (holding) {
+    // How the load is carried decides the arms (loads.ts); a heavy one bends them forward under it.
+    switch (HOLD_OF[p.load!]) {
+      case 'side':
+        pose.armR = 0.05;
+        pose.outR = 0.12;
+        break;
+      case 'shoulder':
+        pose.armR = 2.75;
+        pose.outR = -0.15;
+        break;
+      case 'shoulderL':
+        pose.armL = 2.75;
+        pose.outL = -0.15;
+        break;
+      case 'head':
+        pose.armL = 2.95;
+        pose.outL = 0.25;
+        break;
+      case 'high':
+        pose.armR = 3.05;
+        pose.outR = 0.08;
+        break;
+      case 'yoke':
+        pose.armL = pose.armR = 2.3;
+        pose.outL = pose.outR = 0.55;
+        break;
+      default:
+        pose.armL = pose.armR = 1.25;
+        pose.outL = pose.outR = -0.2;
     }
-  } else if (holding || (walking && p.carrying)) {
+    if (walking && HEAVY.has(p.load!)) pose.lean += 0.14;
+  } else if (walking && p.carrying) {
     // Arms full: a sack, a tray.
     pose.armL = pose.armR = 1.25;
     pose.outL = pose.outR = -0.2;
@@ -343,7 +374,18 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
-  if (d.load) d.load.handle.setMatrix(world.subarray(0, 16));
+  if (d.load) {
+    // About its hold anchor, and bigger when the camera is far off (so a sack still reads on a shoulder
+    // from the whole-island view; close up it is its own size).
+    const [ax, ay, az] = holdAnchor(d.load.kind);
+    const k = loadScale();
+    for (let i = 0; i < 12; i++) loadM[i] = world[i]! * (i % 4 === 3 ? 1 : k);
+    loadM[12] = world[0]! * ax + world[4]! * ay + world[8]! * az + world[12]!;
+    loadM[13] = world[1]! * ax + world[5]! * ay + world[9]! * az + world[13]!;
+    loadM[14] = world[2]! * ax + world[6]! * ay + world[10]! * az + world[14]!;
+    loadM[15] = 1;
+    d.load.handle.setMatrix(loadM);
+  }
 }
 
 export default defineSystem<State>({

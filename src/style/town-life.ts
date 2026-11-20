@@ -66,7 +66,7 @@ export const CHAINS = defineStyle(
   {
     /** L51: seconds between the miller's trips; sacks that fit by the bakery door. */
     millGap: 18,
-    sacks: 4,
+    sacks: 6,
     /** L51: seconds the baker is in baking; seconds between batches; loaves a tray holds. */
     bake: 5,
     bakeGap: 10,
@@ -167,4 +167,14 @@ export const WEDDING = defineStyle(
     square: 14,
   },
   { chance: [0, 1, 0.01], latest: [0, 0.5, 0.01], first: [0, 300, 1], guests: [0, 16, 1], reach: [4, 48, 1], gather: [5, 120, 1], vows: [0, 30, 0.5], step: [0, 10, 0.5], square: [0, 60, 1] },
+);
+
+/** L51 and up: what people carry. */
+export const LOADS = defineStyle(
+  'loads',
+  {
+    /** How much bigger loads are drawn from the whole-island view than close in (they grow as the camera draws back). */
+    far: 1.9,
+  },
+  { far: [1, 3, 0.05] },
 );

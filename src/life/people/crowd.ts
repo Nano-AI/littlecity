@@ -38,6 +38,7 @@ const KEEP = BODY + 0.025;
 import { createRouter, type Router } from './route';
 import { createScuffles, type Scuffle, type Scuffles } from './scuffle';
 import type { ErrandHost, ErrandStep, Load } from './errand';
+import { HEAVY } from '@/parts/people/loads';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
@@ -1002,7 +1003,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       if (piece.kind === 'hide') rate = 1 / Math.max(0.05, piece.seconds);
       else {
-        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow) * (p.brisk ? PEOPLE.lampPace : 1);
+        const speed = p.speed * piece.pace * (piece.kind === 'door' ? 1 : p.slow) * (p.brisk ? PEOPLE.lampPace : 1) * (p.load !== null && HEAVY.has(p.load) ? PEOPLE.laden : 1);
         rate = speed / piece.length;
         if (piece.kind === 'move' && !mayEnter(p, piece)) {
           limit = WAIT_AT;
