@@ -548,3 +548,9 @@ big harbour shows 3–5 big ships in its first minutes; a ship whose quay is
 erased can hold ~40 s before leaving; dressing p95 39.7 ms (budget 30) when
 an edit changes the sea; rower and barge still appear in place.
 Running: seasons, disc1-structures, disc1-fill, living-town.
+
+**Mischief requested by Derek** (player-triggered destruction: fire, bomb,
+Viking raid): design section 13b written; new Opus agent on
+`swarm/mischief`. Touches saves (`Block.ruin`), the tray (a Mischief
+drawer), people (bucket chain, fleeing, rebuilding), ships (longship).
+Running: seasons, disc1-structures, disc1-fill, living-town, mischief.

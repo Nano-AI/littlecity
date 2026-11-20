@@ -902,6 +902,76 @@ and lighter on phones. The look stays ink and paper: snow is the paper
 showing through with a cool shadow tone and a soft inked edge, not a white
 3D layer.
 
+## 13b. Mischief: destruction the player sets off (Derek's request, 2026-11-19)
+
+Derek's words: "Setting fire to buildings, dropping a bomb, an explosion,
+raids from Vikings or barbarians. These destructive events would be fun to
+have the player influence." This is a toy: destruction is slapstick, never
+grim. Nobody dies or is hurt; people run, shout, fight in dust clouds and
+come back. Nothing destructive ever happens unless the player starts it.
+
+- **Where.** A fourth drawer in the tray, **Mischief**, holds the tools.
+  Each is used like any other tool: pick it, click the town.
+- **Fire (a torch).** Click a building to set it alight. Flames take hold
+  over a few seconds, climb storey by storey, and spread to what stands
+  close by: timber, thatch and trees catch easily, plaster houses more
+  slowly, stone, marble and docks over water hardly at all; wind carries
+  sparks downwind; a gap, a street, a wall or water stops it. Smoke rises
+  and leans with the wind. **The town fights back:** the bell rings,
+  residents form a bucket chain from the nearest well, fountain, river or
+  shore, the garrison helps if there is one, rain (when weather exists)
+  puts fires out. A fire they reach in time is saved, scorched; one they
+  cannot reach burns out and leaves a charred shell.
+- **Bomb (a round black bomb with a fuse).** Click a spot; it drops, the
+  fuse fizzes for a moment, people nearby scatter, and it goes off with a
+  drawn "BOOM", a dust cloud and flying debris. Whatever is in the blast
+  (a couple of cells across) is knocked into rubble, neighbours are
+  scorched and shaken, windows nearby lose their glass, birds take off
+  across the whole town. Dropped in water it throws up a spout and soaks
+  the quay.
+- **Raid (a horn).** Blow it and a longship or two with striped sails and
+  shields along the side comes in through the edge of the sea, beaches or
+  ties up at a dock, and raiders in horned helmets pour out. They chase
+  chickens and sheep, carry off barrels, crates and loaves over their
+  shoulders, knock over stalls, and set a torch to a building or two. The
+  town responds: the bell rings, residents run indoors and shutters close,
+  the garrison (if there is one) forms up and meets them, and the two sides
+  disappear into cartoon scuffle clouds. With a strong garrison the raiders
+  are chased back to their ship; with none they loot at leisure. Either way
+  they row off with what they took, cut off at the map edge like every
+  other ship. A castle's walls and a closed gate keep them out of what is
+  inside.
+- **More, if they come naturally** (builder's choice): a lightning bolt, a
+  sea monster that rises and smashes a pier, a giant's foot. Each must be
+  as readable and as funny as the first three.
+- **What is left.** A destroyed block becomes a **ruin**: a charred or
+  broken shell of what it was, saved with the town (`Block.ruin`), still
+  standing where it stood, no longer merged into a role or housing anyone.
+  Rubble and scorch marks around it are derived. People who lived there
+  stand outside looking glum, then lodge at the inn or with neighbours.
+- **The town rebuilds itself.** After things calm down, builders arrive
+  with ladders, barrows and scaffolding and repair ruins one at a time, a
+  storey at a time, over a few minutes, restoring exactly what was there
+  (kind, colour, style). This is the one place the town changes saved
+  blocks without a click, and only ever back to what the player built. A
+  switch in the menu (Rebuild: on by default) turns it off; then ruins
+  stay until the player repairs one with the Change tool or erases it.
+  Looted goods come back with the next ship or cart.
+- **Undo.** Each act of mischief and everything it caused is one undo step:
+  undo puts the town back exactly as it was, at once, and sends any raiders
+  home.
+- **Limits.** Mischief never touches terrain. It cannot be triggered by a
+  rule, a timer or a share link: opening someone's town never shows it
+  burning unless they shared it mid-fire, in which case it opens with the
+  ruins and no active fire. The welcome note and Grow a town never use it.
+- **Built as.** A fire, a blast or a raid is a seeded, fixed-step
+  simulation in the life layer that reads the town and emits ordinary
+  edits (`setRuin`, and `repair`) through the same path as the player's,
+  batched for undo. The rules treat a ruined block as occupying its cell
+  and solid, with no role. Everything is drawn in ink and paper: flames as
+  flat licking shapes on twos, smoke as soft puffs, the blast as a drawn
+  burst.
+
 ## 14. Performance budgets
 
 Measured on an M-series MacBook at default zoom with the reference town
