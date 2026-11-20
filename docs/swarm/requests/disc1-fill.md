@@ -19,20 +19,19 @@ prop's id; its frame comes from the prop part's anchor of the same name
 
 ## What I emit (`type` / `name`, the rule, what it is for)
 
-| Socket | Rule | Use |
+| Socket | Rule (prop) | Use |
 |---|---|---|
-| `seat` / `seat-0`…`seat-3` | U-green (ring bench round the green's tree) | sit under the tree, facing out |
-| `activity` / `dance` | U-green (maypole) | the maypole's foot; dancers circle at radius 0.9 |
-| `activity` / `fetch-water` | U-wall shops (wall fountain), D horse trough, U-bailey well | stand at the spout or trough, fill a pail, water a horse |
-| `activity` / `vend` | U-wall shops (arched booth), U market cross | a vendor stands behind the counter / sits on the steps |
-| `activity` / `browse` | U-wall shops (booth) | a customer stands in front of the booth |
-| `activity` / `hang-washing` | U17 drying green (each line), U14 burgage plot washing pole | peg out washing |
-| `activity` / `basket` | U17 drying green (washing basket), orchard (apple basket) | put washing or fruit in |
-| `activity` / `pick` | U-orchard (ladder foot) | a picker climbs or stands at the ladder |
-| `activity` / `basket` | U-orchard (basket) | drop fruit in the basket |
-| `activity` / `ford` | U-ford (each bank end) | the two ends of a stepping-stone crossing |
-
-The final list is below under "Shipped" once each item is committed.
+| `seat` / `seat-0`…`seat-3` | U15 village green (`ring-bench` round a tree) | sit under the tree, facing out |
+| `seat` / `seat-0`, `seat-1` | U14 burgage plots (`bench`), U16 shops in the wall (`niche-bench`), U23 belvedere (`pergola`, `bench`) | sit |
+| `seat` / `seat` | D38 rope swing (`swing/rope`) | a child swings out over the river |
+| `activity` / `dance` | U15 village green (`maypole`) | the maypole's foot; dancers circle at radius about 0.9 |
+| `activity` / `fetch-water` | U16 (`wall-fountain`), U21 castle bailey (`well`) | fill a pail at the spout or well |
+| `activity` / `vend` | U16 (`wall-booth`), D37 market cross (`market-cross`) | a vendor behind the counter / on the cross's step |
+| `activity` / `browse` | U16 (`wall-booth`) | a customer in front of the booth |
+| `activity` / `hang-washing` | U14 (`washing-pole`), U17 drying green (`drying-line`) | peg out washing |
+| `activity` / `basket` | U17 (`basket/washing`), U18 orchard (`basket/apples`) | put washing or fruit in |
+| `activity` / `pick` | U18 orchard (`ladder`) | a picker at the foot of the ladder into the tree |
+| `activity` / `ford`, `ford-far` | U22 ford (`stepping-stones`) | the two ends of a stepping-stone crossing |
 
 ## The ford and the walking graph
 
@@ -78,6 +77,42 @@ before its grove line in `treeSpecies`:
 apple baskets, beehives); with the line, the cypresses and bushes in a
 planted grid become apple and pear trees.
 
+## For the life builder: the walking graph (`src/resolve/nav.ts`)
+
+Props I added, and how the graph's `FOOTPRINTS` table should treat them (an
+unlisted type is a post: clutter in the middle of a cell). I could not edit
+the table, so:
+
+- Flat things underfoot are anchored at a **corner slot** (the graph
+  ignores corners) and re-centred by their part: `sward`, `paving`,
+  `bleaching-sheet`. Nothing needed.
+- Runs and ways through: `hedge/wild` is a hedge (already `RUN`); a
+  `field-gate` is a gate in a hedge or fence and should be `WAY` (now it
+  only steers).
+- Wide things that should be `BULK`: `wall-booth`, `store-door`,
+  `niche-bench`, `stable`, `hay`, `compost`, `drying-line` (it spans two
+  cells along +X), `pergola`, `market-cross` (on a plinth: no effect),
+  `stepping-stones` (in water: no effect until the ford link).
+- Small solid things (`POST`, the default, is right): `milestone`,
+  `wayside-shrine`, `maypole`, `fruit-tree`, `citrus-pot`, `guardian`,
+  `basket`, `practice-dummy`, `archery-butt`, `village-sign`, `ring-bench`
+  (round a tree, on the tree's cell).
+- Links I would like: across a ford (`ford` to `ford-far`, cost about 3,
+  hop animation), and up to a belvedere (U23) by a derived stair if you
+  want residents on top (the terrace is 2+ storeys up; a stair prop against
+  one side, walkable, would do).
+
+## For the structures builder: DC-07 trough and mounting block
+
+Not built. The trigger is a 1 × 1 or 2 × 1 marble block one storey tall by
+an inn, smithy or gatehouse door; a one-storey marble block is 0.8 tall,
+twice a person, so no prop can turn it into a trough (0.15 tall) or a
+three-step mounting block. It needs a marble role (e.g. `trough`,
+`mounting-block`) that the marble generator draws low (a trough is a stone
+basin 0.2 tall with water; a mounting block three steps 0.06 each). Once a
+role exists, a decoration rule can add the water and a 'fetch-water'
+socket.
+
 ## Dropped items
 
 LF-01 to LF-05 were dropped from my list before I started them; nothing of
@@ -85,4 +120,9 @@ them is on my branch.
 
 ## Shipped
 
-(filled in as items are committed)
+Branch `swarm/disc1-fill`: FX-03 (fingerposts), FX-04 + U13 country lanes,
+U14 burgage plots, U15 village green, U16 shops in the wall, U17 drying
+green, U18 orchard, D35 stair guardians, U19 stair forecourt, U20 quay
+apron, D36 wayside shrine, U21 castle bailey, D37 market cross, D38 rope
+swing, U22 ford, U23 belvedere garden. The sockets in the table above are
+all live; each fixture under `scenarios/rules/` checks its own.
