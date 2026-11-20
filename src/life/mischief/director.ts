@@ -288,6 +288,8 @@ export class Director {
 
   /** Structures with a crew at work on them now (set by the rebuild chain): they mend faster. */
   crewed: ReadonlySet<StructureId> = new Set();
+  /** Structures being mended that no crew can stand near (set by the rebuild chain): they mend at a crew's pace. */
+  remote: ReadonlySet<StructureId> = new Set();
   private mendClock = 0;
   /** Seconds of mending owed per structure. */
   private mendOwed = new Map<StructureId, number>();
@@ -328,7 +330,7 @@ export class Director {
         this.mendOwed.set(sid, rand(sid, 'mend-phase') * MEND.step);
         continue;
       }
-      let left = owed + dt * (this.crewed.has(sid) ? MEND.crew : 1);
+      let left = owed + dt * (this.crewed.has(sid) || this.remote.has(sid) ? MEND.crew : 1);
       while (left >= MEND.step) {
         left -= MEND.step;
         for (const c of cells) any = this.engine.repair(c, 1) || any;
