@@ -43,6 +43,28 @@ sockets' cells at cost about 3 (like grass), drawn as hopping. I do not edit
 nav. If you add the link, read the sockets of name `ford` in pairs: both
 carry the same `owner` prop id.
 
+## For the structures builder (marble, FX-01)
+
+U16 (shops in the wall) puts booths, storeroom doors and niche benches
+against blank marble walls as props that draw their own arch a few
+centimetres proud of the wall, because `src/gen/marble/marble.gen.ts` draws
+a wall flush with the cell line and cannot leave a recess. Two things on
+your side would make it better:
+
+1. **FX-01**: the owner's example (`disc1-marble-stair`, the platform beside
+   the great stair) is still role `keep`, with arrow slits on every other
+   ground-storey cell, so U16 leaves it alone (keeps stay castles). Once
+   the platform is a podium with a blank wall, U16 dresses it with no
+   change. U16 skips roles `keep`, `gatehouse`, `quay-wall`, `temple`,
+   `plinth`; any new role you add for a podium is dressed.
+2. **A real recess** (optional): a feature on the wall cell, e.g.
+   `'recess'` with `cell` + `dir` and `variant: 'arch'`, that the marble
+   generator draws as an arched opening 0.5 wide, 0.66 to the crown, 0.18
+   deep (the wall face set back inside the arch, a soffit and two reveals).
+   U16 would then emit the feature in the shape stage (it would become a
+   joinery rule) and its props would stand in the recess with `inset`
+   0.18. Until then, the props are the look.
+
 ## Dropped items
 
 LF-01 to LF-05 were dropped from my list before I started them; nothing of

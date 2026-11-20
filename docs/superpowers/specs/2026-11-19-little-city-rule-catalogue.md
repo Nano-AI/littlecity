@@ -631,6 +631,16 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   ('activity'/'dance'), a ring bench round each tree on or beside it (four
   seats), a village sign by the street. Not a single row's frontage, a gap
   between houses, a square's lawn, or any ground with another use.
+- **U16 · 2 · Shops in the wall** (UF-03) — a run of 3+ blank (no door,
+  window, arrow slit or other feature) ground-storey cells of one marble
+  wall, 2+ storeys tall there, with standable ground at its foot, looking
+  out on a street, plaza or ground within 2; not a keep, gatehouse, quay
+  wall, temple or plinth → every second cell (a map lattice): facing a
+  street or plaza within 2, an arched booth with goods and a lantern under
+  its canopy ('activity'/'vend', 'browse'), once in a run of 4+ a wall
+  fountain ('activity'/'fetch-water'), and the grass strip in front paved;
+  facing ground, a storeroom door, a niche bench or two-storey ivy. Props
+  against the wall (the generator cannot recess it).
 
 ---
 

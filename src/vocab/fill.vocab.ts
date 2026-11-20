@@ -47,5 +47,30 @@ declare module '@/core/vocab' {
     'ring-bench.look': number;
     'village-sign': true;
     'village-sign.look': number;
+
+    // U16 shops in the wall. At an edge slot of the ground cell outside a blank wall, +Z away from it;
+    // `inset` is how far the wall face stands behind the cell line (0 marble, 0.07 a house). The booth
+    // owns anchors 'vend' and 'browse'; the niche bench 'seat-0', 'seat-1'.
+    'wall-booth': true;
+    'wall-booth/wine': true;
+    'wall-booth/bread': true;
+    'wall-booth/pots': true;
+    'wall-booth/cobbler': true;
+    'wall-booth/fruit': true;
+    'wall-booth.inset': number;
+    'wall-booth.look': number;
+    'store-door': true;
+    'store-door.inset': number;
+    'store-door.look': number;
+    'niche-bench': true;
+    'niche-bench.inset': number;
+    'niche-bench.look': number;
+    'creeper.inset': number; //        how far the wall stands behind the cell line (default 0.07, a house)
+    // A derived apron, forecourt or quay (U16, U19, U20): one cell at its NORTH-WEST corner slot, facing
+    // south (the part re-centres); `mask` bit d where it runs on past side d.
+    'paving': true;
+    'paving/slabs': true;
+    'paving/cobbles': true;
+    'paving.mask': number;
   }
 }

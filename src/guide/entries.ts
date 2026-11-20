@@ -789,6 +789,20 @@ export const ENTRIES: readonly GuideEntry[] = [
     pad: -0.1,
   },
   {
+    id: 'wall-shops',
+    group: 'stone',
+    name: 'Shops in the wall',
+    how: 'Build a long marble wall two blocks tall beside a plaza or a path (not a castle): little arched shops and a fountain open in it.',
+    proof: { prop: { rule: 'U16.shops-in-the-wall', type: 'wall-booth' } },
+    seed: 7654,
+    build(b) {
+      b.fill('marble', 17, 18, 22, 19, { floors: 2, color: 2 });
+      b.plaza(16, 21, 23, 22);
+    },
+    view: { yaw: 20, pitch: 28 },
+    pad: -0.1,
+  },
+  {
     id: 'pocket-park',
     group: 'green',
     name: 'Pocket park',
