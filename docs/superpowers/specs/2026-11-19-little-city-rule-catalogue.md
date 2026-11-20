@@ -680,6 +680,19 @@ its carrier. Nothing is ever left floating or vanishes in view.
   *Not yet:* a horse-drawn cart on wide streets; the heaps in town are never
   taken in, so trade stops when every place is full.
 
+- **L59 · 2 · The harvest** — a wheat field (R-G01) → posts on up to 12 of
+  its walkable cells (`harvest|field`) and outside the nearest windmill it
+  can walk to (`harvest|mill`). In late summer (past a third of it) and
+  autumn, by day and not in rain, two farmhands (a gardener or anybody with
+  no job, living nearest) go out with scythes on their shoulders and mow a
+  cell at a time (4.5 s of wide swings); the cell is drawn as pale stubble
+  and a stook stands on it, so the cut part of the field grows through the
+  day. Between cuts they lay the scythe down by a stook, carry its sheaf on
+  the shoulder to the mill, heap it by the door (up to 6), and go back for
+  the scythe. The miller (L51) takes a sheaf in before each sack of flour
+  comes out. At dawn the field stands again. The gulls of a harbour (L11)
+  wheel over anybody carrying the catch (L53) within 10 cells.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

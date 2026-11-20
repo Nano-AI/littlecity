@@ -146,7 +146,7 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       b.at(translation(0.03, 0.062, 0.01), () => ball(b, 0.035, 0.022));
       break;
     case 'sheaf':
-      b.setInk('sheaf').setColor('#e3bf55').setPattern(PATTERN.thatch);
+      b.setInk('sheaf').setColor('#d69a32').setPattern(PATTERN.thatch);
       b.lathe([[0, 0], [0.035, 0], [0.022, 0.07], [0.045, 0.16], [0, 0.17]], { segments: 7 });
       b.setInk('tie').setColor('#9b6a2f').setPattern(PATTERN.none);
       b.lathe([[0.026, 0.06], [0.025, 0.075]], { segments: 7 });
@@ -322,11 +322,33 @@ export function restingMesh(kind: Load): MeshData {
         // Set down, a ladder leans against the wall ahead (+Z), its foot at the origin.
         const a = 1.2, h = 0.3 * 1.25;
         b.at(multiply(translation(0, h * Math.sin(a), h * Math.cos(a)), rotationX(-a)), () => drawLoad(b, kind, 1.25));
+      } else if (kind === 'sheaf') {
+        // A stook: three sheaves leaning together, darker than the standing wheat so it shows on it.
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * Math.PI * 2;
+          b.at(multiply(translation(Math.cos(a) * 0.035, 0, Math.sin(a) * 0.035), multiply(rotZ(Math.cos(a) * 0.25), rotX(-Math.sin(a) * 0.25))), () => drawLoad(b, kind, 1.7));
+        }
       } else if (kind === 'sack') {
         // Set down, a sack lies on its side (they heap up by a door), its middle over the origin.
         b.at(multiply(translation(0, 0.068 * BIG_REST, -0.085 * BIG_REST), rotationX(Math.PI / 2)), () => drawLoad(b, kind, BIG_REST));
       } else drawLoad(b, kind, BIG_REST);
     });
+    cache.set(k, (m = b.build()));
+  }
+  return m;
+}
+
+/**
+ * L59: a cut cell of a wheat field, laid over the standing wheat (whose top is about 0.25–0.32 over the
+ * ground): pale stubble in rows, a cell wide, origin at its middle on the ground.
+ */
+export function stubbleMesh(): MeshData {
+  const k = 'stubble';
+  let m = cache.get(k);
+  if (!m) {
+    const b = new MeshBuilder({ ink: 'stubble' });
+    b.setInk('stubble').setColor('#d8c38a').setPattern(PATTERN.crops);
+    b.box([-0.47, 0.32, -0.47], [0.47, 0.335, 0.47]);
     cache.set(k, (m = b.build()));
   }
   return m;

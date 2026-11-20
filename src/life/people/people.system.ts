@@ -25,6 +25,7 @@ import { easeIn } from '../motion/ease';
 import { setOccupied } from '../dusk/occupancy';
 import { type Crowd, type Person } from './crowd';
 import { createLivingTown, type LivingTown } from '../town';
+import { seasonOf, weatherOf } from '../season';
 import { restingMesh } from '@/parts/people/loads';
 import { place } from '../motion/pose';
 import { markCensusReady, recordHome } from './home';
@@ -208,6 +209,7 @@ export function costumeLook(base: Look, costume: Person['costume']): Look {
 /** The tool in a person's hands now, from their pose and their job, or null. */
 export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'hammer') return 'hammer';
+  if (pose === 'mow') return 'scythe';
   if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
   // An errand's load fills their hands (loads.ts draws it).
   if (p.load) return null;
@@ -374,8 +376,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.tool = { kind: tool, handle: stage.spawnMesh(mesh, world.subarray(TOOL_PIECE[tool] * 16, TOOL_PIECE[tool] * 16 + 16)) };
     d.shown = false; // place it now
   }
-  // An errand's load: in the hands, at the body's frame.
-  const load = p.load;
+  // An errand's load: in the hands, at the body's frame (a scythe off the shoulder and in the hands while mowing).
+  const load = name === 'mow' ? null : p.load;
   if (d.load && d.load.kind !== load) {
     d.load.handle.release();
     d.load = null;
@@ -543,6 +545,7 @@ export default defineSystem<State>({
   update(state, dt, signals, ctx) {
     // Whatever else touches the plan's instances (pop-in, a re-sync), the stand-ins stay hidden.
     for (const h of state.standIns) h.setVisible(false);
+    state.town.board.setSky(seasonOf(signals), weatherOf(signals));
     state.town.step(dt, signals.time);
     // L50: the scuffle's cloud, its pop-outs, its swearing and the dazed stars.
     const sc = state.crowd.scuffles.now;

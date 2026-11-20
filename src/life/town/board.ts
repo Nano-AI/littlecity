@@ -23,6 +23,7 @@ import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavGraph, ShapePlan, Socket, StructureId } from '@/resolve/plan';
 import { place } from '../motion/pose';
 import { fxOf } from '../fx/fx';
+import { CLEAR, SUMMER, type SeasonSignal, type WeatherSignal } from '../season';
 import type { Crowd, Person } from '../people/crowd';
 import type { ErrandHost, ErrandStep, Load } from '../people/errand';
 import type { PoseName } from '@/parts/people/pose';
@@ -100,6 +101,11 @@ export interface Board {
   readonly plans: ReadonlyMap<Person, Plan>;
   /** Life time, seconds. */
   readonly now: number;
+  /** The season and the weather now (summer and a clear sky where nobody says: tests). */
+  readonly season: SeasonSignal;
+  readonly weather: WeatherSignal;
+  /** The people system tells the board the season and weather each frame. */
+  setSky(season: SeasonSignal, weather: WeatherSignal): void;
   posts(chain: string): readonly Post[];
   /** A store at a place (made the first time, kept across changes of the town by its key). */
   store(key: string, spots: Spot[]): Store;
@@ -154,6 +160,8 @@ export function createBoard(opts: BoardOptions): Board {
   let dressing: DressingPlan | null = null;
   let now = 0;
   let time: TimeSignal | null = null;
+  let season: SeasonSignal = SUMMER;
+  let weather: WeatherSignal = CLEAR;
 
   const draw = (s: Store, i: number): void => {
     const kind = s.items[i];
@@ -181,8 +189,8 @@ export function createBoard(opts: BoardOptions): Board {
         plans.delete(p);
       }
       if (p.child || p.shutIn || p.leaving || p.scuffle) return null;
-      // Something still in the hands from an errand that ended: home with it first.
-      if (p.load) return null;
+      // Something still in the hands from an errand that ended: home with it first (a chain's own hands go on with it).
+      if (p.load && !claimed.has(p)) return null;
       for (const chain of opts.chains) {
         const c = claimed.get(p);
         if (c && c !== chain) continue;
@@ -230,6 +238,16 @@ export function createBoard(opts: BoardOptions): Board {
     plans,
     get now() {
       return now;
+    },
+    get season() {
+      return season;
+    },
+    get weather() {
+      return weather;
+    },
+    setSky(s, w) {
+      season = s;
+      weather = w;
     },
     posts: (chain) => posts.get(chain) ?? [],
     stores,

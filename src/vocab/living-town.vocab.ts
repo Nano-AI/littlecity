@@ -12,6 +12,7 @@ declare module '@/core/vocab' {
     'figure/shake': true;
     'figure/hammer': true;
     'figure/juggle': true;
+    'figure/mow': true;
   }
 
   interface SocketVocab {

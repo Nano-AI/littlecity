@@ -13,6 +13,7 @@ import watchTown from '../../../scenarios/life/L55.watchman.scenario';
 import marketTown from '../../../scenarios/life/L56.market-day.scenario';
 import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
 import tradeTown from '../../../scenarios/life/L58.trade.scenario';
+import harvestTown from '../../../scenarios/life/L59.harvest.scenario';
 import { tradeChain } from './chains/trade';
 import type { Pile } from '../ships/crew';
 import type { InstanceHandle } from '../api';
@@ -241,6 +242,20 @@ describe('L51 bread and L52 water', () => {
     const parked = [...t.board.stores.values()].filter((s) => s.key.startsWith('trade:cart:')).reduce((n, s) => n + t.board.count(s), 0);
     const out = t.crowd.people.filter((p) => (p.load ?? '').startsWith('cart')).length;
     expect(parked + out).toBe(2);
+  });
+
+  test('L59: in late summer the farmhands cut the wheat, stooks stand where they cut, sheaves go to the mill', () => {
+    let mowing = 0;
+    const { w, ledger, t } = run(200, 'day', town.dressing, (t) => {
+      mowing += t.crowd.people.filter((p) => p.mode === 'linger' && p.goal?.pose === 'mow').length;
+    }, scenarioTown(harvestTown));
+    expect(w.problems).toEqual([]);
+    expect(ledger.lost).toEqual([]);
+    expect(mowing).toBeGreaterThan(5);
+    const stooks = [...t.board.stores.values()].filter((s) => s.key.startsWith('stook:')).reduce((n, s) => n + t.board.count(s), 0);
+    const heap = [...t.board.stores.values()].filter((s) => s.key.startsWith('mill-heap:')).reduce((n, s) => n + t.board.count(s), 0);
+    expect(stooks + heap).toBeGreaterThanOrEqual(4);
+    expect(ledger.setDown.get('sheaf@harvest:mill') ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   test('the same town stepped the same way tells the same story', () => {

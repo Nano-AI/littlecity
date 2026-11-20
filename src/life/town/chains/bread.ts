@@ -84,10 +84,19 @@ export function breadChain(): Chain {
     if (!fill) return null;
     millAtOf.set(p, board.now + CHAINS.millGap);
     const at = standAt(board, b, 0.05);
+    // L59: sheaves the farmhands heaped by the mill door go in first (the grain the flour is ground from).
+    const heap = board.stores.get(`mill-heap:${m.structure}`);
+    const grain: PlanStep[] = [];
+    if (heap && board.count(heap, 'sheaf') > 0) {
+      fill.load = 'sheaf';
+      fill.done = (q) => void (q.load = null);
+      grain.push(board.stepAt(m.cell, { ...standAt(board, m, 0.05, 0.25), pose: 'tend', linger: 0.9, tag: 'bread:grain', done: (q) => (board.take(heap, 'sheaf') ? void (q.load = 'sheaf') : false) }));
+    }
     return {
       chain,
       at: 0,
       steps: [
+        ...grain,
         fill,
         board.stepAt(b.cell, {
           ...at,
