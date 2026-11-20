@@ -1195,3 +1195,34 @@ ink pass and a pixel ratio cap of 2 on purpose (`src/render/index.ts`),
 to be replaced by a quality governor that starts sharp and steps down
 only when frames are slow.
 Running: pavilion, fly (judder, phone sharpness).
+
+**Fly judder and phone sharpness merged** (`ca55228`, `8dcfda3`, Opus).
+Judder: frame rate was fine and the renderer costs the same in both
+modes (the earlier "18 vs 12 ms" was a bad measurement); the motion was
+uneven: flight advanced in fixed 1/120 s steps with the remainder
+carried and no blending, so the eye moved 0.5× to 1.5× its speed from
+frame to frame (worse on a 120 Hz screen). Now each frame moves exactly
+speed × that frame's time (evenness 0.98–1.00); the fly shaders are
+warmed while idle (`view.prepareEye()`, the first take-off froze 65 ms);
+mouse movement is summed and applied once a frame, unsmoothed
+(`src/fly/look.ts`). Tools: `src/fly/testing/judder.mjs`. NOT verified
+on a real 120 Hz screen or with real pointer lock. Phones: were at pixel
+ratio 2 with half-resolution ink; now a quality governor
+(`src/render/quality.ts`): levels from super-sampling, pixel ratio
+3 → 2.5 → 2, then half ink, then 1.5; steps down after two slow 2 s
+windows, up after five fast ones, with growing waits so it does not
+flicker; `?quality=<level>` holds one; under automation the sharpest is
+held unless `?quality=auto` (affects the capture session too). A
+mid-range phone is expected to settle at pixel ratio 2; unmeasured.
+**Pavilion merged** (`12dc81e`, Opus). R-M11 is an octagonal pavilion:
+eight slender columns (each pillar draws the columns in its own cell
+from a shared layout, `src/gen/marble/pavilion.ts`), rail with one open
+bay, light ring, faceted tented roof with a lit lantern; 1×4, L, T and S
+become one-cell-wide hipped shelters. Not met: the band still plays
+outside. Round 2 sent: band inside (pillar cells walkable through the
+open bay), and the trigger widened to any four-cell marble on pillars on
+the ground (orchestrator's call from Derek's wording; marble-city
+shrines to stay temples).
+Also: `crowd.test.ts` mean-step-time budget moved to the full tier.
+Gate: 2,185 passed, 10 skipped, clean.
+Running: pavilion round 2.
