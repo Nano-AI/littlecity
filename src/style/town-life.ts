@@ -79,6 +79,11 @@ export const CHAINS = defineStyle(
     /** L52: chance a resident choosing what to do goes for water; seconds at the well filling the bucket. */
     water: 0.1,
     fill: 2.6,
+    /** L53: seconds the fisher fishes before carrying the catch up; seconds between catches at least; chance a resident goes for fish. */
+    fishing: 16,
+    fishGap: 30,
+    fishBuyMorning: 0.16,
+    fishBuy: 0.08,
   },
   {
     millGap: [0, 120, 1],
@@ -91,6 +96,10 @@ export const CHAINS = defineStyle(
     buyReach: [4, 40, 1],
     water: [0, 1, 0.01],
     fill: [0.5, 8, 0.1],
+    fishing: [1, 120, 1],
+    fishGap: [0, 300, 1],
+    fishBuyMorning: [0, 1, 0.01],
+    fishBuy: [0, 1, 0.01],
   },
 );
 

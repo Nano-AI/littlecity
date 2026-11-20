@@ -10,11 +10,12 @@ import type { Load } from '../people/errand';
 import { createBoard, type Board, type Chain, type GoodsStage } from './board';
 import { breadChain } from './chains/bread';
 import { buildChain, type BuildChain } from './chains/build';
+import { fishChain } from './chains/fish';
 import { waterChain } from './chains/water';
 
 /** Every chain, in the order they are offered a person (the first that wants them has them). */
 export function allChains(): Chain[] {
-  return [buildChain(), breadChain(), waterChain()];
+  return [buildChain(), breadChain(), fishChain(), waterChain()];
 }
 
 export interface LivingTown {

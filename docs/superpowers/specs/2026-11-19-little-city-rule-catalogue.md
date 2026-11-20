@@ -595,6 +595,15 @@ its carrier. Nothing is ever left floating or vanishes in view.
   and then (p=0.1) walks there, bends to fill a bucket (2.6 s; it appears in
   the hand) and carries it home at their side. **Must not:** send two to one
   post at once.
+- **L53 · 2 · The catch comes in** (with LF-07) — a fisher's spot on a
+  dock (L23) with a fish stall or fish shop within 20 steps that can be
+  walked to → posts `fish|catch` at the spot and `fish|sell` at the nearest
+  one or two. The fisher fishes 16 s, lifts a basket of the catch and
+  carries it up the pier to the one with the most room, where three fish
+  are laid on the counter (or by the shop door); at most every 30 s.
+  Residents go for fish now and then (p=0.16 mornings, 0.08 after) and walk
+  home with one dangling from a hand. By day and dawn. **Must not:** give a
+  catch post to a fisher with nowhere to sell.
 - **L54 · 2 · Builders and onlookers** (run time, `chains/build.ts`) — a
   piece of a house, tower, marble, lighthouse or windmill lands → the two
   nearest free grown-ups within 12 steps hurry over, one with a ladder on

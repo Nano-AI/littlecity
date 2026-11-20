@@ -8,9 +8,10 @@ import { describe, expect, test } from 'vitest';
 import { keyX, keyZ } from '@/core/grid';
 import type { DressingPlan } from '@/resolve/plan';
 import breadTown from '../../../scenarios/life/L51.bread.scenario';
+import fishTown from '../../../scenarios/life/L53.fish.scenario';
 import type { Person } from '../people/crowd';
 import type { Load } from '../people/errand';
-import { clock, scenarioTown, watch } from '../people/testing';
+import { clock, scenarioTown, watch, type TestTown } from '../people/testing';
 import { createLivingTown, type LivingTown } from './index';
 
 const town = scenarioTown(breadTown);
@@ -23,11 +24,11 @@ interface Ledger {
   lost: string[];
 }
 
-function run(seconds: number, part: 'day' | 'dawn' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void) {
+function run(seconds: number, part: 'day' | 'dawn' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void, where: TestTown = town) {
   // (`then` is called once a second, before that second's steps' checks.)
-  const c = clock(town.world.seed, part);
-  const t = createLivingTown({ seed: town.world.seed });
-  t.sync(town.shape, dressing, c.time);
+  const c = clock(where.world.seed, part);
+  const t = createLivingTown({ seed: where.world.seed });
+  t.sync(where.shape, where === town ? dressing : where.dressing, c.time);
   const w = watch(t.crowd, { maxStuck: 12 });
   const was = new Map<Person, Load | null>();
   const ledger: Ledger = { setDown: new Map(), pickedUp: new Map(), home: 0, lost: [] };
@@ -116,6 +117,15 @@ describe('L51 bread and L52 water', () => {
     expect(ledger.setDown.get('hod@build:set-down') ?? 0).toBeGreaterThanOrEqual(1);
     expect(ledger.pickedUp.get('ladder@build:pick-up') ?? 0).toBeGreaterThanOrEqual(1);
     expect(seen.look.size).toBeGreaterThanOrEqual(1);
+  });
+
+  test('L53: the fisher carries the catch up the pier to the fish stall; residents take fish home', () => {
+    const { w, ledger } = run(240, 'day', town.dressing, undefined, scenarioTown(fishTown));
+    expect(w.problems).toEqual([]);
+    expect(ledger.lost).toEqual([]);
+    expect(ledger.pickedUp.get('fish@fish:fishing') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(ledger.setDown.get('fish@fish:deliver') ?? 0).toBeGreaterThanOrEqual(2);
+    expect(ledger.pickedUp.get('fishes@fish:buy') ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   test('the same town stepped the same way tells the same story', () => {

@@ -14,20 +14,12 @@
 // Degrades as the rule does: no mill, the baker bakes without fetching a
 // sack; a place erased mid-walk, the carrier takes what they hold home.
 
-import { DIR4, keyY, opposite, CELL_H } from '@/core/grid';
-import { rand } from '@/core/rand';
-import { STALL } from '@/style/props';
+import { opposite } from '@/core/grid';
 import { CHAINS } from '@/style/town-life';
 import type { Person } from '../../people/crowd';
-import { wallSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Spot, type Store } from '../board';
-import { canWork, keepHand, reaches, standAt } from '../hands';
-
-interface Outlet {
-  post: Post;
-  store: Store;
-  /** Buyers on their way to it now. */
-  coming: number;
-}
+import { wallSpots, type Board, type Chain, type Plan, type PlanStep, type Post, type Store } from '../board';
+import { canWork, keepHand, standAt } from '../hands';
+import { buyerPlan, deliverStep, morning, outletsOf, roomiest, type Outlet } from '../market';
 
 export function breadChain(): Chain {
   let mill: Post | undefined;
@@ -39,31 +31,13 @@ export function breadChain(): Chain {
   let millAt = 0;
   let bakeAt = 0;
 
-  /** Where the loaves lie at a selling place: on a stall's counter, or by a door. */
-  const outletSpots = (board: Board, post: Post): Spot[] => {
-    const out = opposite(post.dir ?? 0);
-    const [fx, fz] = DIR4[out]!;
-    if (post.ref === 'stall' && post.structure !== undefined) {
-      const s = board.shape?.structures.get(post.structure);
-      const cell = s?.cells[0];
-      if (cell !== undefined) {
-        const c = board.centre(cell);
-        const y = keyY(cell) * CELL_H + STALL.counter;
-        return [-0.24, 0, 0.24].map((side, i) => ({ x: c.x + fx * 0.3 - fz * side, y, z: c.z + fz * 0.3 + fx * side, yaw: Math.atan2(fx, fz) + Math.PI / 2 + i * 0.3 }));
-      }
-    }
-    // By a door: the side away from where the sacks go.
-    return wallSpots(post.cell, out, 6, board.centre(post.cell).y).slice(post.cell === bakery?.cell ? 3 : 0).slice(0, 3);
-  };
-
   const chain: Chain = {
     id: 'bread',
     sync(board) {
       mill = board.posts('bread').find((p) => p.role === 'mill');
       bakery = board.posts('bread').find((p) => p.role === 'bakery');
-      const sells = board.posts('bread').filter((p) => p.role === 'sell');
-      const before = new Map(outlets.map((o) => [o.post.id, o]));
-      outlets = sells.map((post) => ({ post, store: board.store(`bread:sell:${post.structure ?? post.cell}:${post.ref}`, outletSpots(board, post)), coming: before.get(post.id)?.coming ?? 0 }));
+      // At the bakery's own door the loaves go on the far side from the sacks.
+      outlets = outletsOf(board, 'bread', outlets, (post) => (post.cell === bakery?.cell ? 3 : 0));
       sacks = bakery && mill ? board.store(`bread:sacks:${bakery.structure}`, wallSpots(bakery.cell, opposite(bakery.dir ?? 0), CHAINS.sacks, board.centre(bakery.cell).y)) : null;
       if (!bakery) {
         if (miller) board.unclaim(miller);
@@ -94,7 +68,7 @@ export function breadChain(): Chain {
       if (p === miller && mill && sacks) return millerPlan(board, p, mill, b, sacks);
       if (p === baker) return bakerPlan(board, p, b);
       if (board.claimedBy(p) || !canWork(p)) return null;
-      return buyerPlan(board, p, time);
+      return buyerPlan(board, chain, p, outlets, 'loaf', morning(time) ? CHAINS.buyMorning : CHAINS.buy, CHAINS.buyReach, 'bread:buy');
     },
   };
 
@@ -127,9 +101,7 @@ export function breadChain(): Chain {
   const bakerPlan = (board: Board, p: Person, b: Post): Plan | null => {
     if (board.now < bakeAt) return null;
     // Where the tray goes: the place with the most room, then the nearest.
-    const to = outlets
-      .filter((o) => o.store.items.filter((x) => x === null).length >= Math.min(2, o.store.spots.length) && reaches(board, p, o.post.cell))
-      .sort((x, y) => board.count(x.store) - board.count(y.store) || board.dist(x.post.cell, b.cell) - board.dist(y.post.cell, b.cell))[0];
+    const to = roomiest(board, p, outlets, b.cell);
     if (!to) return null;
     const steps: PlanStep[] = [];
     if (sacks) {
@@ -152,63 +124,8 @@ export function breadChain(): Chain {
     const back = board.stepIn(b.structure!, { cell: b.cell, linger: 3, tag: 'bread:back' });
     if (!bake || !back) return null;
     bakeAt = board.now + CHAINS.bakeGap;
-    const at = standAt(board, to.post, to.post.ref === 'stall' ? 0.18 : 0.05);
-    steps.push(
-      bake,
-      board.stepAt(to.post.cell, {
-        ...at,
-        pose: 'tend',
-        linger: 1.4,
-        load: 'tray',
-        tag: 'bread:deliver',
-        done: (q) => {
-          let n = 0;
-          for (let i = 0; i < CHAINS.tray; i++) if (board.put(to.store, 'loaf')) n++;
-          if (n === 0) return false;
-          q.load = null;
-        },
-      }),
-      back,
-    );
+    steps.push(bake, deliverStep(board, to, 'tray', 'loaf', CHAINS.tray, 'bread:deliver'), back);
     return { chain, at: 0, steps };
-  };
-
-  const buyerPlan = (board: Board, p: Person, time: { phase: number; isDawn: boolean }): Plan | null => {
-    const morning = time.isDawn || time.phase < 0.2;
-    if (rand(p.seed, 'bread', p.trips) >= (morning ? CHAINS.buyMorning : CHAINS.buy)) return null;
-    const here = p.cell;
-    const to = outlets
-      .filter((o) => board.count(o.store, 'loaf') > o.coming && board.dist(o.post.cell, here) <= CHAINS.buyReach && reaches(board, p, o.post.cell))
-      .sort((x, y) => board.dist(x.post.cell, here) - board.dist(y.post.cell, here) || x.post.cell - y.post.cell)[0];
-    if (!to) return null;
-    const home = board.homeStep(p, { tag: 'bread:home', load: 'loaf' });
-    if (!home) return null;
-    to.coming++;
-    let counted = true;
-    const arrived = (): void => {
-      if (counted) to.coming = Math.max(0, to.coming - 1);
-      counted = false;
-    };
-    const side = (rand(p.seed, 'bread-side', p.trips) - 0.5) * 0.4;
-    return {
-      chain,
-      at: 0,
-      steps: [
-        board.stepAt(to.post.cell, {
-          ...standAt(board, to.post, to.post.ref === 'stall' ? 0.18 : 0.05, side),
-          pose: 'chat',
-          linger: 2.2,
-          tag: 'bread:buy',
-          done: (q) => {
-            arrived();
-            if (!board.take(to.store, 'loaf')) return false;
-            q.load = 'loaf';
-          },
-        }),
-        home,
-      ],
-      fail: arrived,
-    };
   };
 
   return chain;
