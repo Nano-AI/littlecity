@@ -697,6 +697,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     for (const id in next) anchorFrames.set(id, next[id]!);
   };
 
+  /** Slots crossing the edge of the map with a cut face to fill (params.d < −1.5): the cap pass runs only while there are any. */
+  const capSlots = new Set<number>();
   const makeHandle = (slot: () => number, base: () => Mat4Like, release: () => void): InstanceHandle => ({
     get base() {
       return base();
@@ -712,8 +714,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     setParams(a, b, c, d) {
       const s = slot();
       if (s > 0) slots.setParams(s, a, b, c, d);
+      if (s > 0 && d !== undefined && d < -1.5) capSlots.add(s);
+      else capSlots.delete(s);
     },
-    release,
+    release() {
+      capSlots.delete(slot());
+      release();
+    },
   });
 
   const syncDressing = (next: DressingPlan): void => {
@@ -1150,7 +1157,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         renderer.setRenderTarget(shadeRT);
         renderer.render(shadeScene, postCamera);
       }
-      moverCaps.visible = movers.mesh.visible;
+      moverCaps.visible = movers.mesh.visible && capSlots.size > 0;
       surfaceUniforms.uSlab.value = TERRAIN.slabRadius;
       renderer.setRenderTarget(sceneRT);
       renderer.clear(true, true, false);
