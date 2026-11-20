@@ -85,10 +85,10 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer'];
 /** Which piece of the figure (PIECES order) a tool is held by. */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 0, rod: 0, can: 0, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4 };
 
 export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
   const b = new MeshBuilder({ ink: `tool-${tool}` });
@@ -150,6 +150,13 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       b.setInk('pennant').setColor(colour).setPattern(PATTERN.cloth).setSway(0.6);
       b.quad([0.09, 0.78, 0.072], [0.09, 0.7, 0.072], [0.09, 0.73, -0.12], [0.09, 0.76, -0.12]);
       b.quad([0.09, 0.7, 0.068], [0.09, 0.78, 0.068], [0.09, 0.76, -0.12], [0.09, 0.73, -0.12]);
+      break;
+    case 'hammer':
+      // L54: a builder's hammer in the right fist (arm frame: the hand is at the end of the arm, down −Y).
+      b.setColor(PALETTE.trunk);
+      tube(b, [[0, -0.11, 0.0], [0, -0.11, 0.09]], 0.007, { seg: 4 });
+      b.setInk('head').setColor('#8d8e99').setPattern(PATTERN.metal);
+      b.box([-0.012, -0.135, 0.08], [0.012, -0.085, 0.105]);
       break;
     case 'reach':
       b.setColor(PALETTE.trunk);

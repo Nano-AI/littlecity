@@ -23,8 +23,12 @@ import { obstaclesOf, setCrowd, setDoorTable } from '../doors/table';
 import { deferLamp, lightLamp } from '../dusk/lamps.system';
 import { easeIn } from '../motion/ease';
 import { setOccupied } from '../dusk/occupancy';
-import { createCrowd, type Crowd, type Person } from './crowd';
+import { type Crowd, type Person } from './crowd';
+import { createLivingTown, type LivingTown } from '../town';
+import { restingMesh } from '@/parts/people/loads';
 import { markCensusReady, recordHome } from './home';
+import { AT_SIDE, carriedMesh, ON_SHOULDER } from '@/parts/people/loads';
+import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
 import { cloudMesh, dazeStarMesh, popMesh, POPS, swearMesh, type PopKind } from '@/parts/people/scuffle-art';
 import { rand } from '@/core/rand';
@@ -162,10 +166,15 @@ interface Drawn {
   kite: { kite: InstanceHandle; line: InstanceHandle } | null;
   /** What they hold for their work: a broom, a rod, a sack… */
   tool: { kind: Tool; handle: InstanceHandle } | null;
+  /** What they carry on an errand (L51 and up). */
+  load: { kind: Load; handle: InstanceHandle } | null;
 }
 
 /** The tool in a person's hands now, from their pose and their job, or null. */
 export function toolOf(p: Person, pose: string): Tool | null {
+  if (pose === 'hammer') return 'hammer';
+  // An errand's load fills their hands (loads.ts draws it).
+  if (p.load) return null;
   const job = p.work?.job;
   const atWork = p.mode === 'linger' && p.goal?.haunt?.type === 'workplace';
   if (pose === 'sweep') return 'broom';
@@ -181,6 +190,8 @@ const toolMeshes = new Map<Tool, MeshData>();
 
 interface State {
   crowd: Crowd;
+  /** The crowd with the town's chains on it (L51 and up). */
+  town: LivingTown;
   drawn: Map<Person, Drawn>;
   bubbleMesh: MeshData | null;
   lineMesh: MeshData | null;
@@ -219,6 +230,8 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.shown = false;
     d.tool?.handle.release();
     d.tool = null;
+    d.load?.handle.release();
+    d.load = null;
     return;
   }
   if (!d.handles) {
@@ -235,7 +248,21 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     pose.armR = 2.95;
     pose.outR = -0.2;
   }
-  if (walking && p.carrying) {
+  const holding = p.load !== null && (walking || name === 'stand' || name === 'carry' || name === 'chat' || name === 'look' || name === 'wave');
+  if (holding && AT_SIDE.has(p.load!)) {
+    // Hanging from the right hand at the side: that arm hangs still.
+    pose.armR = 0.05;
+    pose.outR = 0.12;
+  } else if (holding && ON_SHOULDER.has(p.load!)) {
+    // On a shoulder, steadied by a hand.
+    if (p.load === 'hod') {
+      pose.armL = 2.75;
+      pose.outL = -0.15;
+    } else {
+      pose.armR = 2.75;
+      pose.outR = -0.15;
+    }
+  } else if (holding || (walking && p.carrying)) {
     // Arms full: a sack, a tray.
     pose.armL = pose.armR = 1.25;
     pose.outL = pose.outR = -0.2;
@@ -276,6 +303,16 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.tool = { kind: tool, handle: stage.spawnMesh(mesh, world.subarray(TOOL_PIECE[tool] * 16, TOOL_PIECE[tool] * 16 + 16)) };
     d.shown = false; // place it now
   }
+  // An errand's load: in the hands, at the body's frame.
+  const load = p.load;
+  if (d.load && d.load.kind !== load) {
+    d.load.handle.release();
+    d.load = null;
+  }
+  if (load && !d.load) {
+    d.load = { kind: load, handle: stage.spawnMesh(carriedMesh(load), world.subarray(0, 16)) };
+    d.shown = false;
+  }
   // A still figure is left alone: nothing moved, so the page need not redraw its shade.
   let same = d.shown;
   for (let i = 0; same && i < 80; i++) same = d.last[i] === world[i];
@@ -287,6 +324,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
+  if (d.load) d.load.handle.setMatrix(world.subarray(0, 16));
 }
 
 export default defineSystem<State>({
@@ -304,7 +342,10 @@ export default defineSystem<State>({
       const x = m[12]!, z = m[14]!;
       return Math.abs(x - fx) < 0.8 && Math.abs(z - fz) < 0.8 ? { x, z } : null;
     };
-    const crowd = createCrowd({
+    const town = createLivingTown({
+      seed: ctx.seed,
+      stage: ctx.stage,
+      restingMesh,
       cap: residentCap(),
       doorAt,
       wind: (x, z) => ctx.signals.wind(x, z),
@@ -340,7 +381,7 @@ export default defineSystem<State>({
         },
         added(p) {
           const look = lookOf(p.look, p.child);
-          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null });
+          drawn.set(p, { look, rig: rigOf(look), handles: null, shown: false, last: new Float32Array(80), bubble: null, kite: null, tool: null, load: null });
         },
         removed(p) {
           const d = drawn.get(p);
@@ -349,17 +390,20 @@ export default defineSystem<State>({
           d?.kite?.kite.release();
           d?.kite?.line.release();
           d?.tool?.handle.release();
+          d?.load?.handle.release();
           drawn.delete(p);
         },
       },
     });
+    const crowd = town.crowd;
     const unsubscribe = ctx.signals.on('blockLanded', (cell) => crowd.blockLanded(cell));
     // L29: the door leaves swing as the crowd's door table says.
     setDoorTable(ctx.stage, crowd.doors);
     setCrowd(ctx.stage, crowd);
     // The debug handle for browser tests and for watching (like the app's window.__lc): the newest crowd.
     (globalThis as { __lcPeople?: Crowd }).__lcPeople = crowd;
-    return { crowd, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe, art: null };
+    (globalThis as { __lcTown?: LivingTown }).__lcTown = town;
+    return { crowd, town, drawn, bubbleMesh: null, lineMesh: null, standIns: [], tick: -1, fresh: true, unsubscribe, art: null };
   },
   sync(state, next, _prev, ctx) {
     if (!next.dressing) return;
@@ -370,7 +414,7 @@ export default defineSystem<State>({
       if (h) state.standIns.push(h);
     }
     for (const h of state.standIns) h.setVisible(false);
-    state.crowd.sync(next.shape, next.dressing, ctx.signals.time);
+    state.town.sync(next.shape, next.dressing, ctx.signals.time);
     state.fresh = true;
     // The lamps on the lamplighter's round wait for them: each a little longer than the walk to it
     // should take, so a lamp they never reach still lights, in round order.
@@ -381,7 +425,7 @@ export default defineSystem<State>({
   update(state, dt, signals, ctx) {
     // Whatever else touches the plan's instances (pop-in, a re-sync), the stand-ins stay hidden.
     for (const h of state.standIns) h.setVisible(false);
-    state.crowd.step(dt, signals.time);
+    state.town.step(dt, signals.time);
     // L50: the scuffle's cloud, its pop-outs, its swearing and the dazed stars.
     const sc = state.crowd.scuffles.now;
     if (state.art && (!sc || sc.n !== state.art.n)) {
@@ -451,6 +495,7 @@ export default defineSystem<State>({
   },
   dispose(state, ctx) {
     state.unsubscribe();
+    state.town.dispose();
     if (state.art) releaseArt(state.art);
     state.art = null;
     setDoorTable(ctx.stage, null);
@@ -461,6 +506,7 @@ export default defineSystem<State>({
       d.kite?.kite.release();
       d.kite?.line.release();
       d.tool?.handle.release();
+      d.load?.handle.release();
     }
     state.drawn.clear();
   },

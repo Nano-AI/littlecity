@@ -12,4 +12,12 @@ declare module '@/core/vocab' {
     'figure/shake': true;
     'figure/hammer': true;
   }
+
+  interface SocketVocab {
+    // L51 and up: a post of one of the town's chains, where its work is picked up or set down. `name` is
+    // `<chain>|<role>|<ref>` (bread|mill, bread|bakery, bread|sell, water|well, fish|catch, fish|sell…);
+    // `cell` is the walking-graph cell the worker stands in; `dir` the way they face there; `structure`
+    // the building or stall it belongs to.
+    'errand': true;
+  }
 }

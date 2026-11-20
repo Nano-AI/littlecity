@@ -37,6 +37,7 @@ import { BODY } from './overlap';
 const KEEP = BODY + 0.025;
 import { createRouter, type Router } from './route';
 import { createScuffles, type Scuffle, type Scuffles } from './scuffle';
+import type { ErrandHost, ErrandStep, Load } from './errand';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
@@ -66,7 +67,7 @@ export interface Work {
 }
 
 export interface Goal {
-  kind: 'home' | 'haunt' | 'leave';
+  kind: 'home' | 'haunt' | 'leave' | 'errand';
   node: number;
   haunt: Haunt | null;
   /** Go in at this door at the end. */
@@ -78,6 +79,8 @@ export interface Goal {
   linger: number;
   /** Sitting: height of the seat above the floor; -1 when not sitting. */
   seat: number;
+  /** An errand's step (kind 'errand'). */
+  errand?: ErrandStep;
 }
 
 export interface Person {
@@ -102,6 +105,8 @@ export interface Person {
   part: string;
   /** Walking with their arms full (a miller's sack, a baker's tray). */
   carrying: boolean;
+  /** What they carry for an errand now, drawn in their hands (also while standing and inside). */
+  load: Load | null;
   /** Walking the lamp round, briskly (L08). */
   brisk: boolean;
 
@@ -221,6 +226,8 @@ export interface CrowdOptions {
   events?: CrowdEvents;
   /** L36, L37: bodies walkers wait for (soldiers, a horse), read each step. */
   obstacles?(): readonly { x: number; y: number; z: number }[];
+  /** L51 and up: the town's chains, which send people on errands. */
+  errands?: ErrandHost;
   /** L50: overrides the scuffle dials (a fixture forcing one). */
   scuffle?: { chance?: number; squeeze?: number; rest?: number };
   /** L38–L40: how much a place that is only sometimes worth going to weighs now (a quay with a ship in); 0 = not now. */
@@ -612,6 +619,15 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const nextGoal = (p: Person, time: TimeSignal, fromHome: boolean): Goal | null => {
     p.trips++;
     if (p.leaving) return leaveGoal(p);
+    // The town's chains first: an errand under way goes on; a new one may be offered.
+    const e = opts.errands?.next(p, time);
+    if (e) {
+      const g = errandGoal(p, e);
+      if (g) return g;
+      opts.errands!.failed(p, e);
+    }
+    // Something still in their hands that no errand wants: it goes home with them.
+    if (p.load) return fromHome ? null : homeGoal(p);
     const work = workGoal(p, time);
     if (work) return work;
     if (mustBeHome(p, time)) return fromHome ? null : homeGoal(p);
@@ -620,6 +636,19 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const h = pickHaunt(p, time);
     if (h) return hauntGoal(p, h);
     return fromHome ? null : homeGoal(p);
+  };
+  /** The goal for an errand's step, or null if its place is not on the graph (or not where they can walk). */
+  const errandGoal = (p: Person, e: ErrandStep): Goal | null => {
+    if (!nav) return null;
+    const node = nav.nodeAt.get(e.cell);
+    if (node === undefined || (p.node >= 0 && nav.part[node] !== nav.part[p.node])) return null;
+    let door: NavDoor | null = null;
+    if (e.door) {
+      door = nav.doors.find((d) => d.feature === e.door!.feature && d.structure === e.door!.structure && d.node === node) ?? null;
+      if (!door) return null;
+    }
+    const spot = door ? null : e.spot ? freeSpot(p, node, e.spot) : null;
+    return { kind: 'errand', node, haunt: null, door, spot, face: e.face, pose: e.pose, linger: e.linger, seat: -1, errand: e };
   };
   const leaveGoal = (p: Person): Goal | null => {
     if (!nav || p.node < 0) return null;
@@ -701,8 +730,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.seat = -1;
     p.stuck = 0;
     p.flying = false;
-    p.carrying = goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker');
-    p.brisk = goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter';
+    // An errand's load is in their hands on the way; whatever else they hold goes home with them, or is lost to no one.
+    p.load = goal.errand ? goal.errand.load : goal.kind === 'home' ? p.load : null;
+    p.carrying = p.load !== null || (goal.haunt?.type === 'workplace' && (p.work?.job === 'miller' || p.work?.job === 'baker'));
+    p.brisk = (goal.haunt?.type === 'workplace' && p.work?.job === 'lamplighter') || goal.errand?.brisk === true;
     enterPiece(p);
     return true;
   };
@@ -756,7 +787,10 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       p.timer = 2;
       return;
     }
+    // The chain hears first: it sets down, picks up, fills a stall (and may change what is in their hands).
+    if (goal.errand) opts.errands?.arrived(p, goal.errand);
     if (goal.kind === 'home') {
+      p.load = null; // put away inside
       p.mode = 'home';
       p.visible = false;
       p.timer = PEOPLE.homeMin + r(p, 'home-stay') * (PEOPLE.homeMax - PEOPLE.homeMin);
@@ -1354,6 +1388,17 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       g.node = door.node;
       return true;
     }
+    if (g.kind === 'errand' && g.errand) {
+      const node = nav!.nodeAt.get(g.errand.cell);
+      if (node === undefined) return false;
+      if (g.door) {
+        const door = nav!.doors.find((d) => d.feature === g.door!.feature && d.structure === g.door!.structure && d.node === node);
+        if (!door) return false;
+        g.door = door;
+      }
+      g.node = node;
+      return true;
+    }
     if (g.kind !== 'haunt' || !g.haunt) return false;
     const h = hauntById.get(g.haunt.id);
     if (!h || (h.user !== null && h.user !== p && !g.door)) return false;
@@ -1508,7 +1553,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       speed: PEOPLE.speed * (1 + (rand(s, 'speed') * 2 - 1) * PEOPLE.speedVary) * (child ? PEOPLE.childSpeed : 1),
       owl: false,
       shutIn: false,
-      work: null, station: -1, round: 0, part: '', carrying: false, brisk: false,
+      work: null, station: -1, round: 0, part: '', carrying: false, load: null, brisk: false,
       mode: 'home', visible: false, fade: 1,
       x: 0, y: 0, z: 0, heading: rand(s, 'heading') * 6.28,
       pose: 'stand', poseTime: rand(s, 'pose') * 10, stride: 0, seat: -1,
@@ -1607,7 +1652,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         } else if (node !== undefined && p.mode === 'walk' && p.walk && old && !p.leaving && p.goal && p.goal.kind !== 'leave' && refreshGoal(p, p.goal) && carryWalk(p, old)) {
           place(p, node);
           continue;
-        } else if (node !== undefined && p.mode === 'linger' && !p.leaving && p.goal?.haunt && refreshGoal(p, p.goal)) {
+        } else if (node !== undefined && p.mode === 'linger' && !p.leaving && (p.goal?.haunt || p.goal?.errand) && refreshGoal(p, p.goal!)) {
           place(p, node);
           continue;
         }
@@ -1627,7 +1672,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         }
         // Go on to where they were going, if it is still there.
         if (!p.leaving && wasGoal) {
-          if (wasGoal.kind === 'home') p.want = homeGoal(p);
+          if (wasGoal.errand) {
+            // The chain is asked again what they do now (the step, or something else if its place is gone).
+            p.timer = 0;
+            if (p.mode === 'hop') p.want = null;
+          } else if (wasGoal.kind === 'home') p.want = homeGoal(p);
           else if (wasGoal.haunt && hauntById.has(wasGoal.haunt.id)) p.want = hauntGoal(p, hauntById.get(wasGoal.haunt.id)!);
         }
       }
@@ -1849,6 +1898,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           if (wasWaiting && p.fade < 1) p.visible = true;
           continue;
         }
+        if (goal.errand) opts.errands?.failed(p, goal.errand);
         // No way there. Home, if that can be reached; else stay a while.
         if (goal.kind !== 'home' && p.mode !== 'home') {
           const back = homeGoal(p);

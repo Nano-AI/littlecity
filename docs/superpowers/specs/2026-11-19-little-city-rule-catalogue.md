@@ -562,6 +562,40 @@ under `src/rules/life/` with its fixture.
   Building over the spot ends it at once; anybody in it taken off the
   street ends it.
 
+The chains below share one engine (`src/life/town/`): a rule marks a
+chain's posts with `errand` sockets (name `<chain>|<role>|<ref>`), the
+chain picks its hands from the residents (no extra people: the population
+cap holds) and sends them on errands of a few steps; what they carry is
+drawn in their hands (`src/parts/people/loads.ts`, a little big and bright)
+and, set down, lies in a store at the post until somebody picks it up. A
+place erased mid-errand ends the errand: what is in the hands goes home with
+its carrier. Nothing is ever left floating or vanishes in view.
+
+- **L51 · 2 · Bread** — a bakery (a shop tagged shop:bakery, else one L23
+  gave a baker; else the inn) nearest the town's heart → posts: outside the
+  door of the nearest windmill that can be walked to (`bread|mill`), outside
+  the bakery door (`bread|bakery`), and up to three selling places within 22
+  steps (`bread|sell`: market stalls first, at their counter; then the inn
+  and cafés, at the door; with none, the bakery's own door). The miller (the
+  L23 miller if any, else whoever lives nearest the mill) goes into the mill,
+  comes out hugging a sack of flour, carries it to the bakery and sets it
+  against the wall by the door, where up to 4 stack (a trip every 18 s at
+  most). The baker (the bakery's L23 baker, else whoever lives there or
+  nearest) picks up a sack, takes it in, bakes 5 s, comes out with a tray of
+  loaves, walks it to the selling place with the most room and sets up to 3
+  loaves out on the counter or by the door, then goes back in. Residents
+  choosing what to do go for bread now and then (p=0.3 at dawn and the first
+  part of the day, 0.14 after) if loaves lie within 18 steps: they stop at
+  the counter 2 s and walk home with a loaf under the arm; the loaves go
+  down one by one. By day and dawn only. **Must not:** start at dusk or
+  night; send two buyers for one loaf.
+- **L52 · 2 · Water** — every well, basin and tiered fountain (not a
+  birdbath) → up to two posts beside it, facing it (`water|well`). A
+  grown-up living within 14 steps of one, choosing what to do by day, now
+  and then (p=0.1) walks there, bends to fill a bucket (2.6 s; it appears in
+  the hand) and carries it home at their side. **Must not:** send two to one
+  post at once.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

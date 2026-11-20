@@ -59,3 +59,37 @@ export const SCUFFLE = defineStyle(
     swear: [0.1, 1.5, 0.02],
   },
 );
+
+/** L51 and up: the town's chains. */
+export const CHAINS = defineStyle(
+  'chains',
+  {
+    /** L51: seconds between the miller's trips; sacks that fit by the bakery door. */
+    millGap: 18,
+    sacks: 4,
+    /** L51: seconds the baker is in baking; seconds between batches; loaves a tray holds. */
+    bake: 5,
+    bakeGap: 10,
+    tray: 3,
+    /** L51: chance a resident choosing what to do goes for bread when there is some (mornings, and the rest of the day). */
+    buyMorning: 0.3,
+    buy: 0.14,
+    /** L51: the farthest (grid steps) a resident walks for bread. */
+    buyReach: 18,
+    /** L52: chance a resident choosing what to do goes for water; seconds at the well filling the bucket. */
+    water: 0.1,
+    fill: 2.6,
+  },
+  {
+    millGap: [0, 120, 1],
+    sacks: [1, 8, 1],
+    bake: [1, 20, 0.5],
+    bakeGap: [0, 120, 1],
+    tray: [1, 3, 1],
+    buyMorning: [0, 1, 0.01],
+    buy: [0, 1, 0.01],
+    buyReach: [4, 40, 1],
+    water: [0, 1, 0.01],
+    fill: [0.5, 8, 0.1],
+  },
+);
