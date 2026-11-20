@@ -105,11 +105,20 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
     }
   }
 
-  // Ends. Going round an edge with the drop on the outside, one railing's +X end is the next one's −X
-  // end: the first keeps the post.
-  const corner = (r: Rail, at: readonly (readonly [number, number])[]): string =>
+  joinRailEnds(rails);
+  return rails;
+}
+
+/**
+ * Sets `from` / `to` on a set of railings so that railings in a row share posts and a corner has
+ * exactly one. Going round an edge with the drop on the outside, one railing's +X end is the next
+ * one's −X end: the first keeps the post. (Also used by R-M08's podium balustrade.)
+ */
+export function joinRailEnds(rails: { cell: CellKey; dir: Dir4; from: number; to: number }[]): void {
+  type R = (typeof rails)[number];
+  const corner = (r: R, at: readonly (readonly [number, number])[]): string =>
     `${keyY(r.cell)}:${keyX(r.cell) + at[r.dir]![0]}:${keyZ(r.cell) + at[r.dir]![1]}`;
-  const starting = new Map<string, Rail[]>();
+  const starting = new Map<string, R[]>();
   for (const r of rails) {
     const k = corner(r, FROM);
     const list = starting.get(k);
@@ -132,7 +141,6 @@ function findRails({ facts, plan }: RuleContext): Rail[] {
       inner.from = 5;
     }
   }
-  return rails;
 }
 
 export default defineRule<Rail>({

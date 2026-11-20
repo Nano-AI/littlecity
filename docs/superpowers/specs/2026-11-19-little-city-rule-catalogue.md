@@ -53,21 +53,98 @@ type and which later rules apply.
 - **R-H04 · 1 · Stilt house** — every lowest cell stands over water (on a
   dock or generated stilts) → plank walls, ladder down to the water, fishing
   rod socket on the water side.
-- **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and at most 2
-  storeys; ground storey at `y ≤ 1` and a facade faces water within 1, or
+- **R-H16 · 2 · Watermill** (discovery 1, RC-03) — a house of 2+ cells with
+  its ground storey at level 1 and a ground-storey facade with river water
+  right outside it (generator 2's river, MAT_RIVER, or a channel: land
+  within 3 on both sides across the water, along x or z); of candidates
+  within 8 of each other only the lowest id → an undershot water wheel
+  turning on the river side (the 'water-wheel' actor on the 'wheel-hub'
+  socket of J30's mill-race: a timber frame, bearing and plank hood; no
+  window behind it), a timber weir with a foam line from the bank beside
+  the wheel across the stream to the far bank (up to 5 cells), flour sacks
+  at the land door (R-H98). Not: the sea or a lagoon with no bank within 3
+  across it; a stilt house. Priority 9955 (before the boathouse).
+- **R-H17 · 2 · Warehouse** (discovery 1, RC-02) — 6+ cells, 2+ storeys,
+  footprint ≥ 2; a ground-storey facade whose cell outside lies within 3 of
+  a dock and that looks toward it (water met within 4 straight out, or a
+  dock within 4 straight ahead); no ground-storey facade faces a plaza
+  within 1 → a column of loading doors up the middle of the wall nearest
+  the dock (one per storey, a sill under each upper one) with a hoist beam,
+  pulley and rope over them (J30; sockets 'loading-door' and 'hoist' for
+  porters, which this rule does not place); crates, a barrel and a sack by
+  the loading door (R-H98); no window in that column. Not: a house on the
+  harbour square (the inn or a shop), a house on an open coast with no
+  dock. Priority 9942 (after the town hall, before the inn).
+- **R-H20 · 2 · Bridge shop** (discovery 1, RC-05) — a house whose lowest
+  cells all stand on arch cells, where the bridge (any run of that arch
+  structure) carries a floor on its deck or meets one at an end, and some
+  deck cell is left free beside the house → a shop over the water: a shop
+  door and shopfront onto the deck (J06, J09; awning and sign by D07), a
+  seeded shop type, half-timbered cells over the arch (a jetty feature on
+  each lowest cell), and timber struts under each ground-storey wall that
+  overhangs the drop (J30 bridge-brackets). Not: a bridge with no street on
+  or to it; a house filling the whole deck. Priority 9965 (before the stilt
+  house).
+- **R-H05 · 2 · Boathouse** — a footprint of 4 cells or fewer and 1 storey,
+  or a footprint of 2 or fewer and 2 storeys (FX-12); ground storey at `y ≤ 1` and a facade faces water within 1, or
   touches a dock → wide double doors on the water side, slipway, net on the
   wall. (A bigger house on the shore can be a town hall, inn or manor.)
-- **R-H06 · 2 · Inn** — 6+ cells, 2+ storeys, ground-storey facade faces a
-  street or plaza within 1 → inn sign on a bracket, lantern by the door,
-  stable-style door.
-- **R-H07 · 1 · Shop** — ground-storey facade faces a plaza within 1; or
-  faces a street within 1 and the structure has 2+ storeys → shopfront
-  window, awning (colour from seed), hanging sign. The shop type is a seeded
-  pick from {bakery, café, books, flowers, fish, tailor, cheese, toys}, with
-  fish allowed only within 6 cells of a dock. A café with 2+ free floor
-  cells in front also gets tables (D08).
-- **R-H09 · 2 · Manor** — footprint ≥ 10 cells or total ≥ 16 cells → hip
-  roof, dormers, two chimneys, portico with two small columns at the door.
+- **R-H06 · 2 · Inn** (place and scarcity: discovery 1, FX-02) — 6+ cells,
+  2+ storeys, a ground-storey facade faces a street or plaza within 1, and
+  the house stands where travellers arrive: on a square (it faces a plaza
+  holding a 3 × 3 within 1, or has a cell within 2 of one), within 3 of the
+  end of a bridge over water, or within 3 of a gate (a small arch standing
+  on a path between marble, wall, house or tower). A bridge end or gate
+  within 6 steps of a square is the square's. One inn per place: the
+  largest candidate (most cells, then the lowest id); a house is the inn of
+  one place at most → inn sign on a bracket, lantern by the door,
+  stable-style door. Every other house is left to the later roles (a
+  home). Not: a house on a plain street, however big; the quay's big houses
+  (R-H17 warehouse).
+- **R-H07 · 1 · Shop** (the share falls with distance: discovery 1, FX-02)
+  — a ground-storey facade faces a plaza within 1 → shop; or faces a street
+  within 1 and the structure has 2+ storeys → shop if a cell of it is within
+  3 steps (4-way) of a plaza cell, else with a seeded p by the steps: 0.45
+  within 6, 0.2 within 12, 0.1 beyond (and with no plaza at all) → shopfront
+  window, awning (colour from seed), hanging sign. The roll is the house's
+  own (its structure seed), so it holds while the town grows elsewhere. The
+  shop type is a seeded pick from {bakery, café, books, flowers, fish,
+  tailor, cheese, toys}, with fish allowed only within 6 cells of a dock. A
+  café with 2+ free floor cells in front also gets tables (D08).
+- **R-H18 · 2 · Barn** (discovery 1, RC-09 and FX-06) — a house of exactly 1
+  storey, footprint ≥ 6 with a side of 3+, no ground-storey facade facing a
+  street or plaza within 1, a garden region of 6+ cells within 4, and no
+  square (a plaza holding a 3 × 3) within 6 → timber weatherboard walls
+  (tag barn), a long gable roof with no chimney and no dormers, big boarded
+  doors swung open round its double main door and a hayloft door with a
+  hoist beam in its far gable (J30), one small shuttered window to every
+  three wall cells. Another house of footprint < 6 within 4 → tag
+  farmstead: hay bales and a hand cart outside the big doors (R-H98; hay
+  alone otherwise). Not: a house on a street or by a square, a two-storey
+  house. Priority 9915 (before the manor).
+- **R-H19 · 2 · Smithy** (discovery 1, RC-06) — a house of exactly 1 storey
+  and footprint 1–3, every cell on the ground, side by side with a tower 1
+  or 2 tall (3+ is R-H01's steeple) → the house is a smithy and the tower
+  its forge chimney (role forge-chimney: square, a flat top with a
+  chimney-top socket so it smokes, L02; no door of its own); no chimney on
+  the house; an open forge front on the best free ground-storey wall that
+  is not the door's (J30: a stone surround, a hearth that glows at dusk and
+  night, a propped plank shutter); an anvil on its block and a quench
+  barrel outside it, a hitching rail with a trough by the door (R-H98).
+  Not: a house of 2+ storeys; a house over water or a dock. Priority 9925.
+- **R-H21 · 3 · Schoolhouse** (discovery 1, RC-19; town-wide) — in a town of
+  10+ house structures, of the houses with no role yet that have 1 storey,
+  a footprint of 1–4 and a ground-storey facade with a street within 2,
+  the one with the largest yard (the free grass or garden cells at its
+  level round it, side or corner, 4+ of them, with a fence or wall on some
+  side and some cell beside a path; then the lowest id) → a bell cupola on the middle of its ridge (J30), tall
+  windows (J09), no chimney, and a hopscotch court chalked on its yard, in
+  the fenced part if it has one (R-H98). One per town. Not: a house that
+  already has another role. Priority 9855 (just before the cottage).
+- **R-H09 · 2 · Manor** — footprint ≥ 10 cells with 2+ storeys, or total ≥ 16
+  cells → hip roof, dormers, two chimneys, portico with two small columns
+  at the door. (A big one-storey house is a barn by the fields, else a
+  home: FX-06.)
 - **R-H10 · 1 · Townhouse** — footprint exactly 1 cell and 3+ storeys →
   stepped gable, balcony on each upper storey p=0.5.
 - **R-H11 · 1 · Row house** — footprint 1–2 cells, sharing side walls with
@@ -102,6 +179,12 @@ type and which later rules apply.
 
 ### Lighthouse
 
+- **R-L02 · 2 · Folly tower** (discovery 1, RC-21) — a lighthouse structure
+  with no open water (terrain at sea level) within 6 columns of its foot →
+  plain coursed stone instead of the bands, the gallery with its rail, and
+  an open belvedere (four posts, a dome, a gilt finial) in place of the
+  lantern room: no lantern socket, so no beam (L09); a house touching it is
+  no keeper's cottage (R-H02). Priority 7995 (before R-L01).
 - **R-L01 · 1 · Lighthouse** — always → red and white bands per storey,
   gallery rail and lantern room on top, beam (L09). ≥ 6 tall adds a second
   gallery halfway up.
@@ -114,8 +197,52 @@ type and which later rules apply.
 - **R-M02 · 2 · Gatehouse** — marble touching one end of a gateway arch
   (R-A04) whose other end also touches marble or a wall → portcullis in the
   arch, lanterns either side.
-- **R-M03 · 2 · Keep** — ≥ 3 tall and footprint ≥ 2 × 2 → battlements on
-  exposed top edges, arrow slits.
+- **R-M11 · 3 · Bandstand** (discovery 1, RC-14) — R-M01's shape (marble on
+  4+ placed pillar shafts of 2+) with 4 cells or fewer, its pillars standing
+  on the ground (not up on a podium), on a plaza or garden region of 9+
+  cells → an eight-sided tented roof
+  with a gilt finial over the slab, stylobates as a temple's, no
+  pediments. Not: a temple on a podium; a slab of 5+ cells; a small temple
+  on bare grass (it stays the temple it was built as). Priority 5995.
+- **R-M12 · 3 · Stoa** (discovery 1, RC-13) — R-M01's shape with 7+ cells, a
+  rectangular top at one level 3+ times as long as wide, and plaza at the
+  foot of one long side's pillars or 1–2 cells out from it (tag
+  stoa:<side>) → one sloping tiled roof, high over the square side and
+  falling away from it, with stone cheeks at the ends, no pediments;
+  stylobates; goods (crates) on every other free ground cell along its back
+  (R-H98). Not: 6 cells or fewer; a portico facing no plaza. Priority 5993.
+- **R-M10 · 2 · Obelisk or victory column** (discovery 1, RC-08, FX-09) — a
+  marble structure on a single column, 3+ cells tall, nothing on top, no
+  block beside any of its cells, its foot on plaza or with plaza on 2+
+  sides → a stepped base and pedestal, then a tapering obelisk with a gilt
+  pyramidion; or, 4+ tall with p=0.5 (tag obelisk:column), a fluted column
+  with a capital and a gilt figure holding up a wreath. Not: a stack
+  against a wall or house (a pier); 1–2 tall (R-M06, R-M07). Priority 5965.
+- **R-M09 · 2 · Theatre** (discovery 1, RC-07) — marble whose columns are
+  tiers of seats facing one way: R-M04's shape cuts 2+ rows of it (3+ tiers
+  with the uncut top row), 4+ wide; 3 of every 4 columns stand one level
+  above or below a neighbouring column; the top row leads nowhere (nothing
+  on it, lower behind it); 4+ open level cells (plaza or bare ground) lie
+  within 2 in front of the lowest row; nothing of a castle touches it (as
+  R-M08) → the steps drawn as deep stone benches (two to a cell), a stone
+  balustrade where the top drops 2+; R-H98 stands a painted backdrop with
+  two masks at the back of the stage and a brazier at each end. Not: a
+  flight up to a platform (R-M04, R-M08). Priority 5977.
+- **R-M08 · 2 · Podium** (discovery 1, FX-01) — marble 2+ tall with a 2 × 2
+  in its footprint that carries a temple (one of R-M01's pillars stands on
+  it), or has R-M04's steps cut into it, climbing to its top level, without
+  being mostly stair (steps up to the foot of a tower are a keep's), or has a
+  floor, plinth, pillar, fountain, stall, tree or stairs on a quarter or more of its
+  open top; and no wall piece or wall edge, gateway arch, castle turret,
+  gatehouse or keep touching it → no battlements and no garrison: marble
+  (not castle stone), flat pilasters on every second cell line, a stone
+  balustrade on every top edge that drops 2+ (J19 then leaves those edges).
+  With a castle piece touching it the same mass is a keep with a stair.
+  Priority 5975.
+- **R-M03 · 2 · Keep** — ≥ 3 tall and footprint ≥ 2 × 2, and not mostly a
+  flight of steps (R-M04), a podium (R-M08) or a theatre (R-M09) →
+  battlements on exposed top edges, arrow slits. Only an embattled keep
+  counts as a castle for the garrison and the rider (L36, L37).
 - **R-M04 · 2 · Grand steps** — marble forming 3+ rows each one level higher
   than the last, 2+ wide → broad steps; people may sit (seat sockets).
 - **R-M05 · 2 · Quay wall** — at `y ≤ 1` next to water → mooring rings,
@@ -168,6 +295,21 @@ type and which later rules apply.
 - **R-S01 · 1 · Stall** (first match) — within 3 of a dock → fish stall; on
   garden → flower stall; otherwise market stall with a striped awning and
   goods chosen by seed.
+- **R-G02 · 2 · Churchyard** (discovery 1, RC-01 and FX-07) — a garden
+  region of 2–40 cells on the ground with a cell side by side with a chapel
+  (R-H01) or its steeple, whose outward sides other than onto the chapel
+  and steeple are at least 60% wall or fence (an edge piece on the side, or
+  a wall or fence piece beyond) → role churchyard: mown lawn in east–west
+  stripes, no herb beds. Bare grass closed round the same way beside a
+  chapel (the free ground cells a flood from beside it reaches without
+  crossing an edge piece, a block or a floor, 40 at most) gets the same
+  dressing with no role. R-H98 dresses both: two headstones facing east on
+  each cell of every other column (a seeded tilt, a grave mound), a stone
+  cross on the middle grave cell, a clipped dark yew in the cell farthest
+  from the chapel, and a lychgate (posts, tie beams, a steep shingled roof
+  along the wall, a bench) over each J20 gate that opens into the yard.
+  Not: within 2 of a windmill; ground touching another house on 2+ sides;
+  ground on a roof. Priority 3995 (before R-G01).
 - **R-G01 · 1 · Garden** (first match, per garden region) — within 2 of a
   windmill and ≥ 4 cells → wheat; in a courtyard → clipped herb beds; next to
   water → reeds and irises; ≥ 9 cells → park lawn with a hedge border; next
@@ -194,7 +336,10 @@ How pieces meet. Joinery decides geometry and produces sockets.
   separate walls and roofs; their ridge heights differ by a seeded offset so
   a row has rhythm.
 - **J04 · 1 · Roof type** (per roof region, first match) — the role names one
-  → use it; a path, plaza or stairs leads onto it → flat terrace; region is
+  → use it (townhouse stepped gable; manor, town hall hip; a rectangular,
+  unpierced chapel or a rectangular barn gable: a square chapel's ridge runs away from its steeple,
+  with a cross gable in the middle of each eave if it is 3+ a side, and a
+  chapel is never a terrace, whatever lies on it: FX-05); a path, plaza or stairs leads onto it → flat terrace; region is
   1 deep against a taller wall of the same structure → lean-to; ≤ 2 wide →
   gable with the ridge along the long axis; otherwise hip.
 - **J05 · 2 · Roof terrace** — a flat-eligible region of 2+ cells beside a
@@ -252,7 +397,9 @@ How pieces meet. Joinery decides geometry and produces sockets.
   widens; on a dock, planks follow the run; on a bridge deck, cobbles.
 - **J22 · 2 · Plaza paving** — pattern aligned to the region's bounding box,
   border course at the edges; a region containing 5 × 5 gets a radial centre
-  motif.
+  motif. With a fountain on that square off its middle, the motif (rings)
+  centres on the fountain at the largest odd size that fits round it, and
+  is left out if not even a 5 × 5 fits (FX-08).
 - **J23 · 1 · Dock body** — planks along the run, stilts at corners and every
   2 cells, cross-bracing on outer edges.
 - **J24 · 1 · Foundation** — a structure whose ground cells sit over lower
@@ -266,6 +413,22 @@ How pieces meet. Joinery decides geometry and produces sockets.
   half-timber patterning.
 - **J28 · 1 · Shoreline** — foam line where land meets water; a short plank
   ramp where a dock meets a beach.
+- **J30 · 2 · Trade fronts** (discovery 1) — once the main door and roofs
+  are known, what a working building's walls show of its trade: a barn
+  (R-H18) gets barn-doors (two boarded leaves swung open flat either side
+  of its main door, a beam over them) and a hayloft (a loft door and hoist
+  beam in the middle of the gable end farthest from that door); a watermill
+  (R-H16) gets its mill-race on the middle river-side wall cell of its
+  ground storey (posts in the stream, a bearing beam, a plank hood; it owns
+  the 'wheel-hub' socket the wheel turns on, and J09 leaves the cell
+  without a window).
+- **J29 · 2 · Vault door** (discovery 1, FX-09) — a terrace (R-M07) or podium
+  (R-M08) 2+ storeys tall on 9+ columns with a 2 × 2 among them and no door → one
+  stone-framed door into its vaults, in the middle of its longest
+  ground-storey wall run of 3+ cells standing on level ground with open
+  ground, a path or a plaza at its foot and marble above; the run with a
+  path or plaza nearest in front of it (within 5) wins. Not: a wall one cell
+  thick, a run with steps cut into it, a wall against a bank or a block.
 
 ---
 
@@ -519,8 +682,9 @@ L41 river barge, L42 passing sails.
 
 ### Castle life (Derek's request, 2026-11-19)
 
-- **L36 · 2 · Garrison** — a castle (a keep, or a curtain wall of 8+ cells
-  with a gatehouse or turret) → a troop of 4–6 soldiers in matching tabards
+- **L36 · 2 · Garrison** — a castle (a keep with battlements, or a curtain
+  wall of 8+ cells with a gatehouse or turret; a podium or theatre is never
+  one, FX-11) → a troop of 4–6 soldiers in matching tabards
   and helmets, with pikes, who march in step in a column of twos on a patrol
   round the outside of the walls (or round the keep if there are no walls),
   following walkable ground. They halt and face front at the gate for a few

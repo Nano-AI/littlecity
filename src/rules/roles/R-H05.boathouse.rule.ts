@@ -1,6 +1,8 @@
-// R-H05 · tier 2 · Boathouse. A small house (a footprint of 4 cells or fewer,
-// at most 2 storeys) whose ground storey is at level 1 or below and looks
-// straight onto water, or that touches a dock: plank walls,
+// R-H05 · tier 2 · Boathouse. A small house (one storey with a footprint of 4
+// cells or fewer, or two storeys with a footprint of 2 or fewer: FX-12, a
+// two-storey 2 × 2 by the water is a house, not a shed) whose ground storey
+// is at level 1 or below and looks straight onto water, or that touches a
+// dock: plank walls,
 // and wide double doors on the water side (J06 reads the role). The slipway
 // and the net on the wall are left to the dressing rules. A bigger house on
 // the shore is left to the town hall, inn and manor rules (2026-11-19).
@@ -26,6 +28,7 @@ export default defineRule({
       .filter((s) => {
         const i = info.get(s.id);
         if (!i || i.footprint > MAX_FOOTPRINT || i.storeys > MAX_STOREYS) return false;
+        if (i.storeys === 2 && i.footprint > 2) return false;
         if (i.touches.some((t) => t.kind === 'dock' && t.sides.length > 0)) return true;
         return i.minY <= 1 && (all.byStructure.get(s.id) ?? []).some((f) => f.storey === 1 && f.water === 1);
       })

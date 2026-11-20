@@ -20,6 +20,7 @@ import { PALETTE, RAMPS, rampColor } from '@/style/palette';
 import { ownSockets } from '@/parts/monuments/kit';
 import { bollard, pedestal, pediment, quayStair } from '@/parts/monuments/marble-parts';
 import { arrowSlit, slitWindow, towerDoor } from '@/parts/monuments/openings';
+import { obelisk, victoryColumn } from '@/parts/structures/obelisk';
 
 const FACE: readonly BoxFace[] = ['n', 'e', 's', 'w'];
 /**
@@ -81,6 +82,63 @@ export function marbleCells(s: Structure, plan: ShapePlan, carved: ReadonlyMap<C
   });
 }
 
+/**
+ * R-M11, R-M12: the roof over a bandstand (an eight-sided tent with a finial) or a stoa (one slope
+ * falling away from the square from its front cornice, with stone cheeks at the ends), on the top of
+ * the slab.
+ */
+function pavilionRoof(b: MeshBuilder, s: Structure, role: 'bandstand' | 'stoa', roof: string, stone: string, tags: ReadonlySet<string> | undefined): void {
+  const mine = new Set(s.cells);
+  const tops = s.cells.filter((c) => !mine.has(above(c)));
+  const xs = tops.map(keyX), zs = tops.map(keyZ);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, z0 = Math.min(...zs), z1 = Math.max(...zs) + 1;
+  const y = (keyY(tops[0]!) + 1) * CELL_H + 0.002;
+  const eave = 0.1;
+  if (role === 'bandstand') {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, r = (Math.max(x1 - x0, z1 - z0) / 2) * Math.SQRT2 * 0.92 + eave;
+    b.at(compose(translation(cx, y, cz), rotationY(Math.PI / 8)), () => {
+      b.with({ color: roof, pattern: PATTERN.shingles, ink: 'tent' }, () => b.lathe([[r, 0], [r * 0.55, 0.32], [r * 0.12, 0.55], [0, 0.6]], { segments: 8, smooth: false, capBottom: true }));
+      b.with({ color: PALETTE.yellow, pattern: PATTERN.metal, ink: 'finial' }, () => b.lathe([[0.03, 0.6], [0.05, 0.66], [0, 0.74]], { segments: 6 }));
+    });
+    return;
+  }
+  // The stoa: high along the front (the square side), low at the back.
+  const front = tags?.has('stoa:n') ? 0 : tags?.has('stoa:e') ? 1 : tags?.has('stoa:w') ? 3 : 2;
+  const rise = 0.42;
+  // Corners of the roof plane, eaves out by `eave`; h(x, z) is its height.
+  const ax0 = x0 - eave, ax1 = x1 + eave, az0 = z0 - eave, az1 = z1 + eave;
+  const h = (x: number, z: number): number => {
+    const t = front === 0 ? (az1 - z) / (az1 - az0) : front === 2 ? (z - az0) / (az1 - az0) : front === 3 ? (ax1 - x) / (ax1 - ax0) : (x - ax0) / (ax1 - ax0);
+    return y + rise * t;
+  };
+  const p = (x: number, z: number, lift = 0): [number, number, number] => [x, h(x, z) + lift, z];
+  b.with({ color: roof, pattern: PATTERN.shingles, ink: 'roof' }, () => {
+    const t = 0.05;
+    b.quad(p(ax0, az1, t), p(ax1, az1, t), p(ax1, az0, t), p(ax0, az0, t)); // the tiles, facing up
+    b.quad(p(ax0, az0), p(ax1, az0), p(ax1, az1), p(ax0, az1)); // the underside
+    // The four thin edges of the roof slab.
+    const edge = (a: [number, number], c: [number, number]): void => void b.quad(p(a[0], a[1]), p(c[0], c[1]), p(c[0], c[1], t), p(a[0], a[1], t));
+    edge([ax0, az1], [ax1, az1]);
+    edge([ax1, az0], [ax0, az0]);
+    edge([ax1, az1], [ax1, az0]);
+    edge([ax0, az0], [ax0, az1]);
+  });
+  // Stone cheeks closing the ends between the slab's top and the roof.
+  b.with({ color: stone, pattern: PATTERN.marble, ink: 'cheeks' }, () => {
+    if (front === 0 || front === 2) {
+      for (const [x, sgn] of [[x0, -1], [x1, 1]] as const) {
+        const pts: [number, number, number][] = [[x, y, z0], [x, y, z1], [x, h(x, z1) - 0.01, z1], [x, h(x, z0) - 0.01, z0]];
+        b.polygon(sgn > 0 ? pts : [...pts].reverse());
+      }
+    } else {
+      for (const [z, sgn] of [[z0, -1], [z1, 1]] as const) {
+        const pts: [number, number, number][] = [[x1, y, z], [x0, y, z], [x0, h(x0, z) - 0.01, z], [x1, h(x1, z) - 0.01, z]];
+        b.polygon(sgn > 0 ? pts : [...pts].reverse());
+      }
+    }
+  });
+}
+
 export default defineGenerator({
   kind: 'marble',
   build(s, plan, parts) {
@@ -101,6 +159,14 @@ export default defineGenerator({
         const at = featureFrame(f);
         if (at) placeFeature(b, anchors, f, at, { plan, structure: s, parts });
       }
+      return { mesh: b.build(), anchors };
+    }
+
+    if (role === 'obelisk') {
+      // R-M10: an obelisk, or a victory column, in place of the stacked blocks.
+      const c = s.cells[0]!;
+      const column = plan.tags.get(s.id)?.has('obelisk:column') ?? false;
+      b.at(translation(keyX(c) + 0.5, keyY(c) * CELL_H, keyZ(c) + 0.5), () => (column ? victoryColumn : obelisk)(b, stone, s.cells.length * CELL_H));
       return { mesh: b.build(), anchors };
     }
 
@@ -132,7 +198,8 @@ export default defineGenerator({
       const down = carved.get(c.cell);
       if (down !== undefined) {
         // Broad steps (R-M04): four to the cell, climbing away from `down`. Drawn facing downhill (+z).
-        const n = 4, rise = CELL_H / n, run = 1 / n;
+        // A theatre's (R-M09) are two deep stone benches to the cell: a seat and the next row's footway.
+        const n = role === 'theatre' ? 2 : 4, rise = CELL_H / n, run = 1 / n;
         const left = ((down + 3) & 3) as Dir4, right = ((down + 1) & 3) as Dir4;
         const sameFlight = (side: Dir4): boolean => {
           const o = neighbor(c.cell, side);
@@ -235,6 +302,28 @@ export default defineGenerator({
         band((c, d) => wallOn(c, d) && !c.against[d] && !c.topOpen && !besideSteps(c.cell, d), () => CELL_H - MONUMENTS.marbleCourse / 2, MONUMENTS.marbleCourse, MONUMENTS.marbleCourseOut),
       );
     }
+    if (role === 'podium') {
+      // R-M08: a podium's long walls are ordered by flat pilasters on every second cell line, from the base
+      // course to the cornice, so a big wall reads as a designed base and not as a blank slab.
+      const proud = 0.022, half = 0.065;
+      b.with({ color: stone, pattern: PATTERN.marble, ink: 'pilasters' }, () => {
+        for (const c of cells) {
+          for (let d = 0 as Dir4; d < 4; d = (d + 1) as Dir4) {
+            if (!wallOn(c, d) || c.against[d] || c.bank[d] || besideSteps(c.cell, d)) continue;
+            // On the cell line at its left end (side d − 1, at +x in the side's frame), where the wall runs on.
+            const leftSide = ((d + 3) & 3) as Dir4;
+            const along = neighbor(c.cell, leftSide);
+            const a = along === NO_CELL ? undefined : byCell.get(along);
+            if (!a || !wallOn(a, d) || a.against[d] || a.bank[d] || besideSteps(a.cell, d)) continue;
+            const line = d === 0 || d === 2 ? keyX(c.cell) + (leftSide === 1 ? 1 : 0) : keyZ(c.cell) + (leftSide === 2 ? 1 : 0);
+            if (line % 2 !== 0) continue;
+            const y0 = c.grounded[d] ? baseH : 0;
+            const y1 = c.topOpen ? CELL_H - MONUMENTS.marbleCornice : CELL_H;
+            onSide(c, d, () => b.box([0.5 - half, y0, 0.5], [0.5 + half, y1, 0.5 + proud], { skip: ['n', 'top', 'bottom'] }));
+          }
+        }
+      });
+    }
     if (castle) {
       // Quoins up every outer corner: long and short stones in turn, a hair proud (0.024: off the plane of an
       // arch's voussoir ring, 0.02 proud of the same wall line, where an arch springs beside the corner).
@@ -326,6 +415,7 @@ export default defineGenerator({
 
     // ── features ──
     const roof = RAMPS.roof[Math.floor(rand(s.seed, 'roof') * RAMPS.roof.length)]!;
+    if (role === 'bandstand' || role === 'stoa') pavilionRoof(b, s, role, roof, stone, plan.tags.get(s.id));
     for (const f of features) {
       if (f.type === 'battlement' || f.type === 'stylobate') continue;
       if (f.type === 'broad-steps') {
@@ -345,7 +435,7 @@ export default defineGenerator({
         const at = faceFrame(f.cell!, f.dir as Dir4, 0.27);
         ownSockets(plan, anchors, f.id, at, slitWindow(mb, 'w', PALETTE.stoneShade, 1.3));
         b.add(mb, at);
-      } else if (f.type === 'door' && face && f.rule.startsWith('R-M')) {
+      } else if (f.type === 'door' && face && (f.rule.startsWith('R-M') || f.rule.startsWith('J29'))) {
         const mb = sub();
         const at = faceFrame(f.cell!, f.dir as Dir4);
         ownSockets(plan, anchors, f.id, at, towerDoor(mb, PALETTE.stoneShade, PALETTE.wood, 0, parts.has('actor', 'door-leaf')));

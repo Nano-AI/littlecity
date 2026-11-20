@@ -23,6 +23,8 @@ const BY_ROLE: Partial<Record<Role, { body: Tag; cap: FeatureVariant<'cap'> }>> 
   dovecote: { body: 'body:round', cap: 'dovecote' },
   campanile: { body: 'body:square', cap: 'pyramid' },
   watchtower: { body: 'body:round', cap: 'cone' },
+  // R-H19: a smithy's broad chimney, flat-topped, smoking (a chimney-top socket on its cap).
+  'forge-chimney': { body: 'body:square', cap: 'flat' },
 };
 
 export default defineRule({
@@ -50,7 +52,13 @@ export default defineRule({
     if (keyY(bottom) === 0 && plan.terrain.height[columnIndex(keyX(bottom), keyZ(bottom))] === 0) out.tag(s.id, 'footing:water');
 
     if (s.kind === 'tower') {
-      const look = BY_ROLE[plan.roles.get(s.id)?.role ?? 'watchtower'] ?? BY_ROLE.watchtower!;
+      const tags = plan.tags.get(s.id);
+      // FX-10: a crowded watchtower's other looks (R-T07).
+      const look = tags?.has('watch:pyramid')
+        ? { body: 'body:square' as Tag, cap: 'pyramid' as const }
+        : tags?.has('watch:crenel')
+          ? { body: 'body:square' as Tag, cap: 'battlements' as const }
+          : (BY_ROLE[plan.roles.get(s.id)?.role ?? 'watchtower'] ?? BY_ROLE.watchtower!);
       out.tag(s.id, look.body);
       if (!plan.kinds.has(above(top)) && !have.some((f) => f.type === 'cap')) {
         const cap = out.feature({ type: 'cap', variant: look.cap, structure: s.id, cell: top });
@@ -58,6 +66,7 @@ export default defineRule({
         out.socket({ type: 'flag-mount', owner: cap, cell: top, structure: s.id });
         if (look.cap === 'dome') out.socket({ type: 'telescope', owner: cap, cell: top, structure: s.id });
         if (look.cap === 'battlements' || look.cap === 'dovecote') out.socket({ type: 'perch', owner: cap, cell: top, structure: s.id });
+        if (plan.roles.get(s.id)?.role === 'forge-chimney') out.socket({ type: 'chimney-top', owner: cap, cell: top, structure: s.id });
       }
     }
 
@@ -83,7 +92,9 @@ export default defineRule({
     const under = below(bottom);
     const underKind = under === NO_CELL ? undefined : plan.kinds.get(under);
     const onFlat = firm(under) && underKind !== 'house' && underKind !== 'tower' && underKind !== 'lighthouse';
-    if (!have.some((f) => f.type === 'door') && onFlat) {
+    // A smithy's forge chimney (R-H19) is entered from the forge, not from outside.
+    const chimney = plan.roles.get(s.id)?.role === 'forge-chimney';
+    if (!have.some((f) => f.type === 'door') && onFlat && !chimney) {
       let best = -Infinity;
       for (let k = 0; k < 4; k++) {
         const d = ((start + k) & 3) as Dir4;

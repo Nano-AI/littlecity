@@ -44,7 +44,7 @@ const ALLOWED: Record<string, number> = {
   // path's gate post or a house's board on the same cell line; a pocket park's hedge (U01) against a
   // plaza's edge; a woodpile's logs on a window sill; a street lamp's foot on a path's dirt patch; two
   // crates of a dock's goods stack (D15) level with each other.
-  'house / prop laundry-line': 14,
+  'house / prop laundry-line': 16, // 14 until FX-02 made more of a grown town's houses homes (more lines)
   'house / prop retaining-wall': 1,
   'path / prop retaining-wall': 3,
   'fence / prop retaining-wall': 1,

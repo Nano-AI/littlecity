@@ -7,6 +7,7 @@
 //   herb-garden      clipped herb beds on gravel, four to a cell, round a sundial
 //   reed-bed         wet ground, pools, reeds, cattails and flag irises
 //   park-lawn        mown lawn inside a clipped hedge that opens where a path arrives
+//   churchyard       mown lawn in east-west stripes (R-G02; the stones are R-H98's props)
 //
 // Reads: the region's cells, which of them hold a block, its role and its
 // features (floor-link, garden-piece). Nothing else.
@@ -19,7 +20,7 @@ import { defineGenerator, placeFeatures } from '@/gen/api';
 import { MeshBuilder } from '@/gen/mesh';
 import { rngOf } from '@/parts/ground/kit';
 import { FLOOR } from '@/style/ground';
-import { flowerGarden, herbGarden, kitchenGarden, parkLawn, reedBed, roundBed, scarecrow, sundial, wheatField, type GardenCtx } from './gardens';
+import { churchyardLawn, flowerGarden, herbGarden, kitchenGarden, parkLawn, reedBed, roundBed, scarecrow, sundial, wheatField, type GardenCtx } from './gardens';
 import { linksOf } from './sheet';
 
 export type GardenRole = RolesOf<'garden'>;
@@ -31,6 +32,7 @@ const PLANT: Record<GardenRole, (c: GardenCtx, cell: number) => void> = {
   'herb-garden': herbGarden,
   'reed-bed': reedBed,
   'park-lawn': parkLawn,
+  churchyard: churchyardLawn,
 };
 export const GARDEN_ROLES = Object.keys(PLANT) as GardenRole[];
 

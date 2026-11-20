@@ -1,0 +1,142 @@
+// J30 · tier 2 · Trade fronts. What a working building's walls show of its
+// trade, placed once its main door (J06) and roof (J04) are known:
+//
+//   barn (R-H18)   big boarded doors swung open either side of the main
+//                  door ('barn-doors' on the door's cell and side), and a
+//                  hayloft door with a hoist beam in the gable end farthest
+//                  from that door ('hayloft').
+//   warehouse      a column of loading doors up the middle of the wall
+//   (R-H17)        that faces the water, one per storey, with a hoist beam
+//                  over them ('loading-doors', owning the sockets
+//                  'loading-door' and 'hoist'); J09 leaves the column
+//                  without windows.
+//   smithy         an open forge front with a glowing hearth on a free
+//   (R-H19)        ground-storey wall that is not its door's, facing the
+//                  most open ground ('forge-front'); J09 leaves it windowless.
+//   bridge shop    timber struts under each ground-storey wall that looks
+//   (R-H20)        out over the drop beside the deck ('bridge-brackets').
+//   schoolhouse    a bell cupola on the middle of its main ridge
+//   (R-H21)        ('bell-cupola').
+//   watermill      the wheel's timber frame and bearing on the river side
+//   (R-H16)        ('mill-race', owning the 'wheel-hub' socket the water
+//                  wheel turns on); J09 leaves that wall cell without a window.
+//
+// Priority 930: after J06 (940) and J04 (960).
+
+import { above, keyX, keyZ, neighbor, type Dir4 } from '@/core/grid';
+import { defineRule } from '@/resolve/engine/api';
+import { roofRegions } from '@/resolve/facts/roofs.fact';
+import type { Feature } from '@/resolve/plan';
+import { millSide } from '../roles/R-H16.watermill.rule';
+import { waterFacades } from '../roles/R-H17.warehouse.rule';
+import { facades } from '@/resolve/facts/facades.fact';
+import { doorScore, houseStructures, roleOf, roofOf } from './houses.lib';
+
+interface Front {
+  type: 'barn-doors' | 'hayloft' | 'mill-race' | 'loading-doors' | 'forge-front' | 'bridge-brackets' | 'bell-cupola';
+  cell: number;
+  dir: Dir4;
+  storeys?: number;
+}
+
+export default defineRule<Front>({
+  id: 'J30.trade-fronts',
+  part: 'joinery',
+  tier: 2,
+  priority: 930,
+  about: 'Reads: house roles (barn, warehouse, watermill), main doors, roofs, facades over the water. Emits: barn-doors and a hayloft on a barn; loading-doors (sockets loading-door, hoist) on a warehouse; a mill-race (socket wheel-hub) on a watermill.',
+  find(ctx) {
+    const out = [];
+    for (const s of houseStructures(ctx)) {
+      const role = roleOf(ctx.plan, s.id);
+      const feats = ctx.plan.featuresByStructure.get(s.id) ?? [];
+      if (role === 'warehouse') {
+        const sides = waterFacades(ctx.facts, s.id);
+        if (sides.length === 0) continue;
+        // The middle of the run of ground-storey cells on the side nearest the water, clear of the main door.
+        const doorAt = feats.find((f) => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1);
+        const run = sides.filter((f) => f.dir === sides[0]!.dir && !(doorAt?.cell === f.cell && doorAt.dir === f.dir)).sort((a, b) => a.cell - b.cell);
+        if (run.length === 0) continue;
+        const at = run[Math.floor((run.length - 1) / 2)]!;
+        let storeys = 1;
+        const mine = new Set(s.cells);
+        for (let c = above(at.cell); mine.has(c); c = above(c)) storeys++;
+        out.push({ anchor: at.cell, structure: s.id, key: 'loading', data: { type: 'loading-doors' as const, cell: at.cell, dir: at.dir, storeys } });
+        continue;
+      }
+      if (role === 'schoolhouse') {
+        const region = (roofRegions(ctx.facts).byStructure.get(s.id) ?? []).find((r) => {
+          const v = roofOf(ctx.plan, r)?.variant;
+          return v === 'gable' || v === 'hip';
+        });
+        if (region) {
+          const cells = region.cells.filter((k) => !region.pierced.includes(k));
+          const cx = (region.box.x0 + region.box.x1) / 2, cz = (region.box.z0 + region.box.z1) / 2;
+          const mid = [...cells].sort((a, b) => Math.hypot(keyX(a) - cx, keyZ(a) - cz) - Math.hypot(keyX(b) - cx, keyZ(b) - cz) || a - b)[0];
+          if (mid !== undefined) {
+            // On an even ridge the middle is a cell line: lean the cupola that way (the finial frame's `dir`).
+            const ox = cx + 0.5 - (keyX(mid) + 0.5), oz = cz + 0.5 - (keyZ(mid) + 0.5);
+            const dir: Dir4 | -1 = ox > 0.25 ? 1 : ox < -0.25 ? 3 : oz > 0.25 ? 2 : oz < -0.25 ? 0 : -1;
+            out.push({ anchor: mid, structure: s.id, key: 'cupola', data: { type: 'bell-cupola' as const, cell: mid, dir: dir as Dir4 } });
+          }
+        }
+        continue;
+      }
+      if (role === 'bridge-shop') {
+        for (const f of facades(ctx.facts).byStructure.get(s.id) ?? []) {
+          if (f.storey !== 1 || f.drop < 1 || f.touching) continue;
+          out.push({ anchor: f.cell, structure: s.id, key: `strut${f.cell}:${f.dir}`, data: { type: 'bridge-brackets' as const, cell: f.cell, dir: f.dir } });
+        }
+        continue;
+      }
+      if (role === 'smithy') {
+        const door = feats.find((f) => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1);
+        const free = (facades(ctx.facts).byStructure.get(s.id) ?? [])
+          .filter((f) => f.storey === 1 && f.drop === 0 && !f.touching && !(f.faces === 'structure' && f.dist === 1) && !(door && door.cell === f.cell && door.dir === f.dir))
+          .sort((a, b) => doorScore(b) - doorScore(a) || a.cell - b.cell || a.dir - b.dir);
+        const at = free[0];
+        if (at) out.push({ anchor: at.cell, structure: s.id, key: 'forge', data: { type: 'forge-front' as const, cell: at.cell, dir: at.dir } });
+        continue;
+      }
+      if (role === 'watermill') {
+        const side = millSide(s, ctx.facts);
+        if (side) out.push({ anchor: side.cell, structure: s.id, key: 'race', data: { type: 'mill-race' as const, cell: side.cell, dir: side.dir } });
+        continue;
+      }
+      if (role !== 'barn') continue;
+      const door = feats.find((f): f is Feature & { cell: number; dir: number } => f.type === 'door' && (f.params as { main?: number } | undefined)?.main === 1 && f.cell !== undefined && f.dir !== undefined);
+      if (door) out.push({ anchor: door.cell, structure: s.id, key: 'doors', data: { type: 'barn-doors' as const, cell: door.cell, dir: door.dir as Dir4 } });
+      // The hayloft: in the gable end of the main roof that lies farther from the door.
+      for (const region of roofRegions(ctx.facts).byStructure.get(s.id) ?? []) {
+        const roof = roofOf(ctx.plan, region);
+        if (!roof || roof.variant !== 'gable') continue;
+        const ridge = (roof.params as { ridge?: 'x' | 'z' } | undefined)?.ridge ?? (region.width >= region.depth ? 'x' : 'z');
+        const ends: Dir4[] = ridge === 'x' ? [3, 1] : [0, 2];
+        let best: { cell: number; dir: Dir4; far: number } | null = null;
+        for (const dir of ends) {
+          const edge = region.cells.filter((k) => !region.cells.includes(neighbor(k, dir)));
+          if (edge.length === 0) continue;
+          const cell = edge[Math.floor((edge.length - 1) / 2)]!;
+          const far = door ? Math.abs(keyX(cell) - keyX(door.cell)) + Math.abs(keyZ(cell) - keyZ(door.cell)) : dir;
+          if (!best || far > best.far) best = { cell, dir, far };
+        }
+        if (best) out.push({ anchor: best.cell, structure: s.id, key: `loft${region.index}`, data: { type: 'hayloft' as const, cell: best.cell, dir: best.dir } });
+        break;
+      }
+    }
+    return out;
+  },
+  apply(c, out) {
+    const params = c.data.storeys !== undefined ? { params: { storeys: c.data.storeys } } : {};
+    if (c.data.type === 'bell-cupola') {
+      out.feature({ type: 'bell-cupola', structure: c.structure!, cell: c.data.cell, ...((c.data.dir as number) >= 0 ? { dir: c.data.dir } : {}) });
+      return;
+    }
+    const f = out.feature({ type: c.data.type, structure: c.structure!, cell: c.data.cell, dir: c.data.dir, ...params });
+    if (c.data.type === 'mill-race') out.socket({ type: 'wheel-hub', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+    if (c.data.type === 'loading-doors') {
+      out.socket({ type: 'loading-door', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+      out.socket({ type: 'hoist', owner: f, structure: c.structure, cell: c.data.cell, dir: c.data.dir });
+    }
+  },
+});

@@ -20,7 +20,7 @@ export default scenario({
   build(b) {
     for (let i = 0; i < 6; i++) b.tower(8 + i * 3, 10, { floors: 3, color: i });
     b.stack('marble', 9, 17, { floors: 2 }).stack('marble', 10, 16, { floors: 2 }).tower(10, 17, { floors: 4, color: 1 });
-    b.stack('lighthouse', 16, 17, { floors: 4 });
+    b.stack('lighthouse', 16, 25, { floors: 4 }); // within 6 of the sea: a lighthouse, not a folly (R-L02)
     b.tower(22, 17, { floors: 7, color: 2 });
     for (const x of [10, 16, 22, 28, 34]) for (let z = 30; z <= 33; z++) b.block('dock', x, 0, z);
     b.path(8, 29, 36, 29);
@@ -43,7 +43,7 @@ export default scenario({
     check.ok(flying >= 1 && flying <= 5, `some watchtowers fly a pennant, not all (${flying} of 6)`);
     // The turret's banner, the lighthouse's pennant, the tallest tower's pennant.
     check.equal(on(10, 17).map((p) => p.variant).join(), 'banner', 'the castle turret flies a banner');
-    check.equal(on(16, 17).map((p) => p.variant).join(), 'pennant', 'the lighthouse gallery flies one pennant');
+    check.equal(on(16, 25).map((p) => p.variant).join(), 'pennant', 'the lighthouse gallery flies one pennant');
     check.equal(on(22, 17).length, 1, 'the tallest structure flies a flag');
     check.ok(on(22, 17)[0]!.rule === 'D13.flags' || on(22, 17)[0]!.rule === 'D13-T.tallest-flag', 'from D13 or D13-T');
     // Piers: every end has a pennant or a lamp, never both.

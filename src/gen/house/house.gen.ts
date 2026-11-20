@@ -93,6 +93,8 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
   }
   const material = (cell: CellKey): Material => {
     if (tags?.has('glass-walls')) return { color: PALETTE.glass, pattern: PATTERN.glass };
+    // R-H18: a barn is weatherboarded in plain timber, whatever colour it was placed in.
+    if (tags?.has('barn')) return { color: PALETTE.wood, pattern: PATTERN.planks };
     if (timbered.has(cell)) return { color: mixColor(wall, PALETTE.white, 0.45), pattern: PATTERN.timber };
     if (tags?.has('stone-ground') && solid(below(cell))) return { color: PALETTE.stoneShade, pattern: PATTERN.stone };
     // U12 (edge half): a rustic house is half-timbered, boarded, or stands on a rough stone storey.
@@ -118,6 +120,8 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         return null; // drawn by this file
       case 'chimney':
         return chimneyFrame(h, f);
+      case 'bell-cupola':
+        return finialFrame(h, f);
       case 'finial':
         return finialFrame(h, f);
       case 'dormer':
@@ -139,6 +143,13 @@ function buildHouse(s: Structure, plan: ShapePlan, parts: PartRegistry): { mesh:
         // A door whose cell is above the house opens from the roof (J26): it stands in its own housing.
         if (f.cell !== undefined && !has(f.cell) && has(below(f.cell))) return roofDoor(h, f);
         return onWall(f, inset);
+      case 'hayloft':
+        return gableFrame(h, f) ?? null;
+      case 'barn-doors':
+      case 'mill-race':
+      case 'loading-doors':
+      case 'forge-front':
+      case 'bridge-brackets':
       case 'balcony':
       case 'portico':
       case 'vista':
