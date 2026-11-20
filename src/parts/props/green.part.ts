@@ -1,5 +1,5 @@
 // Village-green props (U15): the mown sward, the maypole, a ring bench round
-// a tree, the village sign. Several parts in one file; each is discovered by
+// a tree, the village sign; and the belvedere garden's (U23) citrus pots and pergola. Several parts in one file; each is discovered by
 // its own export.
 
 import { compose, rotationY, translation, type Vec3 } from '@/core/mat4';
@@ -8,7 +8,7 @@ import { SLOT_INSET } from '@/gen/frames';
 import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import { terraceGrass } from '@/style/terrain';
 import { PALETTE } from '@/style/palette';
-import { clothColors, dab, lump, mixColor, rngOf, tube, vary, TONE } from './kit';
+import { clothColors, dab, lump, mixColor, pot, rngOf, tube, vary, TONE } from './kit';
 
 const LINE = -(0.5 - SLOT_INSET);
 
@@ -182,5 +182,61 @@ export const villageSign = definePart({
       } else b.box([-0.03, 0.55, z + 0.06], [0.03, 0.68, z + 0.068]); // a tower
     });
     return { mesh: b.build() };
+  },
+});
+
+/**
+ * Citrus pot (U23 belvedere): a big terracotta pot with a clipped orange or
+ * lemon tree in it, a round ball of leaves dotted with fruit. Frame: a floor
+ * slot, square to the world.
+ */
+export const citrusPot = definePart({
+  prop: 'citrus-pot',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 457));
+    pot(b, 0.1, 0.16, PALETTE.brick, 'pot');
+    b.with({ color: PALETTE.trunk, pattern: PATTERN.bark, ink: 'tree' }, () => tube(b, [[0, 0.15, 0], [0, 0.32, 0]], [0.018, 0.014], { seg: 5 }));
+    const leaf = vary(PALETTE.leafDark, r('leaf'));
+    b.with({ color: leaf, pattern: PATTERN.leaves, ink: 'tree', sway: 0.25 }, () => lump(b, 0, 0.4, 0, 0.13, 0.12, 0.13, { seg: 8, rings: 5, normal: TONE.lit }));
+    const fruit = r('kind') < 0.6 ? mixColor(PALETTE.yellow, PALETTE.red, 0.45) : PALETTE.yellow;
+    b.with({ color: fruit, pattern: PATTERN.none, ink: 'tree', sway: 0.25 }, () => {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + r('a') * 0.4, e = 0.1 + r('e', i) * 0.8;
+        dab(b, Math.cos(a) * Math.cos(e) * 0.13, 0.4 + Math.sin(e) * 0.11, Math.sin(a) * Math.cos(e) * 0.13, 0.022, TONE.lit, 5, 0.015);
+      }
+    });
+    return { mesh: b.build() };
+  },
+});
+
+/**
+ * Pergola (U23 belvedere): four white columns carrying a timber frame of
+ * cross beams, a vine trained over it, a round table under it. Frame: a floor
+ * slot, square to the world. Sockets 'seat-0', 'seat-1' at the table.
+ */
+export const pergola = definePart({
+  prop: 'pergola',
+  build(item, ctx) {
+    const b = ctx.mesh();
+    const r = rngOf(ctx.seed ^ ((item.params?.look ?? 0) * 211));
+    const h = 0.62, s = 0.36;
+    b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'columns' }, () => {
+      for (const [x, z] of [[-s, -s], [s, -s], [-s, s], [s, s]] as const) b.at(translation(x, 0, z), () => b.lathe([[0.035, 0], [0.03, h]], { segments: 7, capTop: true }));
+    });
+    b.with({ color: PALETTE.wood, pattern: PATTERN.planks, ink: 'beams' }, () => {
+      for (const z of [-s, s]) b.box([-s - 0.08, h, z - 0.02], [s + 0.08, h + 0.04, z + 0.02]);
+      for (let i = 0; i < 5; i++) {
+        const x = -s + (i * 2 * s) / 4;
+        b.box([x - 0.015, h + 0.04, -s - 0.08], [x + 0.015, h + 0.07, s + 0.08]);
+      }
+    });
+    const leaf = vary(PALETTE.leaf, r('vine'));
+    b.with({ color: leaf, pattern: PATTERN.leaves, ink: 'vine', sway: 0.2 }, () => {
+      for (let i = 0; i < 5; i++) lump(b, -s + 0.1 + r('vx', i) * (2 * s - 0.2), h + 0.09, -s + 0.1 + r('vz', i) * (2 * s - 0.2), 0.13, 0.04, 0.11, { seg: 7, rings: 3, normal: TONE.lit, twist: i });
+      lump(b, s, h * 0.6, s, 0.05, h * 0.4, 0.05, { seg: 6, rings: 4, normal: TONE.mid });
+    });
+    b.with({ color: PALETTE.white, pattern: PATTERN.none, ink: 'table' }, () => b.lathe([[0.03, 0], [0.025, 0.2], [0.13, 0.2], [0.13, 0.22], [0, 0.22]], { segments: 10 }));
+    return { mesh: b.build(), anchors: { 'seat-0': translation(-0.2, 0.12, 0), 'seat-1': compose(translation(0.2, 0.12, 0), rotationY(Math.PI)) } };
   },
 });

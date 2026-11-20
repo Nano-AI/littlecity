@@ -701,6 +701,13 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
   cell, with a ripple ring round each; D03 puts no view bench at a ford's
   ends. 'activity'/'ford' and 'ford-far' sockets at the two ends for the
   walking graph (a link there is the life builder's).
+- **U23 · 2 · Belvedere garden** (UF-11) — a marble terrace (R-M07) with 9+
+  standable top cells, its top 2+ levels above the ground at its foot, and
+  no floor or piece on top → citrus trees in pots on a grid of its inner
+  cells and in a row along the parapet, a pergola with a table at its middle
+  (two seats), stone benches looking out from the middle of each edge. The
+  walkable stair up to it is not built (a walking-graph link: the life
+  builder's).
 
 ---
 

@@ -69,6 +69,12 @@ declare module '@/core/vocab' {
     'ring-bench.look': number;
     'village-sign': true;
     'village-sign.look': number;
+    // U23 belvedere garden: a potted citrus tree, a pergola with a table (sockets 'seat-0', 'seat-1');
+    // floor slots, square to the world.
+    'citrus-pot': true;
+    'citrus-pot.look': number;
+    'pergola': true;
+    'pergola.look': number;
 
     // U16 shops in the wall. At an edge slot of the ground cell outside a blank wall, +Z away from it;
     // `inset` is how far the wall face stands behind the cell line (0 marble, 0.07 a house). The booth
