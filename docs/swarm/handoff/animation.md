@@ -29,13 +29,18 @@ Read `src/life/MOTION.md` first (the motion style), then this.
 - `silhouette.system.ts`: 4 slots of acts (cross, pause, curtain) at lit house windows; meshes in `src/parts/people/extras.ts`. Debug: `window.__lcSilhouettes`.
 - Fireflies are gone (owner's request): do not add them back.
 
+### Boats and ships (all of L17–L20, L38–L42; catalogue "Boats and ships")
+- **Fit is the only test.** No dock counts, no lighthouse, no piers 10 apart. A boat moors where its hull fits and it could have come in from the map's edge (`edgeWater` in `src/rules/life/berths.fact.ts`). L17: every dock with a mooring a rowboat fits at gets one (one per `BOATS.rowPerCells` cells), docks served in turn, up to `SHIPS.rowboatsMax` (phone: the first `SHIPS.rowboatsPhone` by `rank`). L18: one fishing boat beside any dock it fits. L19: `SHIPS.sailBase` sailboats on any island, one more per `SHIPS.sailPerDocks` dock cells. L20: the nearest two docks joined by water share a rower (at most two in the town). L38–L40: the longest `SHIPS.shipBerthsMax` berths get every big ship that fits them (`planBerth` sails it in and out); each berth takes one ship at a time in a smooth weighted rotation (galleon 5, galley 3, cog 2). L41: any dock on river water (generator 2's `MAT_RIVER`, or a channel) brings the barge, to another river dock or to the river mouth. L42: a tall ship passes on any island (more often with a lighthouse).
+- **Nothing vanishes.** The map's edge is a wall: the movers pool draws with `EDGECUT` (`src/render/shaders/surface.ts`), so anything moving on the water is cut off there per pixel, and an instance with params.w −1 (things in the air that go with a ship) or −2 (a ship crossing: its back faces are drawn flat and dark as its cut face, the CAP pass) is too. Ships start and end their voyages beyond a straight side and are released only when all of them is out. Built over: nudged to free water (`nearestFree`). Shut in: a resident until a way opens. No water at all: the removal puff (`src/life/ships/puff.ts`). Small boats that leave the plan are rowed or sailed away by a stand-in (`src/life/ships/ferry.system.ts`; behaviours call `notePose`). Landed goods lie on the quay (a Pile per berth) until a later crew carries them aboard.
+- **Getting along.** Ships slow for small boats under their bows; sailboats, the fishing boat and the rower slow and stand aside (`giveWay`, `standAside` in `src/life/ships/news.ts`); moored rowboats row aside along the dock when a ship comes in to their stretch (`news.zones`).
+- Tests: `src/life/ships/ships.test.ts` (no hull ever changes size or hides; every nasty edit mid-visit; small boats give way), `src/rules/life/berths.test.ts`. Gallery: `part.ships`, `part.ships-edge`.
+
 ## Not done
-- L20 rower. L10 bunting glow (Dressing's bunting part has no `PATTERN.glow` bulbs; add them, then add 'bunting' to `LAMP_TYPES`).
+- L10 bunting glow (Dressing's bunting part has no `PATTERN.glow` bulbs; add them, then add 'bunting' to `LAMP_TYPES`).
 - Gust front: checked numerically (wind field), not convincingly by eye in contact sheets.
 
 ## Next, in order
-1. L20 rower (two piers 10+ apart; a rowboat between their pier ends, through open water only).
-2. A second look at clouds (they only show over the paper round the map) and the cat's size at playing zoom.
+1. A second look at clouds (they only show over the paper round the map) and the cat's size at playing zoom.
 
 ## Gotchas
 - Shell: heredocs mixed with other commands are refused; use Write, or short python -c edits.
