@@ -57,7 +57,7 @@ import { nearestOnTrack, outdoors, trackAt, trackOf, type Track, type TrackPoint
 import { PERSON } from '@/style/people';
 import { TIME } from '@/style/time';
 import { WEDDING } from '@/style/town-life';
-import type { InstanceHandle, TimeSignal } from '../../api';
+import type { InstanceHandle } from '../../api';
 import { fxOf } from '../../fx/fx';
 import { ringPeal } from '../../mechanisms/peal';
 import { mischiefOf } from '../../mischief/director';
@@ -135,6 +135,15 @@ function linked(board: Board, a: number, b: number): boolean {
     if (l.a === b || l.b === b) return true;
   }
   return false;
+}
+
+/** The wedding chain drawing on each stage (the app reads it for its note: weddingOn). */
+const onStage = new WeakMap<object, WeddingChain>();
+
+/** What the wedding on this stage is doing now, for the app's note: its phase, how many weddings so far, and where to look. */
+export function weddingOn(stage: object): { phase: WeddingPhase; held: number; focus: { x: number; y: number; z: number } | null } | null {
+  const c = onStage.get(stage);
+  return c ? { phase: c.phase, held: c.held, focus: c.focus } : null;
 }
 
 export function weddingChain(): WeddingChain {
@@ -968,6 +977,7 @@ export function weddingChain(): WeddingChain {
     },
     step(dt, time, board) {
       boardRef = board;
+      if (board.stage) onStage.set(board.stage, chain);
       if (seen < 0) {
         seen = board.now;
         next = seen + WEDDING.first + rand(board.seed, 'wedding-at', 0) * WEDDING.firstSpread;
