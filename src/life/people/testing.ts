@@ -103,12 +103,12 @@ export function watch(crowd: Crowd, opts: { maxStuck?: number } = {}): Watch {
         if (p.visible) out++;
         if (p.stuck > w.longestStuck) w.longestStuck = p.stuck;
         if (p.stuck > (opts.maxStuck ?? 6)) say(p, `held up for ${p.stuck.toFixed(1)} s`);
-        if (before && before.mode === 'walk' && p.mode !== 'walk' && p.mode !== 'wait' && p.mode !== 'hop') {
+        if (before && before.mode === 'walk' && p.mode !== 'walk' && p.mode !== 'wait' && p.mode !== 'hop' && p.mode !== 'thrown') {
           w.arrivals++;
           const type = p.goal?.kind === 'home' ? 'home' : (p.goal?.haunt?.type ?? p.goal?.kind ?? '?');
           w.byHaunt.set(type, (w.byHaunt.get(type) ?? 0) + 1);
         }
-        if (p.visible && p.mode !== 'hop' && p.node >= 0) {
+        if (p.visible && p.mode !== 'hop' && p.mode !== 'thrown' && p.node >= 0) {
           const node = nav.nodes[p.node]!;
           const cx = keyX(node.cell), cz = keyZ(node.cell), cy = keyY(node.cell);
           const piece = p.mode === 'walk' && p.walk ? p.walk[p.at]! : null;
@@ -117,7 +117,7 @@ export function watch(crowd: Crowd, opts: { maxStuck?: number } = {}): Watch {
           if (p.x < cx - slack || p.x > cx + 1 + slack || p.z < cz - slack || p.z > cz + 1 + slack) say(p, `outside the cell of its node (${cx}, ${cy}, ${cz})`);
           const lo = cy * CELL_H - 0.52, hi = (cy + 1) * CELL_H + 0.05;
           if (p.y < lo || p.y > hi) say(p, `at height ${p.y.toFixed(2)}, not on the floor of level ${cy}`);
-          if (before && before.nav === nav && before.node !== p.node && before.node >= 0 && before.mode !== 'hop' && before.mode !== 'home' && before.mode !== 'visit') {
+          if (before && before.nav === nav && before.node !== p.node && before.node >= 0 && before.mode !== 'hop' && before.mode !== 'thrown' && before.mode !== 'home' && before.mode !== 'visit') {
             // A change of node is a link of the graph.
             let linked = false;
             for (let k = nav.linkStart[p.node]!; k < nav.linkStart[p.node + 1]!; k++) {

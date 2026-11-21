@@ -1,0 +1,505 @@
+// Who is blown off their feet, and what becomes of them (design section 13b,
+// "blown about"; the owner: "they don't die, but they get blasted in every
+// direction, just like the trees do ... the little dizzy stars when they
+// fall down, but eventually they get back up and it's okay"). Owner:
+// Mischief. No drawing here (thrown.system.ts draws), no clock of its own.
+//
+// A nuke's shockwave throws everyone out in the town as its ring reaches
+// them (in step with the ring the director hits the buildings with); a
+// bomb, those near it at the bang; lightning, anybody right beside where it
+// strikes. Each is taken off the walking graph (crowd.upend: out of their
+// walk and their errand, as if called away), thrown on a body (thrown.ts)
+// away from the blast, faster and higher the nearer the middle, tumbling
+// with arms and legs flung out; bounces, rolls onto their back, lies dizzy
+// a few seconds (staggered: the town does not get up in unison), sits up
+// shaking their head, stands, dusts off, looks about, picks up a straw hat
+// that was knocked off, walks to the nearest walkable spot and is set down
+// there (crowd.settle) to carry on. Into the sea: they swim to the shore
+// and climb out. On a roof: dizzy there, then slide off the eaves. A body
+// flying fast bowls over whoever it hits.
+//
+// Undo and a new town: everyone thrown is set back on their feet at once.
+
+import { key, keyX, keyZ, SEA_Y } from '@/core/grid';
+import { rand } from '@/core/rand';
+import { lookOf } from '@/parts/people/person';
+import { poseOf, type Pose } from '@/parts/people/pose';
+import type { NavGraph, ShapePlan } from '@/resolve/plan';
+import type { Crowd, Person, Tumble } from '../people/crowd';
+import { nodeCentre, nodeHeight } from '../people/walk';
+import { createGround, type Ground } from './ground';
+import { NUKE_TIME, waveRadius } from './nuke-timing';
+import { hold, launch, makeBody, quatToMat3, stepBody, THROWN, type Body, type BodyEvent } from './thrown';
+
+/** The numbers of being blown about. */
+export const BLOWN = {
+  /** A nuke: how far its ring throws people (cells), and the throw at the middle and at the rim (units a second). */
+  nukeReach: NUKE_TIME.waveReach,
+  nukeAlong: [1.1, 7.4],
+  nukeUp: [1.9, 7.6],
+  /** A bomb: its reach, and its throw at the middle and the edge. */
+  bombReach: 3.6,
+  bombAlong: [1.1, 5.2],
+  bombUp: [2.2, 6.4],
+  /** Lightning: right beside the bolt only. */
+  boltReach: 1.3,
+  boltAlong: 1.3,
+  boltUp: 3.0,
+  /** Spin (radians a second) at the rim and at the middle. */
+  spin: [4, 13],
+  /** Seconds dizzy: at least, plus up to `dizzySpread` (by the person), plus up to `dizzyNear` for those thrown hardest. */
+  dizzy: 2.4,
+  dizzySpread: 3,
+  dizzyNear: 2,
+  /** Seconds getting up (sit, shake the head, stand, dust off, look about), and on the way, picking up a hat. */
+  rise: 3.4,
+  /** A straw hat is knocked off by a throw faster than this, for most. */
+  hatAt: 3,
+  /** A body flying faster than this bowls over whoever it hits (within `bowlReach`), at most `bowlMost` each. */
+  bowlAt: 2.4,
+  bowlReach: 0.28,
+  bowlMost: 3,
+} as const;
+
+/** Where a person's middle is, above their feet (world units), and how far their outline reaches when they land. */
+const PIVOT = 0.17;
+const RADIUS = 0.09;
+/** The figure's hips in its own units (person.ts rigOf), and how far they come down to sit on the ground. */
+const PIVOT_FIG = 0.2;
+const SIT_DROP = 0.098;
+
+export interface Thrown {
+  person: Person;
+  body: Body;
+  /** A straw hat knocked off, flying or lying on its own; null when on the head. */
+  hat: Body | null;
+  /** The hat's colour (it is drawn in it). */
+  hatColor: string;
+  /** People this one has bowled over. */
+  bowled: number;
+  /** The node it walks to, once up. */
+  node: number;
+  /** Pace on the way (for the walking drawing). */
+  stride: number;
+  /** What it last did that the drawing shows once (a splash, a puff of dust): taken by the drawing. */
+  events: BodyEvent[];
+  /** Going for the hat: walking to it, bending for it; or it is coming back to them by itself (`return`, seconds). */
+  fetch: 'walk' | 'pick' | null;
+  hatBack: number;
+}
+
+export interface Thrower {
+  readonly thrown: ReadonlyMap<Person, Thrown>;
+  /** The town changed: the solid map is made again when next wanted. */
+  sync(shape: ShapePlan, nav: NavGraph | null): void;
+  /** A blast at (x, y, z): a nuke's ring travels out over `NUKE_TIME.waveTime`; a bomb or a bolt is at once. */
+  blast(x: number, y: number, z: number, kind: 'nuke' | 'bomb' | 'bolt'): void;
+  /** Throws one person with this velocity (the Hand letting go, a body hitting them). False if they cannot be. */
+  fling(p: Person, vx: number, vy: number, vz: number, opts?: { dizzy?: number; spin?: number }): boolean;
+  /** The Hand picks somebody up: they hang where `carry` puts them until `fling`. False if they cannot be. */
+  grab(p: Person): boolean;
+  carry(p: Person, x: number, y: number, z: number): void;
+  step(dt: number): void;
+  /** Everyone back on their feet now, where the walking graph has room for them (undo, a new town). */
+  reset(): void;
+  readonly ground: Ground | null;
+}
+
+/** Can a person who has got up walk to their hat (on the ground, near, about their level)? */
+function hatInReach(b: Body, hat: Body, g: Ground): boolean {
+  if (hat.phase !== 'lie' && hat.phase !== 'roll') return false;
+  if (Math.hypot(hat.x - b.x, hat.z - b.z) > 2.5 || Math.abs(hat.y - b.y) > 0.4 || hat.y <= SEA_Y) return false;
+  // Nothing in the way along the ground.
+  const n = 8;
+  for (let i = 1; i <= n; i++) {
+    const u = i / n;
+    if (g.blocked(b.x + (hat.x - b.x) * u, b.y + 0.15, b.z + (hat.z - b.z) * u)) return false;
+  }
+  return true;
+}
+
+export function createThrower(crowd: Crowd): Thrower {
+  const thrown = new Map<Person, Thrown>();
+  let shape: ShapePlan | null = null;
+  let nav: NavGraph | null = null;
+  let ground: Ground | null = null;
+  const groundNow = (): Ground | null => {
+    if (!ground && shape) ground = createGround(shape, nav);
+    return ground;
+  };
+  /** Shockwaves on their way out: where from, how long since, who they have thrown. */
+  const waves: { x: number; y: number; z: number; t: number; hit: Set<Person> }[] = [];
+
+  const canThrow = (p: Person): boolean => p.visible && p.mode !== 'home' && p.mode !== 'visit' && p.mode !== 'gone' && !p.shutIn;
+
+  const take = (p: Person): Thrown | null => {
+    const had = thrown.get(p);
+    if (had) return had;
+    if (!canThrow(p) || !crowd.upend(p)) return null;
+    // Half in at a doorway (or on a step the solid map counts as the cell beside): out into their own cell.
+    const g = groundNow();
+    if (g && p.cell >= 0 && g.blocked(p.x, p.y + 0.1, p.z)) {
+      const x0 = keyX(p.cell), z0 = keyZ(p.cell);
+      p.x = Math.max(x0 + 0.12, Math.min(x0 + 0.88, p.x));
+      p.z = Math.max(z0 + 0.12, Math.min(z0 + 0.88, p.z));
+    }
+    const body = makeBody(p.seed, p.x, p.y, p.z, p.heading, PIVOT, RADIUS);
+    const look = lookOf(p.look, p.child);
+    const t: Thrown = { person: p, body, hat: null, hatColor: look.hatColor, bowled: 0, node: -1, stride: 0, events: [], fetch: null, hatBack: -1 };
+    // Only a hat that stands off the head comes off (a straw hat); not over wedding finery or beachwear.
+    if (look.hat !== 'straw' || p.costume !== null) t.hatColor = '';
+    thrown.set(p, t);
+    p.tumble = { pose: null, rot: quatToMat3(body.q, new Float32Array(9)), pivot: PIVOT_FIG, hatless: false, drop: 0 };
+    return t;
+  };
+
+  const fling = (p: Person, vx: number, vy: number, vz: number, opts: { dizzy?: number; spin?: number } = {}): boolean => {
+    const t = take(p);
+    if (!t) return false;
+    const b = t.body;
+    const sp = Math.hypot(vx, vy, vz);
+    launch(b, vx, vy, vz, opts.spin ?? Math.min(BLOWN.spin[1], BLOWN.spin[0] + sp * 1.2));
+    b.dizzy = opts.dizzy ?? BLOWN.dizzy + rand(p.seed, 'dizzy', b.age) * BLOWN.dizzySpread + Math.min(1, sp / 9) * BLOWN.dizzyNear;
+    b.rise = BLOWN.rise;
+    t.node = -1;
+    // The hat comes off: up and away a little faster than its owner, spinning on its own.
+    if (t.hatColor && !t.hat && sp > BLOWN.hatAt && rand(p.seed, 'hat', b.age) < 0.8) {
+      const hat = makeBody(p.seed ^ 0x9e37, b.x, b.y + 0.2, b.z, p.heading, 0, 0.02);
+      hat.upright = false;
+      launch(hat, vx * 0.75 + (rand(p.seed, 'hx', b.age) - 0.5) * 1.2, vy * 0.9 + 1.2, vz * 0.75 + (rand(p.seed, 'hz', b.age) - 0.5) * 1.2, 9);
+      hat.dizzy = Infinity;
+      t.hat = hat;
+      p.tumble!.hatless = true;
+    }
+    return true;
+  };
+
+  const blastAt = (x: number, y: number, z: number, p: Person, kind: 'nuke' | 'bomb' | 'bolt'): void => {
+    const dx = p.x - x, dz = p.z - z, dy = (p.y - y) * 1.5;
+    const d = Math.hypot(dx, dz, kind === 'nuke' ? 0 : dy);
+    const reach = kind === 'nuke' ? BLOWN.nukeReach : kind === 'bomb' ? BLOWN.bombReach : BLOWN.boltReach;
+    if (d > reach) return;
+    const k = Math.max(0, 1 - d / reach);
+    const s = kind === 'nuke' ? k ** 1.25 : k;
+    const r = (what: string): number => rand(p.seed, 'blast', what, Math.round(x * 7 + z * 13));
+    let along: number, up: number;
+    if (kind === 'nuke') {
+      along = BLOWN.nukeAlong[0] + (BLOWN.nukeAlong[1] - BLOWN.nukeAlong[0]) * s;
+      up = BLOWN.nukeUp[0] + (BLOWN.nukeUp[1] - BLOWN.nukeUp[0]) * s;
+    } else if (kind === 'bomb') {
+      along = BLOWN.bombAlong[0] + (BLOWN.bombAlong[1] - BLOWN.bombAlong[0]) * s;
+      up = BLOWN.bombUp[0] + (BLOWN.bombUp[1] - BLOWN.bombUp[0]) * s;
+    } else {
+      along = BLOWN.boltAlong;
+      up = BLOWN.boltUp;
+    }
+    along *= 0.85 + r('along') * 0.3;
+    up *= 0.85 + r('up') * 0.3;
+    const a = (d > 0.05 ? Math.atan2(dx, dz) : r('dir') * Math.PI * 2) + (r('veer') - 0.5) * 0.5;
+    fling(p, Math.sin(a) * along, up, Math.cos(a) * along, { spin: BLOWN.spin[0] + (BLOWN.spin[1] - BLOWN.spin[0]) * s * (0.8 + r('spin') * 0.4) });
+  };
+
+  /** The walkable spot nearest a body that has got up, in the node's cell: where they walk to. */
+  const goalFor = (t: Thrown): boolean => {
+    const b = t.body;
+    const nv = crowd.nav;
+    const g = groundNow();
+    if (!nv || !g) return false;
+    const inset = 0.18;
+    const spotIn = (node: number): { x: number; y: number; z: number } => {
+      const c = nv.nodes[node]!.cell;
+      const x0 = keyX(c), z0 = keyZ(c);
+      return { x: Math.max(x0 + inset, Math.min(x0 + 1 - inset, b.x)), y: nodeHeight(nv, node), z: Math.max(z0 + inset, Math.min(z0 + 1 - inset, b.z)) };
+    };
+    /** Can they walk straight there along the ground, through nothing? */
+    const clear = (to: { x: number; y: number; z: number }): boolean => {
+      const d = Math.hypot(to.x - b.x, to.z - b.z);
+      const n = Math.max(1, Math.ceil(d / 0.1));
+      for (let i = 1; i <= n; i++) {
+        const u = i / n;
+        const y = Math.max(b.y, to.y) + 0.12;
+        if (g.blocked(b.x + (to.x - b.x) * u, y, b.z + (to.z - b.z) * u)) return false;
+      }
+      return true;
+    };
+    // The nearest walkable cell they can walk straight to (within a few cells); else simply the nearest.
+    const cx = Math.floor(b.x), cz = Math.floor(b.z), cy = Math.round(b.y / 0.8);
+    let best = -1, bestD = Infinity, bestSpot: { x: number; y: number; z: number } | null = null;
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          if (cx + dx < 0 || cz + dz < 0 || cx + dx > 47 || cz + dz > 47 || cy + dy < 0) continue;
+          const node = nv.nodeAt.get(key(cx + dx, cy + dy, cz + dz));
+          if (node === undefined || nv.nodes[node]!.rot !== undefined || nv.nodes[node]!.passage !== undefined) continue;
+          const s = spotIn(node);
+          const d = Math.hypot(s.x - b.x, s.z - b.z) + Math.abs(s.y - b.y) * 1.5;
+          if (d >= bestD || !clear(s)) continue;
+          best = node;
+          bestD = d;
+          bestSpot = s;
+        }
+      }
+    }
+    if (best < 0) {
+      best = crowd.nearestNode(b.x, b.y, b.z);
+      if (best < 0) return false;
+      bestSpot = spotIn(best);
+    }
+    t.node = best;
+    b.goal = bestSpot;
+    return true;
+  };
+
+  /** A swimmer's way out: the nearest walkable spot to the water there (a beach, a quay). */
+  const shoreFor = (t: Thrown): void => {
+    const b = t.body;
+    const node = crowd.nearestNode(b.x, 0.4, b.z);
+    if (node < 0 || !crowd.nav) return;
+    const c = nodeCentre(crowd.nav, node);
+    b.goal = { x: c.x, y: nodeHeight(crowd.nav, node), z: c.z };
+  };
+
+  /** Back on the walking graph, on their feet. */
+  const finish = (t: Thrown): void => {
+    const p = t.person;
+    let node = t.node;
+    const nv = crowd.nav;
+    if (nv && (node < 0 || node >= nv.nodes.length || keyX(nv.nodes[node]!.cell) !== Math.floor(p.x) || keyZ(nv.nodes[node]!.cell) !== Math.floor(p.z))) {
+      node = crowd.nearestNode(p.x, p.y, p.z);
+      if (node >= 0) {
+        // Snapped into the cell (it has moved under them: a mend, an undo).
+        const c = nv.nodes[node]!.cell;
+        p.x = Math.max(keyX(c) + 0.05, Math.min(keyX(c) + 0.95, p.x));
+        p.z = Math.max(keyZ(c) + 0.05, Math.min(keyZ(c) + 0.95, p.z));
+      }
+    }
+    p.tumble = null;
+    thrown.delete(p);
+    crowd.settle(p, node);
+  };
+
+  // ── the drawing each body asks for ─────────────────────────────────────────
+  const flail = (b: Body, out: Pose): void => {
+    // Held drawings, ten a second: the arms and legs flung about, lagging the tumble.
+    const k = Math.floor(b.age * 10);
+    const s = (b.seed % 97) / 15;
+    out.armL = 2.3 + 0.8 * Math.sin(k * 2.1 + s);
+    out.armR = 2.1 + 0.8 * Math.sin(k * 1.7 + s + 1);
+    out.outL = 1.0 + 0.35 * Math.sin(k * 1.3 + s);
+    out.outR = 1.0 + 0.35 * Math.cos(k * 1.1 + s);
+    out.legL = 0.75 * Math.sin(k * 1.9 + s);
+    out.legR = -0.65 * Math.sin(k * 1.5 + s + 2);
+    out.lean = 0.3 * Math.sin(k * 0.9 + s);
+    out.lift = 0;
+    out.twist = 0.3 * Math.sin(k * 1.4);
+  };
+  const wriggle = (b: Body, out: Pose): void => {
+    // Hanging from the Hand: legs kicking, arms waving, on twos.
+    const k = Math.floor(b.age * 8);
+    out.armL = 2.5 + (k % 2) * 0.35;
+    out.armR = 2.5 + ((k + 1) % 2) * 0.35;
+    out.outL = 0.5;
+    out.outR = 0.5;
+    out.legL = k % 2 ? 0.55 : -0.25;
+    out.legR = k % 2 ? -0.25 : 0.55;
+    out.lean = 0;
+    out.lift = 0;
+    out.twist = ((k % 4) - 1.5) * 0.15;
+  };
+  /** The steps of getting up, by the seconds since they began. */
+  const rising = (t: Thrown, u: number): { pose: Pose; drop: number } => {
+    const p = t.person;
+    if (u < 0.9) {
+      // Sitting up, shaking the head.
+      const pose = poseOf('sit', u, p.rank);
+      pose.twist = u < 0.65 ? (Math.floor(u * 7) % 2 ? 0.4 : -0.4) : 0;
+      pose.armL = pose.armR = 0.35;
+      return { pose, drop: SIT_DROP };
+    }
+    if (u < 1.2) return { pose: poseOf('ready', u, p.rank), drop: 0 };
+    if (u < 2.1) return { pose: poseOf('dust', u, p.rank), drop: 0 };
+    if (u < 2.9) return { pose: poseOf('look', u, p.rank), drop: 0 };
+    return { pose: poseOf('stand', u, p.rank), drop: 0 };
+  };
+
+  const draw = (t: Thrown): void => {
+    const p = t.person, b = t.body, tm = p.tumble as Tumble;
+    p.x = b.x;
+    p.y = b.y;
+    p.z = b.z;
+    tm.drop = 0;
+    tm.pose ??= poseOf('stand', 0);
+    if (!b.upright) {
+      quatToMat3(b.q, (tm.rot ??= new Float32Array(9)));
+      if (b.phase === 'held') wriggle(b, tm.pose);
+      else if (b.splat > 0 || b.phase === 'roll') Object.assign(tm.pose, poseOf('dive', 0));
+      else flail(b, tm.pose);
+      return;
+    }
+    tm.rot = null;
+    p.heading = b.heading;
+    switch (b.phase) {
+      case 'lie':
+      case 'roof':
+      case 'slide':
+        Object.assign(tm.pose, poseOf('lie', b.t, p.rank));
+        break;
+      case 'swim': {
+        const pose = poseOf('splash', b.t, p.rank);
+        pose.armL = pose.armR = 1.9 + (Math.floor(b.t * 4) % 2) * 0.5;
+        Object.assign(tm.pose, pose);
+        break;
+      }
+      case 'climb':
+        Object.assign(tm.pose, poseOf('hop', 0));
+        break;
+      case 'up': {
+        if (t.fetch === 'pick') {
+          Object.assign(tm.pose, poseOf('tend', b.t, p.rank));
+          break;
+        }
+        const r = rising(t, b.t);
+        Object.assign(tm.pose, r.pose);
+        tm.drop = r.drop;
+        break;
+      }
+      case 'walk':
+      case 'done':
+        Object.assign(tm.pose, poseOf('walk', t.stride));
+        break;
+    }
+  };
+
+  const thrower: Thrower = {
+    thrown,
+    get ground() {
+      return groundNow();
+    },
+    sync(s, n) {
+      shape = s;
+      nav = n;
+      ground = null;
+    },
+    blast(x, y, z, kind) {
+      if (kind === 'nuke') {
+        waves.push({ x, y, z, t: 0, hit: new Set() });
+        return;
+      }
+      for (const p of crowd.people) if (canThrow(p)) blastAt(x, y, z, p, kind);
+    },
+    fling,
+    grab(p) {
+      const t = take(p);
+      if (!t) return false;
+      hold(t.body);
+      return true;
+    },
+    carry(p, x, y, z) {
+      const b = thrown.get(p)?.body;
+      if (!b || b.phase !== 'held') return;
+      b.x = x;
+      b.y = y;
+      b.z = z;
+    },
+    step(dt) {
+      // The nuke's ring: everyone it has reached since the last frame.
+      for (let i = waves.length - 1; i >= 0; i--) {
+        const w = waves[i]!;
+        w.t += dt;
+        const r = w.t >= NUKE_TIME.waveTime ? BLOWN.nukeReach : waveRadius(w.t);
+        for (const p of crowd.people) {
+          if (w.hit.has(p) || !canThrow(p)) continue;
+          if (Math.hypot(p.x - w.x, p.z - w.z) > r) continue;
+          w.hit.add(p);
+          blastAt(w.x, w.y, w.z, p, 'nuke');
+        }
+        if (w.t >= NUKE_TIME.waveTime) waves.splice(i, 1);
+      }
+      const g = groundNow();
+      if (!g || thrown.size === 0) return;
+      for (const t of [...thrown.values()]) {
+        const b = t.body;
+        const before = b.phase;
+        const ev = stepBody(b, dt, g);
+        if (ev) t.events.push(ev);
+        if (t.events.length > 8) t.events.splice(0, t.events.length - 8);
+        if (ev === 'splash') shoreFor(t);
+        if (b.phase === 'walk' && before !== 'walk') {
+          if (t.fetch === 'pick') {
+            // Hat back on.
+            t.fetch = null;
+            t.hat = null;
+            t.person.tumble!.hatless = false;
+          }
+          const hat = t.hat;
+          if (hat && t.fetch === null && t.hatBack < 0 && hatInReach(b, hat, g)) {
+            t.fetch = 'walk';
+            b.goal = { x: hat.x - Math.sin(b.heading) * 0.0, y: hat.y, z: hat.z };
+          } else if (!goalFor(t)) b.goal = { x: b.x, y: b.y, z: b.z };
+        }
+        if (ev === 'arrived' && t.fetch === 'walk') {
+          // At the hat: bend for it.
+          t.fetch = 'pick';
+          b.phase = 'up';
+          b.t = 0;
+          b.rise = 0.6;
+        }
+        if (b.phase === 'walk') t.stride += (THROWN.walk * dt * 6) / 2;
+        const hat = t.hat;
+        if (hat) {
+          if (t.hatBack >= 0) {
+            // Out of reach (in the water, on a roof, far off): it bounces back to them by itself.
+            t.hatBack += dt;
+            const u = Math.min(1, t.hatBack / 0.5);
+            hat.x += (b.x - hat.x) * u;
+            hat.z += (b.z - hat.z) * u;
+            hat.y += (b.y + 0.42 - hat.y) * u + Math.sin(u * Math.PI) * 0.04;
+            if (u >= 1) {
+              t.hat = null;
+              t.hatBack = -1;
+              t.person.tumble!.hatless = false;
+            }
+          } else {
+            stepBody(hat, dt, g);
+            if (b.phase === 'up' && t.fetch === null && b.t >= 2.4 && !hatInReach(b, hat, g)) {
+              hold(hat);
+              t.hatBack = 0;
+            }
+          }
+        }
+        // Flying fast: whoever it hits goes over too.
+        if ((b.phase === 'fly' || b.phase === 'held') && t.bowled < BLOWN.bowlMost) {
+          const sp = Math.hypot(b.vx, b.vy, b.vz);
+          if (sp > BLOWN.bowlAt) {
+            for (const q of crowd.people) {
+              if (q === t.person || thrown.has(q) || !canThrow(q)) continue;
+              if (Math.abs(q.x - b.x) > BLOWN.bowlReach || Math.abs(q.z - b.z) > BLOWN.bowlReach) continue;
+              if (Math.abs(q.y + PIVOT - b.y) > 0.3) continue;
+              if (fling(q, b.vx * 0.55, 2.4 + Math.abs(b.vy) * 0.2, b.vz * 0.55)) t.bowled++;
+            }
+          }
+        }
+        if (b.phase === 'done') finish(t);
+        else draw(t);
+      }
+    },
+    reset() {
+      waves.length = 0;
+      for (const t of [...thrown.values()]) {
+        const p = t.person;
+        const node = crowd.nearestNode(p.x, p.y, p.z);
+        if (node >= 0 && crowd.nav) {
+          const c = nodeCentre(crowd.nav, node);
+          p.x = c.x;
+          p.z = c.z;
+          p.y = nodeHeight(crowd.nav, node);
+        }
+        t.node = node;
+        t.hat = null;
+        t.fetch = null;
+        finish(t);
+      }
+    },
+  };
+  return thrower;
+}
