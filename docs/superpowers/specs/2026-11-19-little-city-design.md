@@ -1070,18 +1070,43 @@ come back. Nothing destructive ever happens unless the player starts it.
   scorched and shaken, windows nearby lose their glass, birds take off
   across the whole town. Dropped in water it throws up a spout and soaks
   the quay.
-- **Raid (a horn).** Blow it and a longship or two with striped sails and
-  shields along the side comes in through the edge of the sea, beaches or
-  ties up at a dock, and raiders in horned helmets pour out. They chase
-  chickens and sheep, carry off barrels, crates and loaves over their
-  shoulders, knock over stalls, and set a torch to a building or two. The
-  town responds: the bell rings, residents run indoors and shutters close,
-  the garrison (if there is one) forms up and meets them, and the two sides
-  disappear into cartoon scuffle clouds. With a strong garrison the raiders
-  are chased back to their ship; with none they loot at leisure. Either way
-  they row off with what they took, cut off at the map edge like every
-  other ship. A castle's walls and a closed gate keep them out of what is
-  inside.
+- **Raid (a longship; Derek, 2026-11-21: "a bunch of little barbarians
+  come out ... set fire to the city, and the villagers run away, and they
+  loot some stuff ... and sail away with half the city on fire").** Built
+  in `src/life/raid/` (catalogue L69–L72). Two kinds, chosen by the shore
+  and by chance: **the landing** (a longship with a striped red-and-white
+  square sail, a dragon prow, a row of round shields a side and oars comes
+  in over the edge of the map, spins about off a beach and rows up onto the
+  sand; the band jumps over the sides and wades in) and **the boats** (a
+  bigger longship hove to offshore under a half-set sail sends two to four
+  rowing boats to landings spread round the town). The band, 8 to 16 by
+  the town's size, is drawn over the ordinary little person
+  (`src/parts/people/barbarian.ts`: horned or winged iron helmets, big
+  beards, fur capes, round shields on their backs; a chief bigger, in red,
+  with a horn) and holds a flaming brand, an axe or a club up over its
+  head. Ashore they are people of the crowd with a `raider` mark, so a
+  blast or the Hand throws them like anybody (they get up and carry on).
+  **Beats:** sighted (the horn, the alarm bell, people on the shore
+  pointing, the note "Raiders off the coast!" with Watch, which comes
+  whatever the note's gap); ashore (a charge with "RAAR!" and rune
+  balloons); fire (brands to the thatch and timber nearest, through the
+  Lightning tool's fire, which spreads and is fought and mended as ever);
+  looting (doors kicked in, sacks, chests, a ham, a pig, a hen, a wheel of
+  cheese, a candlestick carried out and piled by the landing); the town
+  runs (indoors, or ten cells clear; scenes near them break up); the horn
+  and away (each takes up a piece of the pile, the loot heaps amidships,
+  the ship backs off, spins, and sails out with smoke behind it). About two
+  minutes. **Stopping them:** a bomb, the nuke or lightning on the ship:
+  scorched it sails on; burning or broken it goes down, and the band is
+  stranded: they run for the sea, a few townspeople after them shaking
+  their fists, and swim away over the edge of the map, horns bobbing. Sunk
+  before it lands, there is no raid. **On their own:** the menu's Raiders
+  switch (on by default, kept in the browser): after 8 minutes of play,
+  then every 12 to 20, on a town of 14 buildings or more, by day, never at
+  a wedding. Not built yet: the garrison marching out and scuffles with
+  raiders, bold villagers with brooms, hens and sheep scattering,
+  livestock jumping ship and swimming home, stalls visibly emptied,
+  castle gates keeping them out.
 - **More, if they come naturally** (builder's choice): a lightning bolt, a
   sea monster that rises and smashes a pier, a giant's foot. Each must be
   as readable and as funny as the first three.
@@ -1136,7 +1161,8 @@ come back. Nothing destructive ever happens unless the player starts it.
   undo puts the town back exactly as it was, at once, and sends any raiders
   home.
 - **Limits.** Mischief never touches terrain. It cannot be triggered by a
-  rule, a timer or a share link: opening someone's town never shows it
+  rule or a share link, and by a timer only as raids on their own (the
+  Raiders switch, L72), which are undone like any act: opening someone's town never shows it
   burning unless they shared it mid-fire, in which case it opens with the
   ruins and no active fire. The welcome note and Grow a town never use it.
 - **Built as.** A fire, a blast or a raid is a seeded, fixed-step

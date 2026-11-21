@@ -1184,6 +1184,68 @@ every cadence, so a held time of day, season or weather keeps them coming.
   moving → thrown at the pointer's speed (at most 15 units a second); then
   as LM01. Escape or another tool → put down. Nothing saved, no undo step.
 
+### Raids (Derek's request, 2026-11-21)
+
+Run time, no rule: `src/life/raid/` (design section 13b, "Raid"). Never
+saved: a raid's fires are ordinary damage that mends; one undo puts them
+back.
+
+- **L69 · 2 · A landing raid** (`raid.ts`, `site.ts`) — the Raid tool, or a
+  raid on its own (L72) → a longship (5.4 long; a striped red-and-white
+  square sail, a dragon prow, nine painted shields a side, seven oars a side)
+  comes in over the edge of the map to a turning point off a beach near the
+  town (sand first, then any low shore; open ground behind it; a straight run
+  in; a clear circle to spin in), spins under oars and rows up onto the sand.
+  A horn from the ship; the alarm bell; up to four townspeople nearest the
+  shore stop and point. **The band:** 8 + one per 6 buildings, at most 16: a
+  chief (bigger, red cape, the horn) and raiders in thirds with a flaming
+  brand, an axe or a club; horned (a quarter winged) iron helmets, big beards
+  (some plaited), fur capes, a round shield on the back. They jump over the
+  side and wade in, then charge a few cells up the shore under "RAAR!" and
+  rune balloons (one every 5–14 s each). **Brands** go to the buildings that
+  burn best nearest the landings (stalls, mills, barns and cottages first;
+  12 %–16 % of the town's buildings, 2–9, never the chapel) and set them
+  alight through the Lightning tool's fire (it spreads as any fire does).
+  **Axes and clubs** kick in a door (0.7 s), go in (2.4 s), come out with
+  loot by the building's role (a warehouse: barrels, sacks, chests, cloth; a
+  shop: cloth, cheese, a candlestick; a barn: a pig, a hen; a house: a ham,
+  a sack…) or take it off a stall, and pile it by the landing (six places);
+  two trips each. Townspeople within 7 cells of a raider run: home if home is
+  clear of them, else to the nearest place 10 cells clear; they come back as
+  usual. A wedding, beach day, snow day, supper or carols within 9–10 cells
+  is called off. **Recall** at 70 s ashore (35 s if there is nothing left to
+  do): the chief blows the horn; all run back to the landing, each takes up a
+  piece of the pile and wades out; the loot heaps up amidships. The ship
+  backs off, spins, sets sail and goes over an edge. A raider not back 40 s
+  after the horn is left behind (L71). About two minutes in all.
+- **L70 · 2 · A boats raid** (`raid.ts`, `site.ts`) — as L69, but a big
+  longship (1.3 times) hove to in open water as near the town as there is a
+  clear circle, its striped sail half set, towing two to four rowing boats
+  (two shields a side) that cast off and row to landings spread round the
+  town (at least 4 cells apart: hit from more than one side), wait on the
+  shore and carry the band back; the ship leaves when its boats are all back
+  on their lines. Two hands stay aboard. Chosen when the shore by the town is
+  no beach, and by chance (72 % landing when a beach is within 12 cells).
+- **L71 · 2 · Stopping them** — the Bomb, the Nuke and Lightning hit the
+  ships as they hit any ship, by distance (a bomb: broken within about 1.3
+  of the hull, burning within 1.9, scorched within 2.7; lightning: burning):
+  scorched, the sail is torn and it sails on; burning, it burns 7 s and goes
+  down; broken, it goes down at once. A ship gone down cannot carry the
+  band: before it lands, the raid never happens and everybody aboard swims
+  off over the edge of the map; with the band ashore, they are stranded, lose
+  heart after 4 s, and run for the sea with up to six townspeople after them
+  shaking their fists; they wade in and swim away, horns bobbing. A boat sunk
+  takes its crew swimming; its raiders ashore go home by another boat. Blown
+  away or carried off by the Hand (LM01, LM02), a raider gets up and carries
+  on, or is left behind.
+- **L72 · 3 · Raids on their own** (`raid.system.ts`) — the menu's
+  Raiders switch on (the default, kept in the browser) → a raid comes on its
+  own after 8 minutes of play with the town shown, then every 12–20 minutes:
+  only on a town of 14 buildings or more with a shore a ship can reach, by
+  day, never at a wedding, on top of two other big scenes, or while other
+  mischief is going on. Time held at noon does not stop them; held at night
+  they wait. Each holds the act open: one undo puts it all back.
+
 ## U — Urban fill
 
 Rules that make leftover and in-between space into something, the way real
@@ -1339,6 +1401,6 @@ Added in discovery round 1 (`docs/swarm/discovery/round-1.md`):
 
 ## Counts
 
-Roles 46 · Joinery 28 · Decoration 32 · Life 36 · Urban fill 12 ·
+Roles 46 · Joinery 28 · Decoration 32 · Life 36 (and the run-time raids L69–L72) · Urban fill 12 ·
 Feedback 8 = 162 rules here, plus 5 kind rules and 4 support rules in the
 design. 80 of the 160 are tier 1. Discovery passes add to every part.
