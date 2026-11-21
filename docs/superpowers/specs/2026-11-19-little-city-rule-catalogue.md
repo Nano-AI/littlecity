@@ -1202,24 +1202,39 @@ back.
   brand, an axe or a club; horned (a quarter winged) iron helmets, big beards
   (some plaited), fur capes, a round shield on the back. They jump over the
   side and wade in, then charge a few cells up the shore under "RAAR!" and
-  rune balloons (one every 5–14 s each). **Brands** go to the buildings that
-  burn best nearest the landings (stalls, mills, barns and cottages first;
-  12 %–16 % of the town's buildings, 2–9, never the chapel) and set them
-  alight through the Lightning tool's fire (it spreads as any fire does).
+  rune balloons (one every 5–14 s each). **The sweep:** then the band splits
+  into parties of three (a brand, an axe, a club) that run on through the
+  streets to their own quarters of the town (each as far from the others as
+  it can be, within 26 cells; the market, warehouses, a rich house, the mill
+  preferred), fan out (each raider his own cell and spot; never two at a
+  door), and work there. **Brands** set alight what burns best in their
+  quarter (stalls, mills, barns and cottages first; 22 % of the town's
+  buildings, 4–16, never the chapel) through the Lightning tool's fire (it
+  spreads as any fire does); a brand trails smoke.
   **Axes and clubs** kick in a door (0.7 s), go in (2.4 s), come out with
   loot by the building's role (a warehouse: barrels, sacks, chests, cloth; a
   shop: cloth, cheese, a candlestick; a barn: a pig, a hen; a house: a ham,
-  a sack…) or take it off a stall, and pile it by the landing (six places);
-  two trips each. Townspeople within 7 cells of a raider run: home if home is
+  a sack…) or take it off a stall (on market day its baskets go too, put
+  back after), and run it back to the pile by the landing (twelve places),
+  then back to their quarter; two trips each. The chief walks to the quarter
+  nearest the town's heart with his swallowtail standard (red, a yellow
+  border, a raven) high over the roofs. **The town fights back:** every
+  7–14 s the boldest townsperson near a raider (a castle guard first, else one
+  in five) runs at him with a broom or a frying pan and the two vanish into a
+  dust-cloud brawl (L50's scuffle, started on purpose); the raider loses four
+  times in five, sits dazed with stars and runs back to the boat. Hens near a
+  raider scatter. A pig or a hen carried aboard jumps ship a moment later and
+  swims back to the shore. Raiders are drawn bigger the further off the camera
+  is (up to 1.8 times), shields held up red and yellow at their side. Townspeople within 7 cells of a raider run: home if home is
   clear of them, else to the nearest place 10 cells clear; they come back as
   usual. A wedding, beach day, snow day, supper or carols within 9–10 cells
-  is called off. **Recall** at 70 s ashore (35 s if there is nothing left to
+  is called off. **Recall** at 95 s ashore (35 s if there is nothing left to
   do): the chief blows the horn; all run back to the landing, each takes up a
   piece of the pile and wades out; the loot heaps up amidships. The ship
   backs off, spins, sets sail and goes over an edge. A raider not back 40 s
   after the horn is left behind (L71). About two minutes in all.
 - **L70 · 2 · A boats raid** (`raid.ts`, `site.ts`) — as L69, but a big
-  longship (1.3 times) hove to in open water as near the town as there is a
+  longship (1.5 times) hove to in open water as near the town as there is a
   clear circle, its striped sail half set, towing two to four rowing boats
   (two shields a side) that cast off and row to landings spread round the
   town (at least 4 cells apart: hit from more than one side), wait on the
@@ -1234,7 +1249,10 @@ back.
   band: before it lands, the raid never happens and everybody aboard swims
   off over the edge of the map; with the band ashore, they are stranded, lose
   heart after 4 s, and run for the sea with up to six townspeople after them
-  shaking their fists; they wade in and swim away, horns bobbing. A boat sunk
+  shaking their fists; they wade in and swim away, horns bobbing. The Hand
+  (LM02) lifts the longship and the boats, the crew clinging on in their
+  seats: put back in the water they row back to their place; dropped on the
+  land they lie over on their side there (the band stranded, as if sunk). A boat sunk
   takes its crew swimming; its raiders ashore go home by another boat. Blown
   away or carried off by the Hand (LM01, LM02), a raider gets up and carries
   on, or is left behind.

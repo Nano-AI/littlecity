@@ -1089,23 +1089,33 @@ come back. Nothing destructive ever happens unless the player starts it.
   **Beats:** sighted (the horn, the alarm bell, people on the shore
   pointing, the note "Raiders off the coast!" with Watch, which comes
   whatever the note's gap); ashore (a charge with "RAAR!" and rune
-  balloons); fire (brands to the thatch and timber nearest, through the
-  Lightning tool's fire, which spreads and is fought and mended as ever);
+  balloons); the sweep (parties of three, a brand to each, run on through
+  the streets to their own quarters of the town: the market, the
+  warehouses, a rich house, the mill); fire (brands to the thatch and
+  timber of their quarter, through the Lightning tool's fire, which spreads
+  and is fought and mended as ever: fires in several places, a good part of
+  a small town alight);
   looting (doors kicked in, sacks, chests, a ham, a pig, a hen, a wheel of
   cheese, a candlestick carried out and piled by the landing); the town
-  runs (indoors, or ten cells clear; scenes near them break up); the horn
+  runs (indoors, or ten cells clear, many with their arms up; scenes near
+  them break up; hens scatter); the town fights back (a guard or a bold
+  townsperson with a broom or a frying pan takes on a raider in a
+  dust-cloud brawl; the raider mostly loses, sits dazed, and runs for the
+  boat; a pig carried off jumps ship and swims home); the horn
   and away (each takes up a piece of the pile, the loot heaps amidships,
   the ship backs off, spins, and sails out with smoke behind it). About two
   minutes. **Stopping them:** a bomb, the nuke or lightning on the ship:
   scorched it sails on; burning or broken it goes down, and the band is
   stranded: they run for the sea, a few townspeople after them shaking
   their fists, and swim away over the edge of the map, horns bobbing. Sunk
-  before it lands, there is no raid. **On their own:** the menu's Raiders
+  before it lands, there is no raid. The Hand lifts the longship, crew and
+  all: dropped on the land it lies there and the band is stranded.
+  **On their own:** the menu's Raiders
   switch (on by default, kept in the browser): after 8 minutes of play,
   then every 12 to 20, on a town of 14 buildings or more, by day, never at
-  a wedding. Not built yet: the garrison marching out and scuffles with
-  raiders, bold villagers with brooms, hens and sheep scattering,
-  livestock jumping ship and swimming home, stalls visibly emptied,
+  a wedding. Not built yet: the castle's marching troop sallying out (its
+  guards brawl, the troop keeps its round), dogs chasing them, sheep
+  scattering, a stall's own baked goods emptied (market-day baskets go),
   castle gates keeping them out.
 - **More, if they come naturally** (builder's choice): a lightning bolt, a
   sea monster that rises and smashes a pier, a giant's foot. Each must be

@@ -1529,7 +1529,18 @@ export class Raid {
         const s2 = this.standFor(board, p, t.structure);
         if (s2) {
           const at = board.centre(s2.cell);
-          steps.push(board.stepAt(s2.cell, { spot: this.spread(at, r, t.structure), face: s2.face, pose: 'tend', linger: 1.2, brisk: true, tag: 'raid:grab', done: () => void this.emptied.add(t.structure) }));
+          steps.push(board.stepAt(s2.cell, { spot: this.spread(at, r, t.structure), face: s2.face, pose: 'tend', linger: 1.2, brisk: true, tag: 'raid:grab', done: () => {
+            this.emptied.add(t.structure);
+            // On market day the baskets on its counter go too (put back when the raid is over).
+            const at2 = board.centre(t.cell);
+            for (const [key2, store] of board.stores) {
+              if (!key2.startsWith('market:') || !store.spots.some((sp) => Math.hypot(sp.x - at2.x, sp.z - at2.z) < 1.2)) continue;
+              for (let k = 0; k < 3; k++) {
+                const it = board.take(store);
+                if (it) this.taken.push({ key: key2, load: it });
+              }
+            }
+          } }));
           steps.push(toPile);
           return plan(steps);
         }
@@ -1542,8 +1553,9 @@ export class Raid {
     return plan(steps);
   }
 
-  /** Stalls their goods were taken from (the stall's own goods hidden while the raid is on). */
+  /** Stalls their goods were taken from, and the market's baskets taken off their counters (put back at the end). */
   readonly emptied = new Set<StructureId>();
+  private taken: { key: string; load: Load }[] = [];
 
   /** The quarter nearest the town's heart: where the chief stands with his standard. */
   private chiefQuarter(): number {
@@ -1706,6 +1718,12 @@ export class Raid {
           // Cleared.
         }
       }
+      // The market's baskets back on their counters: the traders fetch more.
+      for (const t of this.taken) {
+        const s = board.stores.get(t.key);
+        if (s) board.put(s, t.load);
+      }
+      this.taken = [];
       // Anybody still running from them goes about their day.
       for (const [p] of this.fled) {
         const plan = board.plans.get(p);

@@ -54,20 +54,41 @@ the ship and the town chases them into the sea.
   `menu.ts` + `interface.ts` (Raiders switch, `little-city.raiders`),
   `app/main.ts` (`__lc.raids`), `sequence.mjs`, `scene-cost.mjs`.
 
+## Round 2 (the sweep, readability, fighting back)
+- The sweep: `parties` of three and `quarters` (`chooseTargets`), `nearQuarter`
+  / `spread` / `standFor` (each raider his own cell, spot and side of a
+  building), `pileStep` (loot run back to a twelve-place pile).
+- Readable from afar: `far.ts` `raiderScale` (people.system and `Figure`),
+  shield on the left arm, the chief's `standard` (raid-gear.ts), smoking
+  brands, a gold chest, the `panic` pose for townspeople running from them
+  (pose.ts, crowd.ts `gait`).
+- Fighting back: `fightBack` / `afterBrawl`; `scuffles.between(a, b)` added to
+  `scuffle.ts` (a brawl started on purpose, walking or standing, no making up);
+  `toolOf` gives a chaser a broom or a frying pan (`pan`). Hens scatter
+  (`chicken.behaviour.ts` reads `director.threats`). Livestock escape:
+  `escape` / `stepEscapees`. Market-day baskets taken off a stall's counter
+  and put back at the end.
+- The Hand: `handled` registers each vessel with `critterPose` as
+  `ship:raid<n>-<k>` (the `ship:` prefix keeps blasts off it: the raid sinks its
+  own ships); `Vessel.held` / `aground` / `off`.
+- Cost: `scene-cost.mjs --fires N` (the fires alone) and `--raid`. Grown
+  harbour: fires alone, 99 cells burning, p95 51.6 ms (it is the fire); a raid
+  ashore with 2 cells burning, median 1.5 → 2.15 ms after drawing sea figures
+  on twos (2.41 before).
+- Guide picture: `node src/life/testing/raid-picture.mjs` writes
+  `public/guide/raid.webp`.
+
 ## For the Hand / thrown bodies
 Raiders ashore are ordinary crowd people: thrown and carried with no special
 case. A thrown raider's plan fails and the raid gives him the next one; one
 not back 40 s after the horn is left behind and runs for the sea. Raiders at
-sea (`Figure`) and the longship and boats (`Vessel`) are the raid's own
-drawings, not harbour ships: to lift them the Hand needs a hook in
-`Raid`/`Vessel` (a pose override, as `critterPose`), not done.
+sea (`Figure`) are not liftable (only the vessels are, with whoever is in
+them).
 
 ## Not done / watch
-- Garrison marching out, raid scuffles, bold villagers with brooms; hens and
-  sheep scattering; livestock jumping ship and swimming home; stalls visibly
-  emptied; people peeking from windows; castle gates keeping them out.
-- In a dense harbour row the band still bunches on a one-cell strip.
-- The boats raid's stand-off point is often near the map's edge (it needs a
-  big clear circle), so from the town view its ship is small.
-- p95 frame time mid-raid ~52 ms in the grown harbour (median 2.5 ms): mostly
-  the town rebuilding as fires change blocks.
+- The castle's marching troop does not sally out (its guards brawl); dogs do
+  not chase; sheep do not scatter; a stall's baked goods stay; people do not
+  peek from windows; castle gates do not keep raiders out.
+- The boats raid's stand-off point is still near the map's edge on islands
+  with a narrow ring of sea (it needs a clear circle to turn in).
+- p95 with fires burning is the fire's, not the raid's.
