@@ -1242,3 +1242,37 @@ view where rail and columns blur into a dark band (needs a renderer
 change). Gate: 2,186 passed, 10 skipped, clean.
 Running: nothing. Unmerged: big-islands (experiment); walk
 (superseded). Separate session: `capture/promo`.
+
+**Derek, 2026-11-20 late afternoon.** Asked what a wedding looks like
+(never seen one). Orchestrator rendered `L57.wedding`: it works (guests
+gather at the chapel door, the couple comes out, a procession to the
+square) but is small and short (about a minute, once a morning, 70 % of
+days; first one 25–45 s after a town opens) and the door is often hidden
+behind a building. 25 of 30 grown generator-2 towns have a wedding post
+(28 have a chapel). Pictures in the workspace's `.context/report/`
+(`wedding-*.png`). Nothing changed; a bigger, more visible wedding was
+suggested to Derek, not started.
+He dislikes the speech bubble and the fight cloud and wants the merged
+single outline of the nuke/storm cloud (orchestrator's reading of "new
+color") on them and on small round things (faces, fruit, the dog) →
+new agent `ab27513c35386a432` on `swarm/soft-ink` (Opus).
+Running: soft-ink.
+
+**Wedding as an event (Derek, 2026-11-20).** "Events should be pretty
+obvious": bride and groom and the party in black and white, a whole
+procession, many more petals. → new agent `a7e07ea5e184a05e3` on
+`swarm/wedding` (Opus): costumes for the whole party, 14–20 guests, an
+ordered column on a longer route, petal showers and a trail, a staged
+doorstep and a celebration at the square, bystanders watching, a
+findable cue, and the cadence (including what a held time of day does
+to it). Told to keep clear of the soft-ink agent's people parts.
+Running: soft-ink, wedding.
+
+**Length note (orchestrator, Derek 2026-11-20).** The first times a
+piece with a length (or a land tool's brush) is picked, a small note
+over the stepper says "Scroll to make it longer or shorter" (taller /
+the brush wider; on touch "Tap − and + …"). `Stepper.hint()`,
+`lengthHint()` and `offerLengthHint` in `src/ui/interface.ts`; stored
+under `little-city.length-hint` (a count, or `learned` once a length is
+changed; three showings at most). Test `tests/e2e/length-hint.e2e.test.ts`.
+Gate: 2,189 passed, 10 skipped, clean.

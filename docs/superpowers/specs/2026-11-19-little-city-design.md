@@ -361,6 +361,15 @@ targets `(x, 0, z)`.
 **Held length** (Derek's request, 2026-11-19). Pieces that usually come in
 runs can be stretched before they are placed.
 
+**The length note** (Derek's request, 2026-11-20: "otherwise they don't
+know that this is a mechanic"). The first times a piece with a length (or
+a land tool, for its brush) is picked, a small note stands over the
+stepper: "Scroll to make it longer or shorter" ("taller or shorter" for
+pieces that stack up, "the brush wider or narrower" for the land tools;
+on touch "Tap − and + to …"). It takes no clicks, stays about nine
+seconds or until another piece is picked, and is gone for good once a
+length has been changed, or after it has been shown three times.
+
 - **Which pieces.** Upward: pillar, tower, lighthouse. Along the ground:
   fence, wall (cell and edge pieces), path, plaza, garden, dock, arch,
   marble. Every other piece has no length.

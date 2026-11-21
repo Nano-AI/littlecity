@@ -22,7 +22,7 @@ import { createSlider, type SliderStop } from './slider';
 import type { CameraPose, Ghost, TownView } from '@/render/api';
 import type { Game } from '@/app/game';
 import { brushAt, copyLook, landColumn, levelSteps, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
-import { el, iconButton, installTheme, setIcon } from './dom';
+import { el, iconButton, installTheme, isCoarsePointer, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { createFly, type FlyMode, type FlyPhase } from './fly';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
@@ -181,6 +181,17 @@ function valueAt(pos: number, marks: readonly number[]): number {
 const SOUND_KEY = 'little-city.sound';
 const REBUILD_KEY = 'little-city.rebuild';
 const LAND_HINT_KEY = 'little-city.land-hint';
+const LENGTH_HINT_KEY = 'little-city.length-hint';
+/** How many times the length note is shown before it is taken as read (it also stops once a length has been changed). */
+const LENGTH_HINT_TIMES = 3;
+/** How long the length note stays up, ms. */
+const LENGTH_HINT_MS = 9000;
+/** The note over the stepper the first times a piece with a length is picked: what scrolling (or, on touch, − and +) does. */
+export function lengthHint(growth: 'up' | 'ground' | 'brush', touch: boolean): string {
+  const what = growth === 'up' ? 'taller or shorter' : growth === 'brush' ? 'wider or narrower' : 'longer or shorter';
+  const it = growth === 'brush' ? 'the brush' : 'it';
+  return touch ? `Tap − and + to make ${it} ${what}` : `Scroll to make ${it} ${what}`;
+}
 /** Told once, the first time Raise, Dig or Level is picked. */
 export const LAND_HINT = 'Drag the land to shape it. Drag the sea to turn the view.';
 
@@ -568,6 +579,49 @@ export function createInterface(host: InterfaceHost): Interface {
     lengths.set(lengthKey(tray.state.item), next);
     showStepper();
     updateGhost();
+    lengthLearned();
+  };
+
+  // The first times a piece with a length is picked, a note over the stepper says that scrolling changes
+  // it (the owner: "otherwise they don't know that this is a mechanic"). It goes for good once a length
+  // has been changed, or after it has been shown a few times.
+  let lengthHintsLeft = LENGTH_HINT_TIMES;
+  try {
+    const seen = localStorage.getItem(LENGTH_HINT_KEY);
+    lengthHintsLeft = seen === 'learned' ? 0 : Math.max(0, LENGTH_HINT_TIMES - (Number(seen) || 0));
+  } catch {
+    // No storage: the note shows a few times per visit.
+  }
+  let lengthHintTimer = 0;
+  let lengthHintFor: ItemId | null = null;
+  const hideLengthHint = (): void => {
+    window.clearTimeout(lengthHintTimer);
+    lengthHintFor = null;
+    stepper.hint(null);
+  };
+  const rememberLengthHint = (value: string): void => {
+    try {
+      localStorage.setItem(LENGTH_HINT_KEY, value);
+    } catch {
+      // as above
+    }
+  };
+  const lengthLearned = (): void => {
+    if (lengthHintsLeft > 0) rememberLengthHint('learned');
+    lengthHintsLeft = 0;
+    hideLengthHint();
+  };
+  /** After a change of piece: the note for a piece with a length, if it is still owed. */
+  const offerLengthHint = (): void => {
+    const growth = tray.state.idle ? null : growthOf(tray.state.item);
+    if (growth === null || lengthHintsLeft <= 0) return hideLengthHint();
+    if (lengthHintFor === tray.state.item) return;
+    window.clearTimeout(lengthHintTimer);
+    lengthHintFor = tray.state.item;
+    lengthHintsLeft--;
+    rememberLengthHint(String(LENGTH_HINT_TIMES - lengthHintsLeft));
+    stepper.hint(lengthHint(growth, isCoarsePointer()));
+    lengthHintTimer = window.setTimeout(hideLengthHint, LENGTH_HINT_MS);
   };
 
   /** A plain scroll: changes the length when a piece with one is held over a valid target; otherwise it zooms. */
@@ -1005,6 +1059,7 @@ export function createInterface(host: InterfaceHost): Interface {
     ghostKey = '';
     scrollSteps.reset();
     showStepper();
+    offerLengthHint();
     updateGhost();
   });
   showStepper();
@@ -1070,6 +1125,7 @@ export function createInterface(host: InterfaceHost): Interface {
       recentring: recentre !== null,
     }),
     dispose() {
+      window.clearTimeout(lengthHintTimer);
       offMischief();
       mischief.dispose();
       growth.stop();
