@@ -64,6 +64,7 @@ interface State {
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const local = new Float32Array(96);
+const local2 = new Float32Array(96);
 const world = new Float32Array(96);
 const toolMeshes = new Map<string, MeshData>();
 
@@ -295,7 +296,7 @@ export default defineSystem<State>({
     }
     const tick = Math.floor(signals.time.seconds * PERSON.drawRate);
     // (Every frame while a soldier is in the air: mischief.)
-    if (tick === state.tick && !state.fresh && !state.list.some((g) => g.troop?.soldiers.some((_, i) => crittersOf(ctx.stage).get(`${g.key}-soldier${i}`)?.body))) return;
+    if (tick === state.tick && !state.fresh && !state.list.some((g) => g.troop?.soldiers.some((_, i) => crittersOf(ctx.stage).get(`${g.key}-soldier${i}`)?.body) || crittersOf(ctx.stage).get(`${g.key}-horse`)?.body || crittersOf(ctx.stage).get(`${g.key}-rider`)?.body)) return;
     state.tick = tick;
     state.fresh = false;
     for (const g of state.list) {
@@ -318,9 +319,13 @@ export default defineSystem<State>({
         const r = g.ride;
         const meshes = g.horse ? null : buildHorse(g.horseLook, g.colour);
         g.horse ??= { pieces: HORSE_PIECES.map((p) => ctx.stage.spawnMesh(meshes![p], IDENTITY)), last: new Float32Array(96) };
-        const hp = horsePose(r.gait, r.phase, (g.castle.id % 7) / 7);
+        // Mischief (src/life/mischief/critters.ts): the horse, and its rider apart from it, can be blown about
+        // or picked up; a rider in the saddle goes with the horse, clinging on.
+        const horseHeld = critterPose(ctx.stage, `${g.key}-horse`, 'horse', r.x, r.y, r.z, r.heading, 0.55, 1);
+        const hp = horsePose(horseHeld ? 'trot' : r.gait, horseHeld ? signals.time.seconds * 3 : r.phase, (g.castle.id % 7) / 7);
         horseMatrices(hp, local);
-        place(6, r.x, r.y, r.z, r.heading, 1, local, world);
+        if (horseHeld) by(6, horseHeld, local, world);
+        else place(6, r.x, r.y, r.z, r.heading, 1, local, world);
         // The bit, either side of the horse's mouth (its body frame), for the reins.
         const bit = [-0.024, 0.024].map((bx): [number, number, number] => [world[0]! * bx + world[4]! * 0.38 + world[8]! * 0.31 + world[12]!, world[1]! * bx + world[5]! * 0.38 + world[9]! * 0.31 + world[13]!, world[2]! * bx + world[6]! * 0.38 + world[10]! * 0.31 + world[14]!]);
         let same = true;
@@ -331,7 +336,26 @@ export default defineSystem<State>({
         }
         // The rider: in the saddle while riding; standing at the horse's head while it is tethered.
         g.rider.fig ??= newFigure(ctx.stage, g.rider.look, `${g.key}-rider`);
-        if (r.riding) {
+        // Where he would be by himself: in the saddle, or at the horse's head.
+        const riderAt = r.riding
+          ? { x: r.x + Math.sin(r.heading) * SADDLE.z, y: r.y + SADDLE.y, z: r.z + Math.cos(r.heading) * SADDLE.z, h: r.heading }
+          : { x: r.x + Math.sin(r.heading) * 0.2 + Math.cos(r.heading) * 0.16, y: r.y, z: r.z + Math.cos(r.heading) * 0.2 - Math.sin(r.heading) * 0.16, h: r.heading - Math.PI / 2 };
+        const riderHeld = critterPose(ctx.stage, `${g.key}-rider`, 'rider', riderAt.x, riderAt.y, riderAt.z, riderAt.h, 0.46, g.rider.look.scale);
+        if (riderHeld) {
+          // Off his horse: thrown as a whole, arms and legs out.
+          const pose = poseOf('dive', 0);
+          applyHold(pose, g.rider.rig, { tool: 'lance', load: null, hold: null, anchor: null });
+          rigMatrices(g.rider.look, pose, local, 0, g.rider.rig);
+          by(6, riderHeld, local, world);
+        } else if (r.riding && horseHeld) {
+          // In the saddle of a flying horse, hanging on.
+          const pose = { ...RIDE_POSE, lean: 0.35, armR: 2.6, outR: 0.6 };
+          applyHold(pose, g.rider.rig, { tool: 'lance', load: null, hold: null, anchor: null });
+          rigMatrices(g.rider.look, pose, local, sitDrop(g.rider.rig, 0), g.rider.rig);
+          straddle(local, 0.55);
+          place(6, 0, SADDLE.y + hp.lift, SADDLE.z, 0, g.rider.look.scale, local, local2);
+          by(6, horseHeld, local2, world);
+        } else if (r.riding) {
           const drop = sitDrop(g.rider.rig, 0);
           const pose = { ...RIDE_POSE, lean: r.gait === 'trot' ? 0.1 : 0.04 };
           // The lance in the right hand, the reins gathered in the left over the horse's withers.
@@ -352,10 +376,11 @@ export default defineSystem<State>({
           place(5, cx, r.y, cz, r.heading - Math.PI / 2, g.rider.look.scale, local, world);
         }
         drawFigure(ctx.stage, g.rider.fig, world, 'lance', g.colour);
-        // The reins from the left hand to the bit, while riding.
+        // The reins from the left hand to the bit, while riding (not while either of them is in the air).
         g.rider.reins ??= ctx.stage.spawnMesh((reinsMesh ??= buildReins()), IDENTITY);
-        g.rider.reins.setVisible(r.riding);
-        if (r.riding) {
+        const reined = r.riding && !riderHeld && !horseHeld;
+        g.rider.reins.setVisible(reined);
+        if (reined) {
           const y = -handReach(g.rider.rig), k = 3 * 16;
           const hand: [number, number, number] = [world[k + 4]! * y + world[k + 12]!, world[k + 5]! * y + world[k + 13]!, world[k + 6]! * y + world[k + 14]!];
           g.rider.reins.setMatrix(reinsMatrix(hand, bit[0]!, bit[1]!));
