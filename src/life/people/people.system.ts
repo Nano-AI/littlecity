@@ -397,7 +397,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   });
   if (holding && walking && HEAVY.has(p.load!)) pose.lean += 0.14;
   const sitting = name === 'sit' && p.seat >= 0;
-  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade);
+  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade) * (tumble?.grow ?? 1);
   const away = edge ? 1 - p.fade : 0;
   // Down below the water (SEA_Y) by the end, head and all: a step out, then the drop.
   const depth = Math.max(0.5, p.y - SEA_Y + DESIGN_HEIGHT * scale + 0.05);

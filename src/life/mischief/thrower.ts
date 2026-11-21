@@ -37,8 +37,10 @@ import { hashString } from '@/core/rand';
 export const BLOWN = {
   /** A nuke: how far its ring throws people (cells), and the throw at the middle and at the rim (units a second). */
   nukeReach: NUKE_TIME.waveReach,
-  nukeAlong: [1.1, 7.4],
-  nukeUp: [1.9, 7.6],
+  nukeAlong: [2.4, 6.6],
+  nukeUp: [6.2, 12.6],
+  /** Nobody leaves the ground before this (seconds after the bang): the first white frames show nothing. */
+  nukeHold: 0.3,
   /** A bomb: its reach, and its throw at the middle and the edge. */
   bombReach: 3.6,
   bombAlong: [1.1, 5.2],
@@ -141,6 +143,28 @@ export function blastVelocity(x: number, y: number, z: number, px: number, py: n
   return [Math.sin(a) * along, up, Math.cos(a) * along, BLOWN.spin[0] + (BLOWN.spin[1] - BLOWN.spin[0]) * s * (0.8 + r('spin') * 0.4)];
 }
 
+/** How big to draw things in the air from how far off the camera is: 1 close in (zoom 6 and more), up to FLIGHT.far from the whole island. */
+export const FLIGHT = { far: 2.9, air: 0.9 };
+export function farScale(): number {
+  const view = (globalThis as { __lc?: { view?: { getCamera?(): { zoom: number }; getEyeCamera?(): unknown } } }).__lc?.view;
+  if (!view?.getCamera || view.getEyeCamera?.()) return 1;
+  const z = view.getCamera().zoom;
+  return 1 + (FLIGHT.far - 1) * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
+}
+/** The drawing's scale for a body this far up (0 on the ground, 1 well up): grows with height, back to 1 as it lands. */
+export function flightGrow(air: number): number {
+  const u = Math.max(0, Math.min(1, air));
+  return 1 + (farScale() - 1) * u * u * (3 - 2 * u);
+}
+/** 0 on the ground, 1 a good way up (FLIGHT.air), for a body flying or held. */
+let airGround: Ground | null = null;
+const airSurf = { h: 0, water: false, roof: false };
+export function airOf(b: Body): number {
+  if (b.upright || !airGround) return 0;
+  airGround.surface(b.x, b.z, b.y, airSurf);
+  return Math.max(0, (b.y - b.radius - airSurf.h) / FLIGHT.air);
+}
+
 /** Can a person who has got up walk to their hat (on the ground, near, about their level)? */
 function hatInReach(b: Body, hat: Body, g: Ground): boolean {
   if (hat.phase !== 'lie' && hat.phase !== 'roll') return false;
@@ -161,6 +185,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
   let ground: Ground | null = null;
   const groundNow = (): Ground | null => {
     if (!ground && shape) ground = createGround(shape, nav);
+    airGround = ground;
     return ground;
   };
   /** Shockwaves on their way out: where from, how long since, who they have thrown. */
@@ -198,7 +223,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
   const cm = new Float32Array(9);
   /** The matrix a critter is drawn with now: T · R · T(0, −pivot, 0) · S. */
   const poseCritter = (c: Critter): void => {
-    const b = c.body!, m = c.m, sc = c.scale;
+    const b = c.body!, m = c.m;
     const px = b.x, pz = b.z, pivot = b.pivot;
     let py = b.y;
     if (!b.upright) {
@@ -218,7 +243,9 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       if (b.phase === 'walk') py += Math.abs(Math.sin(b.t * 14)) * 0.03;
       if (b.phase === 'swim') py = SEA_Y - c.height * 0.25 + pivot;
     }
-    const ox = -cm[3]! * pivot, oy = -cm[4]! * pivot, oz = -cm[5]! * pivot;
+    const grow = b.upright ? 1 : flightGrow(airOf(b));
+    const sc = c.scale * grow;
+    const ox = -cm[3]! * pivot * grow, oy = -cm[4]! * pivot * grow, oz = -cm[5]! * pivot * grow;
     m[0] = cm[0]! * sc; m[1] = cm[1]! * sc; m[2] = cm[2]! * sc; m[3] = 0;
     m[4] = cm[3]! * sc; m[5] = cm[4]! * sc; m[6] = cm[5]! * sc; m[7] = 0;
     m[8] = cm[6]! * sc; m[9] = cm[7]! * sc; m[10] = cm[8]! * sc; m[11] = 0;
@@ -470,7 +497,10 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     p.z = b.z;
     tm.drop = 0;
     tm.pose ??= poseOf('stand', 0);
+    tm.grow = 1;
     if (!b.upright) {
+      // Drawn bigger the higher it is off the ground, from far off (so it reads from the whole island).
+      tm.grow = flightGrow(airOf(b));
       quatToMat3(b.q, (tm.rot ??= new Float32Array(9)));
       if (b.phase === 'held') wriggle(b, tm.pose);
       else if (b.splat > 0 || b.phase === 'roll') Object.assign(tm.pose, poseOf('dive', 0));
@@ -548,7 +578,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       for (let i = waves.length - 1; i >= 0; i--) {
         const w = waves[i]!;
         w.t += dt;
-        const r = w.t >= NUKE_TIME.waveTime ? BLOWN.nukeReach : waveRadius(w.t);
+        // The ring lifts them as it passes, but not into the flash: those it reaches first wait for it to clear.
+        const r = w.t < BLOWN.nukeHold ? -1 : w.t >= NUKE_TIME.waveTime ? BLOWN.nukeReach : waveRadius(w.t);
         for (const p of crowd.people) {
           if (w.hit.has(p) || !canThrow(p)) continue;
           if (Math.hypot(p.x - w.x, p.z - w.z) > r) continue;
@@ -560,7 +591,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
           w.hit.add(c);
           blastCritter(w.x, w.y, w.z, c, 'nuke');
         }
-        if (w.t >= NUKE_TIME.waveTime) waves.splice(i, 1);
+        if (w.t >= Math.max(NUKE_TIME.waveTime, BLOWN.nukeHold)) waves.splice(i, 1);
       }
       const g = groundNow();
       if (!g) return;

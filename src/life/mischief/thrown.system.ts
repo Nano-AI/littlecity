@@ -22,7 +22,8 @@ import type { Crowd } from '../people/crowd';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
 import { spoutMesh } from './meshes';
 import { ownStage, type Owned } from './owned';
-import { createThrower, type Thrown, type Thrower } from './thrower';
+import { createThrower, farScale, flightGrow, airOf, type Thrown, type Thrower } from './thrower';
+import { PALETTE } from '@/style/palette';
 import { quatToMat3 } from './thrown';
 import { crittersOf, type Critter } from './critters';
 import type { NavGraph, ShapePlan } from '@/resolve/plan';
@@ -30,7 +31,7 @@ import type { NavGraph, ShapePlan } from '@/resolve/plan';
 const HIDE: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
 const DUST = { actor: 'puff', variant: 'dust' } as const;
 /** Stars round a dizzy head: how many, how far out, how fast round (radians a second). */
-const STARS = { n: 3, r: 0.12, speed: 4.5, rate: 12, size: 1.5 };
+const STARS = { n: 4, r: 0.13, speed: 4.5, rate: 12, size: 1.8 };
 
 const throwers = new WeakMap<LifeStage, Thrower>();
 /** The thrower of a stage (the Hand, tests, sequences), once the people are there. */
@@ -54,15 +55,22 @@ function strawHatMesh(colour: string): MeshData {
   return m;
 }
 
-/** How much bigger to draw the stars from far off (as the scuffle's balloons are): 1 close in, up to 1.8. */
-function farScale(): number {
-  const view = (globalThis as { __lc?: { view?: { getCamera?(): { zoom: number }; getEyeCamera?(): unknown } } }).__lc?.view;
-  if (!view?.getCamera || view.getEyeCamera?.()) return 1;
-  const z = view.getCamera().zoom;
-  return 1 + 0.8 * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
+/** Speed lines: three ink strokes a unit long down -Z, behind whatever flies. */
+let streakMesh: MeshData | null = null;
+function speedLinesMesh(): MeshData {
+  if (streakMesh) return streakMesh;
+  const b = new MeshBuilder({ ink: 'speed-lines' });
+  b.setPattern(PATTERN.none).setColor(PALETTE.ink);
+  for (const [i, x, y, from, to] of [[0, -0.06, 0.02, 0.2, 0.85], [1, 0.06, -0.02, 0.3, 1], [2, 0, 0.07, 0.45, 0.8]] as const) {
+    b.setInk(`line${i}`);
+    b.box([x - 0.0035, y - 0.0035, -to], [x + 0.0035, y + 0.0035, -from]);
+  }
+  return (streakMesh = b.build());
 }
 
 interface Art {
+  /** Speed lines behind it while it flies. */
+  lines?: InstanceHandle | null;
   stars: InstanceHandle[];
   hat: InstanceHandle | null;
   hatColor: string;
@@ -100,6 +108,7 @@ interface State {
   nav: NavGraph | null;
   art: Map<Thrown, Art>;
   critterArt: Map<Critter, InstanceHandle[]>;
+  critterLines: Map<Critter, { lines?: InstanceHandle | null }>;
   spouts: { h: InstanceHandle; age: number }[];
   time: number;
   off: () => void;
@@ -124,7 +133,30 @@ function onEvent(st: State, e: MischiefEvent): void {
   }
 }
 
+/** Ink strokes behind a body flying fast, along the way it goes, longer the faster (and drawn bigger as it is). */
+function speedLines(stage: LifeStage, a: { lines?: InstanceHandle | null }, b: { x: number; y: number; z: number; vx: number; vy: number; vz: number; upright: boolean; radius: number } | null): void {
+  const sp = b ? Math.hypot(b.vx, b.vy, b.vz) : 0;
+  if (!b || sp < 2.2) {
+    a.lines?.release();
+    a.lines = null;
+    return;
+  }
+  a.lines ??= stage.spawnMesh(speedLinesMesh(), HIDE);
+  const g = flightGrow(airOf(b as never));
+  const len = Math.min(0.7, sp * 0.06) * g;
+  // Z along the way it goes (the strokes run back from it), X level across, Y the rest.
+  const zx = b.vx / sp, zy = b.vy / sp, zz = b.vz / sp;
+  let xx = zz, xz = -zx;
+  const xl = Math.hypot(xx, xz) || 1;
+  xx /= xl;
+  xz /= xl;
+  const yx = zy * xz, yy = zz * xx - zx * xz, yz = -zy * xx;
+  a.lines.setMatrix([xx * g, 0, xz * g, 0, yx * g, yy * g, yz * g, 0, zx * len, zy * len, zz * len, 0, b.x, b.y, b.z, 1]);
+}
+
 function dropArt(a: Art): void {
+  a.lines?.release();
+  a.lines = null;
   for (const h of a.stars) h.release();
   a.stars = [];
   a.hat?.release();
@@ -133,6 +165,7 @@ function dropArt(a: Art): void {
 
 function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
   const b = t.body;
+  speedLines(stage, a, b.phase === 'fly' && !b.upright ? b : null);
   // Stars round the head while they lie dizzy, and for the first moments of sitting up.
   const dizzy = b.upright && (b.phase === 'lie' || b.phase === 'roof' || b.phase === 'slide' || (b.phase === 'up' && t.fetch === null && b.t < 0.7));
   if (dizzy && a.stars.length === 0) {
@@ -148,7 +181,7 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
     const hz = sitting ? b.z : b.z - Math.cos(b.heading) * 0.36;
     const hy = b.y + (sitting ? 0.42 : 0.12);
     const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-    const sc = farScale() * STARS.size;
+    const sc = Math.max(1.4, farScale()) * STARS.size;
     const spin = tick * STARS.speed + (b.seed % 7);
     a.stars.forEach((h, i) => {
       const ang = spin + (i / STARS.n) * Math.PI * 2;
@@ -180,7 +213,7 @@ export default defineSystem<State>({
   // After the director (the mischief system, 10) has told of a blast; before the people are drawn (20).
   order: 15,
   create(ctx) {
-    const st: State = { ring: null, shadows: [], d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), spouts: [], time: 0, off: () => {} };
+    const st: State = { ring: null, shadows: [], d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), critterLines: new Map(), spouts: [], time: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, e));
     return st;
   },
@@ -225,7 +258,8 @@ export default defineSystem<State>({
           st.spouts.push({ h, age: 0 });
         } else if (ev === 'land' || ev === 'bounce' || ev === 'wall' || ev === 'roof') {
           const x = b.x, y = b.upright ? b.y : b.y - b.radius, z = b.z;
-          fxOf(ctx.stage).play(DUST, 0.45, (u, m) => place(x, y + 0.03 + u * 0.1, z, 0, 0.18 + u * 0.3, 0.18 + u * 0.3, 0.18 + u * 0.3, m));
+          const k = farScale();
+          fxOf(ctx.stage).play(DUST, 0.5, (u, m) => place(x, y + 0.03 + u * 0.12 * k, z, 0, (0.2 + u * 0.35) * k, (0.2 + u * 0.35) * k, (0.2 + u * 0.35) * k, m));
         }
       }
       th.events.length = 0;
@@ -237,9 +271,17 @@ export default defineSystem<State>({
       for (const h of hs) h.release();
       st.critterArt.delete(c);
     }
+    for (const [c, l] of st.critterLines) {
+      if (c.body && t.critterEvents.has(c)) continue;
+      l.lines?.release();
+      st.critterLines.delete(c);
+    }
     for (const [c, evs] of t.critterEvents) {
       const b = c.body;
       if (!b) continue;
+      let l = st.critterLines.get(c);
+      if (!l) st.critterLines.set(c, (l = {}));
+      speedLines(stage, l, b.phase === 'fly' && !b.upright ? b : null);
       for (const ev of evs) {
         if (ev === 'splash') st.spouts.push({ h: stage.spawnMesh(spoutMesh(), [0.35, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.35, 0, b.x, SEA_Y - 0.02, b.z, 1]), age: 0 });
         else if (ev === 'land' || ev === 'bounce' || ev === 'wall' || ev === 'roof') {
@@ -260,7 +302,7 @@ export default defineSystem<State>({
       }
       if (hs) {
         const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-        const sc = farScale() * STARS.size * 0.8;
+        const sc = Math.max(1.4, farScale()) * STARS.size * 0.8;
         const hx = b.x + Math.sin(b.heading) * c.height * 0.4, hz = b.z + Math.cos(b.heading) * c.height * 0.4, hy = b.y + c.height * 0.9;
         hs.forEach((h, i) => {
           const ang = tick * STARS.speed + (i / 3) * Math.PI * 2;

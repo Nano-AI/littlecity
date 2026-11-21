@@ -33,6 +33,30 @@ interface State {
   n: number;
 }
 
+/**
+ * Townspeople going up in the air: short rising "whoa!"s, each its own pitch and moment, from `from` seconds
+ * on (the nuke's after its flash), a few each.
+ */
+function yelps(a: Audio, n: number, from: number, seed: number): void {
+  const t0 = a.ac.currentTime + from;
+  for (let i = 0; i < n; i++) {
+    const at = t0 + rand(seed, 'yelp-at', i) * (n > 4 ? 1.1 : 0.3);
+    const f = 420 + rand(seed, 'yelp-f', i) * 380;
+    const o = a.ac.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(f, at);
+    o.frequency.exponentialRampToValueAtTime(f * 1.9, at + 0.12);
+    o.frequency.exponentialRampToValueAtTime(f * 1.4, at + 0.3);
+    const g = a.ac.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(0.05, at + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.32);
+    o.connect(g).connect(a.master);
+    o.start(at);
+    o.stop(at + 0.35);
+  }
+}
+
 const hasAudio = (): boolean => typeof window !== 'undefined' && typeof (window as { AudioContext?: unknown }).AudioContext === 'function';
 
 function start(st: State): void {
@@ -262,6 +286,8 @@ export default defineSystem<State>({
           if (e.nuke) nukeBang(a);
           else if (e.blast.water) pop(a.ac, a.master, a.noise, 0.25, 0.3);
           else boom(a, 1);
+          // Blown about (design section 13b): a little chorus of yelps on the way up.
+          if (!e.blast.water) yelps(a, e.nuke ? 9 : 3, e.nuke ? 0.35 : 0.05, e.bomb);
         } else if (e.type === 'knock') pop(a.ac, a.master, a.noise, 0.18, (st.n++ % 5) * 0.2);
         else if (e.type === 'mend') strike(a.ac, a.master, 330, 'plank', 0.06);
       }),
