@@ -174,3 +174,20 @@ export const PICNIC_COLOURS = {
   mid: ['#ee7d70', '#7f9fe0', '#6fcaa6', '#f4b85c'] as readonly string[],
   pie: '#d9a25a',
 };
+
+/** L67: carol singers going door to door at winter dusk. */
+export const CAROLS = defineStyle(
+  'carols',
+  {
+    /** Doors on the round at most; singers at most; seconds of singing at each door. */
+    doors: 6,
+    singers: 6,
+    sing: 9,
+    /** With the time held (at dusk or night): from the end of one round to the next. */
+    every: 200,
+    everySpread: 120,
+    /** Winter's weight in the season for carols (or the festival on). */
+    winter: 0.5,
+  },
+  { doors: [3, 10, 1], singers: [2, 10, 1], sing: [2, 30, 0.5], every: [0, 900, 5], everySpread: [0, 600, 5], winter: [0, 1, 0.05] },
+);

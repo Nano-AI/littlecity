@@ -1116,6 +1116,22 @@ every cadence, so a held time of day, season or weather keeps them coming.
   up (it goes with a puff when the last of them has gone); stay on grass built
   over (everything with a puff, everybody home).
 
+- **L67 · 2 · Carol singers** — a town of 6 houses or more → a round of up to
+  6 front doors (`carol|door|<order>` on each doorstep, facing the door), from
+  the house nearest the heart, each next the nearest not yet sung to, in the
+  main part of the walking graph. **When:** winter weighing half or more, or
+  the festival up; at dusk, once an evening with the time running; held at
+  dusk or night, one round every 200–320 s after the last. **Who:** up to 6
+  living within 30 steps: one or two grown-ups, up to three children, then
+  more grown-ups; each carries a lantern on a pole (it glows). **Story:** they
+  walk door to door; at each they stand in a half ring on the doorstep facing
+  the door and sing 9 s (heads up, a sway, music notes floating up from them),
+  and whoever is at home in that house comes out onto the step to listen and
+  clap, then goes in; on to the next; home at the end of the round with their
+  lanterns. Late arrivals follow on; anybody still on the way when the round
+  ends goes straight home. **Must not:** go on with a bomb falling (all home),
+  or after the round's doors change.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;
