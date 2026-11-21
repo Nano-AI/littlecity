@@ -4,7 +4,7 @@
 // variant = which kind; params.n = which one; params.yaw, params.pitch = the camera (degrees), which
 // the balloons turn to face as the people system turns them.
 
-import { compose, rotationX, rotationY, scaling } from '@/core/mat4';
+import { compose, rotationX, rotationY, scaling, translation } from '@/core/mat4';
 import { definePart, type Part } from '@/gen/api';
 import cat from '@/parts/actors/small/cat.part';
 import chicken, { sheep } from '@/parts/actors/small/animals.part';
@@ -43,7 +43,7 @@ export default definePart({
         break;
       case 'pop':
         mesh = popMesh(POPS[n % POPS.length]!);
-        m = compose(rotationY((item.params?.yaw ?? 45) * deg), scaling(1.7));
+        m = compose(translation(0, 0.15, 0), rotationY((item.params?.yaw ?? 45) * deg), scaling(1.7)); // in the air, as out of the cloud
         break;
       case 'daze':
         mesh = dazeStarMesh();

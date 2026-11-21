@@ -19,11 +19,11 @@ export function bubbleMesh(): MeshData {
   const rx = 0.1, ry = 0.064, cy = 0.105, t = 0.006;
   b.setInk('bubble').setColor(PALETTE.white).setPattern(PATTERN.none);
   balloon(b, { rx, ry, cy, t, left: -Math.PI / 2 - 0.42, right: -Math.PI / 2 - 0.02, tipX: -0.035, bow: 0.012, segments: 36 });
-  // The dots, a hair proud of each face.
+  // The dots, a hair proud of each face (0.004: never in one plane with it, docs/swarm/steady-ink.md).
   b.setInk('dots').setColor(PALETTE.ink);
   for (const side of [0, Math.PI]) {
     b.at(rotationY(side), () => {
-      for (const x of [-0.042, 0, 0.042]) dot(b, x, cy, 0.0125, t + 0.0015, 10);
+      for (const x of [-0.042, 0, 0.042]) dot(b, x, cy, 0.0125, t + 0.004, 10);
     });
   }
   return b.build();
