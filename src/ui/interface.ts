@@ -87,6 +87,8 @@ export interface Interface {
   readonly fly: FlyMode;
   /** The dressing for the newest world arrived (the guide's ticks for lamps, laundry and parks). */
   dressed(dressing: DressingPlan): void;
+  /** L57: glides the camera to look at a place (as Escape glides back to the whole island). */
+  glideTo(target: readonly [number, number, number], zoom?: number): void;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -917,8 +919,8 @@ export function createInterface(host: InterfaceHost): Interface {
   /** The glide to the view a new island opens on: from, to, and how far along (0 to 1). */
   let recentre: { from: CameraPose; to: CameraPose; t: number; at: number } | null = null;
   const RECENTRE_SECONDS = 0.8;
-  const startRecentre = (): void => {
-    const home = host.homeCamera?.();
+  const startRecentre = (to?: CameraPose): void => {
+    const home = to ?? host.homeCamera?.();
     if (!home) return;
     const from = view.getCamera();
     // The shorter way round.
@@ -1088,6 +1090,10 @@ export function createInterface(host: InterfaceHost): Interface {
     dressed(dressing) {
       guide.dressed(dressing);
       fly.dressed(dressing);
+    },
+    glideTo(target, zoom) {
+      const now = view.getCamera();
+      startRecentre({ ...now, target: [target[0], target[1], target[2]], zoom: Math.max(now.zoom, zoom ?? 0) });
     },
     frame() {
       stepRecentre();

@@ -149,6 +149,8 @@ export function smithChain(): Chain {
 export interface ShowChain extends Chain {
   /** Places with a show on now (by structure id). */
   readonly on: ReadonlySet<number>;
+  /** L57: the band at the nearest bandstand within `reach` steps of a cell strikes up now (a wedding at the square). True if one does. */
+  strike?(board: Board, near: CellKey, reach: number): boolean;
 }
 
 /**
@@ -171,13 +173,27 @@ function bandPlace(board: Board, venue: number, stage: readonly Post[], i: numbe
 export function showChain(): ShowChain {
   let venues: { id: number; stage: Post[]; seats: Post[]; players: (Person | null)[]; taken: Set<string> }[] = [];
   const on = new Set<number>();
+  /** L57: shows struck up out of turn (by structure id: when). */
+  const struck = new Map<number, number>();
   const showOn = (board: Board, id: number): { on: boolean; left: number } => {
+    const at = struck.get(id);
+    if (at !== undefined && board.now - at < PLACES.show) return { on: true, left: PLACES.show - (board.now - at) };
     const { t } = cycle(board.now, PLACES.showCycle, id * 13.1);
     return { on: t < PLACES.show, left: PLACES.show - t };
   };
   const chain: ShowChain = {
     id: 'show',
     on,
+    strike(board, near, reach) {
+      const v = venues
+        .filter((x) => board.shape?.roles.get(x.id)?.role === 'bandstand' && x.stage.length > 0 && board.dist(x.stage[0]!.cell, near) <= reach)
+        .sort((a, b) => board.dist(a.stage[0]!.cell, near) - board.dist(b.stage[0]!.cell, near) || a.id - b.id)[0];
+      if (!v) return false;
+      if (!showOn(board, v.id).on) struck.set(v.id, board.now);
+      // The players come now.
+      for (const p of v.players) if (p) board.crowd.rethink(p);
+      return true;
+    },
     sync(board) {
       const posts = board.posts('show');
       const ids = [...new Set(posts.map((p) => p.structure).filter((x): x is number => x !== undefined))];

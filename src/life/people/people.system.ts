@@ -31,6 +31,7 @@ import { place } from '../motion/pose';
 import { fxOf } from '../fx/fx';
 import { markCensusReady, recordHome } from './home';
 import { carriedMesh, HEAVY, HOLD_OF, holdAnchor } from '@/parts/people/loads';
+import { fineryLook, fineryMesh, isFinery } from '@/parts/people/finery';
 import { applyHold } from '@/parts/people/hands';
 import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
@@ -204,6 +205,8 @@ interface Drawn {
   costume: Person['costume'];
   /** L50: the hat knocked askew in a scuffle, drawn on its own. */
   askew: InstanceHandle | null;
+  /** L57: wedding finery over the figure (a top hat, a veil and train…), placed with the body. */
+  finery?: InstanceHandle | null;
   /** Seasons: wrapped up for the cold (a coat and a woolly hat). */
   wrapped?: boolean;
   /** The broom's stroke last drawn (a puff of dust at each). */
@@ -233,10 +236,9 @@ function loadScale(): number {
   return 1 + (LOADS.far - 1) * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
 }
 
-/** L57: a bride in white with her hair up, a groom in a dark coat and top hat. */
-export function costumeLook(base: Look, costume: Person['costume']): Look {
-  if (costume === 'bride') return { ...base, top: '#fbf8f2', bottom: '#fbf8f2', dress: true, hat: 'none', hairStyle: 'bun', girth: base.girth * 1.08 };
-  if (costume === 'groom') return { ...base, top: '#2c2b38', bottom: '#2c2b38', dress: false, hat: 'cap', hatColor: '#24232e' };
+/** L57: dressed for a wedding (finery.ts: the bride in white, the groom in black, …). */
+export function costumeLook(base: Look, costume: Person['costume'], id = ''): Look {
+  if (isFinery(costume)) return fineryLook(base, costume, id);
   // L50: after a scuffle the hat sits askew (drawn on its own, tipped; see draw()).
   if (costume === 'askew') return { ...base, hat: 'none' };
   return base;
@@ -313,6 +315,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.load = null;
     d.askew?.release();
     d.askew = null;
+    d.finery?.setVisible(false);
     return;
   }
   // Seasons: each puts on (or takes off) their winter things at their own point as it turns cold.
@@ -321,16 +324,21 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     // L57: dressed for the wedding (or back in everyday clothes): drawn afresh.
     d.costume = p.costume;
     d.wrapped = wrapped;
-    d.look = wrapped ? wrapLook(d.base, p.id) : costumeLook(d.base, p.costume);
+    d.look = wrapped ? wrapLook(d.base, p.id) : costumeLook(d.base, p.costume, p.id);
     d.rig = rigOf(d.look);
     if (d.handles) for (const h of d.handles) h.release();
     d.handles = null;
+    d.finery?.release();
+    d.finery = null;
   }
   if (!d.handles) {
     // Built the first time they are seen, so a town of sixty does not mesh sixty people in one frame.
     const meshes = buildPerson(d.look, p.id);
     d.handles = PIECES.map((piece) => stage.spawnMesh(meshes[piece], IDENTITY));
-    d.shown = true;
+    // L57: their wedding finery, over the figure.
+    const extra = isFinery(p.costume) ? fineryMesh(d.look, d.rig, p.costume, p.id) : null;
+    d.finery = extra ? stage.spawnMesh(extra, IDENTITY) : null;
+    d.shown = false;
   }
   const name = p.react ?? p.pose;
   const walking = name === 'walk' || name === 'run';
@@ -407,11 +415,13 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   for (let i = 0; same && i < 96; i++) same = d.last[i] === world[i];
   if (!d.shown) {
     for (const h of d.handles) h.setVisible(true);
+    d.finery?.setVisible(true);
     d.shown = true;
   }
   if (same) return;
   d.last.set(world);
   for (let i = 0; i < 5; i++) d.handles[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
+  d.finery?.setMatrix(world.subarray(0, 16));
   if (d.tool) d.tool.handle.setMatrix(world.subarray(TOOL_PIECE[d.tool.kind] * 16, TOOL_PIECE[d.tool.kind] * 16 + 16));
   // A little dust off the broom at the end of each stroke.
   if (name === 'sweep' && d.tool?.kind === 'broom') {
@@ -524,6 +534,7 @@ export default defineSystem<State>({
           d?.tool?.handle.release();
           d?.load?.handle.release();
           d?.askew?.release();
+          d?.finery?.release();
           drawn.delete(p);
         },
       },
@@ -653,6 +664,7 @@ export default defineSystem<State>({
       d.tool?.handle.release();
       d.load?.handle.release();
       d.askew?.release();
+      d.finery?.release();
     }
     state.drawn.clear();
   },
