@@ -3,7 +3,7 @@
 // fireball ... then settles into smoke and then dissipates"). Owner: Mischief.
 //
 // Staged on one clock (./nuke-timing.ts), on twos:
-//   the drop    its own finned casing, tumbling a little as it falls, nose in the ground
+//   the drop    its own finned casing, tumbling a little as it falls, going off the instant it lands (no wait on the ground)
 //   flash       the page whites out (the interface), a white-hot core shrinks fast
 //   shockwave   a bright ring races out across the ground far past the damage, a pale
 //               band standing up off it, a low wall of dust (spray on water) behind it;

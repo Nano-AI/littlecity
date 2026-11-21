@@ -184,7 +184,7 @@ function thunder(a: Audio): void {
   burst(t + 0.05, 'lowpass', 900, 80, 0.5, 0.06, 1.9, 0.4);
 }
 
-/** The nuke coming: a siren rising and falling, a whistle dropping in pitch, then a beat of silence before the bang. */
+/** The nuke coming: a siren rising and falling and a whistle dropping in pitch, both cut off as it lands (it goes off on landing, so nothing overlaps the bang). */
 function nukeWarning(a: Audio, fall: number): void {
   const { ac, master } = a;
   const t = ac.currentTime;
@@ -198,24 +198,26 @@ function nukeWarning(a: Audio, fall: number): void {
   const sg = ac.createGain();
   sg.gain.setValueAtTime(0.0001, t);
   sg.gain.exponentialRampToValueAtTime(0.06, t + 0.2);
-  sg.gain.setValueAtTime(0.06, t + 2.4);
-  sg.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+  // Both stop just short of the landing, which is the bang.
+  const end = Math.max(0.6, fall - 0.08);
+  sg.gain.setValueAtTime(0.06, Math.max(t + 0.25, t + end - 0.3));
+  sg.gain.exponentialRampToValueAtTime(0.0001, t + end);
   siren.connect(sg).connect(master);
   siren.start(t);
-  siren.stop(t + 2.9);
-  // The whistle: from high to low over the fall, stopping short of the bang (the beat of silence).
+  siren.stop(t + end + 0.02);
+  // The whistle: from high to low over the fall.
   const whistle = ac.createOscillator();
   whistle.type = 'sine';
   whistle.frequency.setValueAtTime(2200, t + 0.4);
-  whistle.frequency.exponentialRampToValueAtTime(380, t + fall + 0.5);
+  whistle.frequency.exponentialRampToValueAtTime(380, t + end);
   const wg = ac.createGain();
   wg.gain.setValueAtTime(0.0001, t + 0.4);
   wg.gain.exponentialRampToValueAtTime(0.05, t + 0.8);
-  wg.gain.setValueAtTime(0.05, t + fall + 0.4);
-  wg.gain.exponentialRampToValueAtTime(0.0001, t + fall + 0.55);
+  wg.gain.setValueAtTime(0.05, t + end - 0.08);
+  wg.gain.exponentialRampToValueAtTime(0.0001, t + end);
   whistle.connect(wg).connect(master);
   whistle.start(t + 0.4);
-  whistle.stop(t + fall + 0.6);
+  whistle.stop(t + end + 0.02);
 }
 
 export default defineSystem<State>({

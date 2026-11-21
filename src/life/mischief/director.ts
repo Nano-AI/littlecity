@@ -25,8 +25,11 @@ import { rand } from '@/core/rand';
 /** The town mending itself: seconds of quiet after a building was hurt, a spread on top, seconds a step, a crew's speed. */
 export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2 };
 
-/** The nuke: its fall and fuse (seconds), its power against a bomb's, how near the middle chunks fly, the crater's radius. */
-export const NUKE = { fall: 2.4, fuse: 1.1, power: 7, fly: 2.2, crater: 2.6 };
+/**
+ * The nuke: its fall and fuse (seconds), its power against a bomb's, how near the middle chunks fly, the crater's radius.
+ * No fuse: it goes off the instant it hits the ground (Derek, 2026-11-21; it used to sit there 1.1 s first).
+ */
+export const NUKE = { fall: 2.4, fuse: 0, power: 7, fly: 2.2, crater: 2.6 };
 
 /** A click of the Mend tool: a quarter of the way. */
 const MEND_CLICK = MEND_STEPS / 4;
