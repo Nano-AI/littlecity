@@ -1361,3 +1361,23 @@ or ridge-valley islands would need a third generator saved as
 `terrainGen: 3`. The "working" animation for a long search was never
 seen on screen (searches finish too fast).
 Running: nothing of mine. Other sessions are active on this branch.
+
+**2026-11-21 early hours (Derek).**
+- "Why is Marble City grayed out all the time?" Measured, generator 2
+  seeds 1–40: offered on 9 of 40. Cause: the planner falls back unless a
+  forum fits, and the smallest forum needs a flat free 13×13
+  (`SIZES`, `src/townmaker/districts/forum.ts`); most islands' largest
+  flat square is 6–10. Castle refused on 4 of 40. → grow-town agent
+  (`a5aa1417a439de127`), resumed: forums that adapt (smaller, terraced),
+  the planner levelling a site with land edits, more marble elsewhere;
+  target 38+ of 40.
+- Orchestrator: a greyed kind now says why, on hover (title) and in a
+  line under the list when pressed (`WHY_NOT_HERE` in `src/ui/menu.ts`;
+  rows are aria-disabled, not disabled). Gate 2,230 passed, 12 skipped;
+  published `1b7e293`.
+- He hates the folly (an arch run on pillars with a tower-windmill and a
+  bracketed room; screenshot `/tmp/lc-ugly-default.png`): replace with a
+  big windmill, a couple of cottages, cute things, one tasteful arch →
+  queued for the same agent, with the roles it existed to show moved
+  somewhere sensible or dropped from the survey.
+Running: grow-town (marble everywhere, the windmill corner).
