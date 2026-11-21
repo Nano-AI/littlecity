@@ -21,7 +21,8 @@
 //   --then '<edits>' --after 400   a second batch of edits, that many ms into the sequence
 //   mischief (design section 13b), in either list: 'fire@10,1,10' sets that block alight, 'strike@10,1,10' strikes it with lightning, 'bomb@10,1,10'
 //   drops a bomb on the floor of that cell (y = the level it lands on), 'knock@10,1,10' knocks its
-//   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo
+//   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo,
+//   'crowdbomb@d,0,0' / 'crowdnuke@d,0,0' drops one d cells off the busiest knot of people out and aims the camera there
 //   --frames 8 --every 100   how many frames to keep, and the milliseconds between them
 //   --zoom 3 --target 10,1,10 --yaw 45 --pitch 35   move the camera (the app opens on the scenario's first camera)
 //   --size 640x400 --scale 1 --cols 4
@@ -203,6 +204,22 @@ try {
           let top = e.y;
           while (lc.world().blocks.has(key(e.x, top + 1, e.z))) top++;
           done.push(m.strike(key(e.x, top, e.z), [e.x + 0.5, (top + 1) * 0.8, e.z + 0.5]) ? 'struck' : 'struck, would not catch');
+          continue;
+        }
+        if (e.verb === 'crowdbomb' || e.verb === 'crowdnuke') {
+          // Where most people are out (blown about): the bomb there (x cells off along +x), the camera on it.
+          const out = (window.__lcPeople?.people ?? []).filter((p) => p.visible && (p.mode === 'walk' || p.mode === 'linger'));
+          let best = null, bestN = -1;
+          for (const p of out) {
+            const n = out.filter((q) => Math.hypot(q.x - p.x, q.z - p.z) < 2.5).length;
+            if (n > bestN) { bestN = n; best = p; }
+          }
+          if (!best) { done.push('nobody out'); continue; }
+          const px = best.x + e.x, pz = best.z;
+          if (e.verb === 'crowdnuke') m.dropNuke([px, best.y, pz]);
+          else m.dropBomb([px, best.y, pz]);
+          lc.view.setCamera({ target: [best.x, best.y + 0.2, best.z] });
+          done.push(`${e.verb} at ${px.toFixed(1)},${pz.toFixed(1)} (${bestN} near)`);
           continue;
         }
         if (e.verb === 'bomb') { m.dropBomb([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('bomb'); continue; }

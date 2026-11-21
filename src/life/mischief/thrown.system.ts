@@ -29,7 +29,7 @@ import type { NavGraph, ShapePlan } from '@/resolve/plan';
 const HIDE: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
 const DUST = { actor: 'puff', variant: 'dust' } as const;
 /** Stars round a dizzy head: how many, how far out, how fast round (radians a second). */
-const STARS = { n: 3, r: 0.1, speed: 4.5, rate: 12 };
+const STARS = { n: 3, r: 0.12, speed: 4.5, rate: 12, size: 1.5 };
 
 const throwers = new WeakMap<LifeStage, Thrower>();
 /** The thrower of a stage (the Hand, tests, sequences), once the people are there. */
@@ -121,7 +121,7 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
     const hz = sitting ? b.z : b.z - Math.cos(b.heading) * 0.36;
     const hy = b.y + (sitting ? 0.42 : 0.12);
     const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-    const sc = farScale();
+    const sc = farScale() * STARS.size;
     const spin = tick * STARS.speed + (b.seed % 7);
     a.stars.forEach((h, i) => {
       const ang = spin + (i / STARS.n) * Math.PI * 2;
