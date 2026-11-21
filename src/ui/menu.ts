@@ -1,11 +1,13 @@
 // The ☰ menu (design section 7): grow a town (design 15a; it opens a second
 // screen that asks where: on this island or on a new one), new island (with
-// a confirm), share link, postcard, town file out and in, and sound. (The dev
+// a confirm), share link, postcard, town file out and in, sound, and how loud
+// the music and the sounds are. (The dev
 // tuning panel is not in the game: removed at Derek's request, 2026-11-20.
 // It lives on in the gallery.)
 // Owner: Interface.
 
 import { el, iconButton, setIcon } from './dom';
+import { icon } from './icons';
 
 export interface MenuActions {
   /** Fills this island with a grown town. */
@@ -22,6 +24,11 @@ export interface MenuActions {
   /** Sound on or off; the menu shows the current state. */
   sound(): boolean;
   setSound(on: boolean): void;
+  /** How loud, 0–1: the background music (0 is off) and the game's sounds. Left out of the menu when absent. */
+  musicVolume?(): number;
+  setMusicVolume?(v: number): void;
+  soundVolume?(): number;
+  setSoundVolume?(v: number): void;
   /** Mischief (design section 13b): the town mends its own damage. Left out of the menu when absent. */
   rebuild?(): boolean;
   setRebuild?(on: boolean): void;
@@ -65,7 +72,22 @@ export function createMenu(actions: MenuActions): Menu {
       },
     });
 
+  /** A volume row: an icon, a name and a slider 0–100. Not a menu item: the menu stays open while it is dragged. */
+  const volume = (id: string, iconId: string, label: string, value: number, set: (v: number) => void): HTMLElement => {
+    const range = el('input', {
+      attrs: { type: 'range', min: '0', max: '100', step: '5', value: String(Math.round(value * 100)), 'aria-label': `${label} volume`, 'data-ui': `volume-${id}` },
+    });
+    range.addEventListener('input', () => set(Number(range.value) / 100));
+    return el('label', { class: 'lc-menu-volume' }, [el('span', { class: 'lc-btn-icon', html: icon(iconId) }), el('span', { class: 'lc-menu-volume-label', text: label }), range]);
+  };
+
   const showItems = (): void => {
+    const showSound = (on: boolean): void => {
+      setIcon(sound, on ? 'sound-on' : 'sound-off');
+      sound.querySelector('.lc-btn-label')!.textContent = on ? 'Sound: on' : 'Sound: off';
+      sound.setAttribute('aria-label', on ? 'Sound: on' : 'Sound: off');
+      sounds?.classList.toggle('lc-menu-volume-off', !on);
+    };
     const soundOn = actions.sound();
     const sound = item(
       'sound',
@@ -74,12 +96,23 @@ export function createMenu(actions: MenuActions): Menu {
       () => {
         const next = !actions.sound();
         actions.setSound(next);
-        setIcon(sound, next ? 'sound-on' : 'sound-off');
-        sound.querySelector('.lc-btn-label')!.textContent = next ? 'Sound: on' : 'Sound: off';
-        sound.setAttribute('aria-label', next ? 'Sound: on' : 'Sound: off');
+        showSound(next);
       },
       true,
     );
+    const music = actions.musicVolume && actions.setMusicVolume ? volume('music', 'music', 'Music', actions.musicVolume(), (v) => actions.setMusicVolume!(v)) : null;
+    // Moving the sounds' slider up turns sound on: nobody sets a level for something that is off.
+    const sounds =
+      actions.soundVolume && actions.setSoundVolume
+        ? volume('sound', 'volume', 'Sounds', actions.soundVolume(), (v) => {
+            actions.setSoundVolume!(v);
+            if (v > 0 && !actions.sound()) {
+              actions.setSound(true);
+              showSound(true);
+            }
+          })
+        : null;
+    sounds?.classList.toggle('lc-menu-volume-off', !soundOn);
     const label = (on: boolean): string => (on ? 'Rebuild: on' : 'Rebuild: off');
     const rebuild =
       actions.rebuild && actions.setRebuild
@@ -106,7 +139,9 @@ export function createMenu(actions: MenuActions): Menu {
       item('download', 'download', 'Save town to a file', actions.downloadTown),
       item('open', 'open', 'Open a town file', () => file.click()),
       el('div', { class: 'lc-menu-rule' }),
+      ...(music ? [music] : []),
       sound,
+      ...(sounds ? [sounds] : []),
       ...(rebuild ? [rebuild] : []),
     );
   };

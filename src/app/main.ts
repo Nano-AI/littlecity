@@ -40,6 +40,7 @@ import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
 import { createAutosave } from './autosave';
 import { createGame, type GameStart } from './game';
+import { createMusic } from './music';
 
 function storage(): Storage | null {
   try {
@@ -123,6 +124,9 @@ const game = createGame(tiered(start), {
 });
 
 // Mischief (design section 13b): what it does reaches the town as ordinary edits, one undo step per act.
+// The background piano: the page's, not a town's (it plays on through a new island).
+const music = createMusic();
+
 const mischief = mischiefOf(view.stage);
 mischief.connect({
   begin: () => game.begin(),
@@ -312,6 +316,7 @@ window.__lc = {
   ui,
   autosave,
   mischief,
+  music,
   /** How sharp the page is drawn: the level in use and the levels (src/render/quality.ts). */
   quality: () => view.quality?.() ?? null,
 };

@@ -22,11 +22,14 @@ import type { ShapePlan } from '@/resolve/plan';
 import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
 import { shipSoundsOf } from '../ships/news';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from './volume';
 import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
 
 const SOUND_KEY = 'little-city.sound';
 /** Master level: everything is a background to building. */
 const MASTER = 0.5;
+/** The master level with the player's volume for sounds on it (the menu's slider). */
+const level = (): number => MASTER * readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT);
 
 /** True on the step where the evening begins (the moment lamps can first be lit). */
 export function bellNow(prev: TimeSignal | null, now: TimeSignal): boolean {
@@ -73,13 +76,13 @@ function readWanted(): boolean {
 function start(state: State, seed: number): void {
   if (state.audio) {
     void state.audio.ac.resume();
-    state.audio.master.gain.setTargetAtTime(MASTER, state.audio.ac.currentTime, 0.2);
+    state.audio.master.gain.setTargetAtTime(level(), state.audio.ac.currentTime, 0.2);
     return;
   }
   const ac = new AudioContext();
   const master = ac.createGain();
   master.gain.value = 0;
-  master.gain.setTargetAtTime(MASTER, ac.currentTime, 0.4);
+  master.gain.setTargetAtTime(level(), ac.currentTime, 0.4);
   master.connect(ac.destination);
   const noise = noiseBuffer(ac, seed);
   // The sea: low, slow noise whose level breathes like waves on a beach.
@@ -142,8 +145,14 @@ export default defineSystem<State>({
     };
     window.addEventListener('pointerdown', gesture);
     window.addEventListener('keydown', gesture);
+    const volume = (e: Event): void => {
+      const a = state.audio;
+      if (a && state.wanted) a.master.gain.setTargetAtTime(MASTER * (e as CustomEvent<number>).detail, a.ac.currentTime, 0.08);
+    };
     window.addEventListener('lc:sound', toggle);
+    window.addEventListener(SOUND_VOLUME_EVENT, volume);
     state.off.push(
+      () => window.removeEventListener(SOUND_VOLUME_EVENT, volume),
       () => window.removeEventListener('pointerdown', gesture),
       () => window.removeEventListener('keydown', gesture),
       () => window.removeEventListener('lc:sound', toggle),

@@ -457,6 +457,18 @@ describe('desktop: mouse and keys', () => {
     expect(await debug(page, 'sound')).toBe(true);
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);
+    // How loud: the music's slider (0 is off) and the sounds' (moving it up turns sound on).
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.4);
+    await page.locator('[data-ui="volume-music"]').fill('75');
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.75);
+    expect(await js(page, `localStorage.getItem('little-city.music-volume')`)).toBe('0.75');
+    await page.locator('[data-ui="volume-music"]').fill('0');
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0);
+    await page.locator('[data-ui="volume-sound"]').fill('50');
+    expect(await js(page, `localStorage.getItem('little-city.sound-volume')`)).toBe('0.5');
+    expect(await debug(page, 'sound')).toBe(true);
+    await page.click('[data-menu="sound"]');
+    expect(await debug(page, 'sound')).toBe(false);
     await page.click('[data-ui="menu-button"]');
     expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
     // The dev tuning panel is not in the game.

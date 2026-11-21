@@ -8,9 +8,12 @@
 import { hash, rand } from '@/core/rand';
 import { defineSystem } from '../api';
 import { noiseBuffer, pop, strike } from '../sound/synth';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from '../sound/volume';
 import { mischiefOf, type Director } from './director';
 
 const SOUND_KEY = 'little-city.sound';
+/** The master level with the player's volume for sounds on it (the menu's slider). */
+const level = (): number => 0.5 * readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT);
 
 interface Audio {
   ac: AudioContext;
@@ -35,11 +38,12 @@ const hasAudio = (): boolean => typeof window !== 'undefined' && typeof (window 
 function start(st: State): void {
   if (st.audio) {
     void st.audio.ac.resume();
+    st.audio.master.gain.setTargetAtTime(level(), st.audio.ac.currentTime, 0.15);
     return;
   }
   const ac = new AudioContext();
   const master = ac.createGain();
-  master.gain.value = 0.5;
+  master.gain.value = level();
   master.connect(ac.destination);
   const noise = noiseBuffer(ac, 0x6d15);
   // The crackle: noise through a band in the middle, its level following the fire.
@@ -232,12 +236,17 @@ export default defineSystem<State>({
       st.wanted = (e as CustomEvent<boolean>).detail === true;
       if (st.wanted) start(st);
       else if (st.audio) st.audio.master.gain.setTargetAtTime(0, st.audio.ac.currentTime, 0.15);
-      if (st.wanted && st.audio) st.audio.master.gain.setTargetAtTime(0.5, st.audio.ac.currentTime, 0.15);
     };
     window.addEventListener('pointerdown', gesture);
     window.addEventListener('keydown', gesture);
+    const volume = (e: Event): void => {
+      const a = st.audio;
+      if (a && st.wanted) a.master.gain.setTargetAtTime(0.5 * (e as CustomEvent<number>).detail, a.ac.currentTime, 0.08);
+    };
     window.addEventListener('lc:sound', toggle);
+    window.addEventListener(SOUND_VOLUME_EVENT, volume);
     st.off.push(
+      () => window.removeEventListener(SOUND_VOLUME_EVENT, volume),
       () => window.removeEventListener('pointerdown', gesture),
       () => window.removeEventListener('keydown', gesture),
       () => window.removeEventListener('lc:sound', toggle),

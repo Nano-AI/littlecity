@@ -11,6 +11,7 @@
 // whether an edit is legal: it asks (game.edit → canApply) and shows the
 // refusal. The view is used only through TownView.
 
+import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, writeVolume } from '@/life/sound/volume';
 import { maybeWelcome } from './welcome';
 import { columnIndex, edgeOf, key, keyX, keyY, keyZ, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, Terrain, World } from '@/core/world';
@@ -285,6 +286,10 @@ export function createInterface(host: InterfaceHost): Interface {
       // Sound itself arrives in a later stage; it listens for this.
       window.dispatchEvent(new CustomEvent('lc:sound', { detail: on }));
     },
+    musicVolume: () => readVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_DEFAULT),
+    setMusicVolume: (v) => void writeVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_EVENT, v),
+    soundVolume: () => readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT),
+    setSoundVolume: (v) => void writeVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_EVENT, v),
     rebuild: () => mischiefOf(view.stage).rebuild,
     setRebuild(on) {
       mischiefOf(view.stage).rebuild = on;

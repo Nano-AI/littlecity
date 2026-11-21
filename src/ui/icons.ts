@@ -452,6 +452,13 @@ const DRAWINGS: Record<string, string> = {
   'sound-off':
     `<path d="M8.6 19.6 L15.6 19.4 L24.6 11.6 L24.8 36.4 L15.6 28.6 L8.8 28.6 Z" fill="${C.white}"/>` +
     `<path stroke-width="2.4" d="M31 19 L40.4 29.2 M40.4 19 L31 29.2"/>`,
+  // The menu's volume rows: a pair of quavers for the music, a little speaker for the sounds.
+  music:
+    `<path stroke-width="2.4" d="M18 33.6 L18.2 13.4 L36 10 L36.2 29.8"/><path stroke-width="2.4" d="M18.2 19 L36 15.6"/>` +
+    `<ellipse cx="14.2" cy="34" rx="4.4" ry="3.4" fill="${C.pink}"/><ellipse cx="32.2" cy="30.4" rx="4.4" ry="3.4" fill="${C.pink}"/>`,
+  volume:
+    `<path d="M10.6 19.6 L17.6 19.4 L26.6 11.6 L26.8 36.4 L17.6 28.6 L10.8 28.6 Z" fill="${C.white}"/>` +
+    `<path stroke-width="2.4" d="M32 18.4 Q36.4 24 32 29.8"/>`,
   tune:
     `<path stroke-width="2.4" d="M8 14 L40 13.8 M8 24.2 L40 24 M8 34.2 L40 34"/>` +
     `<circle cx="17" cy="14" r="3.6" fill="${C.yellow}"/><circle cx="31" cy="24" r="3.6" fill="${C.pink}"/><circle cx="21" cy="34" r="3.6" fill="${C.sea}"/>`,
