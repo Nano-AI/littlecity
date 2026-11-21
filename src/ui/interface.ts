@@ -21,6 +21,7 @@ import { holdYear, type SeasonHold, type WeatherHold } from '@/life/season';
 import { partPhases } from '@/life/signals';
 import { createSlider, type SliderStop } from './slider';
 import type { CameraPose, Ghost, TownView } from '@/render/api';
+import { tally, track, watchGrowth } from '@/app/analytics';
 import type { Game } from '@/app/game';
 import { brushAt, copyLook, landColumn, levelSteps, lineCells, planErase, planUse, type ActionContext, type Plan, type ToolState } from './actions';
 import { el, iconButton, installTheme, isCoarsePointer, setIcon } from './dom';
@@ -273,6 +274,7 @@ export function createInterface(host: InterfaceHost): Interface {
       api.sync();
     },
   });
+  watchGrowth(() => growth.active);
   /** The characters grown so far, oldest first: none repeats until all that suit an island have had a turn. */
   let shown: Character[] = [];
   /** Grows a town: the one planned already (a kind the player chose), or the dice's, avoiding those shown. */
@@ -359,6 +361,7 @@ export function createInterface(host: InterfaceHost): Interface {
 
   const menu = createMenu({
     growTown(kind) {
+      track('town_grown', { new_island: false, kind: kind ?? 'any' });
       // On the island there is: the dice choose a different kind each time, so asking again is worth it.
       if (!kind) return grow(shown);
       const k = kindsHere();
@@ -366,6 +369,7 @@ export function createInterface(host: InterfaceHost): Interface {
       if (plan) grow(shown, plan);
     },
     growNewIsland(kind, signal) {
+      track('town_grown', { new_island: true, kind: kind ?? 'any' });
       if (!kind) {
         leaveForNewIsland();
         grow(shown);
@@ -384,6 +388,7 @@ export function createInterface(host: InterfaceHost): Interface {
     // A town to leave: anything built, or ground reshaped (what My towns counts as a town worth keeping).
     hasTown: () => (game.world.terrainEdits?.size ?? 0) > 0 || !onlyStartingTrees(game.world, game.terrain),
     newIsland(kind, signal) {
+      track('new_island', { kind: kind ?? 'any' });
       if (!kind) return leaveForNewIsland();
       return inSlices(findIsland(kind, searchStart()), signal).then((found) => {
         if (found) leaveForNewIsland(found.seed);
@@ -392,7 +397,10 @@ export function createInterface(host: InterfaceHost): Interface {
     ...(towns ? { myTowns: () => void towns.open() } : {}),
     shareLink: () => void share(),
     postcard: () => void postcard(),
-    downloadTown: () => downloadTown(game.world),
+    downloadTown: () => {
+      track('town_downloaded');
+      downloadTown(game.world);
+    },
     openTownFile: (file) => void openFile(file),
     sound: () => sound,
     setSound(on) {
@@ -956,21 +964,26 @@ export function createInterface(host: InterfaceHost): Interface {
       const item = tray.state.item;
       if (isMischiefTool(item)) {
         lastUse = { ...lastUse, x, y };
-        mischief.use(item, look(x, y)?.pick ?? null, { shift: lastUse.shift });
+        if (mischief.use(item, look(x, y)?.pick ?? null, { shift: lastUse.shift })) tally(`mischief_${item}`);
         return;
       }
       const seen = look(x, y);
       if (!seen) return;
       const length = heldLength();
-      if (length !== null && length > 1 && !isLandTool(tray.state.item)) placeRun(x, y, seen, length);
-      else perform(planUse(tool(), seen.pick, seen.ctx), x, y);
+      if (length !== null && length > 1 && !isLandTool(item)) placeRun(x, y, seen, length);
+      else if (!perform(planUse(tool(), seen.pick, seen.ctx), x, y)) return;
+      tally('uses');
+      tally(`use_${item}`);
     },
     erase(x, y) {
       if (dismissing) return;
       if (growth.active) return growth.skip();
       if (tray.state.idle) return; // just looking: no erasing by a stray right click or long press
       const seen = look(x, y);
-      if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) navigator.vibrate?.(12);
+      if (seen && perform(planErase(seen.pick, seen.ctx), x, y)) {
+        navigator.vibrate?.(12);
+        tally('erased');
+      }
     },
     orbit(dx, dy) {
       recentre = null;
@@ -1131,19 +1144,28 @@ export function createInterface(host: InterfaceHost): Interface {
   const share = async (): Promise<void> => {
     const link = shareLink(game.world);
     if (link === null) {
+      track('town_shared', { via: 'file' });
       downloadTown(game.world);
       feedback.toast('This town is too big for a link, so here it is as a file.');
-    } else if (await copyText(link)) feedback.toast('Link copied. Anyone who opens it gets a copy of this town.');
-    else feedback.linkBox('Copy this link to share your town:', link);
+    } else if (await copyText(link)) {
+      track('town_shared', { via: 'link' });
+      feedback.toast('Link copied. Anyone who opens it gets a copy of this town.');
+    } else {
+      track('town_shared', { via: 'link_box' });
+      feedback.linkBox('Copy this link to share your town:', link);
+    }
   };
   const postcard = async (): Promise<void> => {
     const blob = await makePostcard(canvas, host.renderNow);
-    if (blob) download(blob, 'little-city-postcard.png');
-    else feedback.toast('The postcard could not be made.');
+    if (blob) {
+      track('postcard_saved');
+      download(blob, 'little-city-postcard.png');
+    } else feedback.toast('The postcard could not be made.');
   };
   const openFile = async (file: File): Promise<void> => {
     const result = await readTownFile(file);
     if (result.ok) growth.stop();
+    if (result.ok) track('town_file_opened');
     if (result.ok) host.openTown(result.world);
     else feedback.toast(result.reason);
   };

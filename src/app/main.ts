@@ -40,6 +40,7 @@ import { download, townFromHash, townPicture } from '@/ui/files';
 import { onlyStartingTrees } from '@/ui/growth';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
+import { startAnalytics, track, townShown } from './analytics';
 import { createAutosave } from './autosave';
 import { createGame, type GameStart } from './game';
 import { createMusic } from './music';
@@ -133,6 +134,7 @@ const game = createGame(tiered(start), {
   show(shape: ShapePlan, landed: Edit | null) {
     view.setTown(shape, null);
     life.sync({ shape, dressing: null });
+    townShown(shape, landed !== null);
     if (landed?.type === 'placeBlock') signals.emit('blockLanded', landed.cell);
     if (landed?.type === 'eraseBlock') signals.emit('blockRemoved', landed.cell);
   },
@@ -296,6 +298,11 @@ ui = createInterface({
 });
 if (keeper.savedUnreadable) ui.feedback.toast('Your last town could not be opened by this version of Little City. It is kept safe in My towns.');
 
+// ── analytics (src/app/analytics.ts) ─────────────────────────────────────
+startAnalytics({ scenario: scn !== undefined });
+track('town_opened', { how: shared?.ok ? (visiting ? 'shared_visiting' : 'shared') : saved ? 'saved' : 'new' });
+townShown(game.shape, false);
+
 // ── share links ──────────────────────────────────────────────────────────
 if (shared && !shared.ok) {
   // A broken link: say so plainly and leave the player's own town as it is (plan Review Focus 2).
@@ -307,6 +314,7 @@ if (shared && !shared.ok) {
       label: 'Keep it as mine',
       primary: true,
       run() {
+        track('shared_town_kept');
         keeper.detach();
         leaveSpecialTown();
         autosave.schedule();
@@ -315,6 +323,7 @@ if (shared && !shared.ok) {
     {
       label: 'Back to my town',
       run() {
+        track('shared_town_left');
         leaveSpecialTown();
         const mine = loadTown(storage());
         keeper.current = mine ? storage()?.getItem(ID_KEY) || null : null;

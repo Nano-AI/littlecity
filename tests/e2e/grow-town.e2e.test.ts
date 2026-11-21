@@ -128,7 +128,7 @@ describe('grow a town', () => {
   });
 
   test('on this island: a castle town is a castle town; a kind the island cannot grow is greyed', async () => {
-    // Generator 1's island 2 has no river and no site for a forum.
+    // Generator 1's island 2 has no river; it does have room for a forum (the planner levels one where it must).
     const { page, errors } = await app.open('/?seed=2&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     await page.click('[data-ui="menu-button"]');
@@ -136,9 +136,8 @@ describe('grow a town', () => {
     await page.click('[data-menu="grow-here"]');
     // The planner's word on the marble city and the castle town comes in a moment.
     await page.waitForSelector('[data-menu="town-castle"][data-can="true"]');
-    await page.waitForSelector('[data-menu="town-marble"][data-can="false"]');
+    await page.waitForSelector('[data-menu="town-marble"][data-can="true"]');
     expect(await page.getAttribute('[data-menu="town-river"]', 'aria-disabled')).toBe('true');
-    expect(await page.getAttribute('[data-menu="town-marble"]', 'aria-disabled')).toBe('true');
     // A greyed kind says why: on hover (its title), and in a line under the list when it is pressed. It grows nothing.
     expect(await page.getAttribute('[data-menu="town-river"]', 'title')).toBe('This island has no river long enough.');
     expect(await page.isHidden('[data-ui="kind-why"]')).toBe(true);
@@ -148,7 +147,7 @@ describe('grow a town', () => {
     expect(await page.textContent('[data-ui="kind-why"]')).toBe('This island has no river long enough.');
     expect(await page.isVisible('[data-ui="town-kinds"]')).toBe(true);
     expect(await page.evaluate('window.__lc.ui.growth.active')).toBe(false);
-    for (const kind of ['harbour', 'castle', 'market', 'farming', 'hill', 'gardens']) expect(await page.isEnabled(`[data-menu="town-${kind}"]`)).toBe(true);
+    for (const kind of ['harbour', 'marble', 'castle', 'market', 'farming', 'hill', 'gardens']) expect(await page.isEnabled(`[data-menu="town-${kind}"]`)).toBe(true);
 
     await page.click('[data-menu="town-castle"]');
     await page.waitForFunction(growing);

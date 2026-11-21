@@ -7,7 +7,7 @@ OUT="$ROOT/.context/pages-dist"
 SHA=$(git rev-parse --short HEAD)
 REMOTE=$(git remote get-url origin)
 rm -rf "$OUT"
-npx vite build --base=/littlecity/ --outDir "$OUT" --emptyOutDir >/dev/null
+VITE_BUILD="$SHA" npx vite build --base=/littlecity/ --outDir "$OUT" --emptyOutDir >/dev/null
 touch "$OUT/.nojekyll"
 cd "$OUT"
 git init -q -b gh-pages

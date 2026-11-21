@@ -3,14 +3,12 @@
 // tallest tower in town), the chapel with its steeple and a buttress, the
 // lighthouse and its keeper's cottage on a point, a watchtower, the
 // hilltop (observatory and lookout cottage among pines), a house at the
-// foot of a cliff, and the folly: a viaduct on placed pillars carrying a
-// tower with a windmill on top, a room hung off the tower on brackets, and
-// a row of rooms on an arcade of generated supports.
+// foot of a cliff.
 
 import { columnIndex, key } from '@/core/grid';
 import { CLAIM } from '../grower';
 import { search } from '../frame';
-import { fits, fromSquare, rectFlat, rectRange, startDistrict, type Town, Local } from '../town';
+import { fits, fromSquare, rectFlat, startDistrict, type Town, Local } from '../town';
 import { pave } from '../route';
 
 /** The temple, its grand steps, the belvedere and the campanile, fitted round one another. */
@@ -274,46 +272,4 @@ export function buildCliffHouse(town: Town): boolean {
   return false;
 }
 
-/**
- * The folly, the vertical quarter:
- *   two placed pillars, an arch run across them (a viaduct, its middle a valid span),
- *   a tower on the middle arch with a windmill on its top, a room hung off
- *   the tower on brackets, and three rooms on generated supports beside the run.
- */
-export function buildFolly(town: Town): boolean {
-  const { g } = town;
-  const found = search(g, 'folly', (f) => {
-    if (!fits(g, f, -1, -1, 5, 3)) return null;
-    const h = rectFlat(g, f, -1, 0, 5, 3);
-    if (h < 0) return null;
-    const [lo] = rectRange(g, f, -1, -1, 5, 3);
-    if (lo === 0) return null;
-    // No garden within reach of the windmill (it would turn it to wheat).
-    const d = fromSquare(town, f.x(2, 1), f.z(2, 1));
-    if (d < 8) return null;
-    return { score: Math.abs(d - 12), data: h };
-  });
-  if (!found) return false;
-  const f = found.frame;
-  const h = found.data;
-  const F = new Local(g, f);
-  const d = startDistrict(town, 'folly', f.x(2, 1), f.z(2, 1));
-  F.claim(-1, -1, 5, 2, CLAIM.built);
-  F.claim(-2, -2, 6, 4, CLAIM.open);
-  // The lane beneath.
-  for (let u = -1; u <= 5; u++) pave(g, f.x(u, 3), f.z(u, 3));
-  for (let u = 1; u <= 3; u++) pave(g, f.x(u, 1), f.z(u, 1));
-  F.stack('pillar', 0, 1, 2, 0);
-  F.stack('pillar', 4, 1, 2, 0);
-  for (let u = 0; u <= 4; u++) F.put('arch', u, h + 2, 1, 0);
-  const tower = F.color('tower', [[2, h + 3, 1]], 'folly-tower');
-  for (let y = h + 3; y <= h + 5; y++) F.put('tower', 2, y, 1, tower);
-  F.put('windmill', 2, h + 6, 1, 0);
-  F.put('house', 2, h + 4, 0, F.color('house', [[2, h + 4, 0]], 'folly-room'));
-  const rooms = F.color('house', [[1, h + 2, 2], [2, h + 2, 2], [3, h + 2, 2]], 'folly-rooms');
-  for (let u = 1; u <= 3; u++) F.put('house', u, h + 2, 2, rooms);
-  F.way(d, -1, 3);
-  F.way(d, 5, 3);
-  return true;
-}
 

@@ -70,7 +70,7 @@ const capital = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 /** Why a kind of town cannot be grown on the island there is (shown on hover over its greyed row, or when it is pressed). */
 export const WHY_NOT_HERE: Record<Character, string> = {
   harbour: 'This island has no coast for a harbour.',
-  marble: 'This island has no flat ground big enough for a forum.',
+  marble: 'This island has no room for a forum.',
   castle: 'This island has no room for a castle.',
   market: 'This island has no room for a market.',
   river: 'This island has no river long enough.',
