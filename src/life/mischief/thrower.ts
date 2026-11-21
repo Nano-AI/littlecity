@@ -108,6 +108,8 @@ export interface Thrower {
   flingCritter(c: Critter, vx: number, vy: number, vz: number, opts?: { dizzy?: number; spin?: number }): boolean;
   grabCritter(c: Critter): boolean;
   carryCritter(c: Critter, x: number, y: number, z: number): void;
+  /** The Hand is over something it could pick up (drawn as a ring on the ground round it), or null. */
+  hover: (() => { x: number; y: number; z: number; r: number } | null) | null;
   /** The critters thrown now, with what they did since the last frame (taken by the drawing). */
   readonly critterEvents: Map<Critter, BodyEvent[]>;
   readonly ground: Ground | null;
@@ -222,6 +224,27 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     m[8] = cm[6]! * sc; m[9] = cm[7]! * sc; m[10] = cm[8]! * sc; m[11] = 0;
     m[12] = px + ox; m[13] = py + oy; m[14] = pz + oz; m[15] = 1;
   };
+  /** A body flying fast knocks over whoever and whatever it hits (a thrown sheep into a wedding party): how many. */
+  const bowl = (b: Body, self: Person | Critter, most: number): number => {
+    if (Math.hypot(b.vx, b.vy, b.vz) < BLOWN.bowlAt) return 0;
+    let n = 0;
+    const vx = b.vx * 0.55, vy = 2.4 + Math.abs(b.vy) * 0.2, vz = b.vz * 0.55;
+    for (const q of crowd.people) {
+      if (n >= most) return n;
+      if (q === self || thrown.has(q) || !canThrow(q)) continue;
+      if (Math.abs(q.x - b.x) > BLOWN.bowlReach || Math.abs(q.z - b.z) > BLOWN.bowlReach || Math.abs(q.y + PIVOT - b.y) > 0.3) continue;
+      if (fling(q, vx, vy, vz)) n++;
+    }
+    for (const c of critters.values()) {
+      if (n >= most) return n;
+      if (c === self || c.body) continue;
+      if (Math.abs(c.x - b.x) > BLOWN.bowlReach || Math.abs(c.z - b.z) > BLOWN.bowlReach || Math.abs(c.y + c.height * 0.5 - b.y) > 0.3) continue;
+      if (flingCritter(c, vx * 1.1, vy, vz * 1.1)) n++;
+    }
+    return n;
+  };
+  const bowled = new Map<Critter, number>();
+
   const stepCritters = (dt: number, g: Ground): void => {
     for (const [id, c] of critters) {
       c.quiet++;
@@ -255,6 +278,10 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
         b.goal.y = home.y;
         b.goal.z = home.z;
       }
+      if (b.phase === 'fly') {
+        const had = bowled.get(c) ?? 0;
+        if (had < BLOWN.bowlMost) bowled.set(c, had + bowl(b, c, BLOWN.bowlMost - had));
+      } else if (b.phase !== 'held') bowled.delete(c);
       if (b.phase === 'done') {
         b.heading = home.heading;
         doneCritter(c);
@@ -589,17 +616,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
           }
         }
         // Flying fast: whoever it hits goes over too.
-        if ((b.phase === 'fly' || b.phase === 'held') && t.bowled < BLOWN.bowlMost) {
-          const sp = Math.hypot(b.vx, b.vy, b.vz);
-          if (sp > BLOWN.bowlAt) {
-            for (const q of crowd.people) {
-              if (q === t.person || thrown.has(q) || !canThrow(q)) continue;
-              if (Math.abs(q.x - b.x) > BLOWN.bowlReach || Math.abs(q.z - b.z) > BLOWN.bowlReach) continue;
-              if (Math.abs(q.y + PIVOT - b.y) > 0.3) continue;
-              if (fling(q, b.vx * 0.55, 2.4 + Math.abs(b.vy) * 0.2, b.vz * 0.55)) t.bowled++;
-            }
-          }
-        }
+        if (b.phase === 'fly' && t.bowled < BLOWN.bowlMost) t.bowled += bowl(b, t.person, BLOWN.bowlMost - t.bowled);
         if (b.phase === 'done') finish(t);
         else draw(t);
       }
@@ -617,6 +634,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       b.z = z;
     },
     critterEvents,
+    hover: null,
     reset() {
       waves.length = 0;
       for (const c of critters.values()) if (c.body) doneCritter(c);

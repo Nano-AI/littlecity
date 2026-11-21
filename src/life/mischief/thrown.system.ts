@@ -68,8 +68,31 @@ interface Art {
   hatColor: string;
 }
 
+/** A ring on the ground, about 1 across (the Hand's mark round what it can pick up); a soft dark disc (a shadow). */
+let ringMesh: MeshData | null = null;
+let shadowMesh: MeshData | null = null;
+function handRingMesh(): MeshData {
+  if (ringMesh) return ringMesh;
+  const b = new MeshBuilder({ ink: 'hand-ring' });
+  b.setPattern(PATTERN.none).setInk('ring').setColor('#fff3c4');
+  b.lathe([[0.5, 0], [0.5, 0.012], [0.42, 0.012], [0.42, 0]], { segments: 20 });
+  return (ringMesh = b.build());
+}
+function heldShadowMesh(): MeshData {
+  if (shadowMesh) return shadowMesh;
+  const b = new MeshBuilder({ ink: 'hand-shadow' });
+  b.setPattern(PATTERN.none).setInk('shadow').setColor('#5b5566');
+  b.lathe([[0.5, 0], [0.5, 0.006], [0, 0.008]], { segments: 16 });
+  b.setInk('line').setColor('#5b5566');
+  b.boxAt([0, 0, 0], [0.012, 1, 0.012]);
+  return (shadowMesh = b.build());
+}
+
 interface State {
   d: Director;
+  /** The Hand's mark and the shadows of what it holds. */
+  ring: InstanceHandle | null;
+  shadows: InstanceHandle[];
   own: Owned;
   crowd: Crowd | null;
   thrower: Thrower | null;
@@ -157,7 +180,7 @@ export default defineSystem<State>({
   // After the director (the mischief system, 10) has told of a blast; before the people are drawn (20).
   order: 15,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), spouts: [], time: 0, off: () => {} };
+    const st: State = { ring: null, shadows: [], d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), spouts: [], time: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, e));
     return st;
   },
@@ -177,6 +200,8 @@ export default defineSystem<State>({
       st.thrower = crowd ? createThrower(crowd, crittersOf(ctx.stage)) : null;
       if (st.thrower) {
         throwers.set(ctx.stage, st.thrower);
+        // The debug handle (sequences, browser tests), as window.__lcPeople is the crowd's.
+        (globalThis as { __lcThrown?: unknown }).__lcThrown = { thrower: st.thrower, critters: crittersOf(ctx.stage) };
         if (st.shape) st.thrower.sync(st.shape, st.nav);
       } else throwers.delete(ctx.stage);
     }
@@ -244,6 +269,29 @@ export default defineSystem<State>({
         });
       }
     }
+    // The Hand: a ring round what it could pick up; under what it holds, a shadow and a line down to it.
+    const hv = t.hover?.() ?? null;
+    if (hv) {
+      st.ring ??= stage.spawnMesh(handRingMesh(), HIDE);
+      const pulse = 1 + 0.08 * (Math.floor(st.time * 6) % 2);
+      st.ring.setMatrix(place(hv.x, hv.y + 0.02, hv.z, 0, hv.r * pulse, 1, hv.r * pulse, mat));
+    } else if (st.ring) {
+      st.ring.release();
+      st.ring = null;
+    }
+    const held: { x: number; y: number; z: number; r: number }[] = [];
+    for (const th of t.thrown.values()) if (th.body.phase === 'held') held.push({ x: th.body.x, y: th.body.y, z: th.body.z, r: 0.3 });
+    for (const c of t.critterEvents.keys()) if (c.body?.phase === 'held') held.push({ x: c.body.x, y: c.body.y, z: c.body.z, r: Math.max(0.25, c.height * 1.2) });
+    while (st.shadows.length > held.length) st.shadows.pop()!.release();
+    const g = t.ground;
+    held.forEach((hd, i) => {
+      const h = (st.shadows[i] ??= stage.spawnMesh(heldShadowMesh(), HIDE));
+      const s = g ? g.surface(hd.x, hd.z, hd.y - 0.1) : null;
+      const gy = s ? (s.water ? SEA_Y : s.h) + 0.01 : 0;
+      const drop = Math.max(0.01, hd.y - 0.25 - gy);
+      // The disc flat (scaled in x, z), the line up the y axis to just under it.
+      h.setMatrix([hd.r, 0, 0, 0, 0, drop, 0, 0, 0, 0, hd.r, 0, hd.x, gy, hd.z, 1]);
+    });
     // Splashes: up and back down into the water.
     for (let i = st.spouts.length - 1; i >= 0; i--) {
       const s = st.spouts[i]!;
@@ -264,6 +312,8 @@ export default defineSystem<State>({
     throwers.delete(ctx.stage);
     st.art.clear();
     st.spouts = [];
+    st.ring = null;
+    st.shadows = [];
     st.own.releaseAll();
   },
 });
