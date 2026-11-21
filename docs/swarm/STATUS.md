@@ -1548,3 +1548,26 @@ address directly; this Mac's resolver did not find the name). At 02:30
 the old address still served the previous game build
 (`app-BOv6Kbyq.js`), not the forwarding page: left to the session that
 owns the move.
+
+**Ragdoll and the Hand, round 1 merged** (`0ab41bd`, Opus,
+`swarm/ragdoll`). Blasts throw everyone out of doors (nuke: all, in
+step with the ring; bomb: 3.6 cells; lightning: 1.3), and dogs, cats,
+hens, sheep, grazers, ground pigeons, soldiers: a real arc with a
+flailing tumble, stopped by walls, sliding off roofs, a splash and a
+swim in the sea; two bounces, 2.4–7.4 s dizzy with stars, 3.4 s getting
+up, the hat fetched, back to the walking graph. Fast flyers knock over
+whom they hit. Code: `src/life/mischief/thrown.ts`, `ground.ts`,
+`thrower.ts`, `critters.ts`, `thrown.system.ts`; a crowd mode
+`'thrown'`. The Hand (`src/ui/hand.ts`): press lifts, carried above the
+roofs with a shadow and a line, release drops, a flick throws; people,
+soldiers, dogs, cats, hens, sheep, grazers, ground pigeons; touch too.
+To be throwable a non-crowd actor calls `critterPose(...)` in its
+update. Gate: 2,305 passed, 12 skipped, clean. Falls short: from the
+whole-island view a nuke does NOT visibly toss the population (figures
+too small under the fireball and dust; reads and is funny at zoom
+9–14); stars small; p95 frame after the bang 17–30 ms (was 10–22) from
+redrawing flyers every frame. Not done: the rider and horse, birds in
+the air, carts, boats, ships, loads knocked loose, the town reacting.
+Buildings: recommendation only (lift and wobble first; real moving
+touches saving and undo).
+Running: barbarians, ragdoll round 2.
