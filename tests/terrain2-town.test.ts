@@ -115,5 +115,6 @@ describe('generator 2 islands in the rest of the game', () => {
       }
       life.dispose();
     }
-  });
+  // Seven seconds alone; a long limit because other agents' test runs share the machine (it timed out at 60 s with nothing wrong).
+  }, 240_000);
 });

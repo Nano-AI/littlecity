@@ -87,7 +87,8 @@ describe('a grown town nuked and mending', () => {
     none('garrison>mesh', 'created');
     for (const s of stats.values()) if (s.nonFinite > 0) problems.push(`${s.kind}: ${s.nonFinite} frames not finite`);
     expect(problems).toEqual([]);
-  }, FULL ? 300_000 : 60_000);
+  // Five seconds alone; the gate's limit is long because other agents' test runs share the machine (it timed out at 60 s three times with nothing wrong).
+  }, FULL ? 300_000 : 240_000);
 
   test('a raid from the first sight of the sail to the last of it, then the mend: no teleports, nothing vanishing, nothing left', () => {
     const built = buildScenario(findScenario('grown-town-1')!);
@@ -138,5 +139,6 @@ describe('a grown town nuked and mending', () => {
       if (!ruinedStructures(t.game.shape).has(house.id)) lived++;
     }
     expect(lived).toBe(0);
-  }, FULL ? 300_000 : 60_000);
+  // Five seconds alone; the gate's limit is long because other agents' test runs share the machine (it timed out at 60 s three times with nothing wrong).
+  }, FULL ? 300_000 : 240_000);
 });
