@@ -46,6 +46,13 @@ export default defineRule<Data>({
       const c = n.cell;
       if (!open(c)) continue;
       if (!DIR4.every(([dx, dz]) => walkable(key(keyX(c) + dx, keyY(c), keyZ(c) + dz)))) continue;
+      // Out on the open grass, off anybody's way: nothing but grass or garden all round (no street, pier or deck).
+      let open8 = true;
+      for (let dx = -1; dx <= 1 && open8; dx++) for (let dz = -1; dz <= 1 && open8; dz++) {
+        const k = nav.nodeAt.get(key(keyX(c) + dx, keyY(c), keyZ(c) + dz));
+        if (k !== undefined && nav.nodes[k]!.surface !== 'grass' && nav.nodes[k]!.surface !== 'garden') open8 = false;
+      }
+      if (!open8) continue;
       const near = Math.min(...doorCells.map((d) => steps(d, c)));
       if (near > PICNIC.reach || near < 2) continue;
       const shade = trees.some((t) => Math.max(Math.abs(keyX(t) - keyX(c)), Math.abs(keyZ(t) - keyZ(c))) <= 2 && Math.abs(keyY(t) - keyY(c)) <= 1);
