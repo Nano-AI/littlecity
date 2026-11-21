@@ -1140,6 +1140,15 @@ every cadence, so a held time of day, season or weather keeps them coming.
   ends goes straight home. **Must not:** go on with a bomb falling (all home),
   or after the round's doors change.
 
+- **L68 · 2 · Waving the ship in** (run time, `chains/welcome.ts`; the
+  places are L27's way-out sockets on dock decks, the water's edge of the
+  piers and quays) — a big ship (L38–L40) under way coming in (nearer the
+  pier ends than a second before) within 14 cells of one, by day → up to four
+  children and a grown-up or two living within reach come running to that pier
+  end, stand round it and wave, jump and cheer, turning to follow the ship,
+  until 20 s after it has stopped at its berth (75 s at most), then go home.
+  A ship going out draws nobody; 60 s rest after each.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;
