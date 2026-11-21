@@ -16,6 +16,9 @@ import type { Kind } from '@/core/kinds';
 import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
 
+/** Seconds of life before the wedding's picture is taken: the couple on the doorstep in a shower of petals, the guard of honour either side, the doves going up (timed in a test run of its recipe). */
+const WEDDING_GUIDE_AT = 96;
+
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
 export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
@@ -1315,10 +1318,14 @@ export const ENTRIES: readonly GuideEntry[] = [
       b.plaza(21, 19, 24, 21);
       b.house(14, 16, { floors: 1, w: 2, d: 2, color: 1 }).house(22, 15, { floors: 1, w: 2, d: 2, color: 6 }).house(25, 15, { floors: 1, w: 2, d: 2, color: 2 });
       b.path(23, 17, 23, 17).path(26, 17, 26, 17);
+      // Neighbours enough for a wedding party.
+      b.house(12, 16, { floors: 1, w: 2, d: 2, color: 3 }).house(25, 19, { floors: 1, w: 2, d: 2, color: 4 }).house(28, 15, { floors: 1, w: 2, d: 2, color: 7 }).house(28, 19, { floors: 1, w: 2, d: 2, color: 0 });
+      b.path(12, 18, 14, 18).path(26, 18, 29, 18).path(29, 17, 29, 17);
     },
     view: { yaw: 20, pitch: 40 },
     pad: 0.2,
-    life: { settle: 70, residents: true },
+    // In the middle of a wedding: the couple come out (WEDDING_GUIDE_AT).
+    life: { settle: WEDDING_GUIDE_AT, residents: true },
     frame: [16, 16, 24, 21, 2],
   },
 ];
