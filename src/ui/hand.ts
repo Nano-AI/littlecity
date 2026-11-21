@@ -29,7 +29,8 @@ const FASTEST = 15;
 /** The pointer's speed is read over this long before it lets go (ms). */
 const FLICK_MS = 110;
 
-type Held = { kind: 'person'; p: Person } | { kind: 'critter'; c: Critter };
+type Alive = { kind: 'person'; p: Person } | { kind: 'critter'; c: Critter };
+type Held = Alive | { kind: 'building'; sid: number };
 
 export interface Hand {
   /** The pointer rests here: is there something to pick up (the cursor and the ring say so)? */
@@ -47,7 +48,11 @@ export interface Hand {
   readonly holding: boolean;
 }
 
-export function createHand(view: TownView, now: () => number = () => performance.now()): Hand {
+/**
+ * `building(x, y)`: the building under the pointer (its structure id), if any: with nothing alive under a
+ * press, the Hand takes hold of that, and it lifts and wobbles on its foundations until let go (nothing moves).
+ */
+export function createHand(view: TownView, building: (x: number, y: number) => number | null = () => null, now: () => number = () => performance.now()): Hand {
   let held: Held | null = null;
   let height = 0;
   let trail: { t: number; x: number; y: number; z: number }[] = [];
@@ -55,9 +60,9 @@ export function createHand(view: TownView, now: () => number = () => performance
   const thrower = (): Thrower | null => throwerOf(view.stage);
 
   /** What is under the pointer: the nearest on screen within reach, people first among equals. */
-  const under = (x: number, y: number, touch: boolean): Held | null => {
+  const under = (x: number, y: number, touch: boolean): Alive | null => {
     const reach = touch ? REACH.touch : REACH.mouse;
-    let best: Held | null = null;
+    let best: Alive | null = null;
     let bestD = reach;
     const crowd = crowdOf(view.stage);
     for (const p of crowd?.people ?? []) {
@@ -86,6 +91,7 @@ export function createHand(view: TownView, now: () => number = () => performance
   };
 
   const where = (h: Held): { x: number; y: number; z: number } => {
+    if (h.kind === 'building') return { x: 0, y: 0, z: 0 };
     if (h.kind === 'person') return { x: h.p.x, y: h.p.y, z: h.p.z };
     const b = h.c.body;
     return b ? { x: b.x, y: b.y, z: b.z } : { x: h.c.x, y: h.c.y, z: h.c.z };
@@ -133,6 +139,10 @@ export function createHand(view: TownView, now: () => number = () => performance
     held = null;
     trail = [];
     if (!t || !h) return;
+    if (h.kind === 'building') {
+      if (t.shake?.sid === h.sid) t.shake.let = true;
+      return;
+    }
     const opts = gentle ? { dizzy: 0.6, spin: 1 } : {};
     if (gentle) {
       // Lowered nearly to the ground first: a short drop, not a fall from over the roofs.
@@ -153,13 +163,14 @@ export function createHand(view: TownView, now: () => number = () => performance
       // Undo (or a new town) set it down under us.
       if (held && held.kind === 'person' && held.p.mode !== 'thrown') held = null;
       if (held && held.kind === 'critter' && held.c.body?.phase !== 'held') held = null;
+      if (held && held.kind === 'building' && (thrower()?.shake?.sid !== held.sid || thrower()?.shake?.let)) held = null;
       return held !== null;
     },
     hover(x, y, touch = false) {
       if (held) return true;
       const h = under(x, y, touch);
       setHover(h);
-      return h !== null;
+      return h !== null || building(x, y) !== null;
     },
     hoverEnd() {
       if (!held) setHover(null);
@@ -167,6 +178,17 @@ export function createHand(view: TownView, now: () => number = () => performance
     grab(x, y, touch = false) {
       const t = thrower();
       const h = under(x, y, touch);
+      if (t && !h && !t.shake) {
+        // Nothing alive there: a building, if it is one. It lifts a little and wobbles while held.
+        const sid = building(x, y);
+        if (sid === null) return false;
+        t.shake = { sid, let: false };
+        held = { kind: 'building', sid };
+        trail = [];
+        setHover(null);
+        navigator.vibrate?.(20);
+        return true;
+      }
       if (!t || !h) return false;
       const ok = h.kind === 'person' ? t.grab(h.p) : t.grabCritter(h.c);
       if (!ok) return false;
@@ -185,11 +207,11 @@ export function createHand(view: TownView, now: () => number = () => performance
     },
     move(x, y) {
       const t = thrower();
-      if (!t || !held) return;
+      if (!t || !held || held.kind === 'building') return;
       const at = carryPoint(x, y);
       if (!at) return;
-      // Hanging from the pointer, a little below it.
-      const hang = { x: at.x, y: at.y - 0.05, z: at.z };
+      // Hanging from the pointer, a little below it (something big hangs by its top, its keel clear of the roofs).
+      const hang = { x: at.x, y: at.y - 0.05 + (held.kind === 'critter' && held.c.height > 0.6 ? held.c.height * 0.5 : 0), z: at.z };
       if (held.kind === 'person') t.carry(held.p, hang.x, hang.y, hang.z);
       else t.carryCritter(held.c, hang.x, hang.y, hang.z);
       const ms = now();

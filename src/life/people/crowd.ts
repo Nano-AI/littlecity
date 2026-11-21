@@ -238,6 +238,8 @@ export interface Tumble {
   pivot: number;
   hatless: boolean;
   drop: number;
+  /** Drawn this much bigger than the figure's own size (in the air, seen from far off), 1 when not. */
+  grow?: number;
 }
 
 export interface CrowdEvents {

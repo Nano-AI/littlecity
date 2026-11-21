@@ -1142,8 +1142,19 @@ come back. Nothing destructive ever happens unless the player starts it.
   dogs, cats, hens, sheep. On a phone: one finger on them, drag, lift.
   Escape or another tool puts them down gently. A drag that starts on
   nothing turns the view, as with every tool. No undo step (nothing saved
-  changes). Not in fly mode (the tray is hidden). Not yet: birds, carts,
-  boats, ships, buildings. (`src/ui/hand.ts`; catalogue LM02.)
+  changes). Not in fly mode (the tray is hidden). Also: the knight and
+  (separately) his horse, pigeons on the ground; small boats (lifted with
+  whoever is aboard; dropped in they bob and go back to their way, thrown
+  down hard they capsize and the crew swims, on the land they lie hull up
+  and bound back to the sea); big ships (out of traffic while held; at sea
+  they sail off; on the land they lie over on their side until picked up
+  or refloated after 30 s, their berth's turn coming round). A building:
+  it lifts a hand's breadth and wobbles on its foundations, tiles sliding
+  off, whoever is inside startled out, and settles back where it was when
+  let go (nothing moves; really moving buildings is not done). People near
+  something carried overhead stop, look up and point; a load is knocked
+  out of the hands and picked up again. Not yet: birds in the air, carts.
+  (`src/ui/hand.ts`; catalogue LM02.)
 - **What is left.** A destroyed block becomes a **ruin**: a charred or
   broken shell of what it was, saved with the town (`Block.ruin`), still
   standing where it stood, no longer merged into a role or housing anyone.

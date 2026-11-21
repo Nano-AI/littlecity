@@ -217,6 +217,10 @@ interface Drawn {
   stroke: number;
 }
 
+/** Mischief: people in the air are moved this many times a second (the rest of the crowd PERSON.drawRate). */
+const FLY_RATE = 30;
+let flyTick = -1;
+
 /** Seasons: what the sky is doing, read once a frame in update (draw() has no signals). */
 const sky = { rain: 0, cold: 0 };
 
@@ -402,7 +406,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   });
   if (holding && walking && HEAVY.has(p.load!)) pose.lean += 0.14;
   const sitting = name === 'sit' && p.seat >= 0;
-  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade);
+  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade) * (tumble?.grow ?? 1);
   const away = edge ? 1 - p.fade : 0;
   // Down below the water (SEA_Y) by the end, head and all: a step out, then the drop.
   const depth = Math.max(0.5, p.y - SEA_Y + DESIGN_HEIGHT * scale + 0.05);
@@ -640,7 +644,11 @@ export default defineSystem<State>({
     // something moved costs the renderer a second pass for the shade on the ground.
     const tick = Math.floor(signals.time.seconds * PERSON.drawRate);
     if (tick === state.tick && !state.fresh) {
-      // Except anybody flying through the air (mischief): their place is drawn every frame (their pose is still held).
+      // Except anybody flying through the air (mischief): their place is drawn FLY_RATE times a second (their
+      // pose is still held at the crowd's rate), smooth enough for a fast arc and half the cost of every frame.
+      const fly = Math.floor(signals.time.seconds * ((globalThis as { __lcFlyRate?: number }).__lcFlyRate ?? FLY_RATE));
+      if (fly === flyTick) return;
+      flyTick = fly;
       for (const p of state.crowd.people) {
         if (!p.tumble?.rot) continue;
         const d = state.drawn.get(p);

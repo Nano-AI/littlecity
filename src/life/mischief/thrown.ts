@@ -57,6 +57,9 @@ export const THROWN = {
   substep: 1 / 90,
 } as const;
 
+/** How a body comes to rest after a throw: on its back, face down, or sitting up. */
+export type Rest = 'back' | 'front' | 'sit';
+
 export type Phase = 'held' | 'fly' | 'roll' | 'lie' | 'roof' | 'slide' | 'swim' | 'climb' | 'up' | 'walk' | 'done';
 
 /** What happened in a step that the owner may want to show or answer. */
@@ -100,6 +103,8 @@ export interface Body {
   from: { x: number; y: number; z: number } | null;
   /** Walking speed once up (units a second). */
   pace: number;
+  /** How it lies once it stops (its owner may choose; on its back by default). */
+  rest: Rest;
 }
 
 export function makeBody(seed: number, x: number, y: number, z: number, heading: number, pivot: number, radius: number): Body {
@@ -108,7 +113,7 @@ export function makeBody(seed: number, x: number, y: number, z: number, heading:
   q[3] = Math.cos(heading / 2);
   return {
     seed, x, y, z, vx: 0, vy: 0, vz: 0, q, wx: 0, wy: 0, wz: 0, pivot, radius,
-    phase: 'held', t: 0, age: 0, upright: true, heading, dizzy: 3, rise: 3, bounces: 0, goal: null, wet: false, splat: 0, from: null, pace: THROWN.walk,
+    phase: 'held', t: 0, age: 0, upright: true, heading, dizzy: 3, rise: 3, bounces: 0, goal: null, wet: false, splat: 0, from: null, pace: THROWN.walk, rest: 'back',
   };
 }
 
@@ -314,8 +319,9 @@ function roll(b: Body, dt: number, ground: Ground): BodyEvent {
     return 'offRoof';
   }
   b.y = surf.h + b.radius;
+  if (surf.roof) b.rest = 'back'; // on a roof, always on the back (it slides off feet first)
   // Over onto the back: the turn eases to lying flat, head back toward where it came from.
-  const target = lyingQuat(b.heading);
+  const target = lyingQuat(b.heading, b.rest);
   slerpTo(b.q, target, Math.min(1, dt * 7));
   b.wx = b.wy = b.wz = 0;
   if (Math.hypot(b.vx, b.vz) > THROWN.rollStop || b.t < 0.3) return null;
@@ -389,7 +395,7 @@ function swim(b: Body, dt: number, ground: Ground): BodyEvent {
   if (!g || b.t < 0.6) return null;
   const dx = g.x - b.x, dz = g.z - b.z, d = Math.hypot(dx, dz);
   b.heading = Math.atan2(dx, dz);
-  const step = Math.min(d, THROWN.swim * dt);
+  const step = Math.min(d, Math.max(THROWN.swim, b.pace * 0.85) * dt);
   const nx = b.x + (dx / (d || 1)) * step, nz = b.z + (dz / (d || 1)) * step;
   // Out at the first dry footing on the way (a beach, a quay's side), or at the goal.
   const dry = !ground.wet(nx, nz);
@@ -512,10 +518,14 @@ function copyQuat(q: Float64Array, from: Float64Array): void {
 }
 
 const lieQ = new Float64Array(4);
-/** Lying on the back, the feet toward `heading`: Ry(heading) · Rx(−π/2). */
-export function lyingQuat(heading: number): Float64Array {
+/**
+ * How it comes to rest, facing `heading`: on its back, the feet toward `heading` (Ry(heading) · Rx(−π/2));
+ * face down, the head toward it (Rx(+π/2)); or sitting up, dazed (upright).
+ */
+export function lyingQuat(heading: number, rest: Rest = 'back'): Float64Array {
   const cy = Math.cos(heading / 2), sy = Math.sin(heading / 2);
-  const cx = Math.cos(-Math.PI / 4), sx = Math.sin(-Math.PI / 4);
+  const half = rest === 'back' ? -Math.PI / 4 : rest === 'front' ? Math.PI / 4 : 0;
+  const cx = Math.cos(half), sx = Math.sin(half);
   // (0, sy, 0, cy) ⊗ (sx, 0, 0, cx)
   lieQ[0] = cy * sx;
   lieQ[1] = sy * cx;

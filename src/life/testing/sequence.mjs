@@ -26,7 +26,7 @@
 //   (x: cells off its side). --follow-raid keeps the camera on the raid (its ship, then the band).
 //   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo,
 //   'crowdbomb@d,0,0' / 'crowdnuke@d,0,0' drops one d cells off the busiest knot of people out and aims the camera there
-//   --hand person|dog|cat|hen|sheep|soldier|grazer,<dx>,<dz>,<ms>[,drop]   the Mischief drawer's Hand, with real
+//   --hand person|dog|cat|hen|sheep|soldier|grazer|horse|rider|pigeon|<boat or ship kind>|building,<dx>,<dz>,<ms>[,drop]   the Mischief drawer's Hand, with real
 //                            mouse events: picks up the one of that kind nearest the camera's target, carries it
 //                            <dx>,<dz> cells over <ms> milliseconds of the sequence and lets go moving (a throw)
 //                            or, with 'drop', after holding still (a drop). The camera is aimed at it first.
@@ -369,7 +369,14 @@ try {
         const d = Math.hypot(x - t[0], z - t[2]);
         if (d < bestD) { bestD = d; best = { x, y, z }; }
       };
-      if (kind === 'person') for (const p of window.__lcPeople?.people ?? []) { if (p.visible && (p.mode === 'walk' || p.mode === 'linger')) consider(p.x, p.y + 0.2, p.z); }
+      if (kind === 'building') {
+        // The top of the house nearest the camera's target.
+        const shape = lc.shape();
+        for (const [cell, k] of shape.kinds) {
+          if (k !== 'house' || shape.kinds.get(cell + 4096) !== undefined) continue;
+          consider((cell & 63) + 0.5, (cell >> 12) * 0.8 + 0.8, ((cell >> 6) & 63) + 0.5);
+        }
+      } else if (kind === 'person') for (const p of window.__lcPeople?.people ?? []) { if (p.visible && (p.mode === 'walk' || p.mode === 'linger')) consider(p.x, p.y + 0.2, p.z); }
       else for (const c of window.__lcThrown?.critters.values() ?? []) { if (c.kind === kind && !c.body) consider(c.x, c.y + c.height * 0.5, c.z); }
       return best;
     }, what);

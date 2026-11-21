@@ -264,7 +264,14 @@ export function createInterface(host: InterfaceHost): Interface {
   });
   const offMischief = mischiefOf(view.stage).on(() => api.sync());
   // The Hand (./hand.ts): picks up what is under a press, carries it, throws it.
-  const hand = createHand(view);
+  const hand = createHand(view, (x, y) => {
+    // A building under the press (any block that is part of a building, not the ground or a tree).
+    const pick = pickCell(view.screenToRay(x, y), game.world, game.terrain);
+    if (!pick || pick.hit !== 'block') return null;
+    const kind = game.shape.kinds.get(pick.cell);
+    if (!kind || !['house', 'tower', 'lighthouse', 'windmill', 'marble', 'stall'].includes(kind)) return null;
+    return game.shape.structureAt.get(pick.cell) ?? null;
+  });
   const coarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   /** A press the Hand took: the run that follows is the Hand's, whatever happens to what it holds. */
   let handRun = false;

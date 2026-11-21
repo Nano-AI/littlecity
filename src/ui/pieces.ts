@@ -70,7 +70,7 @@ const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
   raid: { label: 'Raid', hint: 'Call raiders: a longship comes in off the nearest coast' },
   mallet: { label: 'Mallet', hint: 'Knock a building down a stage' },
   mend: { label: 'Mend', hint: 'Mend a building a stage (Shift: all at once)' },
-  hand: { label: 'Hand', hint: 'Pick up a person or an animal and throw it: press on it, drag, let go' },
+  hand: { label: 'Hand', hint: 'Pick up a person, an animal or a boat and throw it: press on it, drag, let go' },
 };
 
 export const DRAWER_LABELS: Record<DrawerId, string> = { build: 'Build', ground: 'Ground', nature: 'Nature', tools: 'Tools', mischief: 'Mischief' };
