@@ -1610,3 +1610,26 @@ Also: `under-fire` and `terrain2-town` long tests get a 240 s limit in
 the gate (they timed out at 60 s under load three times). Gate on both
 merges together: 2,324 passed, 12 skipped, clean.
 Running: raids round 2.
+
+**Raids round 2 merged** (`388f0f8`, Opus). The band splits into
+parties of three (brand, axe, club), each running to its own quarter as
+far from the others as it can (market, warehouses, a rich house, the
+mill preferred); each raider has his own cell and side of a building;
+looters shuttle to a twelve-place pile. Harbour town: 18 buildings lit
+directly, about half the western town alight by 60–70 s. Raiders drawn
+up to 1.8× from afar, shields held up, the chief's raven standard,
+smoking brands, a gold chest, a panic pose for fleeing villagers. Bold
+villagers (broom, frying pan) and castle guards brawl with raiders
+(`scuffles.between()`); the loser sits dazed then runs. A stolen pig or
+hen jumps ship and swims home; market-day baskets are taken and put
+back. The longship and rowing boats can be lifted by the Hand
+(`ship:raid…`); dropped on land the band is stranded. The fire, not the
+raid, was the p95 cost (99 burning cells: 51.6 ms with no raid). Guide
+picture `public/guide/raid.webp`. Gate: 2,325 passed, 12 skipped,
+clean. Orchestrator's eye: at town zoom fires break out across several
+quarters and it reads as a raid; from the whole island the ship, smoke
+and scattered fires tell you one is on, the parties and the loot do
+not; the eastern half of the big harbour town stays untouched. Not
+built: the castle's troop sallying out, dogs chasing, sheep scattering,
+stalls' baked-in goods emptied, raiders swimming being liftable.
+Running: nothing of mine.
