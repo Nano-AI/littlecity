@@ -10,6 +10,7 @@ import { angleDelta, easeOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { critterPose } from '../mischief/critters';
+import { mischiefOf } from '../mischief/director';
 
 /** How far from her spot a hen wanders, in columns. */
 export const HEN_RANGE = 0.45;
@@ -58,7 +59,17 @@ export default defineBehaviour({
       }
     } else if (!night) {
       state.wait -= dt;
-      if (state.wait <= 0) {
+      // The raid: a raider close by, and she scatters, flapping off away from him (then potters back).
+      const threat = mischiefOf(ctx.stage).threats.find((t) => Math.abs(t.x - state.x) + Math.abs(t.z - state.z) < 2.2);
+      if (threat) {
+        const dx = state.x - threat.x, dz = state.z - threat.z, d = Math.hypot(dx, dz) || 1;
+        state.fx = state.x;
+        state.fz = state.z;
+        state.tx = state.x + (dx / d) * 1.1 + (ctx.rand('scatter', state.n) - 0.5) * 0.5;
+        state.tz = state.z + (dz / d) * 1.1 + (ctx.rand('scatter-z', state.n++) - 0.5) * 0.5;
+        state.t = 0;
+        state.dashing = true;
+      } else if (state.wait <= 0) {
         const k = state.n++;
         const a = ctx.rand('a', k) * Math.PI * 2, r = HEN_RANGE * Math.sqrt(ctx.rand('r', k));
         state.fx = state.x;

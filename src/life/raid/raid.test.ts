@@ -12,6 +12,8 @@ import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { FULL } from '../../../tests/helpers/tier';
 import { crowdOf } from '../doors/table';
 import { raidsOf } from './raids';
+import { throwerOf } from '../mischief/thrown.system';
+import { crittersOf } from '../mischief/critters';
 import type { Raid } from './raid';
 
 const LONG = FULL ? 400_000 : 200_000;
@@ -137,6 +139,32 @@ describe('the raid', () => {
     expect(raid.stranded).toBe(true);
     until(t, () => raids.current === null, 300);
     expect(raid.raiders.every((r) => r.where === 'lost')).toBe(true);
+    putAway(t);
+  }, LONG);
+
+  test('the Hand: the longship lifted out of the water with its crew aboard and dropped on the town: stranded, the raid ends', () => {
+    const t = town('grown-harbour');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'landing' });
+    const raid = raids.current!;
+    until(t, () => raid.shipState === 'spin' || raid.shipState === 'in', 90);
+    const thrower = throwerOf(t.stage)!;
+    const c = crittersOf(t.stage).get(`ship:raid${raid.n}-0`)!;
+    expect(c, 'the longship can be picked up').toBeDefined();
+    expect(thrower.grabCritter(c)).toBe(true);
+    const h = raid.site.heart;
+    for (let i = 0; i < 30; i++) {
+      thrower.carryCritter(c, raid.ship.x + (h.x - raid.ship.x) * (i / 30), 3, raid.ship.z + (h.z - raid.ship.z) * (i / 30));
+      t.run(1 / 30);
+    }
+    expect(raid.ship.held, 'held up out of the water').not.toBeNull();
+    expect(raid.raiders.filter((r) => r.where === 'aboard').length, 'the crew hang on').toBeGreaterThan(4);
+    thrower.flingCritter(c, 0, 0, 0);
+    for (let i = 0; i < 20 && raid.ship.aground === null; i++) {
+      t.run(1);
+    }
+    expect(raid.stranded).toBe(true);
+    until(t, () => raids.current === null, 200);
     putAway(t);
   }, LONG);
 

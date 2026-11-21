@@ -325,7 +325,7 @@ function hullClearish(field: SeaField, h: HullSize, x: number, z: number, yaw: n
 }
 
 function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landing) => number, near: (l: Landing) => number, heart: { x: number; z: number }, seed: number): SiteFor | null {
-  const size = 1.3;
+  const size = 1.5;
   const h = longshipHull(size);
   const reach = Math.max(-h.stern, h.bow) + h.halfBeam * 0.5;
   // Landings round the town, spread out: the nearest one first, then each the farthest from those taken.
@@ -335,7 +335,7 @@ function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landin
   const spots: { x: number; z: number; d: number }[] = [];
   for (let z = 4; z < SIZE_Z - 4; z += 1) {
     for (let x = 4; x < SIZE_X - 4; x += 1) {
-      if (!roomToTurn(field, x + 0.5, z + 0.5, reach * 0.7)) continue;
+      if (!roomToTurn(field, x + 0.5, z + 0.5, reach * 0.55)) continue;
       spots.push({ x: x + 0.5, z: z + 0.5, d: Math.hypot(x + 0.5 - heart.x, z + 0.5 - heart.z) });
     }
   }

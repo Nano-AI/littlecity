@@ -190,7 +190,7 @@ function start(st: State, s: Summon): string | null {
   // Buildings are counted by structure for the band's size.
   const structures = new Set<number>();
   for (const [c, k] of shape.kinds) if (KINDS[k as keyof typeof KINDS]?.building) structures.add(shape.structureAt.get(c) ?? -1);
-  const raid = new Raid({ own: st.own, stage: st.own.stage, director: st.d, sound: (e) => raids.emit(e) }, site, seed, structures.size);
+  const raid = new Raid({ own: st.own, stage: st.stage, director: st.d, sound: (e) => raids.emit(e) }, site, seed, structures.size);
   const field = raidField(shape, extra);
   raid.field = (x, z) => field.at(x, z);
   raids.current = raid;

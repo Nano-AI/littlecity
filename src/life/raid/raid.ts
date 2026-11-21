@@ -42,7 +42,7 @@
 import { DIR4, key, keyX, keyY, keyZ, SEA_Y, type CellKey } from '@/core/grid';
 import { rand } from '@/core/rand';
 import type { Barbarian } from '@/parts/people/barbarian';
-import type { Load } from '@/parts/people/loads';
+import { restingMesh, type Load } from '@/parts/people/loads';
 import type { StructureId } from '@/resolve/plan';
 import { pathAt } from '@/rules/life/ship-routes';
 import { RAID } from '@/style/raid';
@@ -53,12 +53,19 @@ import type { Board, Chain, Plan, PlanStep, Spot } from '../town/board';
 import { DIR_HEADING } from '../town/board';
 import { reaches } from '../town/hands';
 import { scenesOf, type Scene } from '../town/scenes';
+import { critterPose, crittersOf } from '../mischief/critters';
+import { fxOf } from '../fx/fx';
 import type { Director } from '../mischief/director';
 import { standsOf } from '../mischief/response';
 import { angleDelta, clamp01, easeInOut } from '../motion/ease';
 import { Figure, rowing } from './figure';
 import type { Landing, RaidKind, RaidSite } from './site';
 import { Vessel } from './vessel';
+import { raiderScale } from './far';
+import { place } from '../motion/pose';
+import type { InstanceHandle } from '../api';
+
+const HIDDEN_M = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -60, 0, 1];
 import type { Owned } from '../mischief/owned';
 
 export type Beat = 'sighted' | 'landing' | 'ashore' | 'recall' | 'away' | 'done';
@@ -262,13 +269,25 @@ export class Raid {
     if (this.ended || this.beat === 'done') return;
     this.t += dt;
     this.age += dt;
-    this.moveShip(dt);
+    if (!this.handled(this.ship, 0)) this.moveShip(dt);
     this.moveBoats(dt);
+    this.boats.forEach((b, i) => this.handled(b, i + 1));
     this.stepFigures(dt, seconds);
+    this.stepEscapees(dt, seconds);
     this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
     for (const b of this.boats) b.stroke = (b.stroke + dt * 0.75 * (b.rowing > 0.05 ? 1 : 0)) % 1;
-    this.ship.draw(seconds, wind);
-    for (const b of this.boats) b.draw(seconds, wind);
+    this.settleOffsets(dt);
+    for (const v of [this.ship, ...this.boats]) {
+      // Drawn where it is plus what is left of the gap the Hand put it at.
+      const bx = v.x, bz = v.z, by = v.yaw;
+      v.x += v.off.x;
+      v.z += v.off.z;
+      v.yaw += v.off.yaw;
+      v.draw(seconds, wind);
+      v.x = bx;
+      v.z = bz;
+      v.yaw = by;
+    }
     this.stepDamage(dt);
     // The beats that turn at sea.
     if (this.beat === 'sighted' && !this.rung && this.age > 6) {
@@ -278,7 +297,8 @@ export class Raid {
     }
     if (this.beat === 'away' && this.shipState === 'gone' && this.boats.every((b, i) => this.boatState[i] === 'sunk' || this.boatState[i] === 'towed')) this.finishSoon();
     // Everybody back aboard or gone: a sunk ship's raid is over; a ship still afloat (its boats sunk, its band swum off) sails away.
-    if (this.raiders.every((r) => r.where === 'lost' || r.where === 'home') && this.beat !== 'sighted') {
+    // (Aboard a ship lying on the land counts as back: they sit in it, dazed, till the town hauls it off.)
+    if (this.raiders.every((r) => r.where === 'lost' || r.where === 'home' || (r.where === 'aboard' && this.vesselOf(r).aground !== null)) && (this.beat !== 'sighted' || this.ship.aground)) {
       if (this.shipState === 'sunk') this.finishSoon();
       else if (this.shipState === 'hove' || this.shipState === 'beached') this.shipLeaves();
     }
@@ -402,6 +422,65 @@ export class Raid {
       case 'gone':
       case 'sunk':
         break;
+    }
+  }
+
+  /**
+   * The Hand (mischief/critters.ts): a vessel picked up is drawn where it is held, its crew clinging on in
+   * their seats; let go over the water it rows back to where it should be; let go on the land it lies over on
+   * its side there, and the raid is over for it as if it had gone down (the band stranded). True while the
+   * vessel is not moving by itself.
+   */
+  private handled(v: Vessel, k: number): boolean {
+    if (v.hurt >= 3 || (k === 0 && (this.shipState === 'gone' || this.shipState === 'sunk')) || (k > 0 && this.boatState[k - 1] === 'sunk')) return v.aground !== null;
+    // Named as the harbour's ships are ('ship:…'): blasts leave them to the raid (it sinks them itself), only the Hand throws them.
+    if (v.aground) return true;
+    const id = `ship:raid${this.n}-${k}`;
+    const held = critterPose(this.host.stage, id, k === 0 ? 'longship' : 'boat', v.x, SEA_Y, v.z, v.yaw, k === 0 ? 1.2 * v.size : 0.6, 1);
+    // Thrown down and come to rest on the land (not still in the Hand, not in the air): it stays there.
+    const phase = held ? crittersOf(this.host.stage).get(id)?.body?.phase : undefined;
+    const landed = held && phase !== 'held' && phase !== 'fly' && (this.field?.(held[12]!, held[14]!) ?? 1) < 0.05;
+    if (held && !landed) {
+      v.held = held;
+      return true;
+    }
+    if (v.held || landed) {
+      const m = landed ? held! : v.held!;
+      v.held = null;
+      const x = m[12]!, z = m[14]!, yaw = Math.atan2(m[8]!, m[10]!);
+      const onLand = (this.field?.(x, z) ?? 1) < 0.05;
+      if (onLand) {
+        v.x = x;
+        v.z = z;
+        v.yaw = yaw;
+        v.aground = { ground: Math.max(SEA_Y, m[13]! - 0.2) };
+        this.host.sound({ type: 'crash', x, z });
+        if (k === 0) {
+          this.stranded = true;
+          this.shipState = 'sunk';
+          if (this.beat === 'sighted' || this.beat === 'landing') this.setBeat('away');
+        } else this.boatState[k - 1] = 'sunk';
+        return true;
+      }
+      // Back in the water with a splash: it rows back to where it should be from here.
+      this.host.sound({ type: 'splash', x, z });
+      v.off = { x: x - v.x, z: z - v.z, yaw: angleDelta(v.yaw, yaw) };
+    }
+    return v.aground !== null;
+  }
+
+  /** A vessel put back in the water away from its place: drawn there, the gap closing as it rows back. */
+  private settleOffsets(dt: number): void {
+    for (const v of [this.ship, ...this.boats]) {
+      if (v.held || v.aground) continue;
+      const o = v.off;
+      if (o.x === 0 && o.z === 0 && o.yaw === 0) continue;
+      const k = Math.exp(-dt / 1.6);
+      o.x *= k;
+      o.z *= k;
+      o.yaw *= k;
+      if (Math.hypot(o.x, o.z) < 0.01 && Math.abs(o.yaw) < 0.01) o.x = o.z = o.yaw = 0;
+      v.rowing = Math.max(v.rowing, 0.8);
     }
   }
 
@@ -613,7 +692,9 @@ export class Raid {
           fig.pose(x, y, z, facing(r.from, s), 'hop', r.t, { load: r.carry });
           if (u >= 1) {
             r.where = 'home';
-            if (r.carry) v.heap++;
+            // A pig or a hen does not stay taken: a moment later it jumps ship and swims home.
+            if (r.carry === 'pig' || r.carry === 'hen') this.escape(r.carry, v, r);
+            else if (r.carry) v.heap++;
             r.carry = null;
             this.checkAllAboard(r.vessel);
           }
@@ -654,6 +735,49 @@ export class Raid {
       f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1 });
       f.setCut(v.edgeCut);
     });
+  }
+
+  /** Livestock that jumped ship: a pig or a hen swimming home, then standing on the shore, dripping. */
+  readonly escapees: { kind: Load; h: InstanceHandle; t: number; from: { x: number; z: number }; to: { x: number; y: number; z: number }; land: { x: number; y: number; z: number }; v: Vessel; seat: number }[] = [];
+
+  private escape(kind: Load, v: Vessel, r: Raider): void {
+    const l = this.shoreOf(r);
+    const to = { x: l.x + l.ox * 0.55, y: SEA_Y, z: l.z + l.oz * 0.55 };
+    const land = { x: l.x - l.ox * 0.6 + (rand(this.seed, 'esc', r.i) - 0.5) * 0.5, y: l.y, z: l.z - l.oz * 0.6 };
+    const h = this.host.own.stage.spawnMesh(restingMesh(kind), HIDDEN_M);
+    this.escapees.push({ kind, h, t: -1.5, from: { x: 0, z: 0 }, to, land, v, seat: r.seat });
+  }
+
+  private stepEscapees(dt: number, seconds: number): void {
+    for (const e of this.escapees) {
+      e.t += dt;
+      const k = raiderScale() * 1.2;
+      if (e.t < 0) {
+        // In the boat a moment, wriggling.
+        const s = e.v.seatAt(e.seat);
+        e.from = { x: s.x, z: s.z };
+        e.h.setMatrix(place(s.x, s.y + 0.18 + (Math.floor(seconds * 8) % 2) * 0.03, s.z, seconds * 3, k));
+        continue;
+      }
+      const jump = 0.6;
+      const swim = Math.max(1, Math.hypot(e.to.x - e.from.x, e.to.z - e.from.z) / 0.7);
+      if (e.t < jump) {
+        const u = e.t / jump;
+        e.h.setMatrix(place(e.from.x + (e.to.x - e.from.x) * u * 0.15, SEA_Y + 0.5 + Math.sin(u * Math.PI) * 0.5 - u * 0.6, e.from.z + (e.to.z - e.from.z) * u * 0.15, Math.atan2(e.to.x - e.from.x, e.to.z - e.from.z), k));
+        continue;
+      }
+      if (e.t < jump + swim) {
+        // Paddling for the shore, only the head and back above the water.
+        const u = (e.t - jump) / swim;
+        const x0 = e.from.x + (e.to.x - e.from.x) * 0.15, z0 = e.from.z + (e.to.z - e.from.z) * 0.15;
+        e.h.setMatrix(place(x0 + (e.to.x - x0) * u, SEA_Y - 0.06 + Math.sin(seconds * 6) * 0.015, z0 + (e.to.z - z0) * u, Math.atan2(e.to.x - x0, e.to.z - z0), k));
+        continue;
+      }
+      // Up the beach and home along the shore: it stands there, shaking itself, the raid behind it.
+      const u = Math.min(1, (e.t - jump - swim) / 1.2);
+      const yaw = Math.atan2(e.land.x - e.to.x, e.land.z - e.to.z) + (u >= 1 ? Math.sin(seconds * 9) * 0.25 : 0);
+      e.h.setMatrix(place(e.to.x + (e.land.x - e.to.x) * u, SEA_Y + (e.land.y - SEA_Y) * Math.min(1, u * 2), e.to.z + (e.land.z - e.to.z) * u, yaw, k));
+    }
   }
 
   /** Where a raider wading out climbs aboard: beside their vessel, its nearest point. */
@@ -1538,6 +1662,13 @@ export class Raid {
 
   /** Over: every drawing hidden (the system lets them go a frame later, so nothing goes while it is drawn). */
   hideAll(): void {
+    // A ship left lying on the land goes in a cloud of dust (the town hauls it off), as the harbour's does.
+    for (const v of [this.ship, ...this.boats]) {
+      if (!v.aground) continue;
+      const x = v.x, y = v.aground.ground, z = v.z, big = v.length * 0.5;
+      fxOf(this.host.stage).play({ actor: 'puff', variant: 'dust' }, 1.2, (t, out) => place(x, y + 0.3 + t * 0.6, z, 0, big * (0.6 + t), big * (0.5 + t * 0.6), big * (0.6 + t), out));
+    }
+    for (const e of this.escapees) e.h.setVisible(false);
     for (const r of this.raiders) r.fig?.hideAll();
     for (const f of this.crewFigs) f.hideAll();
     this.ship.hideAll();
@@ -1563,6 +1694,8 @@ export class Raid {
     }
     for (const f of this.crewFigs) f.release();
     this.crewFigs = [];
+    for (const e of this.escapees) e.h.release();
+    this.escapees.length = 0;
     this.ship.release();
     for (const b of this.boats) b.release();
     if (board) {

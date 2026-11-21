@@ -8,7 +8,7 @@
 // every ship is (params.w −2), never shrunk or faded.
 
 import { SEA_Y } from '@/core/grid';
-import type { Mat4 } from '@/core/mat4';
+import type { Mat4, Mat4Like } from '@/core/mat4';
 import { BOAT, LONGSHIP, longshipMesh, longshipSailMesh, longshipYardMesh, lootHeapMesh, oarBankMesh, raidBoatMesh } from '@/parts/raid/longship';
 import type { HullSize } from '@/rules/life/ship-routes';
 import { mapEdge } from '@/rules/life/ship-routes';
@@ -118,8 +118,36 @@ export class Vessel {
   }
 
   /** Poses every piece for life time `seconds` with the wind `wind` (0–1) blowing toward `downwind` (yaw). */
+  /**
+   * The Hand (mischief/critters.ts): where it holds the vessel (its matrix, or null), set down on the land
+   * (lying over on its side where it came down), and how far it was moved from where it should be (it rows
+   * back over a few seconds once it is put back in the water).
+   */
+  held: Mat4Like | null = null;
+  aground: { ground: number } | null = null;
+  off = { x: 0, z: 0, yaw: 0 };
+
   draw(seconds: number, wind: number): void {
     if (this.released) return;
+    if (this.held || this.aground) {
+      if (this.held) for (let i = 0; i < 16; i++) this.m[i] = this.held[i]!;
+      else fly(this.x, this.aground!.ground + this.hull.halfBeam * 0.55, this.z, this.yaw, 0, 1.15 * this.list, 1, this.m);
+      this.hullH.setMatrix(this.m);
+      this.sailH?.setVisible(false);
+      if (this.yardH) {
+        const t = this.tmp;
+        t.fill(0);
+        t[0] = 1; t[5] = 1; t[10] = 1; t[15] = 1;
+        t[13] = LONGSHIP.yardY * this.size; t[14] = LONGSHIP.mastZ * this.size;
+        this.yardH.setMatrix(mulInto(this.tmp2, this.m, t));
+      }
+      this.rowing = this.held ? 1 : 0;
+      this.stroke = (seconds * 1.6) % 1;
+      this.poseOars();
+      this.heapH?.setMatrix(this.m);
+      this.setCut(false);
+      return;
+    }
     const sw = swellAt(seconds, this.phase, this.length, wind * (1 - this.beach), this.swell);
     const beach = easeInOut(clamp01(this.beach));
     // Down by the stern and over to one side as it sinks: under the water, never shrunk.
