@@ -1,9 +1,13 @@
 // Grow a town (design section 15a) in a real browser: the menu entry fills
 // the island while the camera stays usable, a click skips to the end, one
-// undo puts the island back as it was; the dice grows a different town on a
-// new island; it works on the phone layout too.
+// undo puts the island back as it was. The entry asks where (this island or
+// a new one) and then what kind of town: Surprise me as before, or a kind,
+// which is what grows (greyed where this island cannot grow it); on a new
+// island the island is found to suit the kind. New island asks what kind of
+// island. Back works at every step; on a phone every choice is on screen.
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import type { Page } from 'playwright';
 import { startApp, type App } from '../helpers/browser';
 
 let app: App;
@@ -16,6 +20,15 @@ afterAll(async () => {
 
 const blocks = `window.__lc.world().blocks.size`;
 const growing = `window.__lc.ui.growth.active`;
+const banner = `document.querySelector('[data-ui="banner"]')?.textContent ?? ''`;
+/** The roles the town shows, once the newest world is resolved. */
+const hasRole = (role: string): string => `[...window.__lc.shape().roles.values()].some((r) => r.role === '${role}') && window.__lc.shape().world === window.__lc.world()`;
+/** The highest ground, and how many columns are river (generator 2's river material, 4). */
+const highest = `Math.max(...window.__lc.terrain().height)`;
+const riverColumns = `window.__lc.terrain().material.filter((m) => m === 4).length`;
+
+/** The new island's seed comes from the clock and Math.random: pinned, so a run is the same every time. */
+const pinDice = (page: Page): Promise<unknown> => page.evaluate('Date.now = () => 3; Math.random = () => 0.5;');
 
 describe('grow a town', () => {
   test('the menu entry grows a town; dragging still orbits; a click skips; one undo empties it', async () => {
@@ -25,10 +38,12 @@ describe('grow a town', () => {
 
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
-    // The second screen asks where: on this island.
+    // The second screen asks where, the third what kind: on this island, the dice's kind.
     await page.click('[data-menu="grow-here"]');
+    await page.click('[data-menu="town-any"]');
     await page.waitForFunction(growing);
     await page.waitForFunction(`${blocks} > 10`);
+    expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
 
     // The camera stays usable while it grows: a drag orbits and does not stop the growth.
     const yaw0 = (await page.evaluate('window.__lc.view.getCamera().yaw')) as number;
@@ -58,7 +73,7 @@ describe('grow a town', () => {
     expect(errors).toEqual([]);
   });
 
-  test('it asks where; Back goes back to the menu; a key skips; the other choice grows on a new island', async () => {
+  test('Back at every step; Escape closes; Surprise me on a new island grows there as before', async () => {
     const { page, errors } = await app.open('/?seed=5&gen=1');
     await page.waitForFunction('window.__lc !== undefined');
     // Put something down, so there is a town to lose.
@@ -71,17 +86,39 @@ describe('grow a town', () => {
     await page.waitForSelector('[data-ui="grow-choice"]');
     expect(await page.textContent('[data-ui="grow-choice"]')).toContain('On this island');
     expect(await page.textContent('[data-ui="grow-choice"]')).toContain('On a new island');
+    // Where → back to the menu.
     await page.click('[data-menu="grow-back"]');
     await page.waitForSelector('[data-menu="share"]');
-    expect(await page.evaluate(growing)).toBe(false);
+    // What kind (this island) → back to where. Growing over this island loses nothing (one undo), so no warning.
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-here"]');
+    await page.waitForSelector('[data-ui="town-kinds"]');
+    expect(await page.textContent('[data-ui="town-kinds"]')).not.toContain('will be gone');
+    await page.click('[data-menu="town-back"]');
+    await page.waitForSelector('[data-ui="grow-choice"]');
+    // What kind (a new island): the town there is now will be gone, said once, here.
+    await page.click('[data-menu="grow-new"]');
+    await page.waitForSelector('[data-ui="town-kinds"][data-where="new"]');
+    expect(await page.textContent('[data-ui="town-kinds"]')).toContain('The town you have now will be gone.');
+    // Escape closes the menu from a kind screen; nothing happened.
+    await page.keyboard.press('Escape');
+    expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
+    // New island's kind screen → back to the menu.
     await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="new"]');
+    await page.waitForSelector('[data-ui="confirm"]');
+    await page.click('[data-menu="new-back"]');
+    await page.waitForSelector('[data-menu="share"]');
+    await page.click('[data-ui="menu-button"]');
+    expect(await page.evaluate(growing)).toBe(false);
+    expect(await page.evaluate('window.__lc.world().seed')).toBe(seed);
 
-    // The new island's seed comes from the clock and Math.random: pin them to a positive seed
-    // so the run is the same every time.
-    await page.evaluate('Date.now = () => 3; Math.random = () => 0.5;');
+    // Surprise me on a new island: a new island and the dice's town, at once.
+    await pinDice(page);
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
     await page.click('[data-menu="grow-new"]');
+    await page.click('[data-menu="town-any"]');
     await page.waitForFunction(growing);
     expect(await page.evaluate('window.__lc.world().seed')).not.toBe(seed);
     await page.keyboard.press('Space');
@@ -90,12 +127,89 @@ describe('grow a town', () => {
     expect(errors).toEqual([]);
   });
 
-  test('on a phone: the entry is there, a tap skips', async () => {
+  test('on this island: a castle town is a castle town; a kind the island cannot grow is greyed', async () => {
+    // Generator 1's island 2 has no river and no site for a forum.
+    const { page, errors } = await app.open('/?seed=2&gen=1');
+    await page.waitForFunction('window.__lc !== undefined');
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-here"]');
+    // The planner's word on the marble city and the castle town comes in a moment.
+    await page.waitForSelector('[data-menu="town-castle"][data-can="true"]');
+    await page.waitForSelector('[data-menu="town-marble"][data-can="false"]');
+    expect(await page.isDisabled('[data-menu="town-river"]')).toBe(true);
+    expect(await page.isDisabled('[data-menu="town-marble"]')).toBe(true);
+    for (const kind of ['harbour', 'castle', 'market', 'farming', 'hill', 'gardens']) expect(await page.isEnabled(`[data-menu="town-${kind}"]`)).toBe(true);
+
+    await page.click('[data-menu="town-castle"]');
+    await page.waitForFunction(growing);
+    expect(await page.evaluate(banner)).toContain('A castle town is growing.');
+    await page.keyboard.press('Space');
+    await page.waitForFunction(`!${growing}`);
+    await page.waitForFunction(hasRole('keep'));
+    expect(errors).toEqual([]);
+  });
+
+  test('on a new island: a river town gets an island with a river; New island → Mountain gives a steep island', async () => {
+    const { page, errors } = await app.open('/?seed=3&gen=1');
+    await page.waitForFunction('window.__lc !== undefined');
+    await pinDice(page);
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-new"]');
+    await page.click('[data-menu="town-river"]');
+    await page.waitForFunction(growing);
+    expect(await page.evaluate(banner)).toContain('A river town is growing.');
+    expect(await page.evaluate('window.__lc.world().terrainGen')).toBe(2);
+    expect(await page.evaluate(riverColumns)).toBeGreaterThan(30);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(`!${growing}`);
+    await page.waitForFunction(`${hasRole('stone-bridge')} || ${hasRole('bridge-shop')}`);
+
+    const seed = (await page.evaluate('window.__lc.world().seed')) as number;
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="new"]');
+    await page.click('[data-menu="island-mountain"]');
+    await page.waitForFunction(`window.__lc.world().seed !== ${seed}`);
+    expect(await page.evaluate(highest)).toBeGreaterThanOrEqual(7);
+    expect(await page.evaluate('window.__lc.world().terrainGen')).toBe(2);
+    expect(await page.evaluate('window.__lc.world().blocks.size')).toBeLessThan(20);
+    expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('on a phone: every choice on every screen is on screen and big enough to tap; a tap grows', async () => {
     const { page, errors } = await app.open('/?seed=2&gen=1', { width: 390, height: 844, hasTouch: true, isMobile: true });
     await page.waitForFunction('window.__lc !== undefined');
+    /** Every row and button of the open screen lies inside the screen and is at least 44 px high. */
+    const allTappable = async (): Promise<void> => {
+      const boxes = (await page.evaluate(`[...document.querySelectorAll('[data-ui="menu"] button')].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { id: b.dataset.menu, top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: r.height };
+      })`)) as { id: string; top: number; bottom: number; left: number; right: number; h: number }[];
+      expect(boxes.length).toBeGreaterThan(2);
+      for (const b of boxes) {
+        expect(b.top, b.id).toBeGreaterThanOrEqual(0);
+        expect(b.left, b.id).toBeGreaterThanOrEqual(0);
+        expect(b.bottom, b.id).toBeLessThanOrEqual(844);
+        expect(b.right, b.id).toBeLessThanOrEqual(390);
+        expect(b.h, b.id).toBeGreaterThanOrEqual(44);
+      }
+    };
     await page.tap('[data-ui="menu-button"]');
+    await page.tap('[data-menu="new"]');
+    await page.waitForSelector('[data-ui="confirm"]');
+    await allTappable();
+    await page.tap('[data-menu="new-back"]');
     await page.tap('[data-menu="grow"]');
+    await allTappable();
+    await page.tap('[data-menu="grow-new"]');
+    await allTappable();
+    await page.tap('[data-menu="town-back"]');
     await page.tap('[data-menu="grow-here"]');
+    await page.waitForSelector('[data-menu="town-castle"][data-can="true"]');
+    await allTappable();
+    await page.tap('[data-menu="town-any"]');
     await page.waitForFunction(growing);
     await page.tap('#town', { position: { x: 195, y: 420 } });
     await page.waitForFunction(`!${growing}`, undefined, { timeout: 10_000 });

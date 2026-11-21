@@ -26,8 +26,11 @@ import { el, iconButton, installTheme, isCoarsePointer, setIcon } from './dom';
 import { createFeedback, wiggle, type Feedback } from './feedback';
 import { createFly, type FlyMode, type FlyPhase } from './fly';
 import { createGrowth, onlyStartingTrees, type Growth } from './growth';
-import { planTown } from '@/townmaker/index';
-import { CHARACTER_NAMES, type Character } from '@/townmaker/character';
+import { planTown, type GrownTown } from '@/townmaker/index';
+import { CHARACTER_NAMES, CHARACTERS, type Character } from '@/townmaker/character';
+import { findIslandForTown, kindWeights, MAY_FALL_BACK, planKind } from '@/townmaker/kinds';
+import { findIsland } from '@/terrain/kinds';
+import { hash } from '@/core/rand';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
 import { ghostFor, ghostForLand, ghostForRun } from './ghost';
@@ -67,8 +70,8 @@ export interface InterfaceHost {
   renderNow(): void;
   /** Added by Fly: the whole-island view a new island opens on (Escape with nothing open glides back to it). */
   homeCamera?(): CameraPose;
-  /** A fresh island, already confirmed by the player. */
-  newIsland(): void;
+  /** A fresh island, already confirmed by the player: this seed on the newest generator, or (none) a random one. */
+  newIsland(seed?: number): void;
   /** Replaces the town with one read from a file. */
   openTown(world: World): void;
   /** Where the interface's elements go. Default: document.body. */
@@ -178,6 +181,25 @@ function valueAt(pos: number, marks: readonly number[]): number {
   const span = (((marks[i + 1]! - marks[i]!) % 1) + 1) % 1;
   return (marks[i]! + span * Math.min(1, Math.max(0, pos - i))) % 1;
 }
+/**
+ * Runs a search a slice at a time (the first slice at once, the rest in later tasks, so the page keeps
+ * drawing and the menu can show it is working); null if the signal calls it off first.
+ */
+function inSlices<T>(search: Generator<void, T>, signal: AbortSignal, sliceMs = 12): Promise<T | null> {
+  return new Promise((resolve) => {
+    const work = (): void => {
+      if (signal.aborted) return resolve(null);
+      const t0 = performance.now();
+      for (;;) {
+        const r = search.next();
+        if (r.done) return resolve(r.value);
+        if (performance.now() - t0 > sliceMs) break;
+      }
+      setTimeout(work, 0);
+    };
+    work();
+  });
+}
 const SOUND_KEY = 'little-city.sound';
 const REBUILD_KEY = 'little-city.rebuild';
 const LAND_HINT_KEY = 'little-city.land-hint';
@@ -242,13 +264,14 @@ export function createInterface(host: InterfaceHost): Interface {
   });
   /** The characters grown so far, oldest first: none repeats until all that suit an island have had a turn. */
   let shown: Character[] = [];
-  const grow = (avoid: readonly Character[] = []): void => {
+  /** Grows a town: the one planned already (a kind the player chose), or the dice's, avoiding those shown. */
+  const grow = (avoid: readonly Character[] = [], chosen?: GrownTown): void => {
     mischief.undo();
     // A new town: nothing of the old one's mischief (a scorch, a cloud, a fire, a mend under way) stays.
     mischiefOf(view.stage).reset();
     growth.stop();
     setGhost(null, '');
-    const plan = planTown(game.terrain, game.world.seed, { avoid });
+    const plan = chosen ?? planTown(game.terrain, game.world.seed, { avoid });
     shown = shown.includes(plan.character) ? [plan.character] : [...shown, plan.character];
     growth.start(plan.edits);
     const name = CHARACTER_NAMES[plan.character];
@@ -256,19 +279,86 @@ export function createInterface(host: InterfaceHost): Interface {
     if (growth.active) growingNote = feedback.banner(`${article} ${name} is growing.`, [{ label: 'Finish now', primary: true, run: () => growth.skip() }]);
   };
 
+  /**
+   * Which kinds of town this island can grow (src/townmaker/kinds.ts), worked out once per island:
+   * the weights at once, the planner's word on the kinds that may fall back one plan per task so the
+   * page keeps drawing. The plans made on the way are kept, so choosing one of those grows at once.
+   */
+  interface KindsHere {
+    terrain: Terrain;
+    seed: number;
+    weights: Record<Character, number>;
+    can: Record<Character, boolean | null>;
+    plans: Partial<Record<Character, GrownTown>>;
+  }
+  let here: KindsHere | null = null;
+  let kindsReady: ((kind: Character, ok: boolean) => void) | null = null;
+  const kindsHere = (): KindsHere => {
+    const terrain = game.terrain;
+    const seed = game.world.seed;
+    if (here && here.terrain === terrain && here.seed === seed) return here;
+    const weights = kindWeights(terrain);
+    const can = {} as Record<Character, boolean | null>;
+    for (const kind of CHARACTERS) can[kind] = !(weights[kind] > 0) ? false : MAY_FALL_BACK.includes(kind) ? null : true;
+    const k: KindsHere = { terrain, seed, weights, can, plans: {} };
+    here = k;
+    const ask = (left: Character[]): void => {
+      const kind = left[0];
+      if (!kind || here !== k) return;
+      if (k.can[kind] === null) {
+        const plan = planKind(terrain, seed, kind, weights);
+        k.can[kind] = plan !== null;
+        if (plan) k.plans[kind] = plan;
+        kindsReady?.(kind, plan !== null);
+      }
+      setTimeout(() => ask(left.slice(1)), 0);
+    };
+    setTimeout(() => ask([...MAY_FALL_BACK]), 0);
+    return k;
+  };
+  /** Where a search for a seed starts: the clock and Math.random, as a new island's seed. */
+  const searchStart = (): number => hash(Date.now() | 0, 'kind', Math.floor(Math.random() * 0x7fffffff)) | 0;
+
   const menu = createMenu({
-    // On the island there is: a different kind of town each time, so asking again is worth it.
-    growTown: () => grow(shown),
-    growNewIsland() {
-      growth.stop();
-      host.newIsland();
-      grow(shown);
+    growTown(kind) {
+      // On the island there is: the dice choose a different kind each time, so asking again is worth it.
+      if (!kind) return grow(shown);
+      const k = kindsHere();
+      const plan = k.plans[kind] ?? planKind(k.terrain, k.seed, kind, k.weights);
+      if (plan) grow(shown, plan);
+    },
+    growNewIsland(kind, signal) {
+      if (!kind) {
+        growth.stop();
+        host.newIsland();
+        grow(shown);
+        return;
+      }
+      return inSlices(findIslandForTown(kind, searchStart()), signal).then((found) => {
+        if (!found) return;
+        growth.stop();
+        host.newIsland(found.seed);
+        grow(shown, found.plan);
+      });
+    },
+    townKindsHere(ready) {
+      kindsReady = ready;
+      return { ...kindsHere().can };
     },
     hasTown: () => !onlyStartingTrees(game.world, game.terrain),
-    newIsland: () => {
-      mischief.undo();
-      growth.stop();
-      host.newIsland();
+    newIsland(kind, signal) {
+      if (!kind) {
+        mischief.undo();
+        growth.stop();
+        host.newIsland();
+        return;
+      }
+      return inSlices(findIsland(kind, searchStart()), signal).then((found) => {
+        if (!found) return;
+        mischief.undo();
+        growth.stop();
+        host.newIsland(found.seed);
+      });
     },
     shareLink: () => void share(),
     postcard: () => void postcard(),

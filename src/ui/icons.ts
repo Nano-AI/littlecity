@@ -436,6 +436,107 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M9.4 11.2 Q9.6 8.8 12 8.8 L36.2 9 Q38.8 9.2 38.8 11.8 L38.6 36.4 Q38.4 39 35.8 39 L11.8 38.8 Q9.2 38.6 9.2 36 Z" fill="${C.white}"/>` +
     `<g fill="${PALETTE.ink}" stroke="none"><circle cx="16.6" cy="16.4" r="2.6"/><circle cx="31.6" cy="16.6" r="2.6"/><circle cx="24" cy="24" r="2.6"/>` +
     `<circle cx="16.4" cy="31.4" r="2.6"/><circle cx="31.4" cy="31.6" r="2.6"/></g>`,
+  // ── kinds of island (New island) ─────────────────────────────────────
+  // Plains: a long low island, flat on top, a few tufts.
+  'isle-plains':
+    `<path stroke="${C.seaInk}" d="M3.6 37.6 q3.2 -3 6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0"/>` +
+    `<path d="M5.4 35.6 Q7.4 27.8 14 27.4 L34.6 27 Q41 27.4 42.8 35.4 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M12.6 31.4 L13.2 29.6 M14.6 31.4 L14.6 29.4 M23.4 31 L24 29.2 M25.4 31 L25.4 29 M33.6 31.2 L34.2 29.4"/>`,
+  // Hills: two round hills, one behind the other.
+  'isle-hills':
+    `<path stroke="${C.seaInk}" d="M3.6 37.6 q3.2 -3 6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0"/>` +
+    `<path d="M19.6 30 Q24 13.6 32.4 14.2 Q40.6 15 42.8 35.4 L24 35.4 Z" fill="${C.leaf}"/>` +
+    `<path d="M5.4 35.6 Q8.4 20.4 16.4 20.6 Q24.6 21 27.6 35.4 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M11.4 27.8 Q15.6 25.8 19.8 28 M30.6 21.4 Q34.4 19.8 37.6 22"/>`,
+  // Mountain: a rocky peak with snow on top and grass at its foot.
+  'isle-mountain':
+    `<path stroke="${C.seaInk}" d="M3.6 37.6 q3.2 -3 6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0"/>` +
+    `<path d="M5.6 35.6 L19.4 8.4 L25.4 17.8 L29.6 13.2 L42.6 35.4 Z" fill="${C.stone}"/>` +
+    `<path d="M15.2 16.8 L19.4 8.4 L23.6 15 Q21.6 13.8 19.8 16.2 Q17.8 14.4 15.2 16.8 Z" fill="${C.white}" stroke-width="1.6"/>` +
+    `<path d="M5.6 35.6 Q10.4 29.2 16 30.2 Q24 27.4 30.4 30 Q37.4 28.6 42.6 35.4 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.stoneLine}" d="M23.2 22.6 L21.4 27 M30.4 20.6 L32 25.2 M14.4 24.4 L13 27.4"/>`,
+  // River valley: a square of ground with a river winding right across it.
+  'isle-valley': tile(
+    C.grass,
+    `<path stroke-width="1.4" d="M11.4 19.6 Q19.4 19.4 21.4 23.8 Q23.6 28.8 31.6 31.4 L36.4 28.6 Q28.6 27 26.8 22.4 Q24.6 17.6 16.4 16.6 Z" fill="${C.sea}"/>` +
+      `<path ${thin} stroke="${C.leafDark}" d="M12 26.6 L12.6 24.8 M30.6 17.2 L31.2 15.4 M34.4 21 L35 19.2 M19.4 31 L20 29.2"/>`,
+  ),
+  // Islands: three little islands in the sea.
+  'isle-islands':
+    `<path stroke="${C.seaInk}" d="M3.6 37.6 q3.2 -3 6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0 t6.4 0"/>` +
+    `<path d="M4.8 35.6 Q7 27.6 13 27.8 Q19 28 20.6 35.4 Z" fill="${C.grass}"/>` +
+    `<path d="M22.6 35.4 Q25.4 22.6 33 23.2 Q40.8 24 42.8 35.4 Z" fill="${C.grass}"/>` +
+    `<path d="M14.6 21 Q16.4 15.4 20.6 15.6 Q24.8 16 25.8 21 Z" fill="${C.leaf}"/>` +
+    `<path stroke="${C.seaInk}" stroke-width="1.4" d="M12.4 22.6 q1.6 -1.4 3.2 0 M24.6 22.6 q1.6 -1.4 3.2 0"/>`,
+
+  // ── kinds of town (Grow a town) ──────────────────────────────────────
+  // Harbour town: a stone quay with a bollard, and a boat tied up at it.
+  'town-harbour':
+    `<path stroke="${C.seaInk}" d="M20 39.4 q3 -2.8 6 0 t6 0 t6 0 t6 0"/>` +
+    `<path d="M4.6 40.6 L4.8 22.4 L21.4 22.2 L21.6 40.4 Z" fill="${C.stone}"/>` +
+    `<path ${thin} stroke="${C.stoneLine}" d="M5 28.4 L21.2 28.2 M5 34.4 L21.2 34.2 M12.4 22.6 L12.4 28.2 M9 28.6 L9 34.2 M16.6 28.6 L16.6 34.2 M12.8 34.6 L12.8 40.2"/>` +
+    `<path d="M11.6 22.4 L11.8 17.6 Q14 15.6 16.2 17.6 L16.4 22.4 Z" fill="${C.ink}"/>` +
+    `<path stroke-width="1.4" d="M16.2 19.6 Q22.6 22 28 28.2"/>` +
+    `<path d="M24.4 29.4 L43.4 29 L40 35.4 L27.6 35.6 Z" fill="${C.red}"/>` +
+    `<path d="M33.4 29.2 L33.6 12.4"/><path d="M33.6 13.6 L41.6 26.4 L33.6 26.6 Z" fill="${C.white}" stroke-width="1.6"/>`,
+  // Marble city: a temple front, pediment and columns on a step.
+  'town-marble':
+    `<path d="M6 40.6 L6.2 35.6 L41.8 35.4 L42 40.4 Z" fill="${C.stoneShade}"/>` +
+    `<g fill="${PALETTE.marble}"><path d="M10.6 35.6 L10.8 20.6 L14.8 20.6 L15 35.6 Z"/><path d="M18.4 35.6 L18.6 20.6 L22.6 20.6 L22.8 35.6 Z"/>` +
+    `<path d="M25.6 35.6 L25.8 20.6 L29.8 20.6 L30 35.6 Z"/><path d="M33.2 35.6 L33.4 20.6 L37.4 20.6 L37.6 35.6 Z"/></g>` +
+    `<path d="M7.4 20.8 L7.6 16.6 L40.6 16.4 L40.8 20.6 Z" fill="${C.stone}"/>` +
+    `<path d="M6.4 16.8 L24 6.8 L41.8 16.6 Z" fill="${PALETTE.marble}"/>` +
+    `<circle cx="24" cy="12.6" r="1.8" fill="${C.yellow}" stroke-width="1.3"/>`,
+  // Castle town: a keep with battlements, an arched door, a slit window and a flag.
+  'town-castle':
+    `<path d="M24 11 L24.1 2.6"/><path d="M24.1 2.6 L31 4.4 L24.1 6.4" fill="${C.red}" stroke-width="1.5"/>` +
+    `<path d="M12.8 40.8 L13.2 17.4 L34.8 17.2 L35.2 40.6 Z" fill="${C.stone}"/>` +
+    `<path d="M11 18 L11 10.8 L16 10.8 L16 13.8 L20.6 13.8 L20.6 10.8 L27.4 10.8 L27.4 13.8 L32 13.8 L32 10.8 L37 10.8 L37 18 Z" fill="${C.stoneShade}"/>` +
+    `<path d="M20.4 40.6 L20.5 33.4 Q24 29.4 27.5 33.4 L27.6 40.6" fill="${C.wood}"/>` +
+    `<path stroke-width="2.4" d="M24 21.6 L24 26.4"/>` +
+    `<path ${thin} stroke="${C.stoneLine}" d="M15.2 22.4 L18.6 22.4 M29.6 24.4 L32.8 24.4 M15.4 31 L18.2 31 M30 35.2 L32.8 35.2"/>`,
+  // Market town: the market stall.
+  'town-market':
+    `<path d="M11 19 L11.2 31 M37 19 L36.8 31"/>` +
+    `<path d="M8.6 30.4 L8.8 41 L39.2 40.8 L39.4 30.2 Z" fill="${C.wood}"/>` +
+    `<g stroke-width="1.4"><circle cx="15.6" cy="28" r="2.5" fill="${C.yellow}"/><circle cx="21.4" cy="28.1" r="2.5" fill="${C.red}"/>` +
+    `<circle cx="27.4" cy="28" r="2.5" fill="${C.pink}"/><circle cx="33" cy="28" r="2.5" fill="${C.leaf}"/></g>` +
+    `<path d="M5.4 20 L9.6 8.8 L38.6 8.6 L42.6 19.8 Q39.6 23.4 36.4 19.9 Q33.3 23.4 30.2 19.9 Q27.1 23.4 24 20 Q20.9 23.4 17.8 20 Q14.7 23.4 11.6 20 Q8.5 23.4 5.4 20 Z" fill="${C.white}"/>` +
+    `<g stroke-width="1.3" fill="${C.sea}"><path d="M9.6 8.8 L14.4 8.8 L11.6 20 Q8.5 23.4 5.4 20 Z"/>` +
+    `<path d="M19.3 8.7 L24.1 8.7 L24 20 Q20.9 23.4 17.8 20 Z"/><path d="M28.9 8.7 L33.8 8.6 L36.4 19.9 Q33.3 23.4 30.2 19.9 Z"/></g>`,
+  // River town: a mill wheel turning in the stream.
+  'town-river':
+    `<circle cx="22" cy="21.4" r="14.4" fill="${C.wood}"/>` +
+    `<circle cx="22" cy="21.4" r="9.4" fill="${C.white}"/>` +
+    `<path stroke-width="1.8" d="M22 12.2 L22 30.6 M12.8 21.4 L31.2 21.4 M15.6 15 L28.4 27.8 M28.4 15 L15.6 27.8"/>` +
+    `<circle cx="22" cy="21.4" r="2.6" fill="${C.woodDark}"/>` +
+    `<path d="M3.6 36.4 Q14 33.4 24 36 Q34 38.6 44.4 35.4 L44.4 42.6 L3.6 42.6 Z" fill="${C.sea}"/>` +
+    `<path stroke="${C.white}" stroke-width="1.6" d="M30.4 38.6 q2 -1.6 4 0 t4 0 M10.6 39.6 q2 -1.6 4 0"/>`,
+  // Farming village: a sheaf of wheat tied round the middle.
+  'town-farming':
+    `<path stroke-width="1.8" stroke="${C.dirtDark}" d="M17.6 41.4 L22.4 28 L15.6 15.6 M24 41.6 L24 28 L19.6 12.4 M30.4 41.4 L25.6 28 L28.4 12.4 M24 28 L24 10.6 M25.6 28 L32.4 15.6"/>` +
+    `<g fill="${C.yellow}" stroke-width="1.5">` +
+    `<ellipse cx="15" cy="13.2" rx="2.6" ry="5.4" transform="rotate(-28 15 13.2)"/><ellipse cx="19.4" cy="9.8" rx="2.6" ry="5.4" transform="rotate(-12 19.4 9.8)"/>` +
+    `<ellipse cx="24" cy="8.4" rx="2.6" ry="5.4"/><ellipse cx="28.6" cy="9.8" rx="2.6" ry="5.4" transform="rotate(12 28.6 9.8)"/>` +
+    `<ellipse cx="33" cy="13.2" rx="2.6" ry="5.4" transform="rotate(28 33 13.2)"/></g>` +
+    `<path stroke-width="3" stroke="${C.red}" d="M19.8 28.6 Q24 30.6 28.2 28.6"/>`,
+  // Hill town: houses stepping up terraces.
+  'town-hill':
+    `<path d="M4.6 41 L4.8 34 L16.4 33.8 L16.6 26 L28.2 25.8 L28.4 18 L43.4 17.8 L43.6 40.8 Z" fill="${C.grass}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M16.6 34 L16.6 40.6 M28.4 26 L28.4 40.6"/>` +
+    `<path d="M7.6 34 L7.8 28.4 L13.4 28.4 L13.6 34 Z" fill="${C.wall}" stroke-width="1.6"/><path d="M6.4 28.6 L10.6 24 L14.8 28.6 Z" fill="${C.roof}" stroke-width="1.6"/>` +
+    `<path d="M19.4 26 L19.6 20.4 L25.2 20.4 L25.4 26 Z" fill="${C.pink}" stroke-width="1.6"/><path d="M18.2 20.6 L22.4 16 L26.6 20.6 Z" fill="${C.roofBlue}" stroke-width="1.6"/>` +
+    `<path d="M32.4 18 L32.6 12.4 L38.2 12.4 L38.4 18 Z" fill="${C.wall}" stroke-width="1.6"/><path d="M31.2 12.6 L35.4 8 L39.6 12.6 Z" fill="${C.orange}" stroke-width="1.6"/>`,
+  // Garden town: a round clipped tree in a planter, flowers either side.
+  'town-gardens':
+    `<path d="M22.4 33 L22.6 24 L25.4 24 L25.6 33 Z" fill="${C.trunk}"/>` +
+    `<circle cx="24" cy="15.6" r="10.4" fill="${C.leaf}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M18.4 17.4 Q21.4 21 26 20 M26.4 10.6 Q29.6 11.8 30 15"/>` +
+    `<path d="M15.6 32.6 L32.4 32.4 L30.8 41.2 L17.2 41.4 Z" fill="${C.brick}"/>` +
+    `<path ${thin} stroke="${C.leafDark}" d="M8.6 41 L8.8 34.6 M39.4 41 L39.2 34.6"/>` +
+    `<g stroke-width="1.3"><circle cx="8.8" cy="33.4" r="2.4" fill="${C.pink}"/><circle cx="39.2" cy="33.4" r="2.4" fill="${C.yellow}"/>` +
+    `<circle cx="5.6" cy="38.4" r="1.9" fill="${C.white}"/><circle cx="42.4" cy="38.4" r="1.9" fill="${C.pink}"/></g>`,
+
   share:
     `<g stroke-width="2.6"><path d="M21 27 L27 21"/><path d="M19.6 20.6 L24 16.2 A6.2 6.2 0 0 1 32.8 25 L28.6 29.2"/>` +
     `<path d="M28.4 27.4 L24 31.8 A6.2 6.2 0 0 1 15.2 23 L19.4 18.8" transform="translate(0 0)"/></g>`,

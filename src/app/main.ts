@@ -50,8 +50,8 @@ function storage(): Storage | null {
 }
 
 /** A new island: the newest generator (design section 6), unless the URL asks for the first (tests pin it). */
-function freshIsland(seed: number): GameStart {
-  const gen: TerrainGen = new URLSearchParams(location.search).get('gen') === '1' ? 1 : NEW_ISLAND_GEN;
+function freshIsland(seed: number, pinned?: TerrainGen): GameStart {
+  const gen: TerrainGen = pinned ?? (new URLSearchParams(location.search).get('gen') === '1' ? 1 : NEW_ISLAND_GEN);
   const terrain = generateTerrain(seed, gen);
   return { terrain, world: initialWorld(seed, terrain, gen) };
 }
@@ -203,9 +203,10 @@ ui = createInterface({
   },
   renderNow: render,
   homeCamera,
-  newIsland() {
+  newIsland(seed) {
     leaveSpecialTown();
-    open(freshIsland(newSeed()));
+    // A seed found for a kind of island (src/terrain/kinds.ts) was found on the newest generator.
+    open(seed === undefined ? freshIsland(newSeed()) : freshIsland(seed, NEW_ISLAND_GEN));
   },
   openTown(world) {
     leaveSpecialTown();

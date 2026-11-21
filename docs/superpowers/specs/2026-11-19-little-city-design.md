@@ -338,6 +338,42 @@ On a phone the tray is one row that scrolls sideways. ☰ holds new island,
 share link, postcard and sound (the dev tuning panel is only in the gallery, not in the game: Derek, 2026-11-20). ☀ cycles time of day:
 running → hold day → hold dusk → hold night. ⟡ (wings) is fly mode.
 
+**Choosing the kind of island** (Derek, 2026-11-20: "When you create a new
+island, you get to choose mountain island or grass island or valley, river
+valley, plains, hills"). "New island" opens a second screen, "What kind of
+island?", with a small line "The town you have now will be gone." when there
+is more on the island than its starting trees (this screen is the
+confirmation: picking a kind starts the new island; Back returns to the
+menu). The choices are bare labels with a small icon each: Surprise me (any
+island, as before), Plains, Hills, Mountain, River valley, Islands.
+
+- The save holds only the seed and the generator, so a kind is chosen by
+  finding a seed (`src/terrain/kinds.ts`): seeds are drawn, each seed's
+  first roll is read (nearly free), the likely ones are generated on
+  generator 2, and the first whose finished island (after any re-roll) is
+  the kind is taken. No generator changes; every saved town and link keeps
+  its island.
+- What each kind is, in what generator 2 returns: *Plains* a gentle island
+  with no river (one landmass, up to height 4, wide flat ground); *Hills* a
+  hilly island reaching 5, no river right across; *Mountain* a steep island
+  (a peak or ridge of 7 to 10, rock); *River valley* a gentle or hilly
+  island with a river running coast to coast; *Islands* an archipelago
+  (several landmasses, or a ring round a lagoon). Naturally about 9 %, 18 %,
+  16 %, 26 % and 9 % of islands; the rest (gentle islands whose river ends
+  inland, low hilly ones) come only as a surprise.
+- Left out: a "grass island" is Plains; a valley without a river cannot be
+  told from Hills. A kind generator 2 does not make (a valley between two
+  ridges, a lake island, a volcano, a long thin island) cannot be added to
+  it without changing what existing seeds make (the character roll's shares
+  would shift), so it would need a third generator recorded as
+  `terrainGen: 3`; not done.
+- The search usually generates one island (a few ms; the slowest single
+  island about 170 ms on a busy machine). It runs in slices across frames;
+  the chosen row's icon bobs and the other rows wait until it is done;
+  closing the menu or Back calls it off. Bounded at 4,000 draws and 40
+  islands; past that it takes the closest island and says nothing (never
+  seen in thousands of searches).
+
 **Targeting.** The pointer picks a face of terrain, a block, or the water
 surface. The target cell is the cell on the other side of that face. Water
 targets `(x, 0, z)`.
@@ -1180,17 +1216,41 @@ town is meant to show off every building combination the rules know.
   to 30 on both island generators every character is rolled, each town
   shows what its character promises, and every role and guide entry the
   generator can place appears in some town. A test enforces this.
-- **In the game.** Choosing it asks for confirmation if the island has
-  anything on it besides the starting trees, clears those, then plays the
+- **In the game.** Growing clears what is on the island, then plays the
   edits in order at about 25 a second so the town visibly builds itself with
   the landing bounce, district by district. A click or key skips to the end.
   The whole growth is one undo step. The menu entry "Grow a town" opens a
-  second screen that asks where: "On this island" keeps the island and
-  grows a different kind of town on it each time it is asked again; "On a
-  new island" makes a new island and grows a town there. The two choices
-  are bare labels (Derek, 2026-11-20: no subtitles) and there is no
-  further confirmation; Back returns to the menu. Neither repeats a character until every character that suits the
-  island has had a turn, so a handful of goes shows the whole range.
+  second screen that asks where ("On this island", "On a new island"), and
+  a third that asks "What kind of town?" (Derek, 2026-11-20: "I don't want
+  it to be random. I mean, have a random option, but allow me to choose").
+  All choices are bare labels with a small icon (Derek, 2026-11-20: no
+  subtitles); Back on each screen goes one screen back; there is no other
+  confirmation. Growing over this island loses nothing (one undo); on the
+  new-island kind screen, when there is more than starting trees, the line
+  "The town you have now will be gone." stands under the question.
+- **Choosing the kind** (`src/townmaker/kinds.ts`). Surprise me comes first
+  and is the dice as before: neither place repeats a character until every
+  character that suits the island has had a turn, so a handful of goes
+  shows the whole range. Then the eight kinds in two columns (Surprise me
+  across both), each with an icon: a quay, a temple, a keep, a stall, a
+  mill wheel, a wheat sheaf, a terrace, a tree. A chosen kind is exactly
+  what grows (the banner still names it), and it counts as shown for the
+  dice.
+  - *On this island* a kind the island cannot grow is shown greyed, with
+    no text: a river town where the island has no river long enough to be
+    its spine (weight zero), a marble city where no forum fits and a castle
+    town where no castle fits (the planner's own fall-backs, asked of the
+    planner itself while the player reads the "where" screen; those two
+    rows wait greyed for the answer, about a tenth of a second).
+  - *On a new island* every kind is offered, and a seed is searched for
+    whose island gives the kind its best weight in `characterWeights` and
+    on which the planner grows it: a castle town or a hill town gets a
+    mountain (height 7 or more), a river town a long river, a marble city
+    flat ground 15 across with room for the forum, a farming village 12
+    across, a harbour town a long coast. The plan made on the way is the
+    town grown. Search and plan take about 50 ms, at worst about 0.2 s
+    (up to 0.6 s on a busy machine); it runs in slices across frames with the row
+    working, as for kinds of island.
 - **Speed.** Generating the edit list takes under 200 ms for a full island.
 
 ## 16. Code layout and contracts
