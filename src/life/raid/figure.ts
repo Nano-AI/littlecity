@@ -27,6 +27,9 @@ export function raiderLook(look: number, costume: Barbarian): Look {
 const toolMeshes = new Map<string, MeshData>();
 
 export class Figure {
+  /** The drawing now (set by the raid each frame): figures are drawn on twos, PERSON.drawRate a second, as the crowd is. */
+  static tick = 0;
+  private drawnAt = -1;
   readonly look: Look;
   readonly rig: Rig;
   private pieces: InstanceHandle[];
@@ -76,6 +79,8 @@ export class Figure {
   pose(x: number, y: number, z: number, heading: number, name: PoseName, phase: number, opts: { seat?: number; tweak?: (p: Pose) => void; gear?: boolean; load?: Load | null; tilt?: number; grow?: boolean } = {}): void {
     if (this.released) return;
     this.setVisible(true);
+    if (this.drawnAt === Figure.tick) return;
+    this.drawnAt = Figure.tick;
     const look = this.look, rig = this.rig;
     const pose = poseOf(name, phase, 0.3);
     opts.tweak?.(pose);

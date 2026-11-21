@@ -46,7 +46,7 @@ import { restingMesh, type Load } from '@/parts/people/loads';
 import type { StructureId } from '@/resolve/plan';
 import { pathAt } from '@/rules/life/ship-routes';
 import { RAID } from '@/style/raid';
-import { PEOPLE } from '@/style/people';
+import { PEOPLE, PERSON } from '@/style/people';
 import type { LifeStage, TimeSignal } from '../api';
 import type { Person } from '../people/crowd';
 import type { Board, Chain, Plan, PlanStep, Spot } from '../town/board';
@@ -272,6 +272,7 @@ export class Raid {
     if (!this.handled(this.ship, 0)) this.moveShip(dt);
     this.moveBoats(dt);
     this.boats.forEach((b, i) => this.handled(b, i + 1));
+    Figure.tick = Math.floor(seconds * PERSON.drawRate);
     this.stepFigures(dt, seconds);
     this.stepEscapees(dt, seconds);
     this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
