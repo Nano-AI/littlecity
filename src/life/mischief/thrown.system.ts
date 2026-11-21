@@ -288,7 +288,11 @@ export default defineSystem<State>({
       if (!l) st.critterLines.set(c, (l = {}));
       speedLines(stage, l, b.phase === 'fly' && !b.upright ? b : null);
       for (const ev of evs) {
-        if (ev === 'splash') st.spouts.push({ h: stage.spawnMesh(spoutMesh(), [0.35, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.35, 0, b.x, SEA_Y - 0.02, b.z, 1]), age: 0 });
+        if (ev === 'splash') {
+          // As big as what came down (a galleon's is a great one).
+          const w = Math.max(0.35, c.height * 1.6);
+          st.spouts.push({ h: stage.spawnMesh(spoutMesh(), [w, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, w, 0, b.x, SEA_Y - 0.02, b.z, 1]), age: 0 });
+        }
         else if (ev === 'land' || ev === 'bounce' || ev === 'wall' || ev === 'roof') {
           const x = b.x, y = b.upright ? b.y : b.y - b.radius, z = b.z;
           fxOf(ctx.stage).play(DUST, 0.4, (u, m) => place(x, y + 0.03 + u * 0.08, z, 0, 0.14 + u * 0.24, 0.14 + u * 0.24, 0.14 + u * 0.24, m));
@@ -345,7 +349,7 @@ export default defineSystem<State>({
       s.age += dt;
       const k = Math.min(1, s.age / 0.9);
       const m = Array.from(s.h.base);
-      m[5] = Math.sin(k * Math.PI) * 0.55 + 0.001;
+      m[5] = Math.sin(k * Math.PI) * 1.2 * m[0]! + 0.001;
       s.h.setMatrix(m);
       if (k >= 1) {
         s.h.release();

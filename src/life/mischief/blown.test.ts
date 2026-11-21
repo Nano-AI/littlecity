@@ -15,6 +15,7 @@ import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { throwerOf } from './thrown.system';
 import { crittersOf } from './critters';
 import { boatWrecksOf } from './boatwreck';
+import { harbourOf } from '../ships/visit';
 
 function town(name = 'grown-town-1'): { t: Turmoil; h: (x: number, z: number) => number } {
   const built = buildScenario(findScenario(name)!);
@@ -185,4 +186,31 @@ describe('people blown about', () => {
     expect(b.body).toBeNull();
     expect(boatWrecksOf(t.stage).get(b.id.slice('boat:'.length))?.stage).toBe(3);
   }, 120_000);
+
+  test('the Hand and a big ship: out of traffic while held; set down on the land it lies there, then is refloated and its berth comes round; set down at sea it sails off', () => {
+    const { t } = town();
+    const harbour = harbourOf(t.stage)!;
+    // A ship in.
+    for (let i = 0; i < 600 && !harbour.ships.some((s) => s.phase === 'moored'); i++) t.run(1);
+    const ship = harbour.ships.find((s) => s.phase === 'moored')!;
+    expect(ship).toBeDefined();
+    const th = throwerOf(t.stage)!;
+    const c = crittersOf(t.stage).get(`ship:${ship.id}`)!;
+    expect(c).toBeDefined();
+    expect(th.grabCritter(c)).toBe(true);
+    t.run(0.1);
+    expect(ship.lifted).toBe(true);
+    expect(ship.voyage).toBeNull();
+    // Over the middle of the island, and let go.
+    th.carryCritter(c, 24.5, 4, 24.5);
+    t.run(0.1);
+    th.flingCritter(c, 0, 0, 0);
+    for (let i = 0; i < 200 && c.body; i++) t.run(0.1);
+    t.run(0.2);
+    expect(ship.aground).toBeDefined();
+    // Refloated after a while: the visit ends, nothing left blocking its berth.
+    for (let i = 0; i < 400 && ship.phase !== 'idle'; i++) t.run(0.1);
+    expect(ship.phase).toBe('idle');
+    expect(ship.body).toBeNull();
+  }, 180_000);
 });

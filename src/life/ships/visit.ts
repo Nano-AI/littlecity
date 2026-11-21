@@ -63,6 +63,7 @@ import { Crew, type Gangway, type Pile, type Spot } from './crew';
 import { Escort } from './escort';
 import { clearAhead, floatPoints, newsOf } from './news';
 import { removalPuff } from './puff';
+import { critterPose } from '../mischief/critters';
 
 export interface CallInfo {
   id: string;
@@ -139,6 +140,9 @@ export interface Ship {
   /** Mischief: how badly it was hit (0 not at all), and which way it lists going down. */
   hurt?: 0 | 1 | 2 | 3;
   list?: number;
+  /** Mischief, the Hand (src/life/mischief/critters.ts): it is up in the air, out of traffic; or set down on the land (seconds since). */
+  lifted?: boolean;
+  aground?: number;
 }
 
 /** L42: a tall ship crossing far out, in through one side of the map and out through the other, never calling. */
@@ -538,6 +542,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.visits++;
     // A new visit is a sound ship.
     ship.hurt = 0;
+    ship.lifted = false;
+    ship.aground = undefined;
     const turn = turns.get(ship.berth.key);
     if (turn) {
       const [lo, hi] = GAP[ship.kind]();
@@ -620,10 +626,81 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
     ship.t = into;
   };
 
+  /** How long a ship the Hand set down on the land lies there before the town has it refloated (a puff: gone to sea). */
+  const AGROUND = 30;
+  /**
+   * Mischief, the Hand: while it holds the ship, the ship is out of traffic (no voyage, nothing tied to the
+   * quay, its berth still its own) and drawn where the Hand says, crew aboard. Let go: in clear water it
+   * sails off from there (as a ship whose berth went does); on the land it lies over on its side until it is
+   * picked up again or, after a while, refloated (gone in a puff, its berth's turn comes round). True if it
+   * took the ship's step.
+   */
+  const handled = (ship: Ship, dt: number): boolean => {
+    const body = ship.body!;
+    if (ship.phase === 'sinking') return false;
+    const held = critterPose(stage, `ship:${ship.id}`, ship.kind, ship.pose.x, SEA_Y, ship.pose.z, ship.pose.yaw, 1.4, 1);
+    if (held) {
+      if (!ship.lifted) {
+        ship.lifted = true;
+        ship.aground = undefined;
+        ship.plank?.release();
+        ship.plank = null;
+        ship.plankK = 0;
+        for (const l of ship.lines) l.release();
+        ship.lines = [];
+        ship.escort?.release();
+        ship.escort = null;
+        ship.voyage = null;
+        ship.outbound = null;
+        ship.speed = 0;
+        ship.crew?.setPile(null);
+        setPhase(ship, 'stranded');
+      }
+      for (let i = 0; i < 16; i++) ship.m[i] = held[i]!;
+      ship.pose = { x: held[12]!, z: held[14]!, yaw: Math.atan2(held[8]!, held[10]!) };
+      body.setCut(false);
+      body.pose(ship.m, ship.pose.yaw);
+      ship.crew?.update(dt, ship.m, null, false);
+      return true;
+    }
+    if (ship.lifted) {
+      ship.lifted = false;
+      const mid = (ship.hull.stern + ship.hull.bow) / 2;
+      const mx = ship.pose.x + Math.sin(ship.pose.yaw) * mid, mz = ship.pose.z + Math.cos(ship.pose.yaw) * mid;
+      const cx = Math.floor(mx), cz = Math.floor(mz);
+      const onLand = !!shape && cx >= 0 && cz >= 0 && cx < 48 && cz < 48 && shape.terrain.height[columnIndex(cx, cz)]! > 0;
+      if (!onLand) {
+        // Down in the water with a great splash: it sails on, out to sea from here.
+        setPhase(ship, 'stranded');
+        leaveFromHere(ship);
+        return false;
+      }
+      ship.aground = 0;
+    }
+    if (ship.aground === undefined) return false;
+    ship.aground += dt;
+    // Over on its side on the land, where it came down.
+    const mid = (ship.hull.stern + ship.hull.bow) / 2;
+    const mx = ship.pose.x + Math.sin(ship.pose.yaw) * mid, mz = ship.pose.z + Math.cos(ship.pose.yaw) * mid;
+    const cx = Math.max(0, Math.min(47, Math.floor(mx))), cz = Math.max(0, Math.min(47, Math.floor(mz)));
+    const ground = (shape?.terrain.height[columnIndex(cx, cz)] ?? 0) * CELL_H;
+    fly(ship.pose.x, ground + ship.hull.halfBeam * 0.6, ship.pose.z, ship.pose.yaw, 0, 1.2, 1, ship.m);
+    body.setCut(false);
+    body.pose(ship.m, ship.pose.yaw);
+    ship.crew?.update(dt, ship.m, null, false);
+    if (ship.aground >= AGROUND) {
+      ship.aground = undefined;
+      removalPuff(stage, seed, mx, ground + 0.6, mz, 2.4, ship.visits);
+      finish(ship);
+    }
+    return true;
+  };
+
   const stepShip = (ship: Ship, dt: number, signals: Signals): void => {
     ship.t += dt;
     const body = ship.body;
     if (!body) return;
+    if (handled(ship, dt)) return;
     if (ship.phase === 'sinking') {
       // Down where it was hit: settling by the head, listing, and under (the water hides it); then gone,
       // and its berth's turn comes round again.
@@ -1102,6 +1179,8 @@ export function createHarbour(stage: LifeStage, seed: number): Harbour {
           continue;
         }
         const v = ship.voyage;
+        // In the Hand, or set down on the land by it: left be (handled() puts it back in traffic).
+        if (ship.lifted || ship.aground !== undefined) continue;
         switch (ship.phase) {
           case 'arriving':
             if (ship.orphan) leaveFromHere(ship);

@@ -213,8 +213,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     return true;
   };
   const blastCritter = (x: number, y: number, z: number, c: Critter, kind: 'nuke' | 'bomb' | 'bolt'): void => {
-    // Boats have their own wrecks in a blast (boatwreck.ts); only the Hand throws them.
-    if (c.id.startsWith('boat:')) return;
+    // Boats and ships have their own wrecks in a blast (boatwreck.ts, the harbour); only the Hand throws them.
+    if (c.id.startsWith('boat:') || c.id.startsWith('ship:')) return;
     const v = blastVelocity(x, y, z, c.x, c.y, c.z, hashString(c.id), kind);
     // Small and light: they go a little further.
     if (v) flingCritter(c, v[0] * 1.15, v[1] * 1.1, v[2] * 1.15, { spin: v[3] * 1.2 });
@@ -247,7 +247,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       if (b.phase === 'walk') py += Math.abs(Math.sin(b.t * 14)) * 0.03;
       if (b.phase === 'swim') py = SEA_Y - c.height * 0.25 + pivot;
     }
-    const grow = b.upright ? 1 : flightGrow(airOf(b));
+    // (Only small things are drawn bigger in the air: a ship is big enough.)
+    const grow = b.upright || c.height > 0.6 ? 1 : flightGrow(airOf(b));
     const sc = c.scale * grow;
     const ox = -cm[3]! * pivot * grow, oy = -cm[4]! * pivot * grow, oz = -cm[5]! * pivot * grow;
     m[0] = cm[0]! * sc; m[1] = cm[1]! * sc; m[2] = cm[2]! * sc; m[3] = 0;
