@@ -1,9 +1,9 @@
 // L57 · tier 2 · A wedding at the chapel (discovery LF-01). A chapel (R-H01)
 // whose door opens onto the walking graph with a square (else a street)
-// within WEDDING_REACH steps that can be walked to → posts `wedding|door|`
+// within WEDDING_REACH (20) steps that can be walked to → posts `wedding|door|`
 // outside its door (facing it) and `wedding|square|` at the middle of that
 // square or street. The chapel nearest the town's heart, if there are
-// several. src/life/town/chains/wedding.ts holds the wedding once a day.
+// several. src/life/town/chains/wedding.ts holds the weddings.
 
 import { keyX, keyZ, type CellKey } from '@/core/grid';
 import { defineRule, type Candidate } from '@/resolve/engine/api';
@@ -12,7 +12,8 @@ import { streets } from '@/resolve/facts/streets.fact';
 import { navOf, steps } from './people.lib';
 import { byNearness, doorPlace, heartOf, joined, type Place } from './town.lib';
 
-export const WEDDING_REACH = 12;
+/** Steps from the chapel door to the square (or street) at most: 20, as far as the procession is happy to walk to it (it was 12, and three in thirty grown towns had a chapel with no square that near). */
+export const WEDDING_REACH = 20;
 
 export default defineRule<{ role: 'door' | 'square'; place: Place | null }>({
   id: 'L57.wedding',

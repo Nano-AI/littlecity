@@ -49,6 +49,7 @@
 
 import { CELL_H, DIR4, key, keyX, keyY, keyZ, type CellKey } from '@/core/grid';
 import { lookOf } from '@/parts/people/person';
+import { MeshBuilder } from '@/gen/mesh';
 import { rand } from '@/core/rand';
 import { isFinery, type Finery } from '@/parts/people/finery';
 import { carriedMesh } from '@/parts/people/loads';
@@ -67,6 +68,7 @@ import { partPhases } from '../../signals';
 import { DIR_HEADING, type Board, type Chain, type Plan, type PlanStep, type Post } from '../board';
 import { canWork, homeCell, reaches } from '../hands';
 import { createPetals, type Petals } from './petals';
+import { createDoves, type Doves } from './doves';
 import { archMesh } from './wedding-art';
 import type { ShowChain } from './places';
 
@@ -112,6 +114,8 @@ export interface WeddingChain extends Chain {
   /** Where to look: the couple, or the chapel door; null when none is on. */
   readonly focus: { x: number; y: number; z: number } | null;
   readonly petals: Petals | null;
+  /** Doves in the air now. */
+  readonly doves: number;
   /** Starts one now if there is not one on (fixtures, sequences). */
   begin(board: Board): boolean;
 }
@@ -183,9 +187,25 @@ export function weddingChain(): WeddingChain {
   /** Set while this chain itself ends a member's plan to give them another (their plan's `fail` then does nothing). */
   let reassigning = false;
   let petals: Petals | null = null;
+  let doves: Doves | null = null;
   let boardRef: Board | null = null;
 
-  const petalsOf = (board: Board): Petals => (petals ??= createPetals(board.stage));
+  /** The ink of the floor in a cell, as the floor's own builder names it (path.gen.ts, plaza.gen.ts, the terrain's grass). */
+  const groundInk = (board: Board, cell: CellKey): number | null => {
+    const shape = board.shape;
+    if (!shape) return null;
+    const f = shape.floorAt.get(cell);
+    if (f !== undefined) {
+      const kind = shape.structures.get(f)?.kind;
+      if (kind === 'plaza') return new MeshBuilder({ ink: f }).inkOf('plaza');
+      if (kind !== 'path') return null;
+      const under = keyY(cell) > 0 ? shape.kinds.get(key(keyX(cell), keyY(cell) - 1, keyZ(cell))) : undefined;
+      return new MeshBuilder({ ink: f }).inkOf(under === undefined ? 'dirt' : under === 'dock' ? 'boards' : 'cobbles');
+    }
+    if (shape.structureAt.has(cell) || (keyY(cell) > 0 && shape.kinds.has(key(keyX(cell), keyY(cell) - 1, keyZ(cell))))) return null;
+    return new MeshBuilder({ ink: 'terrain' }).inkOf(`ground${keyY(cell)}`);
+  };
+  const petalsOf = (board: Board): Petals => (petals ??= createPetals(board.stage, (cell) => groundInk(board, cell)));
   const memberOf = (p: Person): Member | undefined => members.find((m) => m.p === p);
   const active = (): Member[] => members.filter((m) => !m.lost);
 
@@ -950,6 +970,9 @@ export function weddingChain(): WeddingChain {
     get petals() {
       return petals;
     },
+    get doves() {
+      return doves?.count ?? 0;
+    },
     begin,
     sync(board) {
       boardRef = board;
@@ -985,6 +1008,11 @@ export function weddingChain(): WeddingChain {
       moving = lastPhase >= 0 && time.phase !== lastPhase;
       lastPhase = time.phase;
       petals?.step(dt, board.now, AIR);
+      // The doves: over the couple while it lasts, then away on the wind.
+      if (doves) {
+        const c = couple.length === 2 && (phase === 'out' || phase === 'procession' || phase === 'celebrate') ? couple : null;
+        doves.step(dt, board.now, c ? { x: (c[0]!.x + c[1]!.x) / 2, y: (c[0]!.y + c[1]!.y) / 2, z: (c[0]!.z + c[1]!.z) / 2 } : null, AIR);
+      }
       // Change back, at home.
       for (const p of [...dressed]) {
         if (memberOf(p)) continue;
@@ -1057,6 +1085,8 @@ export function weddingChain(): WeddingChain {
           if (board.stage) ringPeal(board.stage, board.now);
           const c = board.centre(door!.cell);
           shower(board, (bride!.x + groom!.x) / 2, c.y, (bride!.z + groom!.z) / 2, 60, 0);
+          // White doves let go over the doorstep.
+          (doves ??= createDoves(board.stage)).release(c.x, c.y + 0.6, c.z, 9, rand(board.seed, 'doves', held) * 1e6);
         }
         if (t > WEDDING.vows + 40) finish(board, true);
       } else if (phase === 'out') {
@@ -1130,6 +1160,8 @@ export function weddingChain(): WeddingChain {
       putArch(board, false);
       petals?.dispose();
       petals = null;
+      doves?.dispose();
+      doves = null;
     },
   };
   return chain;

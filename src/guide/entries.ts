@@ -1305,7 +1305,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'wedding',
     group: 'events',
     name: 'A wedding',
-    how: 'Put a chapel (a house beside a tower) with its door on a path that runs to a plaza, and houses round about. Most mornings a couple is married there and the guests walk them to the plaza.',
+    how: 'Put a chapel (a house beside a tower) with its door on a path that runs to a plaza no more than 20 steps away, and houses round about. Every few minutes by day the bells ring for a wedding: the party, dressed in black and white, lines the way from the door, and the couple lead a procession through the streets to the plaza in a shower of petals.',
     proof: { socket: { rule: 'L57.wedding' } },
     seed: 7802,
     build(b) {

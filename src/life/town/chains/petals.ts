@@ -131,35 +131,52 @@ function blade(b: MeshBuilder, x: number, y: number, z: number, yaw: number, siz
   b.polygon([...pts].reverse());
 }
 
-function patchMesh(p: Patch): MeshData {
+function patchMesh(p: Patch, k: number, ink: number | null): MeshData {
   const b = new MeshBuilder({ ink: `petals:${p.cell}` }).setPattern(PATTERN.none).setInk('petals');
+  // Lying on a path, a square or the grass, they share its ink: no pen line round each petal (at this
+  // size a ring of ink is all that would show), only the pink on the ground.
+  if (ink !== null) b.setInkId(ink);
   for (const q of p.petals) {
     b.setColor(FINERY.petals[q.colour % FINERY.petals.length]!);
-    blade(b, q.x, q.y, q.z, q.yaw, SIZE);
+    blade(b, q.x, q.y, q.z, q.yaw, SIZE * k);
   }
   return b.build();
+}
+
+/**
+ * How much bigger to draw small things in the air (petals, doves) from how far off the camera is: 1 close
+ * in (zoom 6 and more), up to `most` from the whole-island view. Read from the app's view, as the people
+ * system reads it for loads; 1 where there is none (tests, shots without the app).
+ */
+export function farScale(most: number): number {
+  const z = (globalThis as { __lc?: { view?: { getCamera?(): { zoom: number } } } }).__lc?.view?.getCamera?.().zoom;
+  if (z === undefined) return 1;
+  return 1 + (most - 1) * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
 }
 
 const HIDE: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
 const m4: Mat4 = new Array<number>(16).fill(0);
 
 /** Ry(yaw) · Rx(tilt) · S at (x, y, z): a tumbling petal. */
-function tumble(x: number, y: number, z: number, yaw: number, tilt: number, out: Mat4): Mat4 {
+function tumble(x: number, y: number, z: number, yaw: number, tilt: number, out: Mat4, k = 1): Mat4 {
   const c = Math.cos(yaw), sn = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
-  out[0] = c; out[1] = 0; out[2] = -sn; out[3] = 0;
-  out[4] = sn * st; out[5] = ct; out[6] = c * st; out[7] = 0;
-  out[8] = sn * ct; out[9] = -st; out[10] = c * ct; out[11] = 0;
+  // Ry(yaw) · Rx(tilt) · S(k)
+  out[0] = c * k; out[1] = 0; out[2] = -sn * k; out[3] = 0;
+  out[4] = sn * st * k; out[5] = ct * k; out[6] = c * st * k; out[7] = 0;
+  out[8] = sn * ct * k; out[9] = -st * k; out[10] = c * ct * k; out[11] = 0;
   out[12] = x; out[13] = y; out[14] = z; out[15] = 1;
   return out;
 }
 
-export function createPetals(stage: LifeStage | null): Petals {
+/** `inkOf`: the ink of the ground in a cell (its path, square or grass), so petals lying there draw no outline. */
+export function createPetals(stage: LifeStage | null, inkOf?: (cell: CellKey) => number | null): Petals {
   const flying: Flying[] = [];
   const idle: InstanceHandle[][] = [];
   const patches = new Map<CellKey, Patch>();
   let lying = 0;
   let clock = 0;
   let tick = -1;
+  let ground = 1;
 
   const handleFor = (colour: number, x: number, y: number, z: number): InstanceHandle | null => {
     if (!stage) return null;
@@ -193,7 +210,7 @@ export function createPetals(stage: LifeStage | null): Petals {
     p.h?.release();
     p.h = null;
     if (!stage || p.petals.length === 0) return;
-    p.h = stage.spawnMesh(patchMesh(p), place(0, 0, 0));
+    p.h = stage.spawnMesh(patchMesh(p, ground, inkOf?.(p.cell) ?? null), place(0, 0, 0));
   };
 
   const take = (p: Patch): Lying[] => {
@@ -277,10 +294,17 @@ export function createPetals(stage: LifeStage | null): Petals {
       const t = Math.floor(now * 15);
       if (t !== tick) {
         tick = t;
+        const k = farScale(2.6);
         for (const f of flying) {
           if (!f.h) continue;
           const a = Math.max(0, f.age);
-          f.h.setMatrix(tumble(f.x, f.y, f.z, f.yaw + a * f.spin * 0.3, Math.sin(a * f.spin) * 1.1, m4));
+          f.h.setMatrix(tumble(f.x, f.y, f.z, f.yaw + a * f.spin * 0.3, Math.sin(a * f.spin) * 1.1, m4, k));
+        }
+        // On the ground, drawn in three sizes as the camera draws back (redrawn when that changes).
+        const size = k < 1.4 ? 1 : k < 2 ? 1.45 : 1.9;
+        if (size !== ground) {
+          ground = size;
+          for (const p of patches.values()) p.dirty = true;
         }
         for (const p of patches.values()) if (p.dirty) redraw(p);
       }
