@@ -1127,6 +1127,9 @@ packing up and walking home. Catalogue L57 (the wedding) and L63–L66.
 | Snow day (L64) | settled snow, by day | the biggest square | a snowman going up, a ring of children, snowballs arcing |
 | Harvest supper (L65) | autumn, late day into dusk | down the middle of the biggest square | a long white table with lanterns strung over it |
 | Picnics (L66) | spring (summer without a beach), fair, by day | open grass by trees near the houses | checked blankets with families round them |
+| Carol singers (L67) | winter (or the festival), at dusk | a round of front doors near the heart | a little group of glowing lanterns moving door to door, notes floating up |
+| Waving the ship in (L68) | a big ship coming in, by day | the pier end nearest it | children jumping and waving at the end of the pier |
+| Ice-cream cart (with L63) | while a beach day is on | behind the sand | a cart under a pink umbrella with a queue |
 | Wedding (L57) | by day, any season | chapel to square | the black-and-white party, petals, the column |
 
 **Rules for every scene.** Its posts come from a rule (`src/rules/life/
@@ -1155,6 +1158,13 @@ grown-market): spring, picnics at 30 s and a wedding at 40 s; summer, a beach
 day at 16–35 s, a wedding at 40 s, a second beach day at 217 s; autumn, a
 wedding and a supper; winter, a snow day at 24–29 s and a wedding; at most
 two at once; besides the games on the fields, market day and the shows.
+
+Round 2 (measured again with every scene in, time held at day, five minutes):
+spring picnics and a wedding; summer a beach day, a wedding and a second beach
+day; autumn a wedding and a supper; winter a snow day and a wedding, and with
+the time running the carol singers at dusk. The signature scene of each season
+starts first (15–40 s) and is never starved: the wedding ignores the gap but
+the others wait for it only while it gathers.
 
 **Notes** (`src/app/scene-note.ts`, replacing the wedding's own). One small
 card at the top names a scene once it is worth a look ("A beach day on the
