@@ -148,3 +148,29 @@ export const SUPPER_COLOURS = {
   runner: '#d9873a',
   lanterns: ['#ffcf6b', '#f08a5d', '#ffe39a', '#e56b58'] as readonly string[],
 };
+
+/** L66: a picnic on the grass in spring. */
+export const PICNIC = defineStyle(
+  'picnic',
+  {
+    /** Spring's weight in the season for a picnic (and in summer too where the town has no beach). */
+    spring: 0.5,
+    /** Seconds after the town is seen for the first, and from the end of one to the next. */
+    first: 30,
+    every: 120,
+    everySpread: 100,
+    /** Blankets at most, and how far from home (grid steps). */
+    blankets: 4,
+    reach: 30,
+    /** Seconds on the grass once the blanket is down (and up to `staySpread` more). */
+    stay: 110,
+    staySpread: 50,
+  },
+  { spring: [0, 1, 0.05], first: [0, 300, 1], every: [0, 900, 5], everySpread: [0, 600, 5], blankets: [1, 8, 1], reach: [6, 60, 1], stay: [10, 600, 5], staySpread: [0, 300, 5] },
+);
+
+export const PICNIC_COLOURS = {
+  checks: ['#d9473c', '#2f5ea8', '#3fa58a', '#e3a02b'] as readonly string[],
+  mid: ['#f2a49b', '#a9bde3', '#a7d8c6', '#f2d29b'] as readonly string[],
+  pie: '#d9a25a',
+};

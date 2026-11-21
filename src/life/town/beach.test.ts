@@ -44,8 +44,10 @@ function allPutAway(r: Run, keep: ReadonlySet<unknown> = new Set()): void {
   for (const p of r.t.crowd.people) {
     if (keep.has(p)) continue;
     expect(isBeachWear(p.costume), `${p.id} still in beach clothes (${p.mode}, ${p.goal?.errand?.tag})`).toBe(false);
-    expect(p.load === null || !/parasol|deckchair|hamper|pail|beachball/.test(p.load), `${p.id} still holds ${p.load}`).toBe(true);
-    expect(p.party).toBe(false);
+    // (With the beach gone the town has picnics in summer, with their own baskets: theirs are not counted.)
+    const other = r.t.board.claimedBy(p) !== null && r.t.board.claimedBy(p)?.id !== 'beach';
+    expect(other || p.load === null || !/parasol|deckchair|hamper|pail|beachball/.test(p.load), `${p.id} still holds ${p.load}`).toBe(true);
+    expect(p.party && !other).toBe(false);
     expect(p.drawX ?? 0).toBe(0);
   }
   if (keep.size > 0) return;

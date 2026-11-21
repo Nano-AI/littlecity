@@ -1092,6 +1092,27 @@ every cadence, so a held time of day, season or weather keeps them coming.
   rain (packed up at once) or with a bomb within 12 cells; leave a table on a
   square that was built over (it goes with a puff, everybody home).
 
+- **L66 · 2 · Picnics** — open grass or garden near the houses (a walking
+  cell on bare grass or a garden floor, not a playing field, sand, clutter or a
+  doorstep, all four neighbours walkable, 2–30 steps from a front door, in a
+  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>`, three cells or
+  more apart, under or beside trees first (a tree within two cells), then
+  nearest the houses. **When:** spring weighing half or more (or summer in a
+  town with no beach), no rain, cloud at most 0.85, by day; 30 s after the town
+  is seen, then 120–220 s after the last ended. **Who:** one household a spot
+  (a grown-up with the blanket, up to two children, another grown-up with the
+  basket), living within 30 steps. **Story:** the blanket rolled and strapped
+  on the shoulder, the basket at the side; at the spot the blanket is shaken
+  out and spread (a puff: a checked blanket with a pie, a loaf, apples and a
+  jug on it), the basket set at its corner; 110–160 s: the grown-ups sit at its
+  sides facing in, talking in turns, now and then lying back; the children run
+  round and round it chasing each other, resting on its edge between chases.
+  Then the blanket is rolled up and shouldered, the basket picked up, home.
+  **Rain** (over 0.15): everything grabbed up and home at a brisk walk.
+  **Must not:** leave a blanket down with nobody of its family left to take it
+  up (it goes with a puff when the last of them has gone); stay on grass built
+  over (everything with a puff, everybody home).
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

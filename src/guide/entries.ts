@@ -20,6 +20,8 @@ import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '
 const WEDDING_GUIDE_AT = 96;
 /** Seconds of life before the beach day's picture: the parasols up along the sand, the families there (timed in a run of its recipe). */
 const BEACH_GUIDE_AT = 130;
+/** Seconds of life before the picnics' picture: blankets spread, families round them. */
+const PICNIC_GUIDE_AT = 85;
 
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
@@ -1349,6 +1351,24 @@ export const ENTRIES: readonly GuideEntry[] = [
     // The families set up on the sand (BEACH_GUIDE_AT).
     life: { settle: BEACH_GUIDE_AT, residents: true },
     frame: [12, 17, 21, 21, 2],
+  },
+  {
+    id: 'picnic',
+    group: 'events',
+    name: 'Picnics',
+    how: 'Leave open grass with a few trees beside your houses. On fair spring days (and in summer, if the town has no beach) families carry out checked blankets and baskets, spread them on the grass and sit round them while the children chase about.',
+    proof: { socket: { rule: 'L66.picnic' } },
+    seed: 7804,
+    build(b) {
+      b.path(12, 17, 31, 17);
+      for (let i = 0; i < 5; i++) b.house(13 + i * 4, 14, { w: 2, d: 3, floors: 2, color: (i * 3 + 1) % 8 });
+      for (const [x, z] of [[16, 21], [22, 22], [27, 20], [19, 25], [25, 25]] as const) b.put('tree', x, z);
+    },
+    view: { yaw: 25, pitch: 42 },
+    pad: 0.2,
+    // The blankets out on the grass (PICNIC_GUIDE_AT).
+    life: { settle: PICNIC_GUIDE_AT, residents: true },
+    frame: [12, 17, 22, 21, 1],
   },
 ];
 
