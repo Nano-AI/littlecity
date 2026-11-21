@@ -1404,3 +1404,14 @@ list of contrived set pieces not fixed: the walled tower, standalone
 watchtowers, the folly tower inland, shrines stamped three or four
 times. The hand-built `everything` scenario still has a folly.
 Running: nothing of mine.
+
+**More windmills (Derek, 2026-11-21).** "I really like the look of
+windmills and I want to see more of them"; almost none of his towns had
+one except the farming village. → grow-town agent
+(`a5aa1417a439de127`), resumed: measure mills per town by kind, then a
+windmill in at least 95 % of towns of every kind, usually two or more,
+through several forms (the mill corner and a small version, a lone
+hilltop mill, a quay mill, a row by the fields, a market or bakery mill
+that the bread chain uses, a town mill on a tower stack, more
+watermills), placed by fit with fall-backs.
+Running: grow-town (windmills).
