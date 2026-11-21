@@ -22,6 +22,10 @@ const WEDDING_GUIDE_AT = 96;
 const BEACH_GUIDE_AT = 130;
 /** Seconds of life before the picnics' picture: blankets spread, families round them. */
 const PICNIC_GUIDE_AT = 85;
+/** Seconds of life before the snow day's picture: the snowman up, the forts built, snowballs flying. */
+const SNOW_GUIDE_AT = 105;
+/** Seconds of life before the supper's picture: tables up, lanterns lit, everybody at table. */
+const SUPPER_GUIDE_AT = 85;
 
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
@@ -84,7 +88,14 @@ export interface GuideEntry {
    * simulated day. Every other picture leaves people, birds and boats out. `residents` keeps the
    * town's people in it too (the events).
    */
-  life?: { settle: number; residents?: boolean };
+  life?: {
+    settle: number;
+    residents?: boolean;
+    /** The season, weather and time of day held for the picture (default summer, a clear sky, day): the scenes of one season (L64, L65). */
+    season?: string;
+    weather?: string;
+    time?: 'day' | 'dusk';
+  };
   /** Frame only these columns (inclusive), `top` levels high, instead of the whole recipe. */
   frame?: readonly [x0: number, z0: number, x1: number, z1: number, top: number];
 }
@@ -1369,6 +1380,44 @@ export const ENTRIES: readonly GuideEntry[] = [
     // The blankets out on the grass (PICNIC_GUIDE_AT).
     life: { settle: PICNIC_GUIDE_AT, residents: true },
     frame: [12, 17, 22, 21, 1],
+  },
+  {
+    id: 'snow-day',
+    group: 'events',
+    name: 'A snow day',
+    how: 'Lay a plaza with houses round it. When snow lies deep, the children come running out, roll a snowman in the middle of the square, give it a hat and a scarf, then build snow forts either side and have a snowball fight.',
+    proof: { socket: { rule: 'L64.snow-day' } },
+    seed: 7805,
+    build(b) {
+      b.plaza(17, 18, 23, 21);
+      for (let i = 0; i < 3; i++) b.house(17 + i * 3, 15, { w: 2, d: 2, floors: 2, color: (i * 3) % 8 });
+      for (let i = 0; i < 3; i++) b.house(17 + i * 3, 23, { w: 2, d: 2, floors: 1, color: (i * 5 + 1) % 8 });
+      b.path(16, 17, 24, 17).path(16, 22, 24, 22);
+    },
+    view: { yaw: 25, pitch: 40 },
+    pad: 0.2,
+    // The fight round the finished snowman (SNOW_GUIDE_AT), with deep snow lying.
+    life: { settle: SNOW_GUIDE_AT, residents: true, season: 'winter', weather: 'clear' },
+    frame: [17, 18, 23, 21, 1],
+  },
+  {
+    id: 'harvest-supper',
+    group: 'events',
+    name: 'A harvest supper',
+    how: 'Lay a plaza at least three by three with houses round it. In autumn, late in the day, the neighbours set a long table down the middle of the square under a string of lanterns and sit down to supper together.',
+    proof: { socket: { rule: 'L65.supper' } },
+    seed: 7806,
+    build(b) {
+      b.plaza(17, 18, 23, 21);
+      for (let i = 0; i < 3; i++) b.house(17 + i * 3, 15, { w: 2, d: 2, floors: 2, color: (i * 3 + 2) % 8 });
+      for (let i = 0; i < 3; i++) b.house(17 + i * 3, 23, { w: 2, d: 2, floors: 1, color: (i * 5 + 3) % 8 });
+      b.path(16, 17, 24, 17).path(16, 22, 24, 22);
+    },
+    view: { yaw: 25, pitch: 40 },
+    pad: 0.2,
+    // At table under the lanterns at dusk (SUPPER_GUIDE_AT).
+    life: { settle: SUPPER_GUIDE_AT, residents: true, season: 'autumn', weather: 'clear', time: 'dusk' },
+    frame: [17, 18, 23, 21, 1],
   },
 ];
 

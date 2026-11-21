@@ -80,6 +80,8 @@ export const BEACH_COLOURS = {
   ball: ['#e5503f', '#fdfaf3', '#3d7fd6', '#f6c63e'] as readonly string[],
   pail: ['#e5503f', '#3d7fd6', '#f6c63e', '#3fa58a'] as readonly string[],
   book: ['#b0413e', '#2f5ea8', '#3c7a4e'] as readonly string[],
+  /** The ice-cream cart: its lid and umbrella, the tubs, a scoop. */
+  icecream: ['#f497c0', '#fff3d6', '#f7b6cf'] as readonly string[],
 };
 
 /** L64: a snow day. */
@@ -170,7 +172,24 @@ export const PICNIC = defineStyle(
 );
 
 export const PICNIC_COLOURS = {
-  checks: ['#d9473c', '#2f5ea8', '#3fa58a', '#e3a02b'] as readonly string[],
-  mid: ['#f2a49b', '#a9bde3', '#a7d8c6', '#f2d29b'] as readonly string[],
+  checks: ['#d62f22', '#2456b8', '#1f9a74', '#e8901a'] as readonly string[],
+  mid: ['#ee7d70', '#7f9fe0', '#6fcaa6', '#f4b85c'] as readonly string[],
   pie: '#d9a25a',
 };
+
+/** L67: carol singers going door to door at winter dusk. */
+export const CAROLS = defineStyle(
+  'carols',
+  {
+    /** Doors on the round at most; singers at most; seconds of singing at each door. */
+    doors: 6,
+    singers: 6,
+    sing: 9,
+    /** With the time held (at dusk or night): from the end of one round to the next. */
+    every: 200,
+    everySpread: 120,
+    /** Winter's weight in the season for carols (or the festival on). */
+    winter: 0.5,
+  },
+  { doors: [3, 10, 1], singers: [2, 10, 1], sing: [2, 30, 0.5], every: [0, 900, 5], everySpread: [0, 600, 5], winter: [0, 1, 0.05] },
+);

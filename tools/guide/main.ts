@@ -148,9 +148,10 @@ const api = {
     view ??= createTownView(canvas, { preserveDrawingBuffer: true, pixelRatio: window.devicePixelRatio });
     view.resize(width, height);
     signals = createSignals(scn.seed);
-    // Summer and a clear sky, held (seasons, design section 13a): pictures as they always were.
-    applyCalendar(signals, 'summer', 'clear', true);
-    signals.hold('day');
+    // Summer and a clear sky, held (seasons, design section 13a): pictures as they always were; an entry
+    // whose scene belongs to a season (the snow day, the harvest supper) holds its own.
+    applyCalendar(signals, entry.life?.season ?? 'summer', entry.life?.weather ?? 'clear', true);
+    signals.hold(entry.life?.time ?? 'day');
     life = createLife(view.stage, signals);
     view.setTown(shape, dressing);
     life.sync({ shape, dressing });

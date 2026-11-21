@@ -1479,3 +1479,41 @@ day or supper (the guide's picture tool cannot hold a season). Round 2
 sent: carol singers, an ice-cream cart, fishing off the pier, skating,
 leaf piles, a street performer, an evening promenade.
 Running: town-scenes round 2.
+
+**Ragdoll and the Hand (Derek, 2026-11-21).** New agent
+`a0dfec5cd5f0c15d7` on `swarm/ragdoll` (Opus). (1) People (and ground
+animals, soldiers, the rider) are thrown outward by a nuke's ring, a
+bomb's blast and a close lightning strike: ballistic arcs with a floppy
+tumble, stopped by walls and roofs, a splash and a swim in the sea,
+then dizzy stars, then up again; nobody hurt, nobody vanishes; a small
+deterministic integrator, no physics dependency; back on the walking
+graph after. (2) A Hand tool in Mischief: press and hold picks up a
+person, animal, bird, cart, boat or (if it can look right) a big ship,
+carried over the roofs, dropped or thrown by a flick, landing as in
+(1). Buildings not in the first round: the agent is to say what it
+would take. Order: ragdoll whole first, then the Hand for people and
+animals, then birds, carts, small boats, then big ships. Told to keep
+changes to shared people files small (town-scenes round 2 is in
+`src/life/town` and `src/life/people` now).
+Running: town-scenes round 2, ragdoll.
+
+**Town scenes round 2 merged** (`84984f6`, Opus). New: carol singers
+L67 (winter or festival dusk: up to six with lanterns on poles sing at
+up to six doors, householders come out), an ice-cream cart at the beach
+(a queue, cones carried off), children waving a ship in L68 (to the
+pier end nearest an arriving big ship). Fixed from round 1: picnics lie
+together as a picnic ground with bright blankets and a parasol, only on
+open grass; the snowman is 1.35× bigger, rolled balls grow to its size,
+each side packs a snow fort, bigger snowballs (the seasons code's
+snowman that just appeared is removed, so the built one is the only
+one); beach pack-up is unhurried unless it rains; a guide entry can
+hold its own season, weather and time (`tools/guide/main.ts`), so the
+snow day and supper have pictures. Scenes no longer take someone
+standing at another chain's job. Gate: 2,284 passed, 12 skipped, clean.
+Orchestrator looked at the picnic ground (better; still modest), the
+ice-cream cart (reads), carols (a small cluster of lanterns; modest at
+town zoom), the snow day at town view (snowman and children; the fight
+does not read). The ship welcome has not been seen in a picture by
+anyone. Not built: a miller's cart, skating, leaf piles, a street
+performer, fishing, a promenade.
+Running: ragdoll and the Hand.

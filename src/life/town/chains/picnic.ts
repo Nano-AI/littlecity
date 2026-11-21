@@ -22,7 +22,8 @@
 import { keyX, keyZ } from '@/core/grid';
 import { rand } from '@/core/rand';
 import type { InstanceHandle } from '@/life/api';
-import { hamperMesh } from '@/parts/people/beach';
+import { hamperMesh, parasolMesh } from '@/parts/people/beach';
+import { kiteMesh, lineMesh } from '@/parts/people/extras';
 import type { Load } from '@/parts/people/loads';
 import { blanketMesh, BLANKET } from '@/parts/people/picnic';
 import { PERSON } from '@/style/people';
@@ -56,7 +57,9 @@ interface Spot {
   y: number;
   z: number;
   blanket: InstanceHandle | null;
+  /** The basket, or (at the first blanket of the ground) a big parasol over it, carried by the second grown-up. */
   hamper: InstanceHandle | null;
+  parasol: boolean;
   people: Picnicker[];
 }
 
@@ -90,6 +93,7 @@ export function picnicChain(): PicnicChain {
   };
   const all = (): Picnicker[] => spots.flatMap((s) => s.people);
   const blanketLoad = (s: Spot): Load => `blanket-${(s.colour % 4) as 0 | 1 | 2 | 3}`;
+  const basketLoad = (s: Spot): Load => (s.parasol ? `parasol-${((s.colour + 1) % 6) as 0 | 1 | 2 | 3 | 4 | 5}` : 'hamper');
   const sideSpot = (s: Spot, side: number, r = BLANKET + 0.05): { x: number; z: number; face: number } => {
     const a = (side * Math.PI) / 2 + 0.35;
     const x = s.x + Math.sin(a) * r, z = s.z + Math.cos(a) * r;
@@ -115,7 +119,7 @@ export function picnicChain(): PicnicChain {
       const kids = fam.filter((p) => p.child).sort((a, b) => (a.id < b.id ? -1 : 1));
       const crew = [adults[0]!, ...kids.slice(0, 2), ...adults.slice(1, 2)].slice(0, 4);
       const c = board.centre(target);
-      const spot: Spot = { post, colour: Math.floor(rand(board.seed, 'picnic-colour', fam[0]!.home, held) * 4), x: c.x, y: c.y, z: c.z, blanket: null, hamper: null, people: [] };
+      const spot: Spot = { post, colour: Math.floor(rand(board.seed, 'picnic-colour', fam[0]!.home, held) * 4), x: c.x, y: c.y, z: c.z, blanket: null, hamper: null, parasol: out.length === 0, people: [] };
       let side = 0;
       for (const p of crew) {
         taken.add(p);
@@ -156,7 +160,7 @@ export function picnicChain(): PicnicChain {
   const plannerOf = (board: Board, pk: Picnicker): Plan | null => {
     const s = pk.spot;
     const at = pk.role === 'child' ? sideSpot(s, pk.side, BLANKET + 0.1) : sideSpot(s, pk.side);
-    const load: Load | null = pk.role === 'blanket' ? blanketLoad(s) : pk.role === 'hamper' ? 'hamper' : null;
+    const load: Load | null = pk.role === 'blanket' ? blanketLoad(s) : pk.role === 'hamper' ? basketLoad(s) : null;
     const sit = board.stepAt(s.post.cell, { spot: { x: at.x, z: at.z }, face: NaN, pose: 'stand', linger: 1e6, load, tag: 'picnic:here', done: (q) => {
       const me = all().find((x) => x.p === q);
       if (me && me.state === 'coming') {
@@ -216,15 +220,41 @@ export function picnicChain(): PicnicChain {
     }
   };
   const putHamper = (board: Board, s: Spot, on: boolean): void => {
-    const x = s.x + BLANKET * 0.9, z = s.z - BLANKET * 0.9;
+    const x = s.x + BLANKET * (s.parasol ? 0.75 : 0.9), z = s.z - BLANKET * (s.parasol ? 0.75 : 0.9);
     if (on && !s.hamper) {
-      s.hamper = board.stage ? board.stage.spawnMesh(hamperMesh(), place(x, s.y, z, 0.6)) : DUMMY();
+      s.hamper = board.stage ? board.stage.spawnMesh(s.parasol ? parasolMesh(s.colour + 1) : hamperMesh(), place(x, s.y, z, s.parasol ? Math.atan2(s.x - x, s.z - z) : 0.6)) : DUMMY();
       puff(board, x, s.y, z, 1);
     } else if (!on && s.hamper) {
       s.hamper.release();
       s.hamper = null;
       puff(board, x, s.y, z, 1);
     }
+  };
+
+  /** The kite over the picnic ground: who flies it, and its drawings. */
+  const WIND = { x: 0.6, z: 0.8 };
+  let kite: { kite: InstanceHandle; line: InstanceHandle } | null = null;
+  let kiteUp = 0;
+  const kiter = (): Picnicker | undefined => all().find((k) => k.role === 'child' && !k.lost && k.state !== 'gone');
+  const flyKite = (board: Board, p: Person, up: number): void => {
+    if (!board.stage) return;
+    kite ??= { kite: board.stage.spawnMesh(kiteMesh(p.look % 10), place(p.x, p.y, p.z, 0)), line: board.stage.spawnMesh(lineMesh(), place(p.x, p.y, p.z, 0)) };
+    if (up >= 1) kiteUp = 1;
+    const t = board.now;
+    const k = Math.min(1, up);
+    const weave = Math.sin(t * 1.3) * 0.25, bob = Math.sin(t * 0.9) * 0.12;
+    const out = 1.5 * k;
+    const kx = p.x + WIND.x * out - WIND.z * weave * k, ky = p.y + 0.4 + 1.3 * k + bob * k, kz = p.z + WIND.z * out + WIND.x * weave * k;
+    const hx = p.x + Math.sin(p.heading) * 0.05, hy = p.y + 0.46, hz = p.z + Math.cos(p.heading) * 0.05;
+    // The kite faces back toward the child, tipped up into the wind (as people.system draws the children's).
+    const zx = -WIND.x * 0.8, zy = 0.6, zz = -WIND.z * 0.8;
+    const xl = Math.hypot(zz, zx) || 1;
+    const xx = zz / xl, xz = -zx / xl;
+    kite.kite.setMatrix([xx * 1.5, 0, xz * 1.5, 0, (zy * xz) * 1.5, (zz * xx - zx * xz) * 1.5, -zy * xx * 1.5, 0, zx * 1.5, zy * 1.5, zz * 1.5, 0, kx, ky, kz, 1]);
+    const lx = kx - hx, ly = ky - hy, lz = kz - hz;
+    const ll = Math.hypot(lx, ly, lz) || 1, lh = Math.hypot(lx, lz) || 1;
+    const sx = lz / lh, sz = -lx / lh;
+    kite.line.setMatrix([lx, ly, lz, 0, (-ly * sz) / ll, (sz * lx - sx * lz) / ll, (ly * sx) / ll, 0, sx, 0, sz, 0, hx, hy, hz, 1]);
   };
 
   /** Everybody home; with `off`, at once (what is down goes with a puff). */
@@ -254,6 +284,11 @@ export function picnicChain(): PicnicChain {
           if (board.claimedBy(p) === chain) board.unclaim(p);
         }
       }
+    }
+    if (kite) {
+      kite.kite.release();
+      kite.line.release();
+      kite = null;
     }
     spots = [];
     if (scene) scenesOf(board).end(scene);
@@ -301,7 +336,7 @@ export function picnicChain(): PicnicChain {
             pk.p.load = blanketLoad(s);
           } else if (pk.role === 'hamper' && s.hamper) {
             putHamper(board, s, false);
-            pk.p.load = 'hamper';
+            pk.p.load = basketLoad(s);
           }
           carry(board, pk.p);
           const plan = board.plans.get(pk.p);
@@ -352,6 +387,16 @@ export function picnicChain(): PicnicChain {
             continue;
           }
           if (pk.state === 'stay') {
+            if (pk === kiter()) {
+              // Flying a kite from the blanket's edge, high over the picnic ground.
+              const st = sideSpot(s, 2, BLANKET + 0.04);
+              if (walkTo(p, st.x, st.z, dt, 0.6)) {
+                p.heading = Math.atan2(WIND.x, WIND.z);
+                hold(p, 'kite');
+                flyKite(board, p, 1);
+              }
+              continue;
+            }
             if (pk.role === 'child') {
               // Round and round the blanket, the other child after them.
               const a = board.now * 1.4 + pk.side * 1.6;
@@ -380,6 +425,15 @@ export function picnicChain(): PicnicChain {
             p.bubble = rand(p.seed, 'picnic-talk', turn) < 0.2;
             continue;
           }
+          if (pk === kiter() && kite) {
+            // Reeled in before anything else.
+            kiteUp = Math.max(0, kiteUp - dt / 2.5);
+            flyKite(board, p, kiteUp);
+            if (kiteUp > 0) continue;
+            kite.kite.release();
+            kite.line.release();
+            kite = null;
+          }
           if (pk.state === 'pack') {
             hold(p, 'tend');
             p.bubble = false;
@@ -389,7 +443,7 @@ export function picnicChain(): PicnicChain {
               p.load = blanketLoad(s);
             } else if (pk.role === 'hamper') {
               putHamper(board, s, false);
-              p.load = 'hamper';
+              p.load = basketLoad(s);
             }
             carry(board, p);
             pk.state = 'gone';
@@ -405,7 +459,7 @@ export function picnicChain(): PicnicChain {
         for (const pk of all()) {
           if (pk.state !== 'stay' && pk.state !== 'setup') continue;
           // A blanket or basket that never went down stays in the hands.
-          pk.state = (pk.role === 'blanket' && pk.spot.blanket) || (pk.role === 'hamper' && pk.spot.hamper) ? 'pack' : 'gone';
+          pk.state = (pk.role === 'blanket' && pk.spot.blanket) || (pk.role === 'hamper' && pk.spot.hamper) || (pk === kiter() && kite) ? 'pack' : 'gone';
           pk.t = 0;
           if (pk.state === 'gone') {
             pk.p.seat = -1;

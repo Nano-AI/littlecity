@@ -35,12 +35,13 @@ function run(where: TestTown, seconds: number, each?: (t: LivingTown, snow: Snow
 describe('L64: the snow day', () => {
   test('they come out, build a snowman, fight it out, and go home; the snowman stays until the thaw', () => {
     const phases: SnowPhase[] = [];
-    let most = 0, stage = 0, endedAt = -1, kids = 0;
+    let most = 0, stage = 0, endedAt = -1, kids = 0, forts = 0;
     const r = run(town, 200, (t, snow, s) => {
       if (phases[phases.length - 1] !== snow.phase) phases.push(snow.phase);
       most = Math.max(most, snow.players.length);
       kids = Math.max(kids, snow.players.filter((p) => p.p.child).length);
       stage = Math.max(stage, ...snow.snowmen.map((m) => m.stage), 0);
+      forts = Math.max(forts, snow.forts);
       if (endedAt < 0 && phases.includes('fight') && snow.phase === 'none') endedAt = s;
       if (endedAt > 0 && s > endedAt + 50 && s < endedAt + 51) {
         for (const p of t.crowd.people) expect(p.party, `${p.id} still in it`).toBe(false);
@@ -53,8 +54,10 @@ describe('L64: the snow day', () => {
     expect(kids).toBeGreaterThanOrEqual(1);
     expect(stage).toBe(5);
     expect(r.snow.thrown).toBeGreaterThan(10);
-    // Thawed and gone, in a while.
+    expect(forts).toBe(2);
+    // Thawed and gone, in a while: the snowman and the forts.
     expect(r.snow.snowmen.length).toBe(0);
+    expect(r.snow.forts).toBe(0);
   });
 
   test('none without snow lying, or at night', () => {
