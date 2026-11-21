@@ -14,6 +14,7 @@ import { CELL_H, keyX, keyY, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { dazeStarMesh } from '@/parts/people/scuffle-art';
+import { carriedMesh } from '@/parts/people/loads';
 import { defineSystem, type InstanceHandle, type LifeStage } from '../api';
 import { crowdOf } from '../doors/table';
 import { fxOf } from '../fx/fx';
@@ -223,7 +224,7 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
   }
   // The hat, off the head.
   const hat = t.hat;
-  if (hat && !a.hat) a.hat = stage.spawnMesh(strawHatMesh(t.hatColor), HIDE);
+  if (hat && !a.hat) a.hat = stage.spawnMesh(t.loose ? carriedMesh(t.loose) : strawHatMesh(t.hatColor), HIDE);
   if (!hat && a.hat) {
     a.hat.release();
     a.hat = null;

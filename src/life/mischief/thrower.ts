@@ -31,6 +31,7 @@ import { createGround, type Ground } from './ground';
 import { NUKE_TIME, waveRadius } from './nuke-timing';
 import { hold, launch, makeBody, quatToMat3, stepBody, THROWN, type Body, type BodyEvent } from './thrown';
 import type { Critter } from './critters';
+import type { Load } from '../people/errand';
 import { hashString } from '@/core/rand';
 
 /** The numbers of being blown about. */
@@ -90,6 +91,8 @@ export interface Thrown {
   /** Going for the hat: walking to it, bending for it; or it is coming back to them by itself (`return`, seconds). */
   fetch: 'walk' | 'pick' | null;
   hatBack: number;
+  /** When what flew off is not a hat but what they carried (`hat` is then that thing's body): its kind. */
+  loose: Load | null;
 }
 
 export interface Thrower {
@@ -199,6 +202,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
   /** Shockwaves on their way out: where from, how long since, who they have thrown. */
   const waves: { x: number; y: number; z: number; t: number; hit: Set<Person | Critter> }[] = [];
   const critterEvents = new Map<Critter, BodyEvent[]>();
+  let lookUp = 0;
 
   // ── critters ────────────────────────────────────────────────────────────────
   const takeCritter = (c: Critter): Body => {
@@ -351,7 +355,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     }
     const body = makeBody(p.seed, p.x, p.y, p.z, p.heading, PIVOT, RADIUS);
     const look = lookOf(p.look, p.child);
-    const t: Thrown = { person: p, body, hat: null, hatColor: look.hatColor, bowled: 0, node: -1, stride: 0, events: [], fetch: null, hatBack: -1 };
+    const t: Thrown = { person: p, body, hat: null, hatColor: look.hatColor, bowled: 0, node: -1, stride: 0, events: [], fetch: null, hatBack: -1, loose: null };
     // Only a hat that stands off the head comes off (a straw hat); not over wedding finery or beachwear.
     if (look.hat !== 'straw' || p.costume !== null) t.hatColor = '';
     thrown.set(p, t);
@@ -379,8 +383,24 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       hat.dizzy = Infinity;
       t.hat = hat;
       p.tumble!.hatless = true;
+    } else if (!t.hat && p.load && sp > BLOWN.hatAt && rand(p.seed, 'load', b.age) < 0.85) {
+      // What they carried is knocked out of their hands (a hat and a load: one thing flies, the hat first).
+      const thing = makeBody(p.seed ^ 0x51ed, b.x, b.y, b.z, p.heading, 0, 0.04);
+      thing.upright = false;
+      launch(thing, vx * 0.7 + (rand(p.seed, 'lx', b.age) - 0.5) * 1.4, vy * 0.8 + 0.8, vz * 0.7 + (rand(p.seed, 'lz', b.age) - 0.5) * 1.4, 6);
+      thing.dizzy = Infinity;
+      t.hat = thing;
+      t.loose = p.load;
+      p.load = null;
     }
     return true;
+  };
+  /** The hat back on the head, or the load back in the hands. */
+  const pickedUp = (t: Thrown): void => {
+    t.hat = null;
+    t.person.tumble!.hatless = false;
+    if (t.loose) t.person.load = t.loose;
+    t.loose = null;
   };
 
   const blastAt = (x: number, y: number, z: number, p: Person, kind: 'nuke' | 'bomb' | 'bolt'): void => {
@@ -462,6 +482,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
         p.z = Math.max(keyZ(c) + 0.05, Math.min(keyZ(c) + 0.95, p.z));
       }
     }
+    // Whatever flew off comes back with them (nothing is left lying about for good).
+    if (t.hat) pickedUp(t);
     p.tumble = null;
     thrown.delete(p);
     crowd.settle(p, node);
@@ -636,6 +658,24 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       const g = groundNow();
       if (!g) return;
       stepCritters(dt, g);
+      // Somebody (or something) carried overhead by the Hand: those near stop, look up and point.
+      lookUp += dt;
+      if (lookUp >= 0.5) {
+        lookUp = 0;
+        const up: Body[] = [];
+        for (const t of thrown.values()) if (t.body.phase === 'held') up.push(t.body);
+        for (const c of critters.values()) if (c.body?.phase === 'held') up.push(c.body);
+        for (const b of up) {
+          for (const p of crowd.people) {
+            if (!p.visible || thrown.has(p) || (p.mode !== 'walk' && p.mode !== 'linger') || p.seat >= 0) continue;
+            const dx = b.x - p.x, dz = b.z - p.z;
+            if (dx * dx + dz * dz > 9) continue;
+            p.startled = Math.max(p.startled, 1.2);
+            p.startledFace = Math.atan2(dx, dz);
+            p.admire = (p.seed & 1) === 0 ? 'look' : 'wave';
+          }
+        }
+      }
       for (const t of [...thrown.values()]) {
         const b = t.body;
         const before = b.phase;
@@ -645,10 +685,9 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
         if (ev === 'splash') shoreFor(t);
         if (b.phase === 'walk' && before !== 'walk') {
           if (t.fetch === 'pick') {
-            // Hat back on.
+            // Hat back on (or the load back in the hands).
             t.fetch = null;
-            t.hat = null;
-            t.person.tumble!.hatless = false;
+            pickedUp(t);
           }
           const hat = t.hat;
           if (hat && t.fetch === null && t.hatBack < 0 && hatInReach(b, hat, g)) {
@@ -674,9 +713,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
             hat.z += (b.z - hat.z) * u;
             hat.y += (b.y + 0.42 - hat.y) * u + Math.sin(u * Math.PI) * 0.04;
             if (u >= 1) {
-              t.hat = null;
+              pickedUp(t);
               t.hatBack = -1;
-              t.person.tumble!.hatless = false;
             }
           } else {
             stepBody(hat, dt, g);
@@ -722,7 +760,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
           p.y = nodeHeight(crowd.nav, node);
         }
         t.node = node;
-        t.hat = null;
+        if (t.hat) pickedUp(t);
         t.fetch = null;
         finish(t);
       }

@@ -213,4 +213,23 @@ describe('people blown about', () => {
     expect(ship.phase).toBe('idle');
     expect(ship.body).toBeNull();
   }, 180_000);
+
+  test('what somebody carries is knocked out of their hands, lands near, and is picked up again', () => {
+    const { t } = town();
+    const crowd = crowdOf(t.stage)!;
+    let p: Person | undefined;
+    for (let i = 0; i < 300 && !p; i++) {
+      t.run(0.5);
+      p = crowd.people.find((q) => q.visible && q.load && q.mode === 'walk');
+    }
+    expect(p).toBeDefined();
+    const load = p!.load;
+    const th = throwerOf(t.stage)!;
+    expect(th.fling(p!, 2.5, 4.5, 0)).toBe(true);
+    expect(p!.load).toBeNull();
+    expect(th.thrown.get(p!)?.loose).toBe(load);
+    for (let i = 0; i < 400 && p!.mode === 'thrown'; i++) t.run(0.1);
+    expect(p!.mode).not.toBe('thrown');
+    expect(p!.load).toBe(load);
+  }, 120_000);
 });
