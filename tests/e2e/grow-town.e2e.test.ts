@@ -137,8 +137,17 @@ describe('grow a town', () => {
     // The planner's word on the marble city and the castle town comes in a moment.
     await page.waitForSelector('[data-menu="town-castle"][data-can="true"]');
     await page.waitForSelector('[data-menu="town-marble"][data-can="false"]');
-    expect(await page.isDisabled('[data-menu="town-river"]')).toBe(true);
-    expect(await page.isDisabled('[data-menu="town-marble"]')).toBe(true);
+    expect(await page.getAttribute('[data-menu="town-river"]', 'aria-disabled')).toBe('true');
+    expect(await page.getAttribute('[data-menu="town-marble"]', 'aria-disabled')).toBe('true');
+    // A greyed kind says why: on hover (its title), and in a line under the list when it is pressed. It grows nothing.
+    expect(await page.getAttribute('[data-menu="town-river"]', 'title')).toBe('This island has no river long enough.');
+    expect(await page.isHidden('[data-ui="kind-why"]')).toBe(true);
+    // (The test tool will not press what is marked aria-disabled; a player's finger does.)
+    await page.click('[data-menu="town-river"]', { force: true });
+    await page.waitForSelector('[data-ui="kind-why"]:not([hidden])');
+    expect(await page.textContent('[data-ui="kind-why"]')).toBe('This island has no river long enough.');
+    expect(await page.isVisible('[data-ui="town-kinds"]')).toBe(true);
+    expect(await page.evaluate('window.__lc.ui.growth.active')).toBe(false);
     for (const kind of ['harbour', 'castle', 'market', 'farming', 'hill', 'gardens']) expect(await page.isEnabled(`[data-menu="town-${kind}"]`)).toBe(true);
 
     await page.click('[data-menu="town-castle"]');

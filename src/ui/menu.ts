@@ -67,6 +67,18 @@ export interface Menu {
 /** "harbour town" → "Harbour town". */
 const capital = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 
+/** Why a kind of town cannot be grown on the island there is (shown on hover over its greyed row, or when it is pressed). */
+export const WHY_NOT_HERE: Record<Character, string> = {
+  harbour: 'This island has no coast for a harbour.',
+  marble: 'This island has no flat ground big enough for a forum.',
+  castle: 'This island has no room for a castle.',
+  market: 'This island has no room for a market.',
+  river: 'This island has no river long enough.',
+  farming: 'This island has no room for farms.',
+  hill: 'This island has no high ground.',
+  gardens: 'This island has no room for gardens.',
+};
+
 export function createMenu(actions: MenuActions): Menu {
   const panel = el('div', { class: 'lc-pop lc-menu', attrs: { role: 'menu', hidden: '', 'data-ui': 'menu' } });
   const button = iconButton('menu', 'Menu', {
@@ -248,21 +260,42 @@ export function createMenu(actions: MenuActions): Menu {
    */
   const showTownKinds = (where: 'here' | 'new'): void => {
     const rows = new Map<Character, HTMLButtonElement>();
+    // Why a greyed kind cannot be grown here: said on hover (the row's title) and, for a finger, in a line
+    // under the list when the row is pressed. The row is aria-disabled, not disabled, so both can happen.
+    const why = el('small', { class: 'lc-kind-why', attrs: { 'data-ui': 'kind-why', role: 'status', hidden: '' } });
     const mark = (kind: Character, ok: boolean | null): void => {
       const row = rows.get(kind)!;
-      row.disabled = ok !== true;
+      row.disabled = ok === null;
+      row.setAttribute('aria-disabled', String(ok !== true));
       if (ok === null) row.setAttribute('aria-busy', 'true');
       else row.removeAttribute('aria-busy');
       row.dataset.can = ok === null ? 'checking' : String(ok);
+      row.title = ok === false ? WHY_NOT_HERE[kind] : '';
     };
     const grow = (kind: Character | null) => (signal: AbortSignal) => (where === 'here' ? actions.growTown(kind, signal) : actions.growNewIsland(kind, signal));
-    for (const kind of CHARACTERS) rows.set(kind, kindItem(`town-${kind}`, `town-${kind}`, capital(CHARACTER_NAMES[kind]), grow(kind)));
+    for (const kind of CHARACTERS) {
+      const row = kindItem(`town-${kind}`, `town-${kind}`, capital(CHARACTER_NAMES[kind]), grow(kind));
+      // A kind this island cannot grow: pressing it says why, and grows nothing.
+      row.addEventListener(
+        'click',
+        (e) => {
+          if (row.dataset.can !== 'false') return;
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          why.textContent = WHY_NOT_HERE[kind];
+          why.removeAttribute('hidden');
+        },
+        true,
+      );
+      rows.set(kind, row);
+    }
     const any = kindItem('town-any', 'dice', 'Surprise me', grow(null));
     any.classList.add('lc-kind-any');
     const screen = el('div', { class: 'lc-confirm lc-choice lc-kinds lc-kinds-wide', attrs: { 'data-ui': 'town-kinds', 'data-where': where } }, [
       el('p', { text: 'What kind of town?' }),
       where === 'new' ? leaving() : null,
       el('div', { class: 'lc-kind-grid' }, [any, ...rows.values()]),
+      why,
       back('town-back', showGrow),
     ]);
     panel.replaceChildren(screen);

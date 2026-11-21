@@ -541,9 +541,17 @@
 .lc-kind-grid .lc-kind-any {
   grid-column: 1 / -1;
 }
-/* A kind this island cannot grow: greyed, nothing said. One still being asked about waits the same way. */
-.lc-kinds .lc-menu-item:disabled {
+/* A kind this island cannot grow: greyed; hovering or pressing it says why. One still being asked about waits the same way. */
+.lc-kinds .lc-menu-item:disabled,
+.lc-kinds .lc-menu-item[aria-disabled='true'] {
   opacity: 0.32;
+}
+.lc-kinds .lc-menu-item[aria-disabled='true'] {
+  cursor: help;
+}
+.lc-kinds small.lc-kind-why {
+  margin: 6px 2px 0;
+  max-width: 300px;
 }
 /* A search under way: its row's icon bobs; the other rows wait. */
 .lc-working .lc-menu-item:not(.lc-busy) {

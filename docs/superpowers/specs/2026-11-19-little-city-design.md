@@ -1252,6 +1252,12 @@ town is meant to show off every building combination the rules know.
   hand stays in My towns as its own entry (a grown town grown over again
   does not); on the new-island kind screen the same line as for New island
   ("stays in My towns") stands under the question.
+- **A greyed kind says why** (Derek, 2026-11-20: "if you hover over it it
+  should be like, this island has no river"). A kind this island cannot
+  grow is greyed but not dead: hovering shows the reason as its title, and
+  pressing it shows the same sentence in a line under the list (the only
+  way on touch) and grows nothing. The sentences are `WHY_NOT_HERE` in
+  `src/ui/menu.ts`.
 - **Choosing the kind** (`src/townmaker/kinds.ts`). Surprise me comes first
   and is the dice as before: neither place repeats a character until every
   character that suits the island has had a turn, so a handful of goes
