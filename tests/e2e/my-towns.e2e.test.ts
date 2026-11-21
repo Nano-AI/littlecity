@@ -3,6 +3,7 @@
 // in place; a town can be deleted; a saved town this version cannot read is
 // kept, not written over.
 
+import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { startApp, type App } from '../helpers/browser';
 
@@ -17,7 +18,7 @@ afterAll(async () => {
 const kept = `window.__lc.keeper.current`;
 const seed = `window.__lc.world().seed`;
 
-async function openTowns(page: import('playwright').Page): Promise<void> {
+async function openTowns(page: Page): Promise<void> {
   await page.click('[data-ui="menu-button"]');
   await page.click('[data-menu="towns"]');
   await page.waitForSelector('[data-ui="towns"]:not([hidden]) [data-town]');
