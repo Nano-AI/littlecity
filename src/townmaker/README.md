@@ -16,12 +16,12 @@ highest ground, how much river, how much coast):
 | Character | Leans on | Builds (in priority order) | Leaves out |
 |---|---|---|---|
 | **Harbour town** | long coast | the waterfront is the town: a great harbour (a galleon berth, warehouses, a pier, stilt houses, a boathouse, a quay wall), then up to four more quays along the coast (each a berth of eight where the sea is wide, else six, five or four docks, with a warehouse and a fish stall), two more waterfronts (pier, stilt house, boathouse), a fish market on a little plaza, jetties; the lighthouse; housing, chapel, smithy | castle, temples, mills, fields, farms |
-| **Marble city** | a broad flat site | the forum (below); the acropolis; three shrines (small temples on four pillars); after the streets, three colonnades (pillars and a marble beam along a street) and three monuments (an obelisk or victory column on a small square by a street); the folly and a folly tower; two viaducts; fine housing and courtyards; the manor | farms, fields, castle |
+| **Marble city** | a broad flat site | the forum (below); the acropolis; three shrines (small temples on four pillars); after the streets, three colonnades (pillars and a marble beam along a street) and three monuments (an obelisk or victory column on a small square by a street); four shrines; a folly tower; two viaducts; fine housing and courtyards; the manor | farms, fields, castle |
 | **Castle town** | high ground | the castle (keep, curtain walls, four turrets, gatehouse, bailey); after the streets, a town wall round the heart (wall pieces on the free ground of a ring round the square, an arch over each street that crosses it: gateways, towers at the corners: turrets); three walled towers on the heights; watchtowers; walled gardens and lawns; smithy, chapel and churchyard, hilltop, tight housing | temples, farms |
 | **Market town** | gentle ground | a square with a market cross, town hall, inn, clock tower; the great market (a plaza 9 × 6, or 7 × 5, with two rows of stalls, a market cross, and a market hall along one side: a long marble roof on pillars, a stoa) with streets in at its corners; after the streets, up to four smaller market places; three to five housing blocks; two courtyard blocks; a schoolhouse; a smithy; an inhabited bridge where there is a river; an orchard on the outskirts | castle, temples, farms |
 | **River town** | a long river (the character is not rolled without one) | a square near the river; the river front (a walk along both banks for the river's whole length, two-storey houses one cell back facing it); bridges first, then two inhabited bridges and two more watermills; the riverside (barge landings far apart by water, willows, a reed bed, a boathouse, a watermill); a mill on the bank; orchards; a park; housing | castle, temples |
 | **Farming village** | a broad plain | a small village centre (a plaza with a well and the inn: no town hall, no clock tower) by the green, the chapel; then the farmland as most of the island: wheat fields by their windmills side by side (up to five, 5 × 5 where there is room, smaller where the ground is broken), two wheat farms (windmill, wheat, barn off the road, farmhouse), vegetable plots by their farmhouses, barns by their fields, three orchards, three paddocks, two greenhouses, fenced edges and lanes; cottages only near the green; nothing from a second character | housing blocks, courtyards, castle, temples, sports courts |
-| **Hill town** | steep ground | a square on the low ground; the hilltop (observatory or lookout cottage); up to eight terraced rows of houses stepping up the hill (standing against the rises and on the high shelves, highest first) with stairs and viaducts between them; the castle on a shelf; cliff houses; a walled tower; the acropolis; the folly and folly tower; watchtowers | farms, fields |
+| **Hill town** | steep ground | a square on the low ground; the hilltop (observatory or lookout cottage); up to eight terraced rows of houses stepping up the hill (standing against the rises and on the high shelves, highest first) with stairs and viaducts between them; the castle on a shelf; cliff houses; a walled tower; the acropolis; a mill corner; a folly tower; watchtowers | farms, fields |
 | **Garden town** | gentle ground | the manor and its park; three parks with bandstands; two walled gardens and two walled lawns; two greenhouses; two orchards; playing fields; a schoolhouse; a folly tower; after the streets, four flower beds; avenues of trees along nearly every outer street; the most woodland | castle, farms, temples |
 
 A castle town whose castle finds no site, and a marble city whose forum finds none, grow as another kind of town instead. The secondary character adds its own showpieces (for a castle, the castle
@@ -71,6 +71,33 @@ statues on plinths flanking the stair, a bandstand, a fountain, stalls); a
 stoa closing the east side; a theatre facing it from the west; the town
 hall and an inn along the south. Parts beyond the podium, stair and forum
 are built only where their own ground is flat and free.
+
+Its forms, grandest first (`SIZES`): 17 × 7, 15 × 6 and 13 × 6 courts
+(13 wide, 13 deep of flat ground at least), and the **compact** form: a
+temple on a 5 × 4 podium, a grand stair, a 9 × 5 court with the obelisk,
+and a stoa closing the court's south side (9 × 12 of flat ground).
+
+**Levelling the site** (`levelling.ts`). A marble city stands or falls by its
+forum, but no island lacks one for want of flat ground: when none is flat
+enough, the planner levels a terrace with the game's land edit, choosing
+the rectangle that costs least earth (within two levels for the 13-wide
+form, then the compact form within two, then three, then right to the
+shore). The land edits come first in the growth, are saved with the town
+and go with its undo. A castle town does the same for a small castle on
+a knoll toward the high ground. Generator 2, seeds 1-40: the marble city
+is offered on 39 (seed 18 is a ring of land round a lagoon with no 9 × 12
+of land anywhere); the castle town on all 40.
+
+## The mill corner
+
+In farming, garden, market and hill towns (`districts/mill-corner.ts`): a
+big windmill on the ground at the edge of town, high where the wind is,
+the miller's house against it (R-H03: sacks and a cart), two cottages on
+the lane, a little wheat field beside the mill (a garden within two of a
+windmill is wheat, on purpose), a kitchen garden, a well and a tree in the
+yard, a picket fence with a gate where the lane comes in. It replaces the
+folly (a windmill on a tower on an arch run on pillars), which was built
+only to show several roles at once.
 
 ## Files
 
