@@ -1496,3 +1496,24 @@ animals, then birds, carts, small boats, then big ships. Told to keep
 changes to shared people files small (town-scenes round 2 is in
 `src/life/town` and `src/life/people` now).
 Running: town-scenes round 2, ragdoll.
+
+**Town scenes round 2 merged** (`84984f6`, Opus). New: carol singers
+L67 (winter or festival dusk: up to six with lanterns on poles sing at
+up to six doors, householders come out), an ice-cream cart at the beach
+(a queue, cones carried off), children waving a ship in L68 (to the
+pier end nearest an arriving big ship). Fixed from round 1: picnics lie
+together as a picnic ground with bright blankets and a parasol, only on
+open grass; the snowman is 1.35× bigger, rolled balls grow to its size,
+each side packs a snow fort, bigger snowballs (the seasons code's
+snowman that just appeared is removed, so the built one is the only
+one); beach pack-up is unhurried unless it rains; a guide entry can
+hold its own season, weather and time (`tools/guide/main.ts`), so the
+snow day and supper have pictures. Scenes no longer take someone
+standing at another chain's job. Gate: 2,284 passed, 12 skipped, clean.
+Orchestrator looked at the picnic ground (better; still modest), the
+ice-cream cart (reads), carols (a small cluster of lanterns; modest at
+town zoom), the snow day at town view (snowman and children; the fight
+does not read). The ship welcome has not been seen in a picture by
+anyone. Not built: a miller's cart, skating, leaf piles, a street
+performer, fishing, a promenade.
+Running: ragdoll and the Hand.
