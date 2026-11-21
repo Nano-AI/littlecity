@@ -1448,3 +1448,10 @@ orchestrator's checkout. Gate: 2,245 passed, 12 skipped, clean.
 Orchestrator's eye: the mills are there but modest; in the castle
 town's overview they are easy to miss among the towers.
 Running: town-scenes.
+
+**My towns sheet (orchestrator, Derek 2026-11-21).** New island is
+always the first card, the town on screen second; Delete's icon is a
+bin (`trash` in `src/ui/icons.ts`), not the eraser. `src/ui/towns.ts`
+(another session's file, a two-line change). Gate: 2,243 passed; 2
+timeouts at load 17 (`tests/terrain2-town.test.ts`,
+`src/life/under-fire.test.ts`), both pass alone in 16 s.
