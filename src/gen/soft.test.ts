@@ -8,6 +8,8 @@ import { MeshBuilder, type MeshData } from './mesh';
 import { smoothBall, smoothLathe, soft, softenMesh, type SoftBody } from './soft';
 import { cloudMesh, popMesh, swearMesh } from '@/parts/people/scuffle-art';
 import { bubbleMesh } from '@/parts/people/extras';
+import { buildPerson, lookOf } from '@/parts/people/person';
+import { dogMesh } from '@/parts/people/dog';
 
 const angle = (n: Float32Array, i: number, j: number): number => {
   const d = n[i * 3]! * n[j * 3]! + n[i * 3 + 1]! * n[j * 3 + 1]! + n[i * 3 + 2]! * n[j * 3 + 2]!;
@@ -121,5 +123,17 @@ describe('soft bodies', () => {
       for (let i = 0; i < m.inkId.length; i++) if (m.inkId[i] === balloon) white++;
       expect(white).toBeGreaterThan(100);
     }
+  });
+
+  test('a head and its hair are one soft body; a dog is two (body, head) and its ears and nose', () => {
+    const p = buildPerson(lookOf(7), 'p');
+    const b = new MeshBuilder({ ink: 'p' });
+    const head = b.inkOf('head');
+    const n = p.body.normal, ids = p.body.inkId;
+    const heads: number[] = [];
+    for (let i = 0; i < ids.length; i++) if (ids[i] === head) heads.push(i);
+    expect(heads.length).toBeGreaterThan(100);
+    expect(Number.isFinite(n[heads[0]! * 3]!)).toBe(true);
+    expect(inkGroups(dogMesh('stand', 0)).size).toBe(4);
   });
 });

@@ -10,6 +10,7 @@
 
 import { multiply, rotationX, translation, type Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
+import { smoothBall, smoothLathe, soft } from '@/gen/soft';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
 
@@ -26,13 +27,9 @@ import { PALETTE } from '@/style/palette';
  */
 export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe';
 
+/** A round thing (an apple, a bun, a bloom): smooth both ways (src/gen/soft.ts), so no rings show. */
 function ball(b: MeshBuilder, rx: number, ry: number, segments = 7): void {
-  const prof: [number, number][] = [];
-  for (let i = 0; i <= 5; i++) {
-    const a = Math.PI * (1 - i / 5);
-    prof.push([Math.max(0, Math.sin(a) * rx), Math.cos(a) * ry]);
-  }
-  b.lathe(prof, { segments });
+  smoothBall(b, 0, 0, 0, rx, ry, rx, segments, 5);
 }
 
 function basket(b: MeshBuilder, r: number, h: number, colour = '#b07a3e'): void {
@@ -54,7 +51,7 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
   switch (kind) {
     case 'sack':
       b.setInk('sack').setColor('#e3b866').setPattern(PATTERN.cloth);
-      b.lathe([[0, 0], [0.06, 0.006], [0.068, 0.06], [0.055, 0.12], [0.022, 0.15], [0.03, 0.17], [0, 0.17]], { segments: 8 });
+      smoothLathe(b, [[0, 0], [0.06, 0.006], [0.068, 0.06], [0.055, 0.12], [0.022, 0.15], [0.03, 0.17], [0, 0.17]], { segments: 8, crease: 1.1 });
       b.setInk('band').setColor('#2f5fc0').setPattern(PATTERN.none);
       b.lathe([[0.069, 0.065], [0.066, 0.095]], { segments: 8 });
       break;
@@ -65,11 +62,15 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       for (const [x, z] of [[-0.06, -0.025], [0.0, -0.025], [0.06, -0.025], [-0.03, 0.028], [0.03, 0.028]] as const) b.at(translation(x, 0.012, z), () => ball(b, 0.03, 0.026));
       break;
     case 'loaf':
-      b.setInk('loaf').setColor('#e8892a');
-      b.at(translation(0, 0.03, 0), () => {
-        tube(b, [[-0.09, 0, 0], [0.09, 0, 0]], 0.03, { seg: 6 });
-        b.at(translation(-0.09, 0, 0), () => ball(b, 0.03, 0.03));
-        b.at(translation(0.09, 0, 0), () => ball(b, 0.03, 0.03));
+      // One long loaf, its rounded ends part of its round (soft: no ring where an end meets the middle).
+      soft(b, { ink: 'loaf' }, (s) => {
+        s.b.setColor('#e8892a');
+        s.hold(0, 0.03, 0, 0.12, 0.03, 0.03);
+        s.at(translation(0, 0.03, 0), () => {
+          tube(s.b, [[-0.09, 0, 0], [0.09, 0, 0]], 0.03, { seg: 6 });
+          smoothBall(s.b, -0.09, 0, 0, 0.03, 0.03, 0.03, 6, 4);
+          smoothBall(s.b, 0.09, 0, 0, 0.03, 0.03, 0.03, 6, 4);
+        });
       });
       b.setInk('score').setColor('#f0c27a');
       for (const x of [-0.04, 0.0, 0.04]) b.box([x - 0.006, 0.055, -0.012], [x + 0.006, 0.062, 0.012]);
@@ -131,19 +132,24 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       break;
     case 'basket':
       basket(b, 0.07, 0.065);
-      b.setInk('veg').setColor('#e07b2c');
-      b.at(translation(-0.025, 0.065, 0), () => ball(b, 0.025, 0.02));
-      b.setColor('#6aa84f');
-      b.at(translation(0.025, 0.065, 0.01), () => ball(b, 0.028, 0.024));
-      b.setColor('#b33d5a');
-      b.at(translation(0, 0.07, -0.025), () => ball(b, 0.02, 0.018));
+      // The vegetables heaped in it: one soft body, each its own colour and round, no lines between.
+      soft(b, { ink: 'veg' }, (s) => {
+        s.b.setColor('#e07b2c');
+        s.ball(-0.025, 0.065, 0, 0.025, 0.02, 0.025, 7, 5);
+        s.b.setColor('#6aa84f');
+        s.ball(0.025, 0.065, 0.01, 0.028, 0.024, 0.028, 7, 5);
+        s.b.setColor('#b33d5a');
+        s.ball(0, 0.07, -0.025, 0.02, 0.018, 0.02, 7, 5);
+      });
       break;
     case 'washing':
       basket(b, 0.08, 0.06, '#c9a46c');
-      b.setInk('cloth').setColor(PALETTE.white).setPattern(PATTERN.cloth);
-      b.at(translation(-0.02, 0.06, 0), () => ball(b, 0.045, 0.025));
-      b.setColor('#8fb6e0');
-      b.at(translation(0.03, 0.062, 0.01), () => ball(b, 0.035, 0.022));
+      soft(b, { ink: 'cloth' }, (s) => {
+        s.b.setColor(PALETTE.white).setPattern(PATTERN.cloth);
+        s.ball(-0.02, 0.06, 0, 0.045, 0.025, 0.045, 7, 5);
+        s.b.setColor('#8fb6e0');
+        s.ball(0.03, 0.062, 0.01, 0.035, 0.022, 0.035, 7, 5);
+      });
       break;
     case 'sheaf':
       b.setInk('sheaf').setColor('#d69a32').setPattern(PATTERN.thatch);
@@ -158,7 +164,7 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
       break;
     case 'barrel':
       b.setInk('barrel').setColor('#a8672f').setPattern(PATTERN.planks);
-      b.lathe([[0, 0], [0.045, 0], [0.056, 0.05], [0.045, 0.1], [0, 0.1]], { segments: 10 });
+      smoothLathe(b, [[0, 0], [0.045, 0], [0.056, 0.05], [0.045, 0.1], [0, 0.1]], { segments: 10, crease: 0.7 });
       b.setInk('hoops').setColor(PALETTE.metal).setPattern(PATTERN.none);
       for (const y of [0.022, 0.078]) b.lathe([[0.051, y - 0.005], [0.053, y + 0.005]], { segments: 10 });
       break;
@@ -191,10 +197,12 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
     case 'bouquet':
       b.setInk('stems').setColor('#5d8f3a');
       b.lathe([[0, 0], [0.012, 0], [0.025, 0.06], [0, 0.06]], { segments: 6 });
-      b.setInk('flowers').setColor(PALETTE.white);
-      b.at(translation(0, 0.065, 0), () => ball(b, 0.038, 0.026));
-      b.setColor('#f4a6c1');
-      b.at(translation(0.02, 0.08, 0.01), () => ball(b, 0.016, 0.014));
+      soft(b, { ink: 'flowers' }, (s) => {
+        s.b.setColor(PALETTE.white);
+        s.ball(0, 0.065, 0, 0.038, 0.026, 0.038, 8, 5);
+        s.b.setColor('#f4a6c1');
+        s.ball(0.02, 0.08, 0.01, 0.016, 0.014, 0.016, 6, 4);
+      });
       break;
   }
 }
