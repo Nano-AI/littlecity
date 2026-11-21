@@ -137,10 +137,27 @@ export class Director {
     return this.act;
   }
 
-  /** Burning, a fuse fizzing, or chunks in the air. */
+  /** Burning, a fuse fizzing, chunks in the air, or something long that holds the act open (a raid). */
   get busy(): boolean {
-    return this.engine.busy || this.bombs.length > 0 || this.waves.length > 0 || this.strikes.length > 0;
+    return this.engine.busy || this.bombs.length > 0 || this.waves.length > 0 || this.strikes.length > 0 || this.holds.size > 0;
   }
+
+  /**
+   * Something that lasts minutes and has many causes (a raid, src/life/raid) holds the act open while it is on:
+   * all it does is one undo step, and undo while it is on calls it off (the 'reset' event). Opens the act.
+   */
+  hold(key: string, on: boolean): void {
+    if (on) {
+      this.open();
+      this.holds.add(key);
+    } else this.holds.delete(key);
+  }
+  private holds = new Set<string>();
+
+  /** Where raiders are ashore now (set by the raid each frame): the town's scenes keep clear of them. */
+  threats: readonly { x: number; z: number }[] = [];
+  /** Other vessels the Lightning tool can strike (the raid's longships and boats): the middle of one under (x, z). */
+  extraVessels: ((x: number, z: number) => [number, number] | null) | null = null;
 
   on(fn: (e: MischiefEvent) => void): () => void {
     this.listeners.push(fn);
@@ -225,6 +242,8 @@ export class Director {
       }
     }
     if (best) return best;
+    const raid = this.extraVessels?.(x, z);
+    if (raid) return raid;
     const b = boatNear(this.stage, x, z, 0.8, this.clock);
     return b ? [b.x, b.z] : null;
   }
@@ -476,6 +495,8 @@ export class Director {
   /** Forgets everything (a new town); does not touch the game. */
   reset(): void {
     this.emit({ type: 'reset' });
+    this.holds.clear();
+    this.threats = [];
     this.extra = [];
     this.waves = [];
     this.engine.cancel();

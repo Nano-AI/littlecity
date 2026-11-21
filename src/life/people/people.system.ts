@@ -34,6 +34,7 @@ import { carriedMesh, HEAVY, HOLD_OF, holdAnchor, NOT_GROWN } from '@/parts/peop
 import { fineryLook, fineryMesh, isFinery } from '@/parts/people/finery';
 import { beachLook, beachMesh, isBeachWear } from '@/parts/people/beachwear';
 import { applyHold } from '@/parts/people/hands';
+import { barbarianLook, barbarianMesh, isBarbarian, raiderGear } from '@/parts/people/barbarian';
 import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
 import { cloudMesh, dazeStarMesh, popMesh, POPS, swearMesh, type PopKind } from '@/parts/people/scuffle-art';
@@ -244,6 +245,8 @@ export function costumeLook(base: Look, costume: Person['costume'], id = ''): Lo
   if (isBeachWear(costume)) return beachLook(base, costume, id);
   // L50: after a scuffle the hat sits askew (drawn on its own, tipped; see draw()).
   if (costume === 'askew') return { ...base, hat: 'none' };
+  // The raid: a raider (barbarian.ts).
+  if (isBarbarian(costume)) return barbarianLook(base, costume);
   return base;
 }
 
@@ -259,6 +262,8 @@ export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'dig') return 'spade';
   // An errand's load fills their hands (loads.ts draws it): no other tool while it does.
   if (p.load) return null;
+  // The raid: a raider's brand, axe or club held up, the chief's horn (barbarian.ts).
+  if (isBarbarian(p.costume) && pose !== 'sit' && pose !== 'lie' && pose !== 'dust') return raiderGear(p.costume);
   if (pose === 'hammer') return 'hammer';
   if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
   const job = p.work?.job;
@@ -342,7 +347,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     const meshes = buildPerson(d.look, p.id);
     d.handles = PIECES.map((piece) => stage.spawnMesh(meshes[piece], IDENTITY));
     // L57: their wedding finery, over the figure.
-    const extra = isFinery(p.costume) ? fineryMesh(d.look, d.rig, p.costume, p.id) : isBeachWear(p.costume) ? beachMesh(d.look, d.rig, p.costume, p.id) : null;
+    const extra = isFinery(p.costume) ? fineryMesh(d.look, d.rig, p.costume, p.id) : isBeachWear(p.costume) ? beachMesh(d.look, d.rig, p.costume, p.id) : isBarbarian(p.costume) ? barbarianMesh(d.look, d.rig, p.costume, p.id) : null;
     d.finery = extra ? stage.spawnMesh(extra, IDENTITY) : null;
     d.shown = false;
   }

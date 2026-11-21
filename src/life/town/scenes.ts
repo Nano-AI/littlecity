@@ -34,6 +34,8 @@ export interface Scene {
   noteworthy(): boolean;
   /** Still calling its people in: other big scenes wait. */
   gathering(): boolean;
+  /** Its note comes whatever the note's gap, and before any other (the raid: "Raiders off the coast!"). */
+  readonly urgent?: boolean;
 }
 
 export interface Scenes {

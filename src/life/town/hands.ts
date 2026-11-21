@@ -6,9 +6,9 @@ import { usableDoors } from '@/resolve/nav';
 import type { Person } from '../people/crowd';
 import { DIR_HEADING, type Board, type Chain, type Post } from './board';
 
-/** Grown-ups who can take work: out in the world, not leaving, not shut in. */
+/** Grown-ups who can take work: out in the world, not leaving, not shut in, and of the town (not a raider). */
 export function canWork(p: Person): boolean {
-  return !p.child && !p.shutIn && !p.leaving && p.mode !== 'gone';
+  return !p.child && !p.shutIn && !p.leaving && p.mode !== 'gone' && !p.raider;
 }
 
 /** The cell outside a person's front door, or null. */

@@ -33,11 +33,18 @@ export function sceneNote(ui: Interface, now: () => number = () => performance.n
         close = null;
         showing = null;
       }
+      // An urgent scene (the raid) takes the place of a note showing for another.
+      const urgent = on.find((s) => s.urgent && !seen.has(s.n) && s.title && s.noteworthy());
+      if (urgent && showing && !showing.urgent) {
+        close?.();
+        close = null;
+        showing = null;
+      }
       if (showing || !scenes) return;
-      for (const s of on) {
+      for (const s of urgent ? [urgent] : on) {
         if (seen.has(s.n) || !s.title || !s.noteworthy()) continue;
         seen.add(s.n);
-        if (now() - last < SCENES.noteGap) continue;
+        if (!s.urgent && now() - last < SCENES.noteGap) continue;
         last = now();
         showing = s;
         close = ui.feedback.banner(s.title, [
