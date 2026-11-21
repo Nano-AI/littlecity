@@ -31,7 +31,7 @@ describe('the raid', () => {
       const r = raids.current;
       if (t.t >= next) {
         next += 10;
-        console.log(Math.round(t.t), r.beat, r.shipState, r.raiders.map((x) => `${x.role[0]}:${x.where}${x.person ? `/${x.person.mode}/${x.person.goal?.errand?.tag ?? x.person.goal?.kind ?? '-'}${x.person.load ? '+' + x.person.load : ''}` : ''}`).join(' '));
+        console.log(Math.round(t.t), r.beat, r.shipState, r.raiders.map((x) => `${x.role[0]}:${x.where}${x.person ? `@${x.person.cell}s${x.person.stuck.toFixed(0)}` : ""}${x.person ? `/${x.person.mode}/${x.person.goal?.errand?.tag ?? x.person.goal?.kind ?? '-'}${x.person.load ? '+' + x.person.load : ''}` : ''}`).join(' '));
       }
       if (beats[beats.length - 1] !== r.beat) beats.push(r.beat);
       ashore = Math.max(ashore, r.raiders.filter((x) => x.person !== null).length);

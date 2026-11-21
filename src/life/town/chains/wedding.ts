@@ -978,6 +978,8 @@ export function weddingChain(): WeddingChain {
     for (const b of d.engine.burning()) if (b.structure === chapel) return true;
     const cx = keyX(door.cell) + 0.5, cz = keyZ(door.cell) + 0.5;
     for (const b of d.bombs) if (b.nuke || Math.hypot(b.point[0] - cx, b.point[2] - cz) < 10) return true;
+    // Raiders ashore near the chapel (src/life/raid).
+    if (d.threats.some((t) => Math.hypot(t.x - cx, t.z - cz) < 9)) return true;
     return d.engine.sinceHit(door.cell) < 3;
   };
 

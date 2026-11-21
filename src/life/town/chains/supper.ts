@@ -380,7 +380,8 @@ export function supperChain(): SupperChain {
   const trouble = (board: Board): boolean => {
     if (!board.stage || posts.length === 0) return false;
     const c = board.centre(posts[0]!.cell);
-    return mischiefOf(board.stage).bombs.some((b) => b.nuke || Math.hypot(b.point[0] - c.x, b.point[2] - c.z) < 12);
+    const d = mischiefOf(board.stage);
+    return d.bombs.some((b) => b.nuke || Math.hypot(b.point[0] - c.x, b.point[2] - c.z) < 12) || d.threats.some((t) => Math.hypot(t.x - c.x, t.z - c.z) < 10);
   };
 
   const chain: SupperChain = {

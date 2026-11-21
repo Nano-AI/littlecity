@@ -11,7 +11,7 @@ import { ALL_KINDS, FLOOR_KINDS, type EdgeKind, type FloorKind, type PlacedKind 
 
 export type PieceId = PlacedKind | FloorKind;
 /** Mischief (design section 13b): tools that wreck and mend, in their own drawer. */
-export type MischiefToolId = 'torch' | 'bomb' | 'nuke' | 'mallet' | 'mend';
+export type MischiefToolId = 'torch' | 'bomb' | 'nuke' | 'raid' | 'mallet' | 'mend';
 export type ToolId = 'change' | 'paint' | 'erase' | MischiefToolId;
 /** Shaping the land (design section 6): the Land group at the start of the Nature drawer. */
 export type LandId = 'raise' | 'dig' | 'level';
@@ -19,7 +19,7 @@ export type ItemId = PieceId | ToolId | LandId;
 export type DrawerId = 'build' | 'ground' | 'nature' | 'tools' | 'mischief';
 
 export const TOOL_IDS: readonly ToolId[] = ['change', 'paint', 'erase'];
-export const MISCHIEF_TOOL_IDS: readonly MischiefToolId[] = ['torch', 'bomb', 'nuke', 'mallet', 'mend'];
+export const MISCHIEF_TOOL_IDS: readonly MischiefToolId[] = ['torch', 'bomb', 'nuke', 'raid', 'mallet', 'mend'];
 export const LAND_IDS: readonly LandId[] = ['raise', 'dig', 'level'];
 
 export interface TrayItem {
@@ -67,6 +67,7 @@ const TOOL_INFO: Record<ToolId, { label: string; hint: string }> = {
   torch: { label: 'Lightning', hint: 'Strike a building with lightning' },
   bomb: { label: 'Bomb', hint: 'Drop a bomb' },
   nuke: { label: 'Nuke', hint: 'The big one: a mushroom cloud and a crater' },
+  raid: { label: 'Raid', hint: 'Call raiders: a longship comes in off the nearest coast' },
   mallet: { label: 'Mallet', hint: 'Knock a building down a stage' },
   mend: { label: 'Mend', hint: 'Mend a building a stage (Shift: all at once)' },
 };

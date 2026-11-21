@@ -107,6 +107,9 @@ export interface Raider {
   cry: number;
   /** Stranded and chased: running for the sea. */
   routed: boolean;
+  /** The step they were last seen on, and for how long (a walk that gets nowhere is given up). */
+  step: unknown;
+  stepFor: number;
 }
 
 /** A building a raider sets alight or loots. */
@@ -223,7 +226,7 @@ export class Raid {
       this.raiders.push({
         i, costume: v, look: Math.floor(rand(seed, 'raider-look', i) * 1e6), role, vessel, seat, landing,
         where: 'aboard', fig: null, person: null, t: 0, dur: 0, from: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: 0 },
-        carry: null, trips: 0, fires: 0, target: null, cryIn: 1 + rand(seed, 'cry-in', i) * 4, cry: 0, routed: false,
+        carry: null, trips: 0, fires: 0, target: null, cryIn: 1 + rand(seed, 'cry-in', i) * 4, cry: 0, routed: false, step: null, stepFor: 0,
       });
     }
     for (const r of this.raiders) r.fig = new Figure(stage, r.look, r.costume, `raid${this.n}-r${r.i}`);
@@ -283,7 +286,7 @@ export class Raid {
         v.x = q.x;
         v.z = q.z;
         v.yaw = q.yaw;
-        v.sail = clamp01((left - 2.5) / 4);
+        v.sail = clamp01((left - 0.8) / 2.5);
         v.rowing = 0.5 + 0.5 * clamp01(1 - left / 6);
         if (this.s >= p.length) {
           if (this.kind === 'landing') this.shipState = 'spin';
@@ -488,9 +491,16 @@ export class Raid {
 
   /** Where on the shore a raider stands up out of the water: their landing's edge, spread along it. */
   private shorePoint(r: Raider): { x: number; y: number; z: number } {
-    const l = this.site.landings[r.landing]!;
+    const l = this.shoreOf(r);
     const spread = ((r.i * 0.37) % 1) - 0.5;
     return { x: l.x + l.ox * 0.25 - l.oz * spread * 0.6, y: l.y, z: l.z + l.oz * 0.25 + l.ox * spread * 0.6 };
+  }
+
+  /** The shore cell a raider comes ashore at and goes back from: their landing, or one beside it (the band spreads out). */
+  shoreOf(r: Raider): Landing {
+    const l = this.site.landings[r.landing]!;
+    const near = l.near.length > 0 ? l.near : [l];
+    return near[(r.i * 5) % near.length]!;
   }
 
   private stepFigures(dt: number, seconds: number): void {
@@ -855,7 +865,7 @@ export class Raid {
     for (const r of this.raiders) {
       if (r.where === 'ashore' && !r.person && r.fig?.visible) {
         const s = this.shorePoint(r);
-        const l = this.site.landings[r.landing]!;
+        const l = this.shoreOf(r);
         const p = crowd.ashore(s.x, s.y, s.z, Math.atan2(-l.ox, -l.oz), r.look) ?? crowd.ashore(l.x, l.y, l.z, Math.atan2(-l.ox, -l.oz), r.look);
         if (!p) continue;
         p.leaving = false;
@@ -879,6 +889,25 @@ export class Raid {
           r.person = null;
           r.where = 'lost';
         }
+      }
+    }
+    // A walk that gets nowhere (a knot in a lane, a way cut by the fire) is given up for another plan.
+    for (const r of this.raiders) {
+      const p = r.person;
+      if (r.where !== 'ashore' || !p || p.mode !== 'walk') {
+        r.stepFor = 0;
+        continue;
+      }
+      const step = p.goal?.errand ?? null;
+      if (step !== r.step) {
+        r.step = step;
+        r.stepFor = 0;
+      }
+      r.stepFor += dt;
+      if (r.stepFor > 14 && step && step.tag !== 'raid:board' && step.tag !== 'raid:to-sea') {
+        r.stepFor = 0;
+        board.drop(p);
+        board.crowd.rethink(p);
       }
     }
     // War cries over the raiders ashore, now and then (the system draws them; here the timing).
@@ -1114,7 +1143,7 @@ export class Raid {
     }
     if (this.beat === 'recall' || this.beat === 'away') {
       const s = this.shorePoint(r);
-      steps.push(board.stepAt(l.cell, { spot: { x: s.x, z: s.z }, face: Math.atan2(l.ox, l.oz), pose: 'stand', linger: 1e6, brisk: true, load: p.load, tag: 'raid:board' }));
+      steps.push(board.stepAt(this.shoreOf(r).cell, { spot: { x: s.x, z: s.z }, face: Math.atan2(l.ox, l.oz), pose: 'stand', linger: 1e6, brisk: true, load: p.load, tag: 'raid:board' }));
       return plan(steps);
     }
     // Something in their hands: to the pile with it.

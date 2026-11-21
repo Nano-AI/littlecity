@@ -295,6 +295,18 @@ const DRAWINGS: Record<string, string> = {
     `<path ${thin} d="M17.6 19.4 Q24 18.4 30.2 19.2" stroke="${C.white}"/>` +
     `</g>`,
 
+  // The raid: a longship under its striped square sail, a dragon's head at the prow, shields along its side.
+  raid:
+    `<path d="M24 9 L24 32" stroke-width="2.2"/>` +
+    `<path d="M13.4 10.4 L34.6 10.4 Q36.4 19 34 26.4 L14 26.4 Q11.6 19 13.4 10.4 Z" fill="${C.white}"/>` +
+    `<path d="M17.6 10.4 L21.8 10.4 L21.4 26.4 L17.8 26.4 Q16.6 19 17.6 10.4 Z M26.2 10.4 L30.4 10.4 Q31.4 19 30.2 26.4 L26.6 26.4 Z" fill="${PALETTE.red}" stroke="none"/>` +
+    `<path d="M13.4 10.4 L34.6 10.4 Q36.4 19 34 26.4 L14 26.4 Q11.6 19 13.4 10.4 Z"/>` +
+    `<path d="M4.6 31.6 Q8 40.2 24 40.2 Q38.4 40.2 41.8 31.6 L42.6 26.4 Q44.8 21 41.6 19.8 Q39.2 19.6 39.8 23 L40.4 31.4 Z" fill="${C.wood}"/>` +
+    `<path d="M4.6 31.6 Q3.6 26.4 7.2 24.8" stroke-width="2.2"/>` +
+    `<circle cx="13.6" cy="34.6" r="2.6" fill="${C.yellow}"/><circle cx="20" cy="35.6" r="2.6" fill="${PALETTE.red}"/>` +
+    `<circle cx="26.6" cy="35.6" r="2.6" fill="${C.yellow}"/><circle cx="33" cy="34.6" r="2.6" fill="${PALETTE.red}"/>` +
+    `<path ${thin} d="M6 42.6 Q12 41 17 42.6 M28 43 Q34 41.2 40 42.8" stroke="${PALETTE.glass}"/>`,
+
   mallet:
     `<path d="M22.6 24.2 L36.6 38.4 L33.6 41.4 L19.6 27.2 Z" fill="${C.wood}"/>` +
     `<path d="M9.4 18.4 L20.8 7 L30.2 16.4 L18.8 27.8 Z" fill="${C.woodDark}"/>` +

@@ -1052,6 +1052,8 @@ export function beachChain(): BeachChain {
     const d = mischiefOf(board.stage);
     const x = day.pitches[0]!.cx, z = day.pitches[0]!.cz;
     for (const b of d.bombs) if (b.nuke || Math.hypot(b.point[0] - x, b.point[2] - z) < 12) return true;
+    // Raiders ashore near the beach (src/life/raid).
+    if (d.threats.some((t) => Math.hypot(t.x - x, t.z - z) < 10)) return true;
     return false;
   };
 

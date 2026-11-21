@@ -1241,6 +1241,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
       for (const q of people) {
         if (q === p || !q.visible || q.mode !== 'walk') continue;
+        // A raiding band is a mob: they jostle through one another (src/life/raid), never queue.
+        if (p.raider && q.raider) continue;
         const dx = q.x - p.x, dz = q.z - p.z;
         if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(q.y - p.y) > 0.3) continue;
         // Two people meeting (L26): going opposite ways, about to pass, on open ground. Once per meeting.
@@ -1285,7 +1287,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const rx = -fz, rz = fx;
         let nearest = Infinity, target = 0, blocked = false;
         for (const q of people) {
-          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop') continue;
+          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || (p.raider && q.raider)) continue;
           if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
           const dx = q.x - p.x, dz = q.z - p.z;
           if (dx > 1.4 || dx < -1.4 || dz > 1.4 || dz < -1.4 || Math.abs(q.y - p.y) > 0.3) continue;

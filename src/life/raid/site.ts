@@ -48,6 +48,10 @@ export interface Landing {
   oz: number;
   /** A beach (sand): a ship can run up on it. */
   sand: boolean;
+  /** Walkable cells round it (5 by 5, a level either way): room for a band to come ashore and spread out. */
+  open: number;
+  /** Other landings beside it, where the rest of a band comes ashore (itself first). */
+  near: Landing[];
 }
 
 export interface Pose {
@@ -151,11 +155,21 @@ export function landingsOf(shape: ShapePlan, nav: NavGraph, field: SeaField): La
       // Open water beyond it (not a pool or a ditch): a boat's width of sea a cell and two out.
       if (field.at(x + 0.5 + dx * 1.5, z + 0.5 + dz * 1.5) < 0.45 || field.at(x + 0.5 + dx * 2.5, z + 0.5 + dz * 2.5) < 0.6) continue;
       if (nav.nodeAt.has(key(nx, y, nz))) continue;
-      out.push({ cell: c, node: n, x: x + 0.5, y: y * 0.8, z: z + 0.5, ox: dx, oz: dz, sand: node.surface === 'sand' });
+      out.push({ cell: c, node: n, x: x + 0.5, y: y * 0.8, z: z + 0.5, ox: dx, oz: dz, sand: node.surface === 'sand', open: openAround(nav, x, y, z), near: [] });
       break;
     }
   });
+  for (const l of out) l.near = [l, ...out.filter((o) => o !== l && Math.hypot(o.x - l.x, o.z - l.z) < 2.6 && Math.abs(o.y - l.y) < 0.5)];
   return out;
+}
+
+function openAround(nav: NavGraph, x: number, y: number, z: number): number {
+  let n = 0;
+  for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) for (const dy of [0, 1, -1]) if (y + dy >= 0 && nav.nodeAt.has(key(x + dx, y + dy, z + dz))) {
+    n++;
+    break;
+  }
+  return n;
 }
 
 /** A circle of clear water round (x, z) a hull of this reach can spin in, well inside the map. */
@@ -269,7 +283,7 @@ function planLanding(field: SeaField, shore: readonly Landing[], towns: (l: Land
   // Beaches first, then any low shore; nearest the town (and the click) first, never far from it.
   const ranked = shore
     .filter((l) => towns(l) < 18)
-    .map((l) => ({ l, score: near(l) + towns(l) * 0.5 + (l.sand ? 0 : 6) + rand(seed, 'landing', l.cell) * 2 }))
+    .map((l) => ({ l, score: near(l) + towns(l) * 0.5 + (l.sand ? 0 : 6) + Math.max(0, 16 - l.open) * 0.8 + (l.near.length < 2 ? 3 : 0) + rand(seed, 'landing', l.cell) * 2 }))
     .sort((a, b) => a.score - b.score || a.l.cell - b.l.cell);
   for (const { l } of ranked.slice(0, 40)) {
     // Bow on the sand: the stem a little past the water's edge.
@@ -315,7 +329,7 @@ function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landin
   const h = longshipHull(size);
   const reach = Math.max(-h.stern, h.bow) + h.halfBeam * 0.5;
   // Landings round the town, spread out: the nearest one first, then each the farthest from those taken.
-  const pool = shore.filter((l) => towns(l) < 14).sort((a, b) => near(a) - near(b) || a.cell - b.cell);
+  const pool = shore.filter((l) => towns(l) < 14 && l.open >= 9).sort((a, b) => near(a) + Math.max(0, 16 - a.open) * 0.5 - near(b) - Math.max(0, 16 - b.open) * 0.5 || a.cell - b.cell);
   if (pool.length === 0) return null;
   // Where the ship stands off: the clear water nearest the landings.
   const spots: { x: number; z: number; d: number }[] = [];
