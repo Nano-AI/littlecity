@@ -10,8 +10,8 @@ import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
 
-export type RaidTool = 'brand' | 'axe' | 'club' | 'horn';
-export const RAID_TOOLS: readonly RaidTool[] = ['brand', 'axe', 'club', 'horn'];
+export type RaidTool = 'brand' | 'axe' | 'club' | 'horn' | 'standard';
+export const RAID_TOOLS: readonly RaidTool[] = ['brand', 'axe', 'club', 'horn', 'standard'];
 
 /** [foot, top] of each raid tool's shaft in the body frame (figure units). */
 export const RAID_SHAFTS: Readonly<Record<RaidTool, [Vec3, Vec3]>> = {
@@ -19,12 +19,14 @@ export const RAID_SHAFTS: Readonly<Record<RaidTool, [Vec3, Vec3]>> = {
   axe: [[0.09, 0.22, 0.08], [0.11, 0.52, 0.11]],
   club: [[0.09, 0.22, 0.08], [0.1, 0.48, 0.11]],
   horn: [[0.085, 0.27, 0.09], [0.075, 0.4, 0.14]],
+  // The chief's standard: a tall pole, the banner high over his head (over the roofs from the town view).
+  standard: [[0.09, 0.12, 0.05], [0.1, 1.1, 0.07]],
 };
 
 export function drawRaidTool(b: MeshBuilder, tool: RaidTool): void {
   const [a, c] = RAID_SHAFTS[tool];
   b.setInk('tool').setColor(PALETTE.trunk).setPattern(PATTERN.none);
-  if (tool !== 'horn') tube(b, [a, c], [0.009, 0.011], { seg: 5 });
+  if (tool !== 'horn') tube(b, [a, c], tool === 'standard' ? [0.009, 0.008] : [0.009, 0.011], { seg: 5 });
   const [x, y, z] = c;
   switch (tool) {
     case 'brand':
@@ -56,6 +58,33 @@ export function drawRaidTool(b: MeshBuilder, tool: RaidTool): void {
         b.at(translation(x + Math.cos(t) * 0.036, y + 0.012, z + Math.sin(t) * 0.036), () => b.lathe([[0.009, -0.006], [0, 0.01]], { segments: 4, capBottom: true }));
       }
       break;
+    case 'standard': {
+      // A red banner with a yellow border and a black raven, hung from a crossbar at the top, and streamers.
+      const top = y;
+      b.setInk('crossbar').setColor(PALETTE.trunk);
+      tube(b, [[x - 0.01, top - 0.03, z - 0.11], [x - 0.01, top - 0.03, z + 0.13]], 0.007, { seg: 4 });
+      b.setInk('finial').setColor(PALETTE.yellow).setPattern(PATTERN.metal);
+      b.at(translation(x, top, z), () => b.lathe([[0.014, 0], [0.024, 0.02], [0, 0.06]], { segments: 6 }));
+      b.setInk('banner').setColor('#c8362f').setPattern(PATTERN.cloth).setSway((px, py) => Math.max(0, Math.min(1, (top - 0.03 - py) * 2.5)));
+      const w0 = z - 0.11, w1 = z + 0.13, h0 = top - 0.03, h1 = top - 0.36;
+      // A swallowtail: two points at the foot.
+      const pts: Vec3[] = [[x, h0, w0], [x, h0, w1], [x, h1, w1], [x, h1 + 0.07, (w0 + w1) / 2], [x, h1, w0]];
+      b.polygon(pts);
+      b.polygon([...pts].reverse());
+      b.setInk('border').setColor(PALETTE.yellow).setPattern(PATTERN.none);
+      for (const side of [0.004, -0.004]) {
+        const band: Vec3[] = [[x + side, h0 - 0.005, w0 + 0.02], [x + side, h0 - 0.005, w1 - 0.02], [x + side, h0 - 0.04, w1 - 0.02], [x + side, h0 - 0.04, w0 + 0.02]];
+        b.polygon(side > 0 ? band : [...band].reverse());
+      }
+      b.setInk('raven').setColor(PALETTE.ink);
+      for (const side of [0.006, -0.006]) {
+        const cy = (h0 + h1) / 2 - 0.01, cz = (w0 + w1) / 2;
+        const bird: Vec3[] = [[x + side, cy + 0.06, cz - 0.07], [x + side, cy + 0.01, cz - 0.01], [x + side, cy + 0.04, cz + 0.02], [x + side, cy + 0.07, cz + 0.07], [x + side, cy - 0.01, cz + 0.04], [x + side, cy - 0.06, cz]];
+        b.polygon(side > 0 ? bird : [...bird].reverse());
+      }
+      b.setSway(0);
+      break;
+    }
     case 'horn':
       // A great curved ox horn, pale, with a gold rim at the bell.
       b.setInk('horn').setColor('#efe3c4');

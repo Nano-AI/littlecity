@@ -26,6 +26,7 @@ import { scenesOf } from '../town/scenes';
 import { Raid } from './raid';
 import { raidsOf, type Raids, type Summon } from './raids';
 import { planRaid, raidField } from './site';
+import { raiderScale } from './far';
 
 const HIDDEN: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -60, 0, 1];
 
@@ -247,14 +248,20 @@ function drawCries(st: State, raid: Raid, seconds: number): void {
   const live = new Set<number>();
   for (const r of raid.raiders) {
     const p = r.person;
-    if (r.cry <= 0 || !p || !p.visible || p.inCloud) continue;
+    if (!p || !p.visible || p.inCloud) continue;
+    // A brand trails a little smoke as it is run through the streets.
+    if (r.role === 'brand' && p.visible && Math.floor(seconds * 2.5 + r.i * 0.37) !== Math.floor((seconds - 1 / 60) * 2.5 + r.i * 0.37)) {
+      const tx = p.x + Math.sin(p.heading) * 0.1, ty = p.y + 0.62 * raiderScale(), tz = p.z + Math.cos(p.heading) * 0.1;
+      fxOf(st.stage).play({ actor: 'puff', variant: 'smoke' }, 1.3, (t, out) => place(tx, ty + t * 0.5, tz, 0, 0.08 + t * 0.22, 0.08 + t * 0.22, 0.08 + t * 0.22, out));
+    }
+    if (r.cry <= 0) continue;
     live.add(r.i);
     let h = st.cries.get(r.i);
     if (!h) st.cries.set(r.i, (h = st.own.stage.spawnMesh(st.cryMeshes[r.i % 3]!, HIDDEN)));
     h.setVisible(true);
     // Over the head (the horns), jiggling on twos.
     const jig = Math.floor(seconds * 8) % 2 ? 0.012 : 0;
-    h.setMatrix(facingCamera(p.x, p.y + 0.62 + jig, p.z, cam, k));
+    h.setMatrix(facingCamera(p.x, p.y + 0.62 * raiderScale() + jig, p.z, cam, k));
   }
   // A cry over: hidden, kept for the next (one each raider at most).
   for (const [i, h] of st.cries) if (!live.has(i)) h.setVisible(false);

@@ -110,6 +110,11 @@ export interface Raider {
   /** The step they were last seen on, and for how long (a walk that gets nowhere is given up). */
   step: unknown;
   stepFor: number;
+  /** The party they go through the town with (all but the chief), and whether they have got to its quarter yet. */
+  party: number;
+  there: boolean;
+  /** Lost a brawl with the townspeople: running back to the boat. */
+  beaten: boolean;
 }
 
 /** A building a raider sets alight or loots. */
@@ -120,6 +125,8 @@ interface Target {
   /** Taken by a raider now / done. */
   by: Raider | null;
   done: boolean;
+  /** The quarter of the town it is in (a party's). */
+  quarter: number;
 }
 
 const LOOT_BY_ROLE: Record<string, readonly Load[]> = {
@@ -179,6 +186,9 @@ export class Raid {
   private burnTargets: Target[] = [];
   private lootTargets: Target[] = [];
   readonly burnWant: number;
+  /** Parties the band splits into ashore, and the quarters of the town they go to (a building's middle each). */
+  readonly parties: number;
+  quarters: { x: number; z: number; cell: CellKey }[] = [];
   burnt = 0;
   /** Villagers the raid has sent running, and when they may be sent again. */
   private fled = new Map<Person, number>();
@@ -227,9 +237,11 @@ export class Raid {
       this.raiders.push({
         i, costume: v, look: Math.floor(rand(seed, 'raider-look', i) * 1e6), role, vessel, seat, landing,
         where: 'aboard', fig: null, person: null, t: 0, dur: 0, from: { x: 0, y: 0, z: 0 }, to: { x: 0, y: 0, z: 0 },
-        carry: null, trips: 0, fires: 0, target: null, cryIn: 1 + rand(seed, 'cry-in', i) * 4, cry: 0, routed: false, step: null, stepFor: 0,
+        carry: null, trips: 0, fires: 0, target: null, cryIn: 1 + rand(seed, 'cry-in', i) * 4, cry: 0, routed: false, step: null, stepFor: 0, party: 0, there: false, beaten: false,
       });
     }
+    this.parties = Math.max(1, Math.min(5, Math.floor((this.raiders.length - 1) / 3)));
+    for (const r of this.raiders) r.party = r.role === 'chief' ? 0 : Math.min(this.parties - 1, Math.floor((r.i - 1) / 3));
     for (const r of this.raiders) r.fig = new Figure(stage, r.look, r.costume, `raid${this.n}-r${r.i}`);
     // A boats raid's ship keeps two hands aboard: a steersman and a lookout.
     if (this.kind === 'boats') for (let k = 0; k < 2; k++) this.crewFigs.push(new Figure(stage, Math.floor(rand(seed, 'crew', k) * 1e6), `raider-${(k * 3 + 1) % 8}` as Barbarian, `raid${this.n}-crew${k}`));
@@ -526,6 +538,7 @@ export class Raid {
           const seat = v.seats[r.seat % v.seats.length]!;
           const rower = seat.sit && v.rowing > 0.05;
           fig.pose(s.x, s.y, s.z, s.heading, seat.sit ? 'sit' : r.role === 'chief' && this.beat === 'sighted' ? 'cheer' : 'stand', seconds, {
+            grow: false,
             seat: seat.sit ? 0.12 : -1,
             gear: !rower,
             ...(rower ? { tweak: rowing(v.astern ? 1 - v.stroke : v.stroke) } : {}),
@@ -1015,39 +1028,70 @@ export class Raid {
     return board.chains.find((c) => c.id === 'raid') ?? board.chains[0]!;
   }
 
-  /** What to burn and what to loot: the nearest buildings to the landings that will catch, and those with doors and goods. */
+  /**
+   * The sweep: the quarters of the town the parties go to (spread out, the market, the warehouses, a rich
+   * house, the mill first), and in each what will burn (thatch and timber first) and what can be looted.
+   */
   private chooseTargets(board: Board): void {
     const shape = board.shape, nav = board.nav;
     if (!shape || !nav) return;
     const d = this.host.director;
     const landings = this.site.landings;
+    const part = nav.part[landings[0]!.node]!;
     const dist = (c: CellKey): number => Math.min(...landings.map((l) => Math.hypot(keyX(c) + 0.5 - l.x, keyZ(c) + 0.5 - l.z)));
-    const seen = new Set<StructureId>();
-    const burn: (Target & { d: number; heat: number })[] = [];
-    const loot: (Target & { d: number })[] = [];
+    const all: (Target & { d: number; heat: number; burns: boolean; loots: boolean; x: number; z: number })[] = [];
     for (const [sid, st] of shape.structures) {
-      if (seen.has(sid)) continue;
-      seen.add(sid);
       const kind = st.kind;
       if (kind !== 'house' && kind !== 'stall' && kind !== 'windmill') continue;
       const low = st.cells.reduce((a, b) => (keyY(b) < keyY(a) ? b : a));
       const dd = dist(low);
-      if (dd > 16) continue;
+      if (dd > 26) continue;
       if (shape.world.blocks.get(low)?.ruin) continue;
+      const stands = standsOf(board, sid);
+      if (!stands.some((s2) => nav.part[nav.nodeAt.get(s2.cell) ?? -1] === part)) continue;
       const role = shape.roles.get(sid)?.role ?? kind;
-      if (standsOf(board, sid).length === 0) continue;
-      if (!standsOf(board, sid).some((s) => landings.some((l) => nav.part[nav.nodeAt.get(s.cell) ?? -1] === nav.part[l.node]))) continue;
-      const canBurn = d.engine.canLight(low);
-      if (canBurn && role !== 'chapel') burn.push({ structure: sid, cell: low, role, by: null, done: false, d: dd, heat: kind === 'stall' ? 3 : kind === 'windmill' ? 2 : role === 'barn' || role === 'cottage' ? 1.5 : 1 });
       const doors = nav.doorsOf.get(sid) ?? [];
-      const usable = doors.some((i) => nav.doors[i]!.node >= 0 && !nav.doors[i]!.hatch);
-      if (usable || kind === 'stall') loot.push({ structure: sid, cell: low, role, by: null, done: false, d: dd });
+      const loots = doors.some((i) => nav.doors[i]!.node >= 0 && !nav.doors[i]!.hatch) || kind === 'stall';
+      const burns = d.engine.canLight(low) && role !== 'chapel';
+      const heat = kind === 'stall' ? 3 : kind === 'windmill' ? 2.2 : role === 'barn' || role === 'cottage' || role === 'mill-house' ? 1.8 : 1;
+      all.push({ structure: sid, cell: low, role, by: null, done: false, quarter: 0, d: dd, heat, burns, loots, x: keyX(low) + 0.5, z: keyZ(low) + 0.5 });
     }
-    burn.sort((a, b) => a.d / a.heat - b.d / b.heat || a.structure - b.structure);
-    loot.sort((a, b) => (a.role === 'warehouse' || a.role === 'shop' || a.role === 'inn' || a.role.endsWith('stall') ? -4 : 0) + a.d - ((b.role === 'warehouse' || b.role === 'shop' || b.role === 'inn' || b.role.endsWith('stall') ? -4 : 0) + b.d) || a.structure - b.structure);
-    // Brands go a little way in (not only the first row on the shore); looters take what is nearest.
-    this.burnTargets = burn.slice(0, this.burnWant + 3);
-    this.lootTargets = loot.filter((t) => !this.burnTargets.slice(0, 2).some((b) => b.structure === t.structure)).slice(0, 14);
+    if (all.length === 0) return;
+    // The quarters: from the landing, each as far from the others as it can be (and not too far in), the
+    // places worth a raid preferred.
+    const rich = new Set(['market-stall', 'fish-stall', 'flower-stall', 'warehouse', 'manor', 'town-hall', 'inn', 'shop', 'windmill', 'mill-house', 'barn']);
+    const points: { x: number; z: number }[] = landings.map((l) => ({ x: l.x, z: l.z }));
+    const qs: { x: number; z: number; cell: CellKey }[] = [];
+    for (let k = 0; k < this.parties; k++) {
+      let best: (typeof all)[number] | null = null, score = -Infinity;
+      for (const t of all) {
+        const near = Math.min(...points.map((q) => Math.hypot(q.x - t.x, q.z - t.z)));
+        const sc = Math.min(near, 12) + (rich.has(t.role) ? 4 : 0) + (t.burns ? 1 : 0) - Math.max(0, t.d - 18) * 2 + rand(this.seed, 'quarter', t.structure) * 0.5;
+        if (sc > score) {
+          score = sc;
+          best = t;
+        }
+      }
+      if (!best) break;
+      qs.push({ x: best.x, z: best.z, cell: best.cell });
+      points.push({ x: best.x, z: best.z });
+    }
+    this.quarters = qs;
+    for (const t of all) {
+      let q = 0, qd = Infinity;
+      qs.forEach((c, i) => {
+        const dd = Math.hypot(c.x - t.x, c.z - t.z);
+        if (dd < qd) {
+          qd = dd;
+          q = i;
+        }
+      });
+      t.quarter = q;
+    }
+    // In each quarter, what burns best and nearest its middle first.
+    const inQ = (t: (typeof all)[number]): number => Math.hypot(qs[t.quarter]!.x - t.x, qs[t.quarter]!.z - t.z);
+    this.burnTargets = all.filter((t) => t.burns && inQ(t) < 7).sort((a, b) => inQ(a) / a.heat - inQ(b) / b.heat || a.structure - b.structure);
+    this.lootTargets = all.filter((t) => t.loots && inQ(t) < 8).sort((a, b) => (rich.has(a.role) ? -4 : 0) + inQ(a) - ((rich.has(b.role) ? -4 : 0) + inQ(b)) || a.structure - b.structure);
   }
 
   /** The horn: all back to the ships. */
@@ -1183,17 +1227,15 @@ export class Raid {
     }
     // Something in their hands: to the pile with it.
     if (p.load) {
-      const pile = this.piles[r.landing]!;
-      const c = board.centre(l.cell);
-      steps.push(board.stepAt(l.cell, { spot: { x: c.x - l.ox * 0.1, z: c.z - l.oz * 0.1 }, face: Math.atan2(l.ox, l.oz), pose: 'tend', linger: 0.6, load: p.load, brisk: true, tag: 'raid:pile', done: (q) => {
-        const store = board.stores.get(pile.key);
-        if (store && q.load && board.put(store, q.load)) q.load = null;
-        else if (store && q.load) {
-          // The pile is full: it goes straight aboard with them later.
-          r.carry = q.load;
-        }
-        r.trips++;
-      } }));
+      steps.push(this.pileStep(board, r, p.load, () => {
+        r.there = false;
+      }));
+      return plan(steps);
+    }
+    // Beaten in a brawl: back to the boat, to wait for the others there.
+    if (r.beaten) {
+      const sp = this.shorePoint(r);
+      steps.push(board.stepAt(this.shoreOf(r).cell, { spot: { x: sp.x, z: sp.z }, face: Math.atan2(l.ox, l.oz), pose: 'stand', linger: 1e6, brisk: true, tag: 'raid:board' }));
       return plan(steps);
     }
     // The charge: first up the shore a few cells with a roar.
@@ -1207,20 +1249,36 @@ export class Raid {
         return plan(steps);
       }
     }
+    const nav = board.nav!;
+    // Then on through the streets to their party's quarter, fanning out round it.
+    const q = this.quarters[r.role === 'chief' ? this.chiefQuarter() : r.party % Math.max(1, this.quarters.length)];
+    if (q && !r.there) {
+      const cell = this.nearQuarter(board, p, q, r);
+      if (cell !== null) {
+        const at = board.centre(cell);
+        steps.push(board.stepAt(cell, { spot: this.spread(at, r, 'there'), face: NaN, pose: 'cheer', linger: 0.7, brisk: true, tag: 'raid:quarter', done: () => {
+          r.there = true;
+          r.cry = 1.5;
+        } }));
+        return plan(steps);
+      }
+      r.there = true;
+    }
     if (r.role === 'chief') {
-      // The chief stands by the landing, horn up, roaring them on.
-      const c = this.charge(board, r) ?? l.cell;
-      const at = board.centre(c);
-      steps.push(board.stepAt(c, { spot: { x: at.x, z: at.z }, face: Math.atan2(-l.ox, -l.oz), pose: 'cheer', linger: 6, tag: 'raid:chief' }));
+      // The chief stands in the middle of it all, his standard up, roaring them on, and moves about a little.
+      const cell = q ? this.nearQuarter(board, p, q, r) : l.cell;
+      const c = cell ?? l.cell;
+      steps.push(board.stepAt(c, { spot: this.spread(board.centre(c), r, Math.floor(this.age / 6)), face: NaN, pose: 'cheer', linger: 5, tag: 'raid:chief' }));
       return plan(steps);
     }
+    const mine = (t: Target): boolean => t.quarter === r.party % Math.max(1, this.quarters.length);
     if (r.role === 'brand') {
-      const t = this.takeTarget(this.burnTargets, r, board, () => this.burnt < this.burnWant);
+      const t = this.takeTarget(this.burnTargets, r, board, () => this.burnt < this.burnWant, mine);
       if (t) {
-        const s = standsOf(board, t.structure).filter((x) => reaches(board, p, x.cell)).sort((a, b) => board.dist(a.cell, p.cell) - board.dist(b.cell, p.cell))[0];
-        if (s) {
-          const at = board.centre(s.cell);
-          steps.push(board.stepAt(s.cell, { spot: { x: at.x, z: at.z }, face: s.face, pose: 'wave', linger: 1.1, brisk: true, tag: 'raid:burn', done: () => {
+        const s2 = this.standFor(board, p, t.structure);
+        if (s2) {
+          const at = board.centre(s2.cell);
+          steps.push(board.stepAt(s2.cell, { spot: this.spread(at, r, t.structure), face: s2.face, pose: 'wave', linger: 1.1, brisk: true, tag: 'raid:burn', done: () => {
             t.done = true;
             t.by = null;
             r.target = null;
@@ -1235,11 +1293,17 @@ export class Raid {
         t.done = true;
       }
     } else {
-      const t = r.trips < RAID.trips ? this.takeTarget(this.lootTargets, r, board, () => true) : null;
+      const t = r.trips < RAID.trips ? this.takeTarget(this.lootTargets, r, board, () => true, mine) : null;
       if (t) {
         const loot = this.lootFor(t, r);
-        const nav = board.nav!;
-        const door = (nav.doorsOf.get(t.structure) ?? []).map((i) => nav.doors[i]!).find((d) => d.node >= 0 && !d.hatch && reaches(board, p, nav.nodes[d.node]!.cell));
+        const door = (nav.doorsOf.get(t.structure) ?? []).map((i) => nav.doors[i]!).find((dr) => dr.node >= 0 && !dr.hatch && reaches(board, p, nav.nodes[dr.node]!.cell));
+        const toPile = this.pileStep(board, r, loot, () => {
+          t.done = true;
+          t.by = null;
+          r.target = null;
+          // Back to their quarter for more.
+          r.there = false;
+        });
         if (door && door.dir !== undefined) {
           const cell = nav.nodes[door.node]!.cell;
           const c = board.centre(cell);
@@ -1249,43 +1313,91 @@ export class Raid {
           steps.push(board.stepAt(cell, { spot, face: DIR_HEADING[(door.dir + 2) % 4 as 0 | 1 | 2 | 3], pose: 'kick', linger: RAID.kick, brisk: true, tag: 'raid:kick' }));
           const inside = board.stepIn(t.structure, { cell, pose: 'stand', linger: RAID.inside, tag: 'raid:loot' });
           if (inside) steps.push(inside);
-          const pile = this.piles[r.landing]!;
-          const lc = board.centre(l.cell);
-          steps.push(board.stepAt(l.cell, { spot: { x: lc.x - l.ox * 0.1, z: lc.z - l.oz * 0.1 }, face: Math.atan2(l.ox, l.oz), pose: 'tend', linger: 0.6, load: loot, brisk: true, tag: 'raid:pile', done: (q) => {
-            const store = board.stores.get(pile.key);
-            if (store && q.load && board.put(store, q.load)) q.load = null;
-            r.trips++;
-            t.done = true;
-            t.by = null;
-            r.target = null;
-          } }));
+          steps.push(toPile);
           return plan(steps);
         }
         // A stall: taken off its counter where it stands.
-        const s = standsOf(board, t.structure).filter((x) => reaches(board, p, x.cell)).sort((a, b) => board.dist(a.cell, p.cell) - board.dist(b.cell, p.cell))[0];
-        if (s) {
-          const at = board.centre(s.cell);
-          const pile = this.piles[r.landing]!;
-          const lc = board.centre(l.cell);
-          steps.push(board.stepAt(s.cell, { spot: { x: at.x, z: at.z }, face: s.face, pose: 'tend', linger: 1.2, brisk: true, tag: 'raid:grab' }));
-          steps.push(board.stepAt(l.cell, { spot: { x: lc.x - l.ox * 0.1, z: lc.z - l.oz * 0.1 }, face: Math.atan2(l.ox, l.oz), pose: 'tend', linger: 0.6, load: loot, brisk: true, tag: 'raid:pile', done: (q) => {
-            const store = board.stores.get(pile.key);
-            if (store && q.load && board.put(store, q.load)) q.load = null;
-            r.trips++;
-            t.done = true;
-            t.by = null;
-            r.target = null;
-          } }));
+        const s2 = this.standFor(board, p, t.structure);
+        if (s2) {
+          const at = board.centre(s2.cell);
+          steps.push(board.stepAt(s2.cell, { spot: this.spread(at, r, t.structure), face: s2.face, pose: 'tend', linger: 1.2, brisk: true, tag: 'raid:grab', done: () => void this.emptied.add(t.structure) }));
+          steps.push(toPile);
           return plan(steps);
         }
         t.done = true;
       }
     }
-    // Nothing left to do: swagger about near the band, weapon up.
-    const c = this.charge(board, r) ?? l.cell;
-    const at = board.centre(c);
-    steps.push(board.stepAt(c, { spot: { x: at.x + (rand(this.seed, 'lx', r.i, Math.floor(this.age)) - 0.5) * 0.5, z: at.z + (rand(this.seed, 'lz', r.i, Math.floor(this.age)) - 0.5) * 0.5 }, face: NaN, pose: 'cheer', linger: 3, tag: 'raid:roam' }));
+    // Nothing left to do here: swagger about the quarter, weapon up, roaring.
+    const c = (q ? this.nearQuarter(board, p, q, r) : null) ?? this.charge(board, r) ?? l.cell;
+    steps.push(board.stepAt(c, { spot: this.spread(board.centre(c), r, Math.floor(this.age / 4)), face: NaN, pose: 'cheer', linger: 3, tag: 'raid:roam' }));
     return plan(steps);
+  }
+
+  /** Stalls their goods were taken from (the stall's own goods hidden while the raid is on). */
+  readonly emptied = new Set<StructureId>();
+
+  /** The quarter nearest the town's heart: where the chief stands with his standard. */
+  private chiefQuarter(): number {
+    const h = this.site.heart;
+    let best = 0, bd = Infinity;
+    this.quarters.forEach((q, i) => {
+      const d = Math.hypot(q.x - h.x, q.z - h.z);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  /** A walkable cell near a quarter's middle, a different one for each raider (they fan out, never in a queue). */
+  private nearQuarter(board: Board, p: Person, q: { x: number; z: number; cell: CellKey }, r: Raider): CellKey | null {
+    const nav = board.nav!;
+    const cands: { c: CellKey; d: number }[] = [];
+    const y0 = keyY(q.cell);
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        for (const y of [y0, y0 - 1, y0 + 1]) {
+          if (y < 0) continue;
+          const c = key(Math.floor(q.x) + dx, y, Math.floor(q.z) + dz);
+          if (nav.nodeAt.has(c) && reaches(board, p, c)) cands.push({ c, d: Math.hypot(dx, dz) + rand(this.seed, 'fan', r.i, c) * 1.5 });
+        }
+      }
+    }
+    if (cands.length === 0) return null;
+    cands.sort((a, b) => a.d - b.d || a.c - b.c);
+    return cands[(r.i * 3) % Math.min(cands.length, 8)]!.c;
+  }
+
+  /** A spot in a cell, off its middle by the raider's own amount (no two stand on one spot). */
+  private spread(at: { x: number; z: number }, r: Raider, what: number | string): { x: number; z: number } {
+    return { x: at.x + (rand(this.seed, 'sx', r.i, what) - 0.5) * 0.55, z: at.z + (rand(this.seed, 'sz', r.i, what) - 0.5) * 0.55 };
+  }
+
+  /** Where to stand at a building to set it alight or take from it: its free side nearest the raider. */
+  private standFor(board: Board, p: Person, sid: StructureId): { cell: CellKey; face: number } | undefined {
+    const busy = new Set(this.raiders.filter((o) => o.person && o.person !== p && o.person.goal?.errand).map((o) => o.person!.goal!.errand!.cell));
+    return standsOf(board, sid)
+      .filter((x) => reaches(board, p, x.cell))
+      .sort((a, b) => (busy.has(a.cell) ? 6 : 0) + board.dist(a.cell, p.cell) - ((busy.has(b.cell) ? 6 : 0) + board.dist(b.cell, p.cell)))[0];
+  }
+
+  /** Back to the boats with the loot, onto the pile there (or, the pile full, holding it by the boat). */
+  private pileStep(board: Board, r: Raider, loot: Load, after: () => void): PlanStep {
+    const l = this.shoreOf(r);
+    const pile = this.piles[r.landing]!;
+    const lc = board.centre(l.cell);
+    return board.stepAt(l.cell, { spot: { x: lc.x - l.ox * 0.15 + (rand(this.seed, 'px', r.i, r.trips) - 0.5) * 0.4, z: lc.z - l.oz * 0.15 + (rand(this.seed, 'pz', r.i, r.trips) - 0.5) * 0.4 }, face: Math.atan2(l.ox, l.oz), pose: 'tend', linger: 0.6, load: loot, brisk: true, tag: 'raid:pile', done: (q) => {
+      const store = board.stores.get(pile.key);
+      if (store && q.load && board.put(store, q.load)) q.load = null;
+      else if (q.load) {
+        // The pile is full: it goes aboard with them later.
+        r.carry = q.load;
+        q.load = null;
+      }
+      r.trips++;
+      after();
+    } });
   }
 
   private failed(r: Raider): void {
@@ -1297,13 +1409,14 @@ export class Raid {
     r.target = null;
   }
 
-  private takeTarget(list: Target[], r: Raider, board: Board, more: () => boolean): Target | null {
+  private takeTarget(list: Target[], r: Raider, board: Board, more: () => boolean, mine: (t: Target) => boolean = () => true): Target | null {
     if (!more()) return null;
     const p = r.person!;
     let best: Target | null = null, bestD = Infinity;
     for (const t of list) {
       if (t.done || (t.by && t.by !== r)) continue;
-      const d = board.dist(t.cell, p.cell) + (t.by === r ? -100 : 0);
+      // Their own quarter first; another's only when theirs is done.
+      const d = board.dist(t.cell, p.cell) + (t.by === r ? -100 : 0) + (mine(t) ? 0 : 40);
       if (d < bestD) {
         bestD = d;
         best = t;
@@ -1391,7 +1504,8 @@ export class Raid {
 function pileSpots(l: Landing): Spot[] {
   const out: Spot[] = [];
   const bx = l.x - l.ox * 0.18, bz = l.z - l.oz * 0.18;
-  const offs: [number, number, number][] = [[-0.22, 0, 0], [0.22, 0, 0], [0, 0.02, -0.2], [-0.12, 0.13, -0.05], [0.12, 0.13, -0.05], [0, 0.24, -0.1]];
+  // A heap: a bottom row of five, three on them, two, one on top; and two leaning against it.
+  const offs: [number, number, number][] = [[-0.36, 0, 0], [-0.18, 0, 0.02], [0, 0, 0], [0.18, 0, 0.02], [0.36, 0, 0], [-0.27, 0.12, -0.02], [0, 0.12, -0.02], [0.27, 0.12, -0.02], [-0.13, 0.24, -0.04], [0.13, 0.24, -0.04], [0, 0.35, -0.06], [0, 0, -0.26]];
   for (const [a, up, back] of offs) {
     out.push({ x: bx - l.oz * a - l.ox * back, y: l.y + up + 0.01, z: bz + l.ox * a - l.oz * back, yaw: Math.atan2(l.ox, l.oz) + a * 2 });
   }
