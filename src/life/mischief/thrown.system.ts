@@ -88,6 +88,8 @@ const mat: number[] = new Array<number>(16).fill(0);
 function onEvent(st: State, e: MischiefEvent): void {
   const t = st.thrower;
   if (!t) return;
+  // A dev switch for measuring what blowing people about costs (src/life/testing/nuke-cost.mjs).
+  if ((globalThis as { __lcStill?: boolean }).__lcStill && e.type !== 'reset' && e.type !== 'undo') return;
   if (e.type === 'blast') {
     const [x, y, z] = e.blast.point;
     t.blast(x, y, z, e.nuke ? 'nuke' : 'bomb');
