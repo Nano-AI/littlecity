@@ -17,6 +17,9 @@
 //   hop      jumping to the nearest walkable cell after being built over (L27)
 //   wait     drawn, standing, waiting for a route to be planned
 //   gone     walked off or faded; removed at the end of the step
+//   thrown   mischief: blown off their feet or carried off by the Hand
+//            (src/life/mischief/thrown.ts moves and draws them until it
+//            sets them down again with `settle`)
 //
 // What a town offers comes from the plan: `resident` actors (L21), haunt-*
 // sockets (L22, L25, L32), `arrival` and `way-out` sockets (L27),
@@ -26,7 +29,7 @@ import { columnIndex, DIR4, key, keyX, keyY, keyZ, SIZE_X, SIZE_Z, type CellKey,
 import { hash, rand } from '@/core/rand';
 import type { SocketType } from '@/core/vocab';
 import type { TimeSignal } from '@/life/api';
-import type { PoseName } from '@/parts/people/pose';
+import type { Pose, PoseName } from '@/parts/people/pose';
 import { usableDoors } from '@/resolve/nav';
 import type { DressingPlan, NavDoor, NavGraph, ShapePlan, StructureId } from '@/resolve/plan';
 import { AVOID, PEOPLE, PERSON } from '@/style/people';
@@ -43,7 +46,7 @@ import type { Finery } from '@/parts/people/finery';
 import type { BeachWear } from '@/parts/people/beachwear';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
-export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
+export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone' | 'thrown';
 
 export interface Haunt {
   /** The socket's id. */
@@ -212,6 +215,23 @@ export interface Person {
    */
   drawX?: number;
   drawZ?: number;
+  /**
+   * Mischief (src/life/mischief/thrown.ts): how a thrown person is drawn, while it says. `pose` is drawn
+   * instead of the crowd's; with `rot` (a 3×3 turn, column-major, world axes) the whole figure is turned
+   * about the point `pivot` (figure units) up its middle, and (x, y, z) is where that point is in the world.
+   * `hatless`: the hat knocked off (it lies on the ground, drawn by the mischief). `drop`: the hips brought
+   * down this far (figure units: sitting on the ground).
+   */
+  tumble?: Tumble | null;
+}
+
+/** See `Person.tumble`. */
+export interface Tumble {
+  pose: Pose | null;
+  rot: Float32Array | null;
+  pivot: number;
+  hatless: boolean;
+  drop: number;
 }
 
 export interface CrowdEvents {
@@ -279,6 +299,17 @@ export interface Crowd {
    * nearest door. Null if there is nowhere to stand there.
    */
   ashore(x: number, y: number, z: number, heading: number, look: number): Person | null;
+  /**
+   * Mischief (src/life/mischief/thrown.ts): somebody out in the town is taken off their feet now (blown
+   * over, picked up): out of their walk, their haunt and their errand (its chain hears it failed, as if
+   * they had been called away), mode 'thrown', left exactly where they are for the caller to move. False
+   * (and nothing done) for somebody indoors or gone.
+   */
+  upend(p: Person): boolean;
+  /** The walking graph's node nearest a world point (-1 if none), as a person set down there would stand at. */
+  nearestNode(x: number, y: number, z: number): number;
+  /** Mischief: a thrown person back on their feet in this node's cell (they stand where they are): they choose again. */
+  settle(p: Person, node: number): void;
 }
 
 const KIND_WEIGHT: Partial<Record<SocketType, number>> = {
@@ -1008,7 +1039,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (nx !== p.offX || nz !== p.offZ) {
       // Never a step aside into somebody beside.
       for (const q of people) {
-        if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'home' || q.mode === 'visit') continue;
+        if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown' || q.mode === 'home' || q.mode === 'visit') continue;
         const dx = q.x - p.x, dz = q.z - p.z;
         if (dx > 0.4 || dx < -0.4 || dz > 0.4 || dz < -0.4 || Math.abs(q.y - p.y) > 0.3) continue;
         // p.x, p.z is the line here (the offset is added below).
@@ -1042,7 +1073,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   /** Somebody stands on the doorstep (or the spot under a hatch): whoever is inside waits to come out. */
   const doorstepTaken = (p: Person, piece: Piece): boolean => {
     for (const q of people) {
-      if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit' || q.mode === 'hop') continue;
+      if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'home' || q.mode === 'visit' || q.mode === 'hop' || q.mode === 'thrown') continue;
       if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
       // Somebody waiting on the doorstep to go in through this very door waits for us: no standoff
       // (under a roof hatch the one waiting below stands on the spot the one coming down lands on).
@@ -1276,7 +1307,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const rx = -fz, rz = fx;
         let nearest = Infinity, target = 0, blocked = false;
         for (const q of people) {
-          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop') continue;
+          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown') continue;
           if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
           const dx = q.x - p.x, dz = q.z - p.z;
           if (dx > 1.4 || dx < -1.4 || dz > 1.4 || dz < -1.4 || Math.abs(q.y - p.y) > 0.3) continue;
@@ -1325,7 +1356,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const reach = p.speed * dt * 1.4;
         if (reach > 0) {
           for (const q of people) {
-            if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'home' || q.mode === 'visit') continue;
+            if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown' || q.mode === 'home' || q.mode === 'visit') continue;
             if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
             const dx = q.x - p.x, dz = q.z - p.z;
             if (dx > 0.5 || dx < -0.5 || dz > 0.5 || dz < -0.5 || Math.abs(q.y - p.y) > 0.3) continue;
@@ -1778,6 +1809,13 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           else p.node = -1;
           continue;
         }
+        if (p.mode === 'thrown') {
+          // In the air or dizzy on the ground (mischief): left alone; their place is kept in the new graph.
+          const at = p.cell >= 0 ? nav.nodeAt.get(p.cell) : undefined;
+          const n = at ?? nearestNode(p.x, p.y, p.z);
+          if (n >= 0) place(p, n);
+          continue;
+        }
         const node = p.cell >= 0 ? nav.nodeAt.get(p.cell) : undefined;
         if (p.mode === 'visit') {
           const door = p.inside && nav.doors.find((d) => d.feature === p.inside!.feature && d.structure === p.inside!.structure && d.node >= 0);
@@ -1985,6 +2023,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
             }
             break;
           case 'gone':
+          case 'thrown':
             break;
         }
         // Reactions (L26). `react` is the pose shown while one lasts.
@@ -2043,7 +2082,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       // Routes: a few a frame, taking turns, so sixty people asking at once never show in a frame.
       for (let k = 0; k < n && plans > 0; k++) {
         const p = people[(planCursor + k) % n]!;
-        if (!p.want || p.mode === 'gone' || p.mode === 'hop') continue;
+        if (!p.want || p.mode === 'gone' || p.mode === 'hop' || p.mode === 'thrown') continue;
         if (p.mode === 'wait' && (p.timer > 0 || (p.fade < 1 && (p.edgeX !== 0 || p.edgeZ !== 0) && !p.leaving))) continue;
         if (p.mode === 'walk' && p.walk![p.at]!.kind !== 'move') continue; // not half-way through a door
         plans--;
@@ -2087,6 +2126,63 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       else crowdedCells.delete(cell);
       const node = nav?.nodeAt.get(cell);
       if (router && node !== undefined) router.setExtra(node, Math.max(extra, seated.has(node) ? PEOPLE.seatedExtra : 0));
+    },
+    upend(p) {
+      if (!nav || p.mode === 'home' || p.mode === 'visit' || p.mode === 'gone' || p.shutIn) return false;
+      if (p.mode === 'thrown') return true;
+      if (p.scuffle && (p.scuffle.a === p || p.scuffle.b === p)) scuffles.end();
+      p.scuffle = null;
+      p.inCloud = false;
+      // Their errand fell through (its chain carries on without them, as when somebody is called away).
+      const g = p.goal, w = p.want;
+      p.want = null;
+      if (g?.errand) opts.errands?.failed(p, g.errand);
+      if (w?.errand && w.errand !== g?.errand) opts.errands?.failed(p, w.errand);
+      leaveHaunt(p);
+      clearWalk(p);
+      // Drawn where they are drawn (a paddler out in the shallows).
+      p.x += p.drawX ?? 0;
+      p.z += p.drawZ ?? 0;
+      p.drawX = p.drawZ = 0;
+      p.goal = null;
+      p.hop = null;
+      p.inside = null;
+      p.seat = -1;
+      p.mode = 'thrown';
+      p.visible = true;
+      p.fade = 1;
+      p.edgeX = p.edgeZ = 0;
+      p.startled = p.jump = p.lift = p.chat = 0;
+      p.jumpy = false;
+      p.chatWith = null;
+      p.bubble = false;
+      p.react = null;
+      p.flying = false;
+      p.dodge = p.dodgeTo = p.dodgeV = p.offX = p.offZ = 0;
+      p.stuck = 0;
+      p.slow = 1;
+      p.admire = null;
+      return true;
+    },
+    nearestNode(x, y, z) {
+      return nav ? nearestNode(x, y, z) : -1;
+    },
+    settle(p, node) {
+      if (p.mode !== 'thrown') return;
+      p.tumble = null;
+      if (!nav || node < 0 || node >= nav.nodes.length) {
+        p.mode = 'wait';
+        p.timer = 0.5;
+        return;
+      }
+      place(p, node);
+      p.y = nodeHeight(nav, node);
+      p.mode = 'wait';
+      p.visible = true;
+      p.pose = 'stand';
+      p.poseTime = 0;
+      p.timer = 0.4 + r(p, 'settle') * 0.6;
+      p.trips++;
     },
     rethink(p) {
       if (p.mode === 'home' || p.mode === 'linger' || p.mode === 'visit' || p.mode === 'wait') p.timer = Math.min(p.timer, 0);

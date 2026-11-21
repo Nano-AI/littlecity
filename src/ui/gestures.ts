@@ -8,6 +8,7 @@
 //   zoom            scroll or pinch                  pinch
 //   paint a run     Shift + drag                     (not in v1)
 //   shape the land  drag (Raise, Dig, Level held)    one-finger drag (Raise, Dig, Level held)
+//   pick up, throw  press on it, drag, let go (Hand)  the same, one finger (Hand)
 //
 // While a land tool is held (sink.dragPaints), a plain drag that starts on
 // the land paints a stroke instead of turning the camera: the drag shapes
@@ -69,6 +70,12 @@ export interface GestureSink {
   runEnd(): void;
   /** A drag (orbit or pan) began or ended; for the cursor. */
   dragging?(on: boolean): void;
+  /**
+   * A press (left button, or one finger) here: return true to take it at once as a run (the Mischief
+   * drawer's Hand picks up what is under it). The run then follows the pointer until it lifts (runMove,
+   * runEnd), even with no movement. Declined, the press is read as usual.
+   */
+  grab?(x: number, y: number): boolean;
 }
 
 /** Timers, so a test can own the clock. */
@@ -129,6 +136,12 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
 
   const touchDown = (p: PointerSample): void => {
     fingers.set(p.id, { x: p.x, y: p.y });
+    if (fingers.size === 1 && touch === 'idle' && sink.grab?.(p.x, p.y)) {
+      startX = lastX = p.x;
+      startY = lastY = p.y;
+      touch = 'run';
+      return;
+    }
     if (fingers.size === 1 && touch === 'idle') {
       touch = 'press';
       startX = lastX = p.x;
@@ -230,7 +243,7 @@ export function createGestures(sink: GestureSink, scheduler: Scheduler = realTim
       mouseButton = p.button;
       startX = lastX = p.x;
       startY = lastY = p.y;
-      mouse = p.button === 0 && p.shift && sink.runStart(p.x, p.y) ? 'run' : 'press';
+      mouse = p.button === 0 && ((p.shift && sink.runStart(p.x, p.y)) || (!p.shift && sink.grab?.(p.x, p.y))) ? 'run' : 'press';
     },
 
     move(p) {

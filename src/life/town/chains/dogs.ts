@@ -14,6 +14,7 @@
 
 import { wrecked } from '../../birds/town';
 import { DIR4 } from '@/core/grid';
+import { critterPose } from '../../mischief/critters';
 import { rand } from '@/core/rand';
 import type { InstanceHandle, LifeStage } from '@/life/api';
 import { DOG_POSES, dogMesh, type DogPose } from '@/parts/people/dog';
@@ -163,6 +164,14 @@ export function dogsChain(): DogChain {
         draw(board, d);
       }
       for (const d of dogs) {
+        // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): drawn where that says, left be.
+        const held = board.stage ? critterPose(board.stage, `dog:${d.post.structure ?? d.post.cell}`, 'dog', d.x, d.y, d.z, d.heading, 0.2, SIZE) : null;
+        if (held) {
+          d.pose = 'stand';
+          draw(board, d);
+          d.handles?.get('stand')?.setMatrix(held);
+          continue;
+        }
         d.t -= dt;
         d.rest = Math.max(0, d.rest - dt);
         const owner = personOf(board, d);

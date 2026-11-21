@@ -301,6 +301,14 @@ const DRAWINGS: Record<string, string> = {
     `<path ${thin} d="M12.6 21.4 L23.8 10.2 M16 24.6 L27 13.6"/>` +
     `<path ${thin} d="M37.6 27.6 L41.6 25.6 M36.4 23.4 L38.8 19.8 M40.6 32 L44.4 31.6"/>`,
 
+  // The Hand: an open hand reaching down, fingers spread, a little figure dangling from between them.
+  hand:
+    `<path d="M14.2 27.6 L10.6 17.4 Q10.2 14.6 12.6 14.4 Q14.6 14.4 15.4 16.8 L18 23.6 L16.6 9.6 Q16.6 7 19 7 Q21.2 7.1 21.4 9.6 L22.4 22 L23.4 7.8 Q23.6 5.4 25.8 5.6 Q28 5.8 27.8 8.4 L27 22.2 L29.6 10.4 Q30.2 8.2 32.2 8.6 Q34.2 9.2 33.6 11.6 L31.4 24.2 L34.6 20 Q36.4 18.2 38 19.6 Q39.4 21 37.8 23.2 L31 32.8 Q27.4 37.4 21.8 36.6 Q16.6 35.8 14.2 27.6 Z" fill="#f2c9a0"/>` +
+    `<path ${thin} d="M18.6 29.4 Q22 31.6 26.6 30.2"/>` +
+    `<path stroke-width="1.5" d="M24 36.8 L24 39.2"/>` +
+    `<circle cx="24" cy="40.6" r="2" fill="${C.white}"/>` +
+    `<path stroke-width="1.5" d="M24 42.4 L24 45.4 M24 43.4 L21.4 41.6 M24 43.4 L26.6 41.6"/>`,
+
   mend:
     `<path d="M8.8 33.6 L24.8 33.4 L24.8 41.6 L8.8 41.8 Z" fill="${C.brick}"/>` +
     `<path ${thin} d="M16.8 33.6 L16.8 41.6"/>` +
