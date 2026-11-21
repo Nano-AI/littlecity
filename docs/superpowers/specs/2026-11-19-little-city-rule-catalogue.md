@@ -1049,6 +1049,28 @@ every cadence, so a held time of day, season or weather keeps them coming.
   home. Bathers are a party (never in a scuffle) and are held by the chain,
   so the wedding and other chains do not take them.
 
+- **L64 · 2 · A snow day** — the biggest square (else the longest street) →
+  `snow|man|` at its free cell nearest the middle (two steps or more from the
+  festival's snowman, D35) and `snow|side|a`, `snow|side|b` two cells either
+  side of it along its longer way. **When:** settled snow (cover 0.5 or more),
+  no rain, by day; 15–35 s after the snow has settled, then 150–240 s after the
+  last ended. **Who:** up to 8, children first and one to three grown-ups,
+  living within 30 steps, in their winter coats and woolly hats. **Story:**
+  they come at a run and stand in a ring round the middle (to 40 s); two roll
+  snowballs round and round inside the cell, the balls growing ahead of them;
+  the big one is pushed into the middle (the body), the second lifted on (the
+  middle), a small one rolled for the head; a grown-up gives it coal eyes, a
+  carrot nose, coal buttons and stick arms, then a hat and a scarf (34 s, the
+  others cheering and hopping); then they split into two sides two cells
+  either side of it and throw (40 s): one stoops to scoop, throws, the ball
+  arcs high over the snowman and bursts in a white puff on somebody on the
+  other side, who jumps; then home. A snowman still standing from before is
+  not built again: straight to the fight. **Afterwards:** the snowman stands
+  until the snow melts (cover under 0.3): it slumps, the hat slipping and the
+  nose fallen, and after 40 s goes in a puff. **Must not:** keep anybody when
+  the square goes (everybody home, the snowman with a puff) or a bomb falls
+  within 12 cells.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

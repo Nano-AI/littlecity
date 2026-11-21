@@ -81,3 +81,40 @@ export const BEACH_COLOURS = {
   pail: ['#e5503f', '#3d7fd6', '#f6c63e', '#3fa58a'] as readonly string[],
   book: ['#b0413e', '#2f5ea8', '#3c7a4e'] as readonly string[],
 };
+
+/** L64: a snow day. */
+export const SNOW_DAY = defineStyle(
+  'snow-day',
+  {
+    /** Settled snow for a snow day to start, and below which a snowman starts to melt. */
+    cover: 0.5,
+    melt: 0.3,
+    /** Seconds after snow has settled that the first may start (and up to `firstSpread` more); from the end of one to the next. */
+    first: 15,
+    firstSpread: 20,
+    every: 150,
+    everySpread: 90,
+    /** Players at most, and how far from home (grid steps) they come. */
+    players: 8,
+    reach: 30,
+    /** Seconds: gathering at most, building the snowman, the snowball fight. */
+    gather: 40,
+    build: 34,
+    fight: 40,
+    /** Seconds between throws from a side, and a snowball's flight. */
+    throwEvery: 0.8,
+    flight: 0.85,
+    /** Seconds a snowman stands melting before it is gone. */
+    melting: 40,
+  },
+  {
+    cover: [0, 1, 0.05], melt: [0, 1, 0.05], first: [0, 300, 1], firstSpread: [0, 120, 1], every: [0, 900, 5], everySpread: [0, 600, 5],
+    players: [3, 16, 1], reach: [6, 60, 1], gather: [5, 120, 1], build: [5, 120, 1], fight: [5, 120, 1], throwEvery: [0.2, 5, 0.1], flight: [0.3, 3, 0.05], melting: [5, 300, 5],
+  },
+);
+
+export const SNOW_COLOURS = {
+  snow: '#fbfdff',
+  carrot: '#f08a3a',
+  scarves: ['#d9473c', '#2f5ea8', '#3fa58a', '#e3b04b'] as readonly string[],
+};
