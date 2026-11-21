@@ -129,18 +129,7 @@ export default defineRule<Festive>({
         }
       }
       if (best !== NO_CELL) out.push({ anchor: best, key: 'tree', data: { kind: 'tree', cell: best } });
-      // The children's snowman (shown only while deep snow lies): a free cell of the square, a few steps
-      // from the tree.
-      let snow: CellKey = NO_CELL, snowD = Infinity;
-      for (const c of main.cells) {
-        if (occ.kind[c] || taken.has(c) || best === NO_CELL) continue;
-        const d = Math.hypot(keyX(c) - keyX(best), keyZ(c) - keyZ(best));
-        if (d >= 2.5 && d < snowD) {
-          snowD = d;
-          snow = c;
-        }
-      }
-      if (snow !== NO_CELL) out.push({ anchor: snow, key: 'snowman', data: { kind: 'snowman', cell: snow } });
+      // (The children's snowman is built by them now, on a snow day: L64, src/life/town/chains/snow-day.ts.)
     }
     return out;
   },
