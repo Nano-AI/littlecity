@@ -318,6 +318,7 @@ describe('fly mode is smooth', () => {
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="grow"]');
     await page.click('[data-menu="grow-here"]');
+    await page.click('[data-menu="town-any"]');
     await page.waitForFunction('window.__lc.ui.growth.active');
     await page.keyboard.press('x');
     await page.waitForFunction('!window.__lc.ui.growth.active');

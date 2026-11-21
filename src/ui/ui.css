@@ -516,6 +516,47 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* The kind screens (what kind of island, what kind of town): rows a finger can hit; nine town
+   kinds in two columns, Surprise me across both, so the list fits a phone. */
+.lc-kinds-wide {
+  max-width: none;
+}
+.lc-kinds .lc-menu-item {
+  min-height: 44px;
+}
+.lc-kinds small {
+  margin-bottom: 6px;
+}
+.lc-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2px;
+  margin: 0 -6px;
+}
+.lc-kind-grid .lc-menu-item {
+  margin-left: 0;
+  width: 100%;
+  padding-right: 8px;
+}
+.lc-kind-grid .lc-kind-any {
+  grid-column: 1 / -1;
+}
+/* A kind this island cannot grow: greyed, nothing said. One still being asked about waits the same way. */
+.lc-kinds .lc-menu-item:disabled {
+  opacity: 0.32;
+}
+/* A search under way: its row's icon bobs; the other rows wait. */
+.lc-working .lc-menu-item:not(.lc-busy) {
+  pointer-events: none;
+  opacity: 0.45;
+}
+.lc-busy .lc-btn-icon {
+  animation: lc-busy 0.7s ease-in-out infinite alternate;
+}
+@keyframes lc-busy {
+  from { transform: translateY(1px) rotate(-6deg); }
+  to { transform: translateY(-2px) rotate(6deg); }
+}
 
 /* ── My towns ──────────────────────────────────────────────────────────── */
 
@@ -1104,7 +1145,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lc-marker .lc-icon, .lc-shake { animation: none; }
+  .lc-marker .lc-icon, .lc-shake, .lc-busy .lc-btn-icon { animation: none; }
   .lc-btn { transition: none; }
 }
 

@@ -481,17 +481,18 @@ describe('desktop: mouse and keys', () => {
     expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
     expect(await count(page)).toBe(5);
 
-    // New island: "Keep this one" changes nothing; "New island" starts over.
+    // New island: it asks what kind and says the town stays in My towns; Back changes nothing; Surprise me starts over.
     const seed = await js<number>(page, 'window.__lc.world().seed');
     await pick(page, 'house');
     await page.mouse.click(...(await ground(page, 24, 27)));
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="new"]');
     await page.waitForSelector('[data-ui="confirm"]');
-    await page.click('[data-menu="new-no"]');
+    expect(await page.textContent('[data-ui="confirm"]')).toContain('The town you have now stays in My towns.');
+    await page.click('[data-menu="new-back"]');
+    await page.waitForSelector('[data-menu="share"]');
     expect(await js(page, 'window.__lc.world().seed')).toBe(seed);
     expect(await count(page)).toBe(6);
-    await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="new"]');
     await page.click('[data-menu="new-yes"]');
     await page.waitForFunction(`window.__lc.world().seed !== ${seed}`);
