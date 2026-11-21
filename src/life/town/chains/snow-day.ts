@@ -28,7 +28,7 @@ import { keyX, keyZ, type CellKey } from '@/core/grid';
 import { rand } from '@/core/rand';
 import type { InstanceHandle } from '@/life/api';
 import type { PoseName } from '@/parts/people/pose';
-import { snowballMesh, snowmanMesh, SNOWMAN, type SnowmanStage } from '@/parts/people/snow';
+import { fortMesh, snowballMesh, snowmanMesh, SNOWMAN, type SnowmanStage } from '@/parts/people/snow';
 import { PERSON } from '@/style/people';
 import { SNOW_DAY } from '@/style/scenes';
 import { fxOf } from '../../fx/fx';
@@ -40,6 +40,12 @@ import { canWork, homeCell, reaches, unbusy } from '../hands';
 import { scenesOf, type Scene } from '../scenes';
 
 export type SnowPhase = 'none' | 'gather' | 'build' | 'fight';
+
+/** The snowman is drawn this much bigger than snow.ts builds it (and the balls are rolled to match). */
+const MAN_SCALE = 1.35;
+/** Snowballs in the air: their radius, and how high they arc. */
+const BALL = 0.07;
+const ARC = 1.0;
 
 interface Player {
   p: Person;
@@ -81,6 +87,8 @@ export interface SnowDayChain extends Chain {
   /** Snowballs thrown so far today, and hits. */
   readonly thrown: number;
   readonly flying: number;
+  /** Snow forts standing. */
+  readonly forts: number;
   begin(board: Board): boolean;
 }
 
@@ -94,6 +102,18 @@ export function snowDayChain(): SnowDayChain {
   let snowSince = -1;
   let players: Player[] = [];
   const snowmen: Snowman[] = [];
+  /** The forts each side has packed up (they stand, and melt, with the snowman). */
+  const forts: { x: number; y: number; z: number; yaw: number; h: InstanceHandle | null; melting: number }[] = [];
+  const putFort = (board: Board, side: Post): void => {
+    const c = board.centre(side.cell), m = centre(board);
+    if (forts.some((f) => Math.hypot(f.x - c.x, f.z - c.z) < 0.6)) return;
+    // Between the side and the snowman, curving round to face it.
+    const dx = m.x - c.x, dz = m.z - c.z, d = Math.hypot(dx, dz) || 1;
+    const f = { x: c.x + (dx / d) * 0.36, y: c.y, z: c.z + (dz / d) * 0.36, yaw: Math.atan2(dx, dz), h: null as InstanceHandle | null, melting: Infinity };
+    f.h = board.stage ? board.stage.spawnMesh(fortMesh(), place(f.x, f.y, f.z, f.yaw)) : null;
+    forts.push(f);
+    puff(board, f.x, f.y + 0.05, f.z, 3, 0.2);
+  };
   let building: Snowman | null = null;
   /** The balls being rolled (by the two rollers), and their size. */
   let rolling: { who: Player; r: number; h: InstanceHandle | null; a: number; which: number }[] = [];
@@ -118,7 +138,7 @@ export function snowDayChain(): SnowDayChain {
   };
   const drawMan = (board: Board, s: Snowman): void => {
     s.h?.release();
-    s.h = board.stage ? board.stage.spawnMesh(snowmanMesh(s.stage, s.look), place(s.x, s.y, s.z, 0, 1.25, 1.25, 1.25)) : null;
+    s.h = board.stage ? board.stage.spawnMesh(snowmanMesh(s.stage, s.look), place(s.x, s.y, s.z, 0, MAN_SCALE, MAN_SCALE, MAN_SCALE)) : null;
     puff(board, s.x, s.y + SNOWMAN.body[1], s.z, 2, 0.16);
   };
 
@@ -180,6 +200,7 @@ export function snowDayChain(): SnowDayChain {
     phase = 'gather';
     t = 0;
     days++;
+    fortAt.a = fortAt.b = Infinity;
     thrown = 0;
     building = null;
     scene = scenesOf(board).begin({
@@ -266,7 +287,7 @@ export function snowDayChain(): SnowDayChain {
         rolling = rollers.map((who, i) => ({ who, r: 0.04, h: board.stage ? board.stage.spawnMesh(snowballMesh(), place(c.x, c.y - 1, c.z, 0)) : null, a: i * Math.PI, which: i }));
     }
     // Rolling: round and round inside the cell, the ball growing ahead of them, until it is big enough.
-    const sizes = [SNOWMAN.body[0], SNOWMAN.middle[0], SNOWMAN.head[0]];
+    const sizes = [SNOWMAN.body[0] * MAN_SCALE, SNOWMAN.middle[0] * MAN_SCALE, SNOWMAN.head[0] * MAN_SCALE];
     const stageAt = [0.36, 0.48, 0.66, 0.76, 0.88];
     for (const [i, r] of rolling.entries()) {
       const pl = r.who;
@@ -290,7 +311,7 @@ export function snowDayChain(): SnowDayChain {
       const cx = keyX(man!.cell), cz = keyZ(man!.cell);
       const tx = Math.max(cx + 0.1, Math.min(cx + 0.9, c.x + Math.cos(r.a) * rad)), tz = Math.max(cz + 0.1, Math.min(cz + 0.9, c.z + Math.sin(r.a) * rad));
       walkTo(pl, tx, tz, dt, 0.5);
-      r.r = Math.min(sizes[which]!, r.r + dt * 0.012 * (which === 2 ? 0.8 : 1));
+      r.r = Math.min(sizes[which]!, r.r + dt * 0.022 * (which === 2 ? 0.7 : 1));
       const fx = Math.sin(pl.p.heading), fz = Math.cos(pl.p.heading);
       r.h?.setVisible(true);
       r.h?.setMatrix(place(pl.p.x + fx * (0.08 + r.r), c.y + r.r * 0.92, pl.p.z + fz * (0.08 + r.r), r.a * 3, r.r, r.r * 0.92, r.r));
@@ -352,9 +373,24 @@ export function snowDayChain(): SnowDayChain {
     }
   };
 
+  /** When each side's fort goes up (the first of them there packs it, kneeling). */
+  const fortAt: Record<'a' | 'b', number> = { a: Infinity, b: Infinity };
   const stepFight = (board: Board, dt: number): void => {
     const c = centre(board);
     const on = players.filter((pl) => playing(board, pl, 'snow:fight'));
+    for (const side of ['a', 'b'] as const) {
+      const post = side === 'a' ? sides.a : sides.b;
+      if (!post) continue;
+      const first = on.find((pl) => pl.side === side && Math.hypot(pl.p.x - pl.spot.x, pl.p.z - pl.spot.z) < 0.02);
+      if (fortAt[side] === Infinity && first) {
+        fortAt[side] = board.now + 1.8;
+        first.pose = 'tend';
+        first.poseUntil = fortAt[side];
+      } else if (board.now >= fortAt[side]) {
+        putFort(board, post);
+        fortAt[side] = -Infinity;
+      }
+    }
     for (const pl of on) {
       if (walkTo(pl, pl.spot.x, pl.spot.z, dt)) {
         face(pl.p, c.x, c.z);
@@ -365,7 +401,7 @@ export function snowDayChain(): SnowDayChain {
       if (board.now < nextThrow[side]) continue;
       const mine = on.filter((pl) => pl.side === side && board.now >= pl.poseUntil);
       const theirs = on.filter((pl) => pl.side !== side);
-      if (mine.length === 0 || theirs.length === 0 || balls.length >= 3) continue;
+      if (mine.length === 0 || theirs.length === 0 || balls.length >= 3 || fortAt.a !== -Infinity || fortAt.b !== -Infinity) continue;
       nextThrow[side] = board.now + SNOW_DAY.throwEvery * (0.7 + rand(board.seed, 'throw', side, thrown) * 0.8);
       const who = mine[Math.floor(rand(board.seed, 'thrower', side, thrown) * mine.length)]!;
       const to = theirs[Math.floor(rand(board.seed, 'target', side, thrown) * theirs.length)]!;
@@ -375,7 +411,7 @@ export function snowDayChain(): SnowDayChain {
       face(who.p, to.p.x, to.p.z);
       balls.push({ x0: who.p.x, y0: who.p.y + 0.36, z0: who.p.z, to, t: -0.45 / SNOW_DAY.flight, h: null });
       const b = balls[balls.length - 1]!;
-      b.h = board.stage ? board.stage.spawnMesh(snowballMesh(), place(b.x0, b.y0 - 2, b.z0, 0, 0.05, 0.05, 0.05)) : null;
+      b.h = board.stage ? board.stage.spawnMesh(snowballMesh(), place(b.x0, b.y0 - 2, b.z0, 0, BALL, BALL, BALL)) : null;
       b.h?.setVisible(false);
       thrown++;
       const thrower = who;
@@ -392,18 +428,22 @@ export function snowDayChain(): SnowDayChain {
       if (b.t < 0) continue;
       const k = Math.min(1, b.t);
       const tx = b.to.p.x, ty = b.to.p.y + 0.3, tz = b.to.p.z;
-      const x = b.x0 + (tx - b.x0) * k, z = b.z0 + (tz - b.z0) * k, y = b.y0 + (ty - b.y0) * k + Math.sin(k * Math.PI) * 0.7;
+      const x = b.x0 + (tx - b.x0) * k, z = b.z0 + (tz - b.z0) * k, y = b.y0 + (ty - b.y0) * k + Math.sin(k * Math.PI) * ARC;
       b.h?.setVisible(true);
-      b.h?.setMatrix(place(x, y, z, 0, 0.05, 0.05, 0.05));
+      b.h?.setMatrix(place(x, y, z, 0, BALL, BALL, BALL));
       if (k >= 1) {
         // Splat: a white puff, and a jump.
-        puff(board, tx, ty, tz, 3, 0.18);
+        puff(board, tx, ty, tz, 4, 0.26);
         b.h?.release();
         balls.splice(i, 1);
         if (playing(board, b.to)) {
           b.to.pose = 'hop';
           b.to.poseUntil = board.now + 0.5;
         }
+      } else if (k > 0.5 && board.now >= b.to.poseUntil && rand(b.to.p.seed, 'duck', thrown) < 0.35 && playing(board, b.to)) {
+        // Ducking down behind the fort (it bursts on the wall all the same).
+        b.to.pose = 'tend';
+        b.to.poseUntil = board.now + 0.7;
       }
     }
     // Others cheer their side's hits now and then.
@@ -419,6 +459,18 @@ export function snowDayChain(): SnowDayChain {
 
   const melt = (board: Board): void => {
     const thawing = board.weather.cover < SNOW_DAY.melt;
+    for (let i = forts.length - 1; i >= 0; i--) {
+      const f = forts[i]!;
+      if (thawing && f.melting === Infinity) {
+        f.melting = board.now;
+        f.h?.release();
+        f.h = board.stage ? board.stage.spawnMesh(fortMesh(true), place(f.x, f.y, f.z, f.yaw)) : null;
+      } else if (f.melting !== Infinity && board.now - f.melting > SNOW_DAY.melting) {
+        puff(board, f.x, f.y + 0.04, f.z, 3, 0.2);
+        f.h?.release();
+        forts.splice(i, 1);
+      }
+    }
     for (let i = snowmen.length - 1; i >= 0; i--) {
       const s = snowmen[i]!;
       if (s === building) continue;
@@ -461,6 +513,9 @@ export function snowDayChain(): SnowDayChain {
     get flying() {
       return balls.length;
     },
+    get forts() {
+      return forts.length;
+    },
     begin,
     sync(board) {
       const posts = board.posts('snow');
@@ -468,6 +523,13 @@ export function snowDayChain(): SnowDayChain {
       man = posts.find((p) => p.role === 'man');
       sides = { a: posts.find((p) => p.role === 'side' && p.ref === 'a'), b: posts.find((p) => p.role === 'side' && p.ref === 'b') };
       if (phase !== 'none' && (!man || !sides.a || !sides.b || man.cell !== was)) finish(board, true);
+      if (!man || man.cell !== was) {
+        for (const f of forts) {
+          puff(board, f.x, f.y + 0.05, f.z, 2, 0.2);
+          f.h?.release();
+        }
+        forts.length = 0;
+      }
       // Snowmen on ground that is gone (or now somewhere else) go with a puff.
       for (let i = snowmen.length - 1; i >= 0; i--) {
         const s = snowmen[i]!;
@@ -544,6 +606,8 @@ export function snowDayChain(): SnowDayChain {
       if (phase !== 'none') finish(board, true);
       for (const s of snowmen) s.h?.release();
       snowmen.length = 0;
+      for (const f of forts) f.h?.release();
+      forts.length = 0;
     },
   };
   return chain;

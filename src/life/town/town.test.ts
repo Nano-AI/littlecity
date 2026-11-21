@@ -26,7 +26,9 @@ import type { MarketChain } from './chains/market-day';
 import type { Person } from '../people/crowd';
 import type { Load } from '../people/errand';
 import { clock, scenarioTown, watch, type TestTown } from '../people/testing';
-import { createLivingTown, type LivingTown } from './index';
+import { allChains, createLivingTown, type LivingTown } from './index';
+
+const SCENES = new Set(['beach', 'icecream', 'snow', 'supper', 'picnic', 'carols', 'welcome']);
 
 const town = scenarioTown(breadTown);
 
@@ -41,7 +43,8 @@ interface Ledger {
 function run(seconds: number, part: 'day' | 'dawn' | 'night' = 'day', dressing: DressingPlan = town.dressing, then?: (t: LivingTown, second: number) => void, where: TestTown = town) {
   // (`then` is called once a second, before that second's steps' checks.)
   const c = clock(where.world.seed, part);
-  const t = createLivingTown({ seed: where.world.seed });
+  // (The town's scenes, L63 and up, would take the buyers and hands these small fixtures need: left out; they have their own tests.)
+  const t = createLivingTown({ seed: where.world.seed, chains: allChains().filter((x) => !SCENES.has(x.id)) });
   t.sync(where.shape, where === town ? dressing : where.dressing, c.time);
   const w = watch(t.crowd, { maxStuck: 12 });
   const was = new Map<Person, Load | null>();

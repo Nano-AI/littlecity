@@ -1,6 +1,7 @@
 // L66 · tier 2 · A picnic. Open grass or garden near the houses → up to
-// PICNIC.blankets posts `picnic|spot|<i>`, three cells or more apart, where a
-// family spreads a blanket. Open: a walking-graph cell on bare grass or a
+// PICNIC.blankets posts `picnic|spot|<i>` close together (a picnic ground:
+// the best spot and the best others two or three cells round it, two apart),
+// where families spread their blankets. Open: a walking-graph cell on bare grass or a
 // garden floor (not a playing field, not sand, not cluttered, not a doorstep)
 // with all four neighbours walkable too, within PICNIC.reach steps of a
 // front door. Under or beside trees first (a tree within two cells), then
@@ -45,17 +46,32 @@ export default defineRule<Data>({
       const c = n.cell;
       if (!open(c)) continue;
       if (!DIR4.every(([dx, dz]) => walkable(key(keyX(c) + dx, keyY(c), keyZ(c) + dz)))) continue;
+      // Out on the open grass, off anybody's way: nothing but grass or garden all round (no street, pier or deck).
+      let open8 = true;
+      for (let dx = -1; dx <= 1 && open8; dx++) for (let dz = -1; dz <= 1 && open8; dz++) {
+        const k = nav.nodeAt.get(key(keyX(c) + dx, keyY(c), keyZ(c) + dz));
+        if (k !== undefined && nav.nodes[k]!.surface !== 'grass' && nav.nodes[k]!.surface !== 'garden') open8 = false;
+      }
+      if (!open8) continue;
       const near = Math.min(...doorCells.map((d) => steps(d, c)));
       if (near > PICNIC.reach || near < 2) continue;
       const shade = trees.some((t) => Math.max(Math.abs(keyX(t) - keyX(c)), Math.abs(keyZ(t) - keyZ(c))) <= 2 && Math.abs(keyY(t) - keyY(c)) <= 1);
       out.push({ cell: c, score: (shade ? 0 : 20) + near });
     }
     out.sort((a, b) => a.score - b.score || a.cell - b.cell);
+    // A picnic ground, not scattered squares: the best spot, then the best others close round it (two to
+    // three cells off, two apart), so the blankets lie together under the same trees.
     const chosen: CellKey[] = [];
-    for (const o of out) {
-      if (chosen.length >= Math.round(PICNIC.blankets)) break;
-      if (chosen.some((c) => Math.max(Math.abs(keyX(c) - keyX(o.cell)), Math.abs(keyZ(c) - keyZ(o.cell))) < 3)) continue;
-      chosen.push(o.cell);
+    const seed = out[0];
+    if (seed) {
+      chosen.push(seed.cell);
+      for (const o of out) {
+        if (chosen.length >= Math.round(PICNIC.blankets)) break;
+        const fromSeed = Math.max(Math.abs(keyX(seed.cell) - keyX(o.cell)), Math.abs(keyZ(seed.cell) - keyZ(o.cell)));
+        if (fromSeed > 3 || Math.abs(keyY(seed.cell) - keyY(o.cell)) > 0) continue;
+        if (chosen.some((c) => Math.max(Math.abs(keyX(c) - keyX(o.cell)), Math.abs(keyZ(c) - keyZ(o.cell))) < 2)) continue;
+        chosen.push(o.cell);
+      }
     }
     return chosen.map((cell, i) => ({ anchor: cell, key: `spot${i}`, data: { i } })) satisfies Candidate<Data>[];
   },

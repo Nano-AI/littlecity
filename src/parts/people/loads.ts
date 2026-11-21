@@ -15,6 +15,7 @@ import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
 import { drawLanternPole, drawTrestle } from './supper';
 import { drawRolledBlanket } from './picnic';
+import { drawCone, drawIceCart } from './beach';
 import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, drawFurledParasol, drawOpenParasolHeld } from './beach';
 
 /**
@@ -40,7 +41,7 @@ import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, d
  * L66, a picnic (picnic.ts):
  *   blanket-n       a checked blanket rolled up, on the shoulder
  */
-export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | 'trestle' | 'lantern-pole' | `blanket-${0 | 1 | 2 | 3}` | BeachLoad;
+export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | 'trestle' | 'lantern-pole' | 'icecart' | 'cone' | `blanket-${0 | 1 | 2 | 3}` | BeachLoad;
 
 /** The six canvas colours (beach.ts CANVAS_COLOURS) and four pail colours. */
 type Canvas = 0 | 1 | 2 | 3 | 4 | 5;
@@ -245,11 +246,13 @@ function drawBeachLoad(b: MeshBuilder, kind: Load): boolean {
   else if (kind === 'beachball') drawCarriedBall(b);
   else if (kind === 'trestle') drawTrestle(b);
   else if (kind === 'lantern-pole') drawLanternPole(b);
+  else if (kind === 'icecart') drawIceCart(b);
+  else if (kind === 'cone') drawCone(b);
   else if (kind.startsWith('blanket-')) drawRolledBlanket(b, colourOf(kind));
   else return false;
   return true;
 }
-const isBeach = (kind: Load): boolean => (BEACH_LOADS as readonly string[]).includes(kind) || kind === 'trestle' || kind === 'lantern-pole' || kind.startsWith('blanket-');
+const isBeach = (kind: Load): boolean => (BEACH_LOADS as readonly string[]).includes(kind) || kind === 'trestle' || kind === 'lantern-pole' || kind === 'icecart' || kind === 'cone' || kind.startsWith('blanket-');
 
 /**
  * How each load is carried, so it shows above or in front of the carrier from far off:
@@ -290,13 +293,15 @@ export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   scythe: 'shoulder',
   trestle: 'shoulder',
   'lantern-pole': 'pole',
+  icecart: 'push',
+  cone: 'high',
   'blanket-0': 'shoulder',
   'blanket-1': 'shoulder',
   'blanket-2': 'shoulder',
   'blanket-3': 'shoulder',
 };
 /** Loads drawn at their own size whatever the camera's distance (they are big enough, or would swamp their carrier). */
-export const NOT_GROWN: ReadonlySet<Load> = new Set<Load>(['cart', 'cart-1', 'cart-2', 'cart-3', ...BEACH_LOADS.filter((k) => k.startsWith('parasol-open-'))]);
+export const NOT_GROWN: ReadonlySet<Load> = new Set<Load>(['icecart', 'cart', 'cart-1', 'cart-2', 'cart-3', ...BEACH_LOADS.filter((k) => k.startsWith('parasol-open-'))]);
 /** Loads heavy enough that their carrier leans into them and walks slower. */
 export const HEAVY: ReadonlySet<Load> = new Set<Load>(['trestle', 'sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
 
@@ -347,6 +352,8 @@ const HOLD: Record<Load, Mat4Like> = {
   scythe: multiply(translation(0.08, 0.2, -0.04), rotX(-0.5)),
   trestle: translation(0.1, 0.3, 0.02),
   'lantern-pole': translation(0.09, 0.36, 0.06),
+  icecart: translation(0, 0, 0),
+  cone: translation(0.085, 0.33, 0.06),
   'blanket-0': translation(0.085, 0.3, -0.02),
   'blanket-1': translation(0.085, 0.3, -0.02),
   'blanket-2': translation(0.085, 0.3, -0.02),

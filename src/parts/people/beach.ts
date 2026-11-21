@@ -366,3 +366,35 @@ export function bookMesh(colour: number): MeshData {
     return b.build();
   });
 }
+
+/**
+ * The ice-cream cart (figure units, as loads.ts draws carts: its handles toward −Z where whoever pushes it
+ * stands, on two wheels): a white box with a pink lid and two tubs, and a striped umbrella over it.
+ */
+export function drawIceCart(b: MeshBuilder): void {
+  b.at(translation(0, 0, 0.36), () => {
+    b.setInk('cart-box').setColor(PALETTE.white).setPattern(PATTERN.planks);
+    b.box([-0.12, 0.07, -0.1], [0.12, 0.19, 0.12]);
+    b.setInk('cart-lid').setColor(BEACH_COLOURS.icecream[0]!).setPattern(PATTERN.none);
+    b.box([-0.125, 0.19, -0.105], [0.125, 0.205, 0.125]);
+    b.setInk('tubs').setColor(BEACH_COLOURS.icecream[1]!);
+    for (const x of [-0.05, 0.05]) b.at(translation(x, 0.205, 0.02), () => smoothBall(b, 0, 0, 0, 0.032, 0.022, 0.032, 8, 4));
+    b.setInk('wheels').setColor(PALETTE.metal);
+    for (const x of [-0.135, 0.135]) b.at(translation(x, 0.065, 0.0), () => b.at([0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], () => b.lathe([[0, -0.01], [0.065, -0.01], [0.065, 0.01], [0, 0.01]], { segments: 10 })));
+    b.setInk('handles').setColor(PALETTE.trunk);
+    for (const x of [-0.09, 0.09]) tube(b, [[x, 0.15, -0.1], [x, 0.18, -0.25]], 0.007, { seg: 4 });
+    b.setInk('brolly-pole').setColor(PALETTE.white);
+    tube(b, [[0.1, 0.19, 0.1], [0.1, 0.52, 0.1]], 0.006, { seg: 4 });
+    b.at(translation(0.1, 0.48, 0.1), () => canopy(b, BEACH_COLOURS.icecream[0]!, 0.24, 0.08, 8));
+  });
+}
+
+/** An ice-cream cone held up (figure units, about the origin): a wafer cone and a pink scoop. */
+export function drawCone(b: MeshBuilder): void {
+  b.setInk('cone').setColor('#e2b06a').setPattern(PATTERN.none);
+  b.lathe([[0, -0.05], [0.022, 0.01], [0.02, 0.012]], { segments: 8 });
+  soft(b, { ink: 'scoop' }, (s) => {
+    s.b.setColor(BEACH_COLOURS.icecream[2]!);
+    s.ball(0, 0.03, 0, 0.026, 0.024, 0.026, 8, 5);
+  });
+}

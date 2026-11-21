@@ -1048,6 +1048,14 @@ every cadence, so a held time of day, season or weather keeps them coming.
   the beach erased takes its things and castles with a puff and sends everybody
   home. Bathers are a party (never in a scuffle) and are held by the chain,
   so the wedding and other chains do not take them.
+  **The ice-cream cart** (`chains/icecream.ts`, at `beach|back`): once the
+  families are set up, a grown-up living within 30 steps wheels the cart down
+  (white, a pink lid, a striped umbrella), parks it behind the sand and stands
+  at it calling out; residents choosing what to do within 22 steps (children
+  half the time, grown-ups a quarter) queue, four at most (two in a line, then
+  round to the side, shuffling up), and each in turn gets a cone (2.4 s, the
+  seller bending to the tub) and walks off with it held up. When the day is
+  over the cart is wheeled home and the queue goes off.
 
 - **L64 · 2 · A snow day** — the biggest square (else the longest street) →
   `snow|man|` at its free cell nearest the middle (two steps or more from the
@@ -1095,9 +1103,12 @@ every cadence, so a held time of day, season or weather keeps them coming.
 - **L66 · 2 · Picnics** — open grass or garden near the houses (a walking
   cell on bare grass or a garden floor, not a playing field, sand, clutter or a
   doorstep, all four neighbours walkable, 2–30 steps from a front door, in a
-  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>`, three cells or
-  more apart, under or beside trees first (a tree within two cells), then
-  nearest the houses. **When:** spring weighing half or more (or summer in a
+  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>` together as a
+  picnic ground: the best spot (under or beside trees first, a tree within two
+  cells, then nearest the houses) and the best others two to three cells round
+  it, two apart. The first blanket has a big parasol over it (the second
+  grown-up carries it instead of a basket), and the first child of the ground
+  flies a kite high over it (reeled in before they go). **When:** spring weighing half or more (or summer in a
   town with no beach), no rain, cloud at most 0.85, by day; 30 s after the town
   is seen, then 120–220 s after the last ended. **Who:** one household a spot
   (a grown-up with the blanket, up to two children, another grown-up with the
@@ -1112,6 +1123,31 @@ every cadence, so a held time of day, season or weather keeps them coming.
   **Must not:** leave a blanket down with nobody of its family left to take it
   up (it goes with a puff when the last of them has gone); stay on grass built
   over (everything with a puff, everybody home).
+
+- **L67 · 2 · Carol singers** — a town of 6 houses or more → a round of up to
+  6 front doors (`carol|door|<order>` on each doorstep, facing the door), from
+  the house nearest the heart, each next the nearest not yet sung to, in the
+  main part of the walking graph. **When:** winter weighing half or more, or
+  the festival up; at dusk, once an evening with the time running; held at
+  dusk or night, one round every 200–320 s after the last. **Who:** up to 6
+  living within 30 steps: one or two grown-ups, up to three children, then
+  more grown-ups; each carries a lantern on a pole (it glows). **Story:** they
+  walk door to door; at each they stand in a half ring on the doorstep facing
+  the door and sing 9 s (heads up, a sway, music notes floating up from them),
+  and whoever is at home in that house comes out onto the step to listen and
+  clap, then goes in; on to the next; home at the end of the round with their
+  lanterns. Late arrivals follow on; anybody still on the way when the round
+  ends goes straight home. **Must not:** go on with a bomb falling (all home),
+  or after the round's doors change.
+
+- **L68 · 2 · Waving the ship in** (run time, `chains/welcome.ts`; the
+  places are L27's way-out sockets on dock decks, the water's edge of the
+  piers and quays) — a big ship (L38–L40) under way coming in (nearer the
+  pier ends than a second before) within 14 cells of one, by day → up to four
+  children and a grown-up or two living within reach come running to that pier
+  end, stand round it and wave, jump and cheer, turning to follow the ship,
+  until 20 s after it has stopped at its berth (75 s at most), then go home.
+  A ship going out draws nobody; 60 s rest after each.
 
 ### Animals and small motion
 

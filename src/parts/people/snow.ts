@@ -85,3 +85,25 @@ export function snowballMesh(): MeshData {
     return b.build();
   });
 }
+
+/**
+ * A snow fort: a low curved wall of packed snowballs, waist high to a child, to duck behind in a snowball
+ * fight. Its middle at the origin, curving round toward +Z (the side it shelters from). `melting` slumps it.
+ */
+export function fortMesh(melting = false): MeshData {
+  return cached(`fort:${melting}`, () => {
+    const b = new MeshBuilder({ ink: `snow-fort-${melting}` });
+    soft(b, { ink: 'fort' }, (s) => {
+      s.b.setColor(SNOW_COLOURS.snow).setPattern(PATTERN.none);
+      const n = 7;
+      for (let i = 0; i < n; i++) {
+        const a = ((i - (n - 1) / 2) / n) * 1.9;
+        const x = Math.sin(a) * 0.42, z = Math.cos(a) * 0.42 - 0.42;
+        const h = melting ? 0.05 : 0.1 + (i % 2) * 0.012;
+        s.ball(x, h * 0.55, z, 0.085, h * 0.62, 0.075, 8, 5);
+        if (!melting && i % 2 === 0) s.ball(x, h * 1.15, z, 0.06, 0.05, 0.055, 7, 4);
+      }
+    });
+    return b.build();
+  });
+}

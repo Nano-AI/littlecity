@@ -946,8 +946,15 @@ export function beachChain(): BeachChain {
   const stepPack = (board: Board, b: Bather, dt: number): void => {
     const p = b.p, pi = b.pitch;
     if (b.act === 'swim' && b.swim < 1) {
-      // Out of the water first (in a hurry).
-      stepSwim(board, b, dt * 3);
+      // Out of the water first (in a hurry, in the rain).
+      stepSwim(board, b, b.hurry ? dt * 3 : dt);
+      return;
+    }
+    // When the sun gets low there is no hurry: each finishes what they are doing first (a few seconds apart).
+    if (!b.hurry && b.stage === 0 && b.t < 0 && b.act !== 'idle') {
+      b.t += dt;
+      if (b.to) walkOn(b, dt);
+      else doAct(board, b, dt);
       return;
     }
     if ((p.drawX || p.drawZ) && !ashore(b, dt * 2)) return;
@@ -960,6 +967,12 @@ export function beachChain(): BeachChain {
     }
     const mine = pi.things.filter((t) => t.owner === b).sort((x, y) => order(x.kind) - order(y.kind));
     const t = mine[0];
+    if (!t && !b.hurry && p.load && pi.bathers.some((o) => o !== b && o.state === 'pack' && pi.things.some((x) => x.owner === o))) {
+      // Packed: waiting for the rest of the family, looking out to sea a last time.
+      hold(b, 'stand');
+      p.heading = seaward(pi);
+      return;
+    }
     if (!t) {
       // Nothing (more) to pack (somebody else's things that nobody will take: theirs too, if their hands are free).
       const spare = !p.load ? pi.things.find((x) => x.owner === null && !x.fetcher) : undefined;
@@ -981,16 +994,19 @@ export function beachChain(): BeachChain {
       b.t = 0;
     }
     if (b.to && !walkOn(b, dt)) return;
-    hold(b, 'tend');
     b.t += dt;
-    if (b.t < (b.hurry ? 0.5 : 1.3)) return;
+    // Unhurried: the towel shaken out, the chair folded, the parasol let down (an arm up to close it) and pulled up.
+    const takes = b.hurry ? 0.5 : t.kind === 'towel' ? 2.4 : t.kind === 'chair' ? 2.2 : t.kind === 'parasol' ? 2.8 : 1.3;
+    hold(b, b.hurry ? 'tend' : t.kind === 'towel' ? 'dust' : t.kind === 'parasol' && b.t < 1.1 ? 'wave' : 'tend');
+    if (b.t < takes) return;
     pickUp(board, pi, t);
     // The towel rolls up round the parasol's foot: it is carried with it.
     if (t.kind !== 'towel') p.load = carryOf(t.kind, pi, b.hurry);
     b.stage = 0;
     b.t = 0;
   };
-  const order = (k: ThingKind): number => (k === 'towel' ? 0 : k === 'parasol' ? 1 : 2);
+  /** The parasol comes down last. */
+  const order = (k: ThingKind): number => (k === 'towel' ? 0 : k === 'parasol' ? 3 : k === 'chair' ? 1 : 2);
 
   /** The day is over (or rain or trouble): everybody packs up. */
   const packUp = (board: Board, day: Day, hurry: boolean): void => {
@@ -1005,8 +1021,8 @@ export function beachChain(): BeachChain {
           // Anything not yet set down stays in the hands.
           b.state = 'pack';
           b.stage = 0;
-          b.t = 0;
-          b.to = null;
+          b.t = hurry ? 0 : -(2 + rand(b.p.seed, 'beach-pack', begun) * 12);
+          if (hurry) b.to = null;
         } else if (b.state === 'called' || b.state === 'coming') {
           // Not there yet: back home (with their thing, if they have it).
           b.state = 'gone';
