@@ -1479,3 +1479,20 @@ day or supper (the guide's picture tool cannot hold a season). Round 2
 sent: carol singers, an ice-cream cart, fishing off the pier, skating,
 leaf piles, a street performer, an evening promenade.
 Running: town-scenes round 2.
+
+**Ragdoll and the Hand (Derek, 2026-11-21).** New agent
+`a0dfec5cd5f0c15d7` on `swarm/ragdoll` (Opus). (1) People (and ground
+animals, soldiers, the rider) are thrown outward by a nuke's ring, a
+bomb's blast and a close lightning strike: ballistic arcs with a floppy
+tumble, stopped by walls and roofs, a splash and a swim in the sea,
+then dizzy stars, then up again; nobody hurt, nobody vanishes; a small
+deterministic integrator, no physics dependency; back on the walking
+graph after. (2) A Hand tool in Mischief: press and hold picks up a
+person, animal, bird, cart, boat or (if it can look right) a big ship,
+carried over the roofs, dropped or thrown by a flick, landing as in
+(1). Buildings not in the first round: the agent is to say what it
+would take. Order: ragdoll whole first, then the Hand for people and
+animals, then birds, carts, small boats, then big ships. Told to keep
+changes to shared people files small (town-scenes round 2 is in
+`src/life/town` and `src/life/people` now).
+Running: town-scenes round 2, ragdoll.
