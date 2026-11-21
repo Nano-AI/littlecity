@@ -10,7 +10,7 @@
 // reaches them), a bomb's, a bolt of lightning (only right beside it); undo
 // and a called-off act set everybody back on their feet at once.
 
-import { SEA_Y } from '@/core/grid';
+import { CELL_H, keyX, keyY, keyZ, SEA_Y } from '@/core/grid';
 import type { Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { dazeStarMesh } from '@/parts/people/scuffle-art';
@@ -97,8 +97,37 @@ function heldShadowMesh(): MeshData {
   return (shadowMesh = b.build());
 }
 
+/** A loose roof tile: a small flat slab. */
+let tileMesh: MeshData | null = null;
+function looseTileMesh(): MeshData {
+  if (tileMesh) return tileMesh;
+  const b = new MeshBuilder({ ink: 'loose-tile' });
+  b.setPattern(PATTERN.none).setInk('tile').setColor('#b85c46');
+  b.box([-0.05, 0, -0.035], [0.05, 0.014, 0.035]);
+  return (tileMesh = b.build());
+}
+
+/** A building in the Hand: lifted out of its chunk, wobbling; tiles falling off it. */
+interface Shaking {
+  sid: number;
+  h: InstanceHandle | null;
+  /** Where its foot is (the middle of its bottom), and its top. */
+  cx: number;
+  cy: number;
+  cz: number;
+  top: number;
+  t: number;
+  /** Seconds settling back, once let go (-1 while held). */
+  down: number;
+  tiles: { h: InstanceHandle; x: number; y: number; z: number; vx: number; vy: number; vz: number; spin: number; age: number; rest: number }[];
+  nextTile: number;
+  /** Whoever was in it has been sent out. */
+  told: boolean;
+}
+
 interface State {
   d: Director;
+  shaking: Shaking | null;
   /** The Hand's mark and the shadows of what it holds. */
   ring: InstanceHandle | null;
   shadows: InstanceHandle[];
@@ -211,16 +240,133 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
   }
 }
 
+function stepShaking(st: State, stage: LifeStage, real: LifeStage, t: Thrower, dt: number): void {
+  const want = t.shake;
+  let sh = st.shaking;
+  if (want && !want.let && (!sh || sh.sid !== want.sid) && st.shape) {
+    if (sh) endShaking(sh);
+    const s = st.shape.structures.get(want.sid as never);
+    if (!s || s.cells.length === 0) {
+      t.shake = null;
+      return;
+    }
+    let x = 0, z = 0, lo = Infinity, hi = -Infinity;
+    for (const c of s.cells) {
+      x += keyX(c) + 0.5;
+      z += keyZ(c) + 0.5;
+      lo = Math.min(lo, keyY(c));
+      hi = Math.max(hi, keyY(c));
+    }
+    sh = st.shaking = { sid: want.sid, h: stage.liftStructure(want.sid as never), cx: x / s.cells.length, cy: lo * CELL_H, cz: z / s.cells.length, top: (hi + 1) * CELL_H, t: 0, down: -1, tiles: [], nextTile: 0.25, told: false };
+  }
+  if (!sh) return;
+  if (want?.let || !want) sh.down = sh.down < 0 ? 0 : sh.down;
+  sh.t += dt;
+  // Whoever is inside comes out of the door, startled.
+  if (!sh.told) {
+    sh.told = true;
+    const crowd = st.crowd;
+    for (const p of crowd?.people ?? []) if (p.home === sh.sid || p.inside?.structure === sh.sid) crowd!.rethink(p);
+  }
+  let lift: number, tiltX: number, tiltZ: number;
+  if (sh.down < 0) {
+    // Held: up a little, rocking side to side on twos.
+    const k = Math.floor(sh.t * 8);
+    lift = Math.min(0.18, sh.t * 0.8) + (k % 2) * 0.02;
+    tiltX = (k % 4 < 2 ? 1 : -1) * 0.065;
+    tiltZ = (k % 3 === 0 ? 1 : -1) * 0.045;
+    sh.nextTile -= dt;
+    if (sh.nextTile <= 0 && sh.tiles.length < 6) {
+      sh.nextTile = 0.35 + (sh.tiles.length % 3) * 0.2;
+      const a = sh.tiles.length * 2.4 + sh.sid;
+      sh.tiles.push({ h: stage.spawnMesh(looseTileMesh(), HIDE), x: sh.cx + Math.cos(a) * 0.45, y: sh.top + lift, z: sh.cz + Math.sin(a) * 0.45, vx: Math.cos(a) * 0.8, vy: 0.6, vz: Math.sin(a) * 0.8, spin: 6 + (sh.tiles.length % 3) * 3, age: 0, rest: -1 });
+    }
+  } else {
+    // Let go: down onto its foundations with a little bump, and baked back into the town.
+    sh.down += dt;
+    const u = Math.min(1, sh.down / 0.35);
+    lift = (1 - u) * 0.18 + (u >= 1 ? 0 : Math.sin(u * Math.PI) * 0.02);
+    tiltX = tiltZ = 0;
+    if (u >= 1 && sh.h) {
+      sh.h.setMatrix(sh.h.base);
+      sh.h.release();
+      sh.h = null;
+      const k = farScale();
+      fxOf(real).play(DUST, 0.6, (v, m) => place(sh!.cx, sh!.cy + 0.05 + v * 0.2, sh!.cz, 0, (0.6 + v * 0.6) * k, (0.3 + v * 0.3) * k, (0.6 + v * 0.6) * k, m));
+    }
+  }
+  if (sh.h) {
+    // T(c) · Rx(tiltX) · Rz(tiltZ) · T(−c) · lift, on the structure's own (world-space) base.
+    const cx = Math.cos(tiltX), sx = Math.sin(tiltX), cz = Math.cos(tiltZ), sz = Math.sin(tiltZ);
+    const r = [cz, sz, 0, -sz * cx, cz * cx, sx, sz * sx, -cz * sx, cx];
+    const px = sh.cx, py = sh.cy, pz = sh.cz;
+    const tx = px - (r[0]! * px + r[3]! * py + r[6]! * pz), ty = py - (r[1]! * px + r[4]! * py + r[7]! * pz) + lift, tz = pz - (r[2]! * px + r[5]! * py + r[8]! * pz);
+    sh.h.setMatrix(mulM([r[0]!, r[1]!, r[2]!, 0, r[3]!, r[4]!, r[5]!, 0, r[6]!, r[7]!, r[8]!, 0, tx, ty, tz, 1], sh.h.base));
+  }
+  // The tiles: off the roof, tumbling down, lying where they land a while, then swept up (into a puff).
+  for (let i = sh.tiles.length - 1; i >= 0; i--) {
+    const tl = sh.tiles[i]!;
+    tl.age += dt;
+    if (tl.rest < 0) {
+      tl.vy -= 9 * dt;
+      tl.x += tl.vx * dt;
+      tl.y += tl.vy * dt;
+      tl.z += tl.vz * dt;
+      const g = t.ground?.surface(tl.x, tl.z, tl.y + 0.05);
+      if (g && tl.y <= (g.water ? SEA_Y : g.h)) {
+        tl.y = g.water ? SEA_Y : g.h;
+        tl.rest = 0;
+      }
+    } else tl.rest += dt;
+    tl.h.setMatrix(place(tl.x, tl.y, tl.z, tl.age * tl.spin, 1, 1, 1, new Array<number>(16)));
+  }
+  if (!sh.h && sh.down >= 0 && sh.tiles.every((tl) => tl.rest > 4)) {
+    for (const tl of sh.tiles) {
+      const x = tl.x, y = tl.y, z = tl.z;
+      fxOf(real).play(DUST, 0.4, (v, m) => place(x, y + 0.02 + v * 0.06, z, 0, 0.12 + v * 0.15, 0.12 + v * 0.15, 0.12 + v * 0.15, m));
+    }
+    endShaking(sh);
+    st.shaking = null;
+    if (t.shake?.let) t.shake = null;
+  }
+}
+
+function endShaking(sh: Shaking): void {
+  if (sh.h) {
+    sh.h.setMatrix(sh.h.base);
+    sh.h.release();
+    sh.h = null;
+  }
+  for (const tl of sh.tiles) tl.h.release();
+  sh.tiles = [];
+}
+
+/** a · b, column-major. */
+function mulM(a: number[], b: ArrayLike<number>): number[] {
+  const o = new Array<number>(16).fill(0);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r]! += a[k * 4 + r]! * b[c * 4 + k]!;
+  return o;
+}
+
 export default defineSystem<State>({
   id: 'mischief.thrown',
   // After the director (the mischief system, 10) has told of a blast; before the people are drawn (20).
   order: 15,
   create(ctx) {
-    const st: State = { ring: null, shadows: [], d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), critterLines: new Map(), spouts: [], time: 0, off: () => {} };
+    const st: State = { shaking: null, ring: null, shadows: [], d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), critterLines: new Map(), spouts: [], time: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, e));
     return st;
   },
   sync(st, next) {
+    // The building in the Hand changed under it (a mend, an undo): let go of it at once.
+    if (st.shaking && next.shape !== st.shape) {
+      const was = st.shape?.structures.get(st.shaking.sid as never), now = next.shape.structures.get(st.shaking.sid as never);
+      if (!now || was?.hash !== now.hash) {
+        endShaking(st.shaking);
+        st.shaking = null;
+        if (st.thrower) st.thrower.shake = null;
+      }
+    }
     st.shape = next.shape;
     if (next.dressing) st.nav = next.dressing.nav;
     st.thrower?.sync(next.shape, st.nav);
@@ -343,6 +489,9 @@ export default defineSystem<State>({
       // The disc flat (scaled in x, z), the line up the y axis to just under it.
       h.setMatrix([hd.r, 0, 0, 0, 0, drop, 0, 0, 0, 0, hd.r, 0, hd.x, gy, hd.z, 1]);
     });
+    // A building in the Hand: up a hand's breadth, wobbling on its foundations, tiles sliding off; let go, it
+    // settles back with a bump, exactly where it was.
+    stepShaking(st, stage, ctx.stage, t, dt);
     // Splashes: up and back down into the water.
     for (let i = st.spouts.length - 1; i >= 0; i--) {
       const s = st.spouts[i]!;
@@ -365,6 +514,8 @@ export default defineSystem<State>({
     st.spouts = [];
     st.ring = null;
     st.shadows = [];
+    if (st.shaking) endShaking(st.shaking);
+    st.shaking = null;
     st.own.releaseAll();
   },
 });

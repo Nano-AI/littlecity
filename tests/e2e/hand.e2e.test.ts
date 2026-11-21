@@ -144,4 +144,35 @@ describe('the Hand', () => {
     expect(errors).toEqual([]);
     await page.close();
   });
+
+  test('a building: it lifts a little and wobbles while held, and settles back exactly where it was; nothing saved changes', async () => {
+    const { page, errors } = await app.open('/?seed=4242&mischief');
+    await holdHand(page);
+    const before = (await page.evaluate('JSON.stringify([...window.__lc.world().blocks.entries()])')) as string;
+    // The top of a house, close up.
+    const at = (await page.evaluate(`(() => {
+      const shape = window.__lc.shape();
+      for (const [cell, kind] of shape.kinds) {
+        if (kind !== 'house') continue;
+        const x = cell & 63, z = (cell >> 6) & 63, y = cell >> 12;
+        if (shape.kinds.get(cell + 4096) !== undefined) continue;
+        window.__lc.view.setCamera({ target: [x + 0.5, y * 0.8 + 0.4, z + 0.5], zoom: 9 });
+        return [x + 0.5, y * 0.8 + 0.8, z + 0.5];
+      }
+      return null;
+    })()`)) as [number, number, number];
+    await page.evaluate(frames(4));
+    const [sx, sy] = (await page.evaluate(`window.__lc.view.worldToScreen(${JSON.stringify(at)})`)) as [number, number];
+    const box = (await page.locator('#town').boundingBox())!;
+    await page.mouse.move(box.x + sx, box.y + sy);
+    await page.mouse.down();
+    await page.waitForFunction('window.__lcThrown.thrower.shake !== null');
+    await page.evaluate(frames(30));
+    await page.mouse.up();
+    await page.waitForFunction('window.__lcThrown.thrower.shake === null || window.__lcThrown.thrower.shake.let');
+    await page.waitForFunction('window.__lcThrown.thrower.shake === null', null, { timeout: 20_000 });
+    expect(await page.evaluate('JSON.stringify([...window.__lc.world().blocks.entries()])')).toBe(before);
+    expect(errors).toEqual([]);
+    await page.close();
+  });
 });

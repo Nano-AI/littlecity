@@ -112,6 +112,12 @@ export interface Thrower {
   carryCritter(c: Critter, x: number, y: number, z: number): void;
   /** The Hand is over something it could pick up (drawn as a ring on the ground round it), or null. */
   hover: (() => { x: number; y: number; z: number; r: number } | null) | null;
+  /**
+   * The Hand has hold of a building (its structure id): it lifts a little and wobbles on its foundations,
+   * shaking loose a few roof tiles, until `let` (then it settles back where it was). Drawn by thrown.system.
+   * Nothing saved changes.
+   */
+  shake: { sid: number; let: boolean } | null;
   /** A boat thrown down hard into the sea goes over (set by the drawing system, which can reach the wrecks). */
   capsize: ((c: Critter, x: number, z: number, yaw: number) => void) | null;
   /** The critters thrown now, with what they did since the last frame (taken by the drawing). */
@@ -700,9 +706,11 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     },
     critterEvents,
     hover: null,
+    shake: null,
     capsize: null,
     reset() {
       waves.length = 0;
+      if (thrower.shake) thrower.shake.let = true;
       for (const c of critters.values()) if (c.body) doneCritter(c);
       for (const t of [...thrown.values()]) {
         const p = t.person;
