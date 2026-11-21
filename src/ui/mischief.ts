@@ -42,7 +42,10 @@ export function mischiefGuideSection(): HTMLElement {
   for (const m of MISCHIEF_GUIDE) {
     list.append(
       el('li', { class: 'lc-guide-entry', attrs: { 'data-mischief': m.tool } }, [
-        el('div', { class: 'lc-guide-picture lc-guide-mischief-icon', html: icon(m.tool) }),
+        // The raid has a picture of its own (src/life/testing/raid-picture.mjs); the rest show their tool.
+        m.tool === 'raid'
+          ? el('img', { class: 'lc-guide-picture', attrs: { src: `${import.meta.env.BASE_URL}guide/raid.webp`, alt: '', loading: 'lazy', decoding: 'async', width: '180', height: '135', draggable: 'false' } })
+          : el('div', { class: 'lc-guide-picture lc-guide-mischief-icon', html: icon(m.tool) }),
         el('div', { class: 'lc-guide-words' }, [el('h4', {}, [el('span', { text: m.name })]), el('p', { text: m.how })]),
       ]),
     );

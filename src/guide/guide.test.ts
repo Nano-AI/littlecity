@@ -105,7 +105,8 @@ describe('the pictures', () => {
   });
 
   test('no picture is left over from an entry that is gone', () => {
-    const ids = new Set(ENTRIES.map((e) => `${e.id}.webp`));
+    // The Mischief group's Raid has a picture of its own (src/life/testing/raid-picture.mjs).
+    const ids = new Set([...ENTRIES.map((e) => `${e.id}.webp`), 'raid.webp']);
     expect(files.filter((f) => !ids.has(f))).toEqual([]);
   });
 });

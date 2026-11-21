@@ -21,7 +21,7 @@
 // colour. Pure.
 
 import { rand } from '@/core/rand';
-import { compose, rotationX, rotationY, scaling, translation } from '@/core/mat4';
+import { compose, rotationY, scaling, translation } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { soft } from '@/gen/soft';
 import { tube } from '@/parts/ground/kit';
@@ -39,9 +39,9 @@ export function isBarbarian(c: unknown): c is Barbarian {
 }
 
 /** What a raider carries when their hands are free: a brand (to set fires), an axe or a club; the chief his horn. */
-export type RaiderGear = 'brand' | 'axe' | 'club' | 'horn';
+export type RaiderGear = 'brand' | 'axe' | 'club' | 'standard';
 export function raiderGear(c: Barbarian): RaiderGear {
-  if (c === 'chief') return 'horn';
+  if (c === 'chief') return 'standard';
   const v = Number(c.slice(7));
   return v % 3 === 0 ? 'brand' : v % 3 === 1 ? 'axe' : 'club';
 }
@@ -172,8 +172,14 @@ export function barbarianMesh(look: Look, rig: Rig, c: Barbarian, ink: string): 
   beard(b, look, rig, c);
   cape(b, look, rig, c);
   // The round shield slung on the back, over the cape.
-  const shields: readonly (readonly [string, string])[] = [[PALETTE.red, PALETTE.yellow], ['#2f5fc0', PALETTE.white], [PALETTE.yellow, '#2b2b2b'], [PALETTE.white, PALETTE.red], ['#3f8f4a', PALETTE.yellow]];
+  const shields: readonly (readonly [string, string])[] = [[PALETTE.red, PALETTE.yellow], [PALETTE.yellow, PALETTE.red], [PALETTE.red, PALETTE.white], ['#2f5fc0', PALETTE.yellow], [PALETTE.yellow, '#2b2b2b']];
   const pair = shields[Math.floor(r(c, 'shield') * shields.length) % shields.length]!;
-  b.at(compose(translation(0, 0.19, -0.082 * look.girth), rotationY(Math.PI), rotationX(-0.12)), () => drawShield(b, c === 'chief' ? 0.1 : 0.088, pair, 'back-shield'));
+  // Held up on the left arm, out to the side and forward: red and yellow, seen from the front and the side alike.
+  b.at(compose(translation(-0.1 * look.girth, 0.19, 0.035), rotationY(-Math.PI / 2 + 0.55)), () => drawShield(b, c === 'chief' ? 0.11 : 0.1, pair, 'shield'));
+  if (c === 'chief') {
+    // His horn, hanging at his hip on its strap.
+    b.setInk('hip-horn').setColor('#efe3c4');
+    tube(b, [[0.07 * look.girth, 0.15, 0.03], [0.09 * look.girth, 0.11, 0.06], [0.1 * look.girth, 0.07, 0.04]], [0.008, 0.014, 0.022], { seg: 6 });
+  }
   return b.build();
 }

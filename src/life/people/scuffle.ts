@@ -63,6 +63,8 @@ export interface Scuffle {
   /** Somebody coming to break it up (the night watchman, a guard), once one is on the way. */
   responder: Person | null;
   readonly makeUp: boolean;
+  /** Started on purpose (the raid: a townsman taking on a raider), wherever the two are, walking or standing. */
+  readonly forced?: boolean;
   /** The cloud's middle now (it rolls along the street a little). */
   cx: number;
   cz: number;
@@ -95,6 +97,11 @@ export interface Scuffles {
   bump(p: Person, q: Person, lat: number, squeeze: boolean): boolean;
   /** Starts one now between the two nearest walkers who may fight (fixtures, sequences). Null if nobody may. */
   provoke(): Scuffle | null;
+  /**
+   * The raid (src/life/raid): starts one now between these two, wherever they are and whatever they are doing
+   * (walking or standing), if none is on. They do not make it up after. Null if one is on already.
+   */
+  between(a: Person, b: Person): Scuffle | null;
   step(dt: number, time: TimeSignal): void;
   /** The town changed: ends it at once if its ground is gone or built on. */
   sync(): void;
@@ -147,7 +154,7 @@ export function createScuffles(host: ScuffleHost): Scuffles {
     return true;
   };
 
-  const start = (p: Person, q: Person): Scuffle => {
+  const start = (p: Person, q: Person, forced = false): Scuffle => {
     const r = (what: string): number => rand(host.seed(), 'scuffle', what, count + 1);
     const x = (p.x + q.x) / 2, z = (p.z + q.z) / 2;
     let ax = q.x - p.x, az = q.z - p.z;
@@ -175,7 +182,8 @@ export function createScuffles(host: ScuffleHost): Scuffles {
       fight: SCUFFLE.fightMin + r('fight') * (SCUFFLE.fightMax - SCUFFLE.fightMin),
       setDown: new Map(),
       responder: null,
-      makeUp: r('make-up') < SCUFFLE.makeUp,
+      makeUp: !forced && r('make-up') < SCUFFLE.makeUp,
+      ...(forced ? { forced: true } : {}),
       cx: x,
       cz: z,
       watchers: [],
@@ -273,6 +281,11 @@ export function createScuffles(host: ScuffleHost): Scuffles {
       start(p, q);
       return true;
     },
+    between(a, b) {
+      if (now || a === b || a.scuffle || b.scuffle) return null;
+      rest = 0;
+      return start(a, b, true);
+    },
     provoke() {
       if (now) return now;
       let best: [Person, Person] | null = null;
@@ -299,7 +312,7 @@ export function createScuffles(host: ScuffleHost): Scuffles {
       if (!s) return;
       // Anybody gone, walked off, built over or taken indoors: it is over.
       for (const w of [s.a, s.b]) {
-        if (w.mode !== 'walk' || w.leaving || !w.visible) {
+        if ((w.mode !== 'walk' && !(s.forced && w.mode === 'linger')) || w.leaving || !w.visible) {
           release(s, false);
           return;
         }

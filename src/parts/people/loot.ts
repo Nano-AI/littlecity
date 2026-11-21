@@ -25,10 +25,10 @@ export function drawLoot(b: MeshBuilder, kind: string): boolean {
   switch (kind) {
     case 'chest':
       // A wooden chest with a rounded lid and gold bands: treasure.
-      b.setInk('chest').setColor('#9a5228').setPattern(PATTERN.planks);
+      b.setInk('chest').setColor('#e0a92e').setPattern(PATTERN.planks);
       b.box([-0.06, 0, -0.04], [0.06, 0.055, 0.04]);
       b.at(compose(translation(0, 0.055, 0), rotationZ(Math.PI / 2)), () => b.lathe([[0.04, -0.06], [0.04, 0.06]], { segments: 8, start: Math.PI, sweep: Math.PI, capTop: true, capBottom: true }));
-      b.setInk('bands').setColor('#e2b23c').setPattern(PATTERN.metal);
+      b.setInk('bands').setColor('#7a3d1c').setPattern(PATTERN.metal);
       for (const x of [-0.04, 0.04]) b.box([x - 0.007, 0, -0.042], [x + 0.007, 0.092, 0.042]);
       b.setInk('lock').setColor('#e2b23c');
       b.box([-0.01, 0.035, 0.04], [0.01, 0.06, 0.046]);

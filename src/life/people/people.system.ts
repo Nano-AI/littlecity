@@ -29,6 +29,7 @@ import { seasonOf, weatherOf } from '../season';
 import { restingMesh } from '@/parts/people/loads';
 import { place } from '../motion/pose';
 import { fxOf } from '../fx/fx';
+import { raiderScale } from '../raid/far';
 import { markCensusReady, recordHome } from './home';
 import { carriedMesh, HEAVY, HOLD_OF, holdAnchor, NOT_GROWN } from '@/parts/people/loads';
 import { fineryLook, fineryMesh, isFinery } from '@/parts/people/finery';
@@ -268,7 +269,10 @@ export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'dig') return 'spade';
   // An errand's load fills their hands (loads.ts draws it): no other tool while it does.
   if (p.load) return null;
-  // The raid: a raider's brand, axe or club held up, the chief's horn (barbarian.ts).
+  // The raid: a townsperson taking on a raider, with a broom or a frying pan held up.
+  const chase = p.goal?.errand?.tag;
+  if (chase === 'chase:brawl' && !p.load) return rand(0, p.id, 'pan') < 0.5 ? 'pan' : 'broom';
+  // The raid: a raider's brand, axe or club held up, the chief's standard (barbarian.ts).
   if (isBarbarian(p.costume) && pose !== 'sit' && pose !== 'lie' && pose !== 'dust') return raiderGear(p.costume);
   if (pose === 'hammer') return 'hammer';
   if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';
@@ -382,7 +386,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   }
   const tumble = p.tumble ?? null;
   const name = p.react ?? p.pose;
-  const walking = !tumble?.pose && (name === 'walk' || name === 'run');
+  const walking = !tumble?.pose && (name === 'walk' || name === 'run' || name === 'panic');
   const pose = tumble?.pose ? { ...tumble.pose } : poseOf(name, walking ? p.stride : p.poseTime, p.rank);
   // L26: a strong gust, and a hand goes to the hat.
   if (gust && d.look.hat !== 'none' && (walking || name === 'stand')) {
@@ -406,7 +410,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   });
   if (holding && walking && HEAVY.has(p.load!)) pose.lean += 0.14;
   const sitting = name === 'sit' && p.seat >= 0;
-  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade) * (tumble?.grow ?? 1);
+  const scale = d.look.scale * (edge ? 1 : 0.35 + 0.65 * p.fade) * (tumble?.grow ?? 1) * (p.raider ? raiderScale() : 1);
   const away = edge ? 1 - p.fade : 0;
   // Down below the water (SEA_Y) by the end, head and all: a step out, then the drop.
   const depth = Math.max(0.5, p.y - SEA_Y + DESIGN_HEIGHT * scale + 0.05);

@@ -349,6 +349,8 @@ const scratch = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
 
 /** Who runs rather than walks: children, raiders, and anybody running from them (src/life/raid). */
 const runs = (p: Person): boolean => p.child || p.raider === true || (p.brisk && (p.goal?.errand?.tag ?? '').startsWith('flee:'));
+/** The gait now: a walk, a run, or (half of those running from raiders) a panic, arms up. */
+const gait = (p: Person): 'walk' | 'run' | 'panic' => (!runs(p) ? 'walk' : !p.raider && !p.child && (p.goal?.errand?.tag ?? '').startsWith('flee:') && p.rank < 0.6 ? 'panic' : 'run');
 
 export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const people: Person[] = [];
@@ -840,7 +842,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.mode = 'walk';
     p.dodge = p.dodgeTo = p.dodgeV = p.offX = p.offZ = 0;
     p.visible = true;
-    p.pose = runs(p) ? 'run' : 'walk';
+    p.pose = gait(p);
     p.seat = -1;
     p.stuck = 0;
     p.flying = false;
@@ -1193,7 +1195,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (moved > 0.02 * dt * 30) p.rethought = false;
     if (moved > 1e-6) {
       p.stride += (moved * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
-      p.pose = runs(p) ? 'run' : 'walk';
+      p.pose = gait(p);
       p.stuck = p.stuck < 0 ? Math.min(0, p.stuck + dt) : 0;
     } else {
       // Held up: stand, do not march on the spot.

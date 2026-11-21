@@ -51,9 +51,11 @@ export type PoseName =
   | 'lounge' // leaning far back in a deckchair, legs out
   | 'read' //   the same, holding a book up (hands.ts puts the hands on it)
   | 'dig' //    kneeling, bent over, digging with a spade in the right hand
-  | 'splash'; // paddling: arms out for balance, a foot kicking the water up
+  | 'splash' // paddling: arms out for balance, a foot kicking the water up
+  // The raid: running for it, both arms flung up over the head, flapping.
+  | 'panic';
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow', 'ready', 'dribble', 'shoot', 'pass', 'swing', 'serve', 'kick', 'dive', 'bowl', 'clap', 'lie', 'lounge', 'read', 'dig', 'splash'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow', 'ready', 'dribble', 'shoot', 'pass', 'swing', 'serve', 'kick', 'dive', 'bowl', 'clap', 'lie', 'lounge', 'read', 'dig', 'splash', 'panic'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -103,6 +105,20 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       // Highest when the legs pass, lowest at contact.
       p.lift = (1 - Math.abs(s)) * PERSON.bob - PERSON.bob * 0.5 + (run ? 0.01 : 0);
       p.lean = run ? 0.22 : 0.05;
+      break;
+    }
+    case 'panic': {
+      // The run's legs, and the arms up over the head, waving one then the other.
+      const n = Math.max(2, Math.round(PERSON.walkPoses));
+      const q = (((Math.floor(phase * n + 0.5) % n) + n) % n) / n;
+      const s = Math.sin(q * Math.PI * 2);
+      p.legL = s * PERSON.stride * 1.35;
+      p.legR = -s * PERSON.stride * 1.35;
+      p.armL = 2.7 + s * 0.35;
+      p.armR = 2.7 - s * 0.35;
+      p.outL = p.outR = 0.45;
+      p.lift = (1 - Math.abs(s)) * PERSON.bob + 0.01;
+      p.lean = 0.12;
       break;
     }
     case 'stand': {
