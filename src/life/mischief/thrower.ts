@@ -349,6 +349,9 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     launch(b, vx, vy, vz, opts.spin ?? Math.min(BLOWN.spin[1], BLOWN.spin[0] + sp * 1.2));
     b.dizzy = opts.dizzy ?? BLOWN.dizzy + rand(p.seed, 'dizzy', b.age) * BLOWN.dizzySpread + Math.min(1, sp / 9) * BLOWN.dizzyNear;
     b.rise = BLOWN.rise;
+    // Not the whole town on its back in one pose: some face down, some sit up dazed.
+    const k = rand(p.seed, 'rest', Math.round(b.age * 10));
+    b.rest = k < 0.5 ? 'back' : k < 0.75 ? 'front' : 'sit';
     t.node = -1;
     // The hat comes off: up and away a little faster than its owner, spinning on its own.
     if (t.hatColor && !t.hat && sp > BLOWN.hatAt && rand(p.seed, 'hat', b.age) < 0.8) {
@@ -512,9 +515,28 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     switch (b.phase) {
       case 'lie':
       case 'roof':
-      case 'slide':
-        Object.assign(tm.pose, poseOf('lie', b.t, p.rank));
+      case 'slide': {
+        if (b.rest === 'sit' && b.phase === 'lie') {
+          // Sat where they came down, legs out, swaying a little.
+          const pose = poseOf('sit', b.t, p.rank);
+          pose.lean = Math.floor(b.t * 3) % 2 ? 0.12 : -0.08;
+          pose.armL = pose.armR = 0.25;
+          Object.assign(tm.pose, pose);
+          tm.drop = SIT_DROP;
+          break;
+        }
+        const pose = poseOf('lie', b.t, p.rank);
+        if (b.rest === 'front' && b.phase === 'lie') {
+          // Face down: the body forward flat, the legs out behind, the arms flung up past the head.
+          pose.lean = 1.52;
+          pose.legL = pose.legR = -1.52;
+          pose.armL = pose.armR = 2.8;
+          pose.outL = pose.outR = 0.35;
+          if (Math.floor(b.t * 1.5) % 3 === 1) pose.legR = -1.2; // a foot twitches
+        }
+        Object.assign(tm.pose, pose);
         break;
+      }
       case 'swim': {
         const pose = poseOf('splash', b.t, p.rank);
         pose.armL = pose.armR = 1.9 + (Math.floor(b.t * 4) % 2) * 0.5;

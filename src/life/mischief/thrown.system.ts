@@ -176,12 +176,14 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
     a.stars = [];
   }
   if (dizzy) {
-    const sitting = b.phase === 'up';
-    const hx = sitting ? b.x : b.x - Math.sin(b.heading) * 0.36;
-    const hz = sitting ? b.z : b.z - Math.cos(b.heading) * 0.36;
-    const hy = b.y + (sitting ? 0.42 : 0.12);
+    // Where the head is: up over the hips sitting; behind the feet on the back; ahead of them face down.
+    const sitting = b.phase === 'up' || (b.phase === 'lie' && b.rest === 'sit');
+    const along = sitting ? 0 : b.rest === 'front' && b.phase === 'lie' ? 0.36 : -0.36;
+    const hx = b.x + Math.sin(b.heading) * along;
+    const hz = b.z + Math.cos(b.heading) * along;
+    const hy = b.y + (sitting ? 0.42 : 0.14);
     const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-    const sc = Math.max(1.4, farScale()) * STARS.size;
+    const sc = Math.max(1.2, farScale()) * STARS.size;
     const spin = tick * STARS.speed + (b.seed % 7);
     a.stars.forEach((h, i) => {
       const ang = spin + (i / STARS.n) * Math.PI * 2;
@@ -302,7 +304,7 @@ export default defineSystem<State>({
       }
       if (hs) {
         const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-        const sc = Math.max(1.4, farScale()) * STARS.size * 0.8;
+        const sc = Math.max(1.2, farScale()) * STARS.size * 0.8;
         const hx = b.x + Math.sin(b.heading) * c.height * 0.4, hz = b.z + Math.cos(b.heading) * c.height * 0.4, hy = b.y + c.height * 0.9;
         hs.forEach((h, i) => {
           const ang = tick * STARS.speed + (i / 3) * Math.PI * 2;
