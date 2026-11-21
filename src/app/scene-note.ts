@@ -1,0 +1,64 @@
+// The note for the town's scenes (L57 the wedding, L63 a beach day, and the
+// ones after; src/life/town/scenes.ts): a small card at the top saying what
+// is on ("Wedding bells at the chapel", "A beach day on the shore") with
+// Watch, which glides the camera there, and Not now. One note per scene at
+// most, never two at once, and never more than one every SCENES.noteGap
+// seconds (a scene that comes up meanwhile simply has none): it is there to
+// help a player find what is going on, not to nag. It never stops play, and
+// it goes by itself when its scene is over.
+
+import { scenesOnStage, type Scene } from '@/life/town/scenes';
+import { SCENES } from '@/style/scenes';
+import type { Interface } from '@/ui/interface';
+
+export interface SceneNote {
+  /** Once a frame. */
+  update(stage: object): void;
+  dispose(): void;
+}
+
+export function sceneNote(ui: Interface, now: () => number = () => performance.now() / 1000): SceneNote {
+  /** Scenes already noted (or passed over), by their number. */
+  const seen = new Set<number>();
+  let showing: Scene | null = null;
+  let close: (() => void) | null = null;
+  let last = -Infinity;
+  return {
+    update(stage) {
+      const scenes = scenesOnStage(stage);
+      const on = scenes?.on ?? [];
+      // Its scene is over: the note goes.
+      if (showing && !on.includes(showing)) {
+        close?.();
+        close = null;
+        showing = null;
+      }
+      if (showing || !scenes) return;
+      for (const s of on) {
+        if (seen.has(s.n) || !s.title || !s.noteworthy()) continue;
+        seen.add(s.n);
+        if (now() - last < SCENES.noteGap) continue;
+        last = now();
+        showing = s;
+        close = ui.feedback.banner(s.title, [
+          {
+            label: 'Watch',
+            primary: true,
+            run: () => {
+              close = null;
+              showing = null;
+              const f = s.focus();
+              if (f) ui.glideTo([f.x, f.y + 0.3, f.z], 5);
+            },
+          },
+          { label: 'Not now', run: () => void ((close = null), (showing = null)) },
+        ]);
+        break;
+      }
+    },
+    dispose() {
+      close?.();
+      close = null;
+    },
+  };
+}

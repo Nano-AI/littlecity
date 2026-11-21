@@ -71,6 +71,7 @@ import { createPetals, type Petals } from './petals';
 import { createDoves, type Doves } from './doves';
 import { archMesh } from './wedding-art';
 import type { ShowChain } from './places';
+import { scenesOf, type Scene } from '../scenes';
 
 export type WeddingPhase = 'none' | 'gather' | 'vows' | 'out' | 'procession' | 'celebrate';
 
@@ -189,6 +190,8 @@ export function weddingChain(): WeddingChain {
   let petals: Petals | null = null;
   let doves: Doves | null = null;
   let boardRef: Board | null = null;
+  /** This wedding in the town's register of scenes (scenes.ts), while it is on. */
+  let scene: Scene | null = null;
 
   /** The ink of the floor in a cell, as the floor's own builder names it (path.gen.ts, plaza.gen.ts, the terrain's grass). */
   const groundInk = (board: Board, cell: CellKey): number | null => {
@@ -295,6 +298,8 @@ export function weddingChain(): WeddingChain {
       putArch(board, false);
     }
     phase = 'none';
+    if (scene) scenesOf(board).end(scene);
+    scene = null;
     t = 0;
     marching = false;
     track = null;
@@ -470,6 +475,14 @@ export function weddingChain(): WeddingChain {
       m.p.party = true;
     }
     phase = 'gather';
+    scene = scenesOf(board).begin({
+      kind: 'wedding',
+      title: 'Wedding bells at the chapel',
+      big: true,
+      focus: () => chain.focus,
+      noteworthy: () => phase !== 'none' && phase !== 'gather',
+      gathering: () => phase === 'gather',
+    });
     t = 0;
     total = 0;
     atDoor = 0;
@@ -1200,6 +1213,8 @@ export function weddingChain(): WeddingChain {
     },
     dispose(board) {
       if (phase !== 'none') finish(board, true);
+      if (scene) scenesOf(board).end(scene);
+      scene = null;
       putArch(board, false);
       petals?.dispose();
       petals = null;
