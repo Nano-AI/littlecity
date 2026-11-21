@@ -47,7 +47,7 @@ export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, char
   // A numbered town is the one other tests were tuned on: its saved edits, with the new planner's districts for the cameras.
   const plan: GrownTown = decoded?.ok ? { ...fresh, edits: editsOf(decoded.world, terrain) } : fresh;
   const at = (name: string): [number, number] | null => {
-    const d = plan.districts.find((x) => x.name === name);
+    const d = plan.districts.find((x) => x.name === name) ?? plan.districts.find((x) => x.name.startsWith(name) && /^\d+$/.test(x.name.slice(name.length)));
     return d ? [d.x, d.z] : null;
   };
   const level = (x: number, z: number): number => terrain.height[columnIndex(Math.round(x), Math.round(z))] ?? 1;
@@ -72,7 +72,7 @@ export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, char
     ['castle', 'castle', 45, 3.4],
     ['acropolis', 'acropolis', 135, 3.6],
     ['housing0', 'houses', 45, 3.8],
-    ['folly', 'folly', 45, 4.5],
+    ['mill-corner', 'mill-corner', 45, 5.5],
     ['chapel', 'chapel', 225, 4.5],
     ['manor', 'manor', 315, 4],
     ['mill', 'mill', 45, 4.5],
