@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Little City has moved to littlecity.io</title>
+    <meta name="description" content="Little City, the tiny hand-drawn city builder, now lives at littlecity.io." />
+    <link rel="canonical" href="https://littlecity.io/" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #f2ede3; color: #3a2f2a; font: 18px/1.5 ui-rounded, system-ui, sans-serif; }
+      main { display: grid; place-content: center; gap: 12px; height: 100%; text-align: center; padding: 0 24px; }
+      h1 { margin: 0; font-size: 28px; }
+      p { margin: 0; }
+      a { color: inherit; }
+      button { font: inherit; padding: 10px 18px; border-radius: 12px; border: 2px solid #3a2f2a; background: #fff8ec; color: inherit; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <!--
+      The old address (https://yaoderek.github.io/littlecity/, served from the littlecity repo's gh-pages
+      branch by tools/publish-bridge.sh). Little City moved to https://littlecity.io/ on 2026-11-21.
+
+      A browser keeps each site's storage apart, so a player's towns are still here, on this site. This
+      page packs them up (My towns in IndexedDB, the town that opens next visit and the settings in
+      localStorage) and hands them to https://littlecity.io/move.html in the URL fragment, which never
+      reaches a server; that page files them without writing over anything (src/app/move.ts) and opens
+      the game. Nothing is deleted here: this site keeps its copy.
+
+      What was sent is remembered (SENT_KEY), so later visits go straight through; ?again sends it
+      anyway. A parcel too big for a URL goes by postMessage to a window the player opens with a click.
+      Any other path (an old gallery link) and a browser with nothing saved are simply forwarded.
+    -->
+    <main>
+      <h1>Little City has moved</h1>
+      <p id="say">Taking you to <a href="https://littlecity.io/">littlecity.io</a>…</p>
+      <p id="act" hidden><button id="go" type="button">Bring my towns to littlecity.io</button></p>
+    </main>
+    <script>
+      (async () => {
+        const NEW = 'https://littlecity.io';
+        const BASE = '/littlecity';
+        const SENT_KEY = 'little-city.moved';
+        const PREFIXES = ['little-city', 'lc:', 'lc-', 'ph_phc_'];
+        const FALLBACK_KEY = 'little-city.towns.v1';
+        const LIMIT = 900000;
+        const say = document.getElementById('say');
+
+        const rest = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
+        const path = rest === '' || rest === '/index.html' ? '/' : rest;
+        const again = /[?&]again(=|&|$)/.test(location.search);
+        const search = location.search.replace(/([?&])again(=[^&]*)?(&|$)/, (_, a, __, c) => (c ? a : '')).replace(/[?&]$/, '');
+        const open = search + location.hash;
+        const forward = () => location.replace(NEW + path + open);
+        if (path !== '/') return forward();
+
+        let store = null;
+        try {
+          store = window.localStorage;
+        } catch {}
+        const local = {};
+        if (store) {
+          for (let i = 0; i < store.length; i++) {
+            const k = store.key(i);
+            if (k && k !== SENT_KEY && PREFIXES.some((p) => k.startsWith(p))) local[k] = store.getItem(k);
+          }
+        }
+
+        // My towns: IndexedDB, read without creating it where it never existed. null = could not be read.
+        const idbTowns = await new Promise((resolve) => {
+          if (!('indexedDB' in window)) return resolve([]);
+          let fresh = false;
+          let r;
+          try {
+            r = indexedDB.open('little-city');
+          } catch {
+            return resolve(null);
+          }
+          r.onupgradeneeded = () => {
+            fresh = true;
+          };
+          r.onsuccess = () => {
+            const db = r.result;
+            if (fresh || !db.objectStoreNames.contains('towns')) {
+              db.close();
+              if (fresh) indexedDB.deleteDatabase('little-city');
+              return resolve([]);
+            }
+            try {
+              const q = db.transaction('towns').objectStore('towns').getAll();
+              q.onsuccess = () => resolve(q.result || []);
+              q.onerror = () => resolve(null);
+            } catch {
+              resolve(null);
+            }
+          };
+          r.onerror = () => resolve(null);
+          r.onblocked = () => resolve(null);
+        });
+        if (idbTowns === null) {
+          say.textContent = 'Your towns could not be read just now. Reload this page to try again; nothing is lost.';
+          return;
+        }
+        const towns = new Map(idbTowns.map((t) => [t.id, t]));
+        try {
+          for (const t of JSON.parse(local[FALLBACK_KEY] || '[]')) if (t && t.id && !towns.has(t.id)) towns.set(t.id, t);
+        } catch {}
+
+        if (towns.size === 0 && Object.keys(local).length === 0) return forward();
+
+        const parcel = { v: 1, local, towns: [...towns.values()], open };
+        const json = JSON.stringify(parcel);
+        // A fingerprint of what is here (not of where the link was going): sent once, then straight through.
+        let h = 2166136261;
+        const body = JSON.stringify({ local, towns: parcel.towns });
+        for (let i = 0; i < body.length; i++) h = Math.imul(h ^ body.charCodeAt(i), 16777619);
+        const print = String(h >>> 0) + ':' + body.length;
+        if (!again && store && store.getItem(SENT_KEY) === print) return forward();
+        const sent = () => {
+          try {
+            store && store.setItem(SENT_KEY, print);
+          } catch {}
+        };
+
+        const b64url = (bytes) => {
+          let s = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        };
+        let text;
+        if ('CompressionStream' in window) {
+          const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+          text = 'z.' + b64url(new Uint8Array(buf));
+        } else text = 'j.' + b64url(new TextEncoder().encode(json));
+
+        if (text.length <= LIMIT) {
+          sent();
+          return location.replace(NEW + '/move.html#' + text);
+        }
+
+        // Too big for a URL: a window the player opens, and the parcel by postMessage.
+        say.textContent = 'Little City now lives at littlecity.io. Your towns are coming with you: press the button to bring them.';
+        document.getElementById('act').hidden = false;
+        let win = null;
+        window.addEventListener('message', (e) => {
+          if (e.origin !== NEW || !e.data) return;
+          if (e.data.type === 'lc-move-ready' && win) win.postMessage({ type: 'lc-move', parcel }, NEW);
+          if (e.data.type === 'lc-move-done') {
+            sent();
+            location.replace(NEW + '/' + open);
+          }
+        });
+        document.getElementById('go').addEventListener('click', () => {
+          win = window.open(NEW + '/move.html?opener', 'lc-move');
+          if (!win) say.textContent = 'Your browser blocked the window that brings your towns over. Allow pop-ups for this page and press the button again.';
+        });
+      })();
+    </script>
+  </body>
+</html>

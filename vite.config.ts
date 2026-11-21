@@ -16,6 +16,8 @@ export default defineConfig({
       input: {
         app: fileURLToPath(new URL('./index.html', import.meta.url)),
         gallery: fileURLToPath(new URL('./gallery/index.html', import.meta.url)),
+        // Moving in from the old address, yaoderek.github.io/littlecity (src/app/move.ts).
+        move: fileURLToPath(new URL('./move.html', import.meta.url)),
       },
     },
   },
