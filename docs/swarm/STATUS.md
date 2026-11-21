@@ -1427,3 +1427,24 @@ performer, a school outing…), each obvious from the normal view, a
 small story with props carried and put away, a town-wide cadence, held
 sliders handled, findable like the wedding.
 Running: grow-town (windmills), town-scenes.
+
+**Windmills in every town merged** (`0f4b7d8`, Opus). Before: no mill
+in any harbour, marble, castle or market town of the survey; after: two
+in every town of those kinds, 3–4 in hill and garden towns, farming
+unchanged (avg 4.7). Forms in `src/townmaker/districts/mills.ts`: a lone
+mill on a rise with a path, a mill by the docks, a small mill corner, a
+field-edge mill, a market mill, a town mill on a two-storey tower.
+Placed after the streets are joined and before cottages and woods;
+7 steps apart; not within two of a garden. Bread chain starts at a mill
+in 26 of 30 towns (was 14). Survey floor: a mill in 95 % of towns per
+kind. Known: the mill body is always white (only cap colour and height
+vary); a tower mill's door is up the tower so the bread chain skips it;
+hill towns' bakery is not joined to their mills on foot; generator-2
+seed 106 as a hill town gets one unreachable mill. Orchestrator fixed
+the one failing test (the wedding test now filters "walking backwards"
+crowd push-back as town.test.ts and places.test.ts do). Another session
+merged analytics (`posthog-js`): `npm install` was needed in the
+orchestrator's checkout. Gate: 2,245 passed, 12 skipped, clean.
+Orchestrator's eye: the mills are there but modest; in the castle
+town's overview they are easy to miss among the towers.
+Running: town-scenes.
