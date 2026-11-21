@@ -26,30 +26,45 @@ import { search, type Frame } from '../frame';
 import { fits, rectFlat, rectFree, startDistrict, type Town, Local } from '../town';
 import { pave } from '../route';
 
-interface Size {
+export interface Size {
   /** Podium width (u) and depth (v); the forum's width and depth. */
   pw: number;
   pd: number;
   fw: number;
   fd: number;
+  /** The compact form: the stoa closes the court's south side (in the footprint) instead of the hall and inn. */
+  compact?: boolean;
 }
-const SIZES: readonly Size[] = [
+/** The forum's forms, grandest first. The compact one needs 9 × 12 of flat ground. */
+export const SIZES: readonly Size[] = [
   { pw: 7, pd: 7, fw: 17, fd: 7 },
   { pw: 7, pd: 6, fw: 15, fd: 6 },
   { pw: 5, pd: 5, fw: 13, fd: 6 },
+  { pw: 5, pd: 4, fw: 9, fd: 5, compact: true },
 ];
 
-export function buildForum(town: Town): boolean {
+/** The ground a form of the forum needs flat: its width and depth (rows p0 … the last). */
+export function forumFootprint(size: Size): { w: number; d: number } {
+  return { w: size.fw, d: size.pd + 2 + size.fd + (size.compact ? 1 : 0) };
+}
+
+/** Which form the last forum built took (for the survey), or null. */
+export let lastForumForm: string | null = null;
+
+
+export function buildForum(town: Town, sizes: readonly Size[] = SIZES): boolean {
   const { g, site } = town;
-  for (const size of SIZES) {
+  lastForumForm = null;
+  for (const size of sizes) {
     const { pw, pd, fw, fd } = size;
     const p0 = 4; // podium's first row
     const s0 = p0 + pd; // stair rows s0, s0 + 1
     const f0 = s0 + 2; // forum's first row
     const f1 = f0 + fd - 1;
+    const last = size.compact ? f1 + 1 : f1;
     const found = search(g, `forum${pw}${pd}${fw}`, (f) => {
-      if (!fits(g, f, 0, p0, fw - 1, f1)) return null;
-      const h = rectFlat(g, f, 0, p0, fw - 1, f1);
+      if (!fits(g, f, 0, p0, fw - 1, last)) return null;
+      const h = rectFlat(g, f, 0, p0, fw - 1, last);
       if (h < 0) return null;
       const cx = f.x(fw / 2, f0), cz = f.z(fw / 2, f0);
       const water = site.waterDist[Math.round(cx) + Math.round(cz) * 48]!;
@@ -66,6 +81,7 @@ export function buildForum(town: Town): boolean {
     });
     if (!found) continue;
     composeForum(town, found.frame, found.data, size);
+    lastForumForm = size.compact ? 'compact' : `${fw}×${fd}`;
     return true;
   }
   return false;
@@ -80,7 +96,7 @@ function composeForum(town: Town, f: Frame, h: number, size: Size): void {
   const pu0 = c - Math.floor(pw / 2), pu1 = pu0 + pw - 1;
   town.square = { x: f.x(c, f0 + 1), z: f.z(c, f0 + 1), h };
   const d = startDistrict(town, 'square', town.square.x, town.square.z);
-  F.claim(0, p0, fw - 1, f1, CLAIM.built);
+  F.claim(0, p0, fw - 1, size.compact ? f1 + 1 : f1, CLAIM.built);
 
   const stone = F.color('marble', [[pu0, h, p0]], 'podium');
   const tint = (n: number): number => (stone + n) % 8;
@@ -156,8 +172,14 @@ function composeForum(town: Town, f: Frame, h: number, size: Size): void {
     for (let v = 0; v <= 2; v++) for (let u = pu0 + 1; u <= pu1 - 1; u++) F.stack('marble', u, v, 2, tint(7));
   }
 
+  // ── compact: a stoa closing the court's south side, on a row of pillars at its edge ──
+  if (size.compact) {
+    const color = tint(3);
+    for (let u = 1; u <= fw - 2; u++) F.stack('pillar', u, f1 + 1, 2, 0);
+    for (let u = 1; u <= fw - 2; u++) F.put('marble', u, h + 2, f1 + 1, color);
+  }
   // ── the town hall and the inn on the south side ──
-  if (rectFree(g, f, 0, f1 + 1, fw - 1, f1 + 3)) {
+  if (!size.compact && rectFree(g, f, 0, f1 + 1, fw - 1, f1 + 3)) {
     const hall = Math.max(2, Math.floor(fw / 4));
     if (rectFlat(g, f, c - hall - 1, f1 + 1, c - 2, f1 + 2) === h) F.house(c - hall - 1, f1 + 1, c - 2, f1 + 2, 2, 'forum-hall');
     if (rectFlat(g, f, c + 2, f1 + 1, c + 4, f1 + 2) === h) F.house(c + 2, f1 + 1, c + 4, f1 + 2, 2, 'forum-inn');

@@ -24,7 +24,8 @@ import { columnIndex, key, type CellKey } from '@/core/grid';
 import type { Edit, Terrain } from '@/core/world';
 import { rollCharacter, type Character } from './character';
 import { buildCastle } from './districts/castle';
-import { buildForum } from './districts/forum';
+import { buildForum, forumFootprint, lastForumForm, SIZES, type Size } from './districts/forum';
+import { levelSite } from './levelling';
 import { buildBarn, buildFields, buildFollyTower, buildOrchard, buildPark, buildSchool, buildSmithy, buildVillageGreen } from './districts/village';
 import { buildFlowerBed, buildGreenhouse, buildManor, buildMill, buildPaddock, buildStairs, buildTrees, buildWalledGarden, buildWalledLawn, buildWillow } from './districts/country';
 import { buildFarmstead, reserveFarmstead } from './districts/farmstead';
@@ -60,6 +61,10 @@ export interface GrownTown {
   /** The town's character, and the one that flavours it (character.ts, README.md). */
   character: Character;
   secondary: Character;
+  /** A marble city's forum form ('17×7' … 'compact'), or null. */
+  forum: string | null;
+  /** Column-levels of earth the planner moved to seat the forum (0: none). */
+  levelled: number;
 }
 
 export interface GrowOptions {
@@ -69,6 +74,8 @@ export interface GrowOptions {
   never?: Character;
   /** Grow this character whatever the island leans to (scenarios, tools). */
   character?: Character;
+  /** Internal: this plan grows on ground the planner levelled (no second levelling). */
+  levelled?: boolean;
 }
 
 export function growTown(terrain: Terrain, seed: number, opts: GrowOptions = {}): Edit[] {
@@ -213,8 +220,33 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
   const town: Town = { g, site, square: null, districts: [], pumps: ((seed % 5) + 5) % 5 === 3 && primary !== 'marble', marketCross: primary === 'market' || secondary === 'market' };
 
   const plan = planFor(primary, secondary);
-  // A marble city stands or falls by its forum: on an island with no site for one, grow another kind of town.
-  if (primary === 'marble' && !opts.character && plan[0] === 'forum' && !buildForum(town)) return planTown(terrain, seed, { avoid: opts.avoid, never: 'marble' });
+  // A marble city stands or falls by its forum. With no flat ground for one, level a terrace for it
+  // (levelling.ts): the grand form where the earthwork is modest, else the compact one. Only with no
+  // site at all does the planner grow another kind of town.
+  if (primary === 'marble' && plan[0] === 'forum' && !buildForum(town)) {
+    if (!opts.levelled) {
+      const near = site.centre;
+      // Modest earthwork first (two levels at most); then, for the compact form on a steep island, three.
+      const tries: [Size, number, number][] = [
+        [SIZES[2]!, 2, 0.9],
+        [SIZES[3]!, 2, 0.9],
+        [SIZES[3]!, 3, 1.4],
+        [SIZES[3]!, 3, 1.6],
+      ];
+      for (const [i, [size, maxDelta, share]] of tries.entries()) {
+        const { w, d } = forumFootprint(size);
+        // The last try: right to the shore, on a narrow island.
+        const lev = levelSite(terrain, site, w, d, near, { maxDelta, maxCost: Math.round(w * d * share), tight: i === tries.length - 1 });
+        if (!lev) continue;
+        const grown = planTown(lev.terrain, seed, { ...opts, character: 'marble', levelled: true });
+        if (grown.character === 'marble' && grown.districts.some((x) => x.name === 'square') && grown.forum) {
+          return { ...grown, character: 'marble', edits: [...lev.edits, ...grown.edits], levelled: lev.cost };
+        }
+      }
+    }
+    if (!opts.character) return planTown(terrain, seed, { avoid: opts.avoid, never: 'marble' });
+  }
+  const forum = primary === 'marble' ? lastForumForm : null;
   if (primary === 'marble' && town.square) plan.shift();
   for (const step of plan) {
     const [name, a, b] = step.split(':');
@@ -250,6 +282,8 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
     claims: g.claim,
     character: primary,
     secondary,
+    forum,
+    levelled: 0,
   };
 }
 
