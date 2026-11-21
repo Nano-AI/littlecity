@@ -26,8 +26,11 @@
       reaches a server; that page files them without writing over anything (src/app/move.ts) and opens
       the game. Nothing is deleted here: this site keeps its copy.
 
-      What was sent is remembered (SENT_KEY), so later visits go straight through; ?again sends it
-      anyway. A parcel too big for a URL goes by postMessage to a window the player opens with a click.
+      A parcel counts as moved only when littlecity.io says it filed it: move.html sends the browser
+      back here with ?moved=<fingerprint>, which is remembered (SENT_KEY) before this page forwards into
+      the game. Later visits with nothing new go straight through; a parcel that never arrived (the new
+      address out of reach) is sent again; ?again sends it regardless. A parcel too big for a URL goes
+      by postMessage to a window the player opens with a click, and counts as moved when it answers.
       Any other path (an old gallery link) and a browser with nothing saved are simply forwarded.
     -->
     <main>
@@ -47,9 +50,12 @@
 
         const rest = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
         const path = rest === '' || rest === '/index.html' ? '/' : rest;
-        const again = /[?&]again(=|&|$)/.test(location.search);
+        const params = new URLSearchParams(location.search);
+        const again = params.has('again');
+        const moved = params.get('moved');
+        const back = params.get('open') || '';
         const search = location.search.replace(/([?&])again(=[^&]*)?(&|$)/, (_, a, __, c) => (c ? a : '')).replace(/[?&]$/, '');
-        const open = search + location.hash;
+        const open = moved !== null ? (/^(\?[^#]*)?(#.*)?$/.test(back) ? back : '') : search + location.hash;
         const forward = () => location.replace(NEW + path + open);
         if (path !== '/') return forward();
 
@@ -107,19 +113,25 @@
 
         if (towns.size === 0 && Object.keys(local).length === 0) return forward();
 
-        const parcel = { v: 1, local, towns: [...towns.values()], open };
-        const json = JSON.stringify(parcel);
-        // A fingerprint of what is here (not of where the link was going): sent once, then straight through.
+        // A fingerprint of what is here (not of where the link was going).
+        const list = [...towns.values()];
         let h = 2166136261;
-        const body = JSON.stringify({ local, towns: parcel.towns });
+        const body = JSON.stringify({ local, towns: list });
         for (let i = 0; i < body.length; i++) h = Math.imul(h ^ body.charCodeAt(i), 16777619);
         const print = String(h >>> 0) + ':' + body.length;
-        if (!again && store && store.getItem(SENT_KEY) === print) return forward();
         const sent = () => {
           try {
             store && store.setItem(SENT_KEY, print);
           } catch {}
         };
+        if (moved !== null) {
+          // Back from littlecity.io with what it filed: remembered only if it is what is here now.
+          if (moved === print) sent();
+          return forward();
+        }
+        if (!again && store && store.getItem(SENT_KEY) === print) return forward();
+        const parcel = { v: 1, local, towns: list, open, print };
+        const json = JSON.stringify(parcel);
 
         const b64url = (bytes) => {
           let s = '';
@@ -132,10 +144,7 @@
           text = 'z.' + b64url(new Uint8Array(buf));
         } else text = 'j.' + b64url(new TextEncoder().encode(json));
 
-        if (text.length <= LIMIT) {
-          sent();
-          return location.replace(NEW + '/move.html#' + text);
-        }
+        if (text.length <= LIMIT) return location.replace(NEW + '/move.html#' + text);
 
         // Too big for a URL: a window the player opens, and the parcel by postMessage.
         say.textContent = 'Little City now lives at littlecity.io. Your towns are coming with you: press the button to bring them.';
