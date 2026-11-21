@@ -30,3 +30,26 @@ that take `seed % n` may want the same check.
 
 Until it is fixed, the Grow a town browser test grows its dice town on a
 fixed positive seed rather than a random one, so it does not fail on this.
+
+## The wedding test fails on "walking backwards" in the re-grown market town (2026-11-21)
+
+For: the life owner (`src/life/people`, `src/life/town/wedding.test.ts`).
+
+Windmills in every town (Derek, 2026-11-21) changed the `grown-market`
+scenario (generator 1, seed 3: two mills, one more cottage, a bread errand
+to a mill). Stepping it as `L57: the wedding > a whole wedding in a grown
+town` does, one walker going home is held up in the crowd on the street
+north of the square and shuffles back a few millimetres at a step:
+
+```
+L21.population@5338:13.4 (walk, 32.51, 0.82, 13.94): is walking backwards (-0.63)
+```
+
+(t = 40 s; heading −0.7 to −1.1 while moving about 0.01 to 0.02 a step
+toward +x, −z, with goal "home".) The watcher's backwards check
+(`src/life/people/testing.ts`) is already filtered out as noise by
+`town.test.ts` and `places.test.ts`; the wedding test still asserts no
+problems at all, so it fails on this one push-back. Suggested: the same
+filter in the wedding test, or let a walker held up and pushed by the
+crowd step back without counting it as walking. Townmaker does not patch
+round it (moving a mill to dodge one walker would only move the problem).

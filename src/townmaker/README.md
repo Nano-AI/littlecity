@@ -15,7 +15,7 @@ highest ground, how much river, how much coast):
 
 | Character | Leans on | Builds (in priority order) | Leaves out |
 |---|---|---|---|
-| **Harbour town** | long coast | the waterfront is the town: a great harbour (a galleon berth, warehouses, a pier, stilt houses, a boathouse, a quay wall), then up to four more quays along the coast (each a berth of eight where the sea is wide, else six, five or four docks, with a warehouse and a fish stall), two more waterfronts (pier, stilt house, boathouse), a fish market on a little plaza, jetties; the lighthouse; housing, chapel, smithy | castle, temples, mills, fields, farms |
+| **Harbour town** | long coast | the waterfront is the town: a great harbour (a galleon berth, warehouses, a pier, stilt houses, a boathouse, a quay wall), then up to four more quays along the coast (each a berth of eight where the sea is wide, else six, five or four docks, with a warehouse and a fish stall), two more waterfronts (pier, stilt house, boathouse), a fish market on a little plaza, jetties; the lighthouse; housing, chapel, smithy | castle, temples, fields, farms |
 | **Marble city** | a broad flat site | the forum (below); the acropolis; three shrines (small temples on four pillars); after the streets, three colonnades (pillars and a marble beam along a street) and three monuments (an obelisk or victory column on a small square by a street); four shrines; a folly tower; two viaducts; fine housing and courtyards; the manor | farms, fields, castle |
 | **Castle town** | high ground | the castle (keep, curtain walls, four turrets, gatehouse, bailey); after the streets, a town wall round the heart (wall pieces on the free ground of a ring round the square, an arch over each street that crosses it: gateways, towers at the corners: turrets); three walled towers on the heights; watchtowers; walled gardens and lawns; smithy, chapel and churchyard, hilltop, tight housing | temples, farms |
 | **Market town** | gentle ground | a square with a market cross, town hall, inn, clock tower; the great market (a plaza 9 × 6, or 7 × 5, with two rows of stalls, a market cross, and a market hall along one side: a long marble roof on pillars, a stoa) with streets in at its corners; after the streets, up to four smaller market places; three to five housing blocks; two courtyard blocks; a schoolhouse; a smithy; an inhabited bridge where there is a river; an orchard on the outskirts | castle, temples, farms |
@@ -99,6 +99,38 @@ yard, a picket fence with a gate where the lane comes in. It replaces the
 folly (a windmill on a tower on an arch run on pillars), which was built
 only to show several roles at once.
 
+## Windmills in every town
+
+Derek, 2026-11-21: "I really like the look of windmills and I want to see
+more of them." Once the streets are joined, before the cottages, trees and
+woods take the ground, every town adds windmills (`districts/mills.ts`)
+until it has its kind's number (counting a farm's mills and the mill
+corner): two in harbour, marble, castle, market and river towns, three in
+farming and garden towns, four in hill towns. The forms, each kind trying
+its own first:
+
+| Form | What | Kinds |
+|---|---|---|
+| hill | a lone mill on a rise or a headland (high, open to the sea), a path to it | marble (the outskirts or the acropolis hill, never the forum), castle, hill, harbour |
+| shore | a mill on the shore near the square and the docks | harbour, marble |
+| small | the small mill corner: the mill, one cottage against it (a mill house), a 2 × 2 wheat patch fenced on its far side | everywhere |
+| field | a mill at a field's edge with a 3 × 2 wheat strip (a scarecrow) | farming, garden (a row along the fields) |
+| market | a mill and its cottage a street's length from the square, so the bread chain (grain, mill, baker: L51) runs short | market |
+| town | a tall town mill on a tower of two in a dense quarter, with its gallery (R-W01 raised, J25) | market, castle, hill, harbour |
+
+Every mill keeps clear air (nothing built within one or two of it, nothing
+within two as tall as its sails; its ring is kept clear of later building),
+stands seven or more steps from any other mill, has no garden within two
+that is not wheat already (R-G01 would turn a park or a kitchen garden into
+wheat), and stands within eight steps on foot of the streets joined to the
+square, with a path from its door. Heights vary (two or three storeys on
+the ground; the town mill on its tower), and the cap's roof colour comes
+from the mill's seed. A town whose streets reach little of its island
+takes one mill wherever the land allows. River towns keep their watermills
+too. The survey prints windmills per town by kind and holds the floor: one
+or more in 95% of the towns of every kind, two or more in most, three or
+more in most farming, garden and hill towns.
+
 ## Files
 
 `grower.ts` the running world and claims · `site.ts` reading the island ·
@@ -115,3 +147,9 @@ stamps.
   the square on foot (generator 2, seed 5: 31 of 74).
 - The castle town's town wall uses only free ground on its ring, so it has
   gaps where houses already stand.
+- Windmills: the market form (a mill a street's length from the square)
+  rarely finds clear air round a busy square, so market towns mostly get
+  the town mill on a tower instead; a raised mill's door is up on its tower,
+  so the bread chain sends its errand to another mill. The mills differ in
+  height, setting and cap colour only: the windmill generator draws every
+  body white.
