@@ -1381,3 +1381,26 @@ Running: nothing of mine. Other sessions are active on this branch.
   queued for the same agent, with the roles it existed to show moved
   somewhere sensible or dropped from the survey.
 Running: grow-town (marble everywhere, the windmill corner).
+
+**Marble everywhere and the mill corner merged** (`ca60c58`, Opus).
+Marble city offered on 39 of 40 generator-2 islands (was 9) and all 30
+generator-1 ones; castle town on 40 of 40 (was 36). How: a compact
+forum form (temple on a 5×4 podium, stair, 9×5 court with an obelisk, a
+stoa; needs 9×12) and the planner LEVELS a site with ordinary land
+edits when none is flat (`src/townmaker/levelling.ts`: least earth
+moved, at most two then three levels a column, never water or the map
+edge; edits play first, are saved in `World.terrainEdits`, undone with
+the growth; round-trip test). 20 of 69 surveyed marble cities are
+levelled, 42 use the compact form. Only refusal: generator-2 seed 18 (a
+ring round a lagoon). The folly is gone from every plan; a mill corner
+(a three-tall windmill on the ground, the miller's house, two
+cottages, fenced wheat with a scarecrow, kitchen garden, well, a fence
+gate; no arch: a lone arch on a path draws as a castle gate) goes in
+farming, garden, market and hill towns. Orchestrator grew marble cities
+through the menu on generator-2 seeds 6, 30, 12 (49, 99, 0 land edits):
+all read as marble cities. `WHY_NOT_HERE.marble` is now "This island has
+no room for a forum." Gate: 2,232 passed, 12 skipped, clean. Agent's
+list of contrived set pieces not fixed: the walled tower, standalone
+watchtowers, the folly tower inland, shrines stamped three or four
+times. The hand-built `everything` scenario still has a folly.
+Running: nothing of mine.
