@@ -1534,3 +1534,17 @@ raids on their own registered with the scenes' register. Nothing saved.
 Order: figures and longship, the landing raid, looting, stopping them,
 the offshore ship, raids on their own.
 Running: ragdoll and the Hand, barbarians.
+
+**The site moved (another session, `7d0a70b`, 2026-11-21 about 02:20).**
+The game is now at https://littlecity.io/ ; `tools/deploy-pages.sh`
+publishes to the `gh-pages` branch of the repo `yaoderek/littlecity.io`
+(base `/`, a CNAME file). The old address
+(https://yaoderek.github.io/littlecity/) is meant to hold a forwarding
+page that carries players' towns across (`tools/publish-bridge.sh`);
+never publish the game there again. The orchestrator's publish of the
+nuke change (`08a6661`) went to littlecity.io and is served there
+(bundle `app-CXSwQQkh.js`, checked by resolving the domain to GitHub's
+address directly; this Mac's resolver did not find the name). At 02:30
+the old address still served the previous game build
+(`app-BOv6Kbyq.js`), not the forwarding page: left to the session that
+owns the move.
