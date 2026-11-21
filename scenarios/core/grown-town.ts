@@ -90,6 +90,10 @@ export function grownTown(n: number | string, seed: number, gen: 1 | 2 = 1, char
     if (!p) continue;
     cameras.push({ name, yaw, pitch: name === 'square' ? 44 : 32, zoom, target: [p[0] + 0.5, level(p[0], p[1]) + 0.5, p[1] + 0.5] });
   }
+  // Every windmill the planner added (mills.ts), each from close by.
+  for (const d of legacy ? [] : plan.districts.filter((x) => x.name.startsWith('windmill-'))) {
+    cameras.push({ name: d.name, yaw: 45, pitch: 28, zoom: 5, target: [d.x + 0.5, level(d.x, d.z) + 1, d.z + 0.5] });
+  }
   if (gen === 2 && !legacy) {
     // The bridges: each arch run over water, seen from beside it; and the river half way along.
     const seen = new Set<number>();

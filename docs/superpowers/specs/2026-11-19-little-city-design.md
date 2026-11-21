@@ -1235,6 +1235,9 @@ town is meant to show off every building combination the rules know.
   from the seed and weighted by what the island offers. The banner names
   it. `src/townmaker/README.md` lists what each character builds and
   leaves out.
+- **Windmills in every town** (Derek, 2026-11-21: "I really like the look
+  of windmills and I want to see more of them"): every kind of town gets
+  at least one, usually two or more, in forms that suit it and the island.
 - **Coverage.** The showcase is across towns, not within one: over seeds 1
   to 30 on both island generators every character is rolled, each town
   shows what its character promises, and every role and guide entry the

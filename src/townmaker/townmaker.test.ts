@@ -151,6 +151,7 @@ function emphasisCounts(w: World, roleCount: Map<string, number>, orchardCount =
   c.parks = n('park-lawn') + n('herb-garden') + n('greenhouse') + n('walled-garden');
   c.turrets = n('castle-turret');
   c.orchards = orchardCount;
+  c.mills = n('windmill');
   return c;
 }
 
@@ -172,6 +173,25 @@ const EMPHASIS: Record<Character, Record<string, number>> = {
 const TREES_EVERYWHERE = 35;
 /** Orchards for the characters that promise them. */
 const ORCHARDS: Partial<Record<Character, number>> = { farming: 2, river: 1, gardens: 1, market: 1 };
+/** Windmills in nearly every town (Derek, 2026-11-21): at least one in this share of the towns of every kind. */
+const MILL_SHARE = 0.95;
+
+/** Windmills on a grown town's ground: one per column holding windmill blocks. */
+function millsOf(edits: ReturnType<typeof growTown>): number {
+  const cols = new Set<number>();
+  for (const e of edits) if (e.type === 'placeBlock' && e.kind === 'windmill') cols.add(e.cell & 4095);
+  return cols.size;
+}
+
+/** Windmills per town, by kind, and the share of towns with none. */
+function millLines(rows: { character: Character; mills: number }[]): string[] {
+  return CHARACTERS.map((ch) => {
+    const ms = rows.filter((r) => r.character === ch).map((r) => r.mills);
+    if (!ms.length) return `${ch.padEnd(8)} none rolled`;
+    const none = ms.filter((m) => m === 0).length, two = ms.filter((m) => m >= 2).length;
+    return `${ch.padEnd(8)} ${String(ms.length).padStart(2)} towns | mills ${ms.join(' ')} | avg ${(ms.reduce((a, b) => a + b, 0) / ms.length).toFixed(1)}, none ${none}, 2+ ${two}`;
+  });
+}
 let SURVEY: Surveyed[] | null = null;
 function survey(): Surveyed[] {
   if (SURVEY) return SURVEY;
@@ -292,6 +312,15 @@ describe('grow a town: the survey (seeds 1 to 30, both generators)', () => {
     expect(missing.filter((m) => !allowed.has(m))).toEqual([]);
   });
 
+  test('a windmill in nearly every town of every kind (counts printed)', () => {
+    const rows = survey().map((s) => ({ character: s.character, mills: s.counts.mills ?? 0 }));
+    console.log(`windmills per town (rolled):\n${millLines(rows).join('\n')}`);
+    for (const ch of CHARACTERS) {
+      const ms = rows.filter((r) => r.character === ch);
+      if (ms.length) expect(ms.filter((r) => r.mills > 0).length / ms.length, ch).toBeGreaterThanOrEqual(MILL_SHARE);
+    }
+  });
+
   test('a stone bridge on every generator-2 island with a river', () => {
     const misses = survey().filter((s) => s.gen === 2 && s.rivers > 0 && !s.roles.has('stone-bridge') && !s.roles.has('bridge-shop'));
     expect(misses.map((s) => s.seed).length).toBeLessThanOrEqual(2);
@@ -302,6 +331,28 @@ describe('grow a town: the survey (seeds 1 to 30, both generators)', () => {
     for (const id of ['D17', 'D19', 'D21', 'D26', 'D31', 'D32', 'D33']) expect(has(id), id).toBe(true);
     expect(survey().some((s) => s.roles.has('town-hall'))).toBe(true);
   });
+});
+
+describe('grow a town: windmills in every kind of town', () => {
+  // Each kind grown on generator-2 islands, as the dice would: 4 islands each in the gate, 12 in the full run.
+  test('each kind, chosen on a spread of islands, has a windmill in nearly every town; farming, garden and hill towns several', () => {
+    const rows: { character: Character; mills: number }[] = [];
+    for (const ch of CHARACTERS) {
+      for (let seed = 101; seed <= 100 + sized(4, 12); seed++) {
+        const t = generateTerrain(seed, 2);
+        const plan = planTown(t, seed, { character: ch });
+        rows.push({ character: plan.character, mills: millsOf(plan.edits) });
+      }
+    }
+    console.log(`windmills per town (each kind chosen):\n${millLines(rows).join('\n')}`);
+    for (const ch of CHARACTERS) {
+      const ms = rows.filter((r) => r.character === ch);
+      expect(ms.filter((r) => r.mills > 0).length / ms.length, ch).toBeGreaterThanOrEqual(MILL_SHARE);
+      // Two or more in most towns of every kind; three or more in most farming, garden and hill towns.
+      expect(ms.filter((r) => r.mills >= 2).length / ms.length, ch).toBeGreaterThan(0.5);
+      if (ch === 'farming' || ch === 'gardens' || ch === 'hill') expect(ms.filter((r) => r.mills >= 3).length / ms.length, ch).toBeGreaterThan(0.5);
+    }
+  }, sized(120_000, 600_000));
 });
 
 describe('grow a town: the dice', () => {
