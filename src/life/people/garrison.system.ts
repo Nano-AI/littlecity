@@ -26,6 +26,8 @@ import { MeshBuilder, PATTERN } from '@/gen/mesh';
 import { findCastles, type Castle } from '@/rules/life/castle.lib';
 import type { ShapePlan, DressingPlan } from '@/resolve/plan';
 import { PERSON } from '@/style/people';
+import type { Mat4Like } from '@/core/mat4';
+import { critterPose, crittersOf } from '../mischief/critters';
 import { crowdOf, setObstacles, type Obstacle } from '../doors/table';
 import { createRide, rideOf, tetherOf, type Ride } from './rider';
 import { createRouter } from './route';
@@ -91,6 +93,18 @@ function place(n: number, x: number, y: number, z: number, heading: number, scal
       into[o + 1] = scale * ly + (col === 3 ? y : 0);
       into[o + 2] = -s * lx + c * lz + (col === 3 ? z : 0);
       into[o + 3] = col === 3 ? 1 : 0;
+    }
+  }
+}
+
+/** into = m · from, for n matrices (a figure thrown as a whole: mischief). */
+function by(n: number, m: Mat4Like, from: Float32Array, into: Float32Array): void {
+  for (let i = 0; i < n; i++) {
+    const k = i * 16;
+    for (let col = 0; col < 4; col++) {
+      const o = k + col * 4;
+      const lx = from[o]!, ly = from[o + 1]!, lz = from[o + 2]!, lw = from[o + 3]!;
+      for (let r = 0; r < 4; r++) into[o + r] = m[r]! * lx + m[4 + r]! * ly + m[8 + r]! * lz + m[12 + r]! * lw;
     }
   }
 }
@@ -280,7 +294,8 @@ export default defineSystem<State>({
       }
     }
     const tick = Math.floor(signals.time.seconds * PERSON.drawRate);
-    if (tick === state.tick && !state.fresh) return;
+    // (Every frame while a soldier is in the air: mischief.)
+    if (tick === state.tick && !state.fresh && !state.list.some((g) => g.troop?.soldiers.some((_, i) => crittersOf(ctx.stage).get(`${g.key}-soldier${i}`)?.body))) return;
     state.tick = tick;
     state.fresh = false;
     for (const g of state.list) {
@@ -288,11 +303,14 @@ export default defineSystem<State>({
         g.troop.soldiers.forEach((s, i) => {
           const d = g.soldiers[i]!;
           d.fig ??= newFigure(ctx.stage, d.look, `${g.key}-soldier${i}`);
-          const pose = s.pose === 'walk' ? poseOf('walk', s.stride, 0) : { legL: 0, legR: 0, armL: 0, armR: 0, outL: 0.08, outR: 0.08, lean: 0, lift: 0, twist: 0 };
+          // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): thrown as a whole, arms and legs out.
+          const held = critterPose(ctx.stage, `${g.key}-soldier${i}`, 'soldier', s.x, s.y, s.z, s.heading, 0.46, d.look.scale);
+          const pose = held ? poseOf('dive', 0) : s.pose === 'walk' ? poseOf('walk', s.stride, 0) : { legL: 0, legR: 0, armL: 0, armR: 0, outL: 0.08, outR: 0.08, lean: 0, lift: 0, twist: 0 };
           // The pike (or the sentry's torch) in the right hand: the hand closes on its shaft (hands.ts).
           applyHold(pose, d.rig, { tool: s.torch ? 'torch' : 'pike', load: null, hold: null, anchor: null });
           rigMatrices(d.look, pose, local, 0, d.rig);
-          place(5, s.x, s.y, s.z, s.heading, d.look.scale, local, world);
+          if (held) by(6, held, local, world);
+          else place(5, s.x, s.y, s.z, s.heading, d.look.scale, local, world);
           drawFigure(ctx.stage, d.fig, world, s.torch ? 'torch' : 'pike', g.colour);
         });
       }

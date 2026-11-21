@@ -98,6 +98,8 @@ export interface Body {
   splat: number;
   /** For the hop out of the water: where from. */
   from: { x: number; y: number; z: number } | null;
+  /** Walking speed once up (units a second). */
+  pace: number;
 }
 
 export function makeBody(seed: number, x: number, y: number, z: number, heading: number, pivot: number, radius: number): Body {
@@ -106,7 +108,7 @@ export function makeBody(seed: number, x: number, y: number, z: number, heading:
   q[3] = Math.cos(heading / 2);
   return {
     seed, x, y, z, vx: 0, vy: 0, vz: 0, q, wx: 0, wy: 0, wz: 0, pivot, radius,
-    phase: 'held', t: 0, age: 0, upright: true, heading, dizzy: 3, rise: 3, bounces: 0, goal: null, wet: false, splat: 0, from: null,
+    phase: 'held', t: 0, age: 0, upright: true, heading, dizzy: 3, rise: 3, bounces: 0, goal: null, wet: false, splat: 0, from: null, pace: THROWN.walk,
   };
 }
 
@@ -417,7 +419,7 @@ function walk(b: Body, dt: number, ground: Ground): BodyEvent {
   }
   if (d >= 0.02) {
     b.heading = Math.atan2(dx, dz);
-    const step = Math.min(d, THROWN.walk * dt);
+    const step = Math.min(d, b.pace * dt);
     const nx = b.x + (dx / d) * step, nz = b.z + (dz / d) * step;
     // Never into a wall: along it if it can, else they wait there (and are put on their way in the end).
     const y = b.y + 0.08;
@@ -446,8 +448,8 @@ function drop(b: Body, dx: number, dz: number): void {
   b.y += b.pivot;
   b.upright = false;
   setQuatYaw(b.q, b.heading);
-  b.vx = dx * THROWN.walk;
-  b.vz = dz * THROWN.walk;
+  b.vx = dx * b.pace;
+  b.vz = dz * b.pace;
   b.vy = 0.6;
   b.wx = dz * 2;
   b.wz = -dx * 2;

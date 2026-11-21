@@ -170,6 +170,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     if (c.body) return c.body;
     c.home = { x: c.x, y: c.y, z: c.z, heading: c.heading };
     const b = makeBody(hashString(c.id), c.x, c.y, c.z, c.heading, c.height * 0.5, c.height * 0.4);
+    b.pace = 1.4;
     c.body = b;
     critterEvents.set(c, []);
     return b;
@@ -232,7 +233,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       }
       const b = c.body;
       if (!b) continue;
-      const home = c.home!;
+      // Where it says it is now (it may have moved on: a soldier's place in the column).
+      const home = { x: c.x, y: c.y, z: c.z, heading: c.heading };
       const before = b.phase;
       const ev = stepBody(b, dt, g);
       if (ev) critterEvents.get(c)?.push(ev);
@@ -247,6 +249,11 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
           b.phase = 'climb';
           b.t = 0;
         }
+      }
+      if (b.phase === 'walk' && b.goal) {
+        b.goal.x = home.x;
+        b.goal.y = home.y;
+        b.goal.z = home.z;
       }
       if (b.phase === 'done') {
         b.heading = home.heading;

@@ -11,8 +11,10 @@
 // how tall it is; and while it gets a matrix back, draw that instead of its
 // own motion and leave its own state alone. The thrower flings it, lets it
 // lie on its back with its legs in the air (dizzy), turns it back over and
-// walks (or bounds) it back to where it was taken from, and then lets go:
-// the next update gets null, and it carries on from exactly where it was.
+// walks (or bounds) it back to where it says it is (where it was taken
+// from, for anything that stands still while it is away; its place in the
+// column, for a marching soldier), and then lets go: the next update gets
+// null, and it carries on from exactly there.
 // Nothing about it is saved.
 
 import type { Mat4Like } from '@/core/mat4';
@@ -55,14 +57,14 @@ export function critterPose(stage: LifeStage, id: string, kind: string, x: numbe
   let c = all.get(id);
   if (!c) all.set(id, (c = { id, kind, x, y, z, heading, height, scale, quiet: 0, body: null, home: null, m: new Array<number>(16).fill(0) }));
   c.quiet = 0;
-  if (c.body) return c.m;
+  // Where it would be by itself (a soldier's place in a marching column moves on): where it goes back to.
   c.x = x;
   c.y = y;
   c.z = z;
   c.heading = heading;
   c.height = height;
   c.scale = scale;
-  return null;
+  return c.body ? c.m : null;
 }
 
 /** The same, for a thing whose drawing is a world matrix `m` (its feet at the origin, +Z ahead): where it stands is read from it. */
