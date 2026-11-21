@@ -30,7 +30,7 @@ export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how:
   { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes off. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
   { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a white flash, a shockwave racing out, a fireball rising into a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
   { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
-  { tool: 'hand', name: 'Hand', how: 'Press on anybody out in the town, or a dog, a cat, a hen, a sheep or a soldier: up they come, kicking. Drag them over the roofs and let go to drop them, or flick to throw them across the island. They land, see stars, get up and carry on; whoever they hit goes over too.' },
+  { tool: 'hand', name: 'Hand', how: 'Press on anybody out in the town, a dog, a cat, a hen, a sheep, a soldier, the knight or his horse, a little boat or a big ship: up it comes, kicking. Drag it over the roofs and let go to drop it, or flick to throw it across the island. People land, see stars, get up and carry on; whoever they hit goes over too. A ship dropped on the land lies there until it is refloated. Press on a building and it wobbles on its foundations until you let go.' },
   { tool: 'mend', name: 'Mend', how: 'Click something damaged: scaffolding goes up, and each click mends a stage until it is exactly as you built it. Shift-click mends it at once.' },
 ];
 
