@@ -32,6 +32,9 @@ export class Figure {
   private extra: InstanceHandle;
   private tool: InstanceHandle | null = null;
   private load: { kind: Load; h: InstanceHandle } | null = null;
+  /** Held things put down (hidden, kept): taken up again rather than drawn afresh, and never let go while drawn. */
+  private tools = new Map<string, InstanceHandle>();
+  private loads = new Map<Load, InstanceHandle>();
   private shown = true;
   private released = false;
 
@@ -50,6 +53,13 @@ export class Figure {
     this.extra.setVisible(v);
     this.tool?.setVisible(v);
     this.load?.h.setVisible(v);
+  }
+
+  /** Hidden, every piece and everything held (before it is let go: nothing goes while it is drawn). */
+  hideAll(): void {
+    this.setVisible(false);
+    for (const h of this.tools.values()) h.setVisible(false);
+    for (const h of this.loads.values()) h.setVisible(false);
   }
 
   get visible(): boolean {
@@ -94,22 +104,32 @@ export class Figure {
     this.extra.setMatrix(world.subarray(0, 16));
     if (gear) {
       if (!this.tool) {
-        let m = toolMeshes.get(gear);
-        if (!m) toolMeshes.set(gear, (m = toolMesh(gear)));
-        this.tool = this.stage.spawnMesh(m, IDENTITY);
+        let h = this.tools.get(gear);
+        if (!h) {
+          let m = toolMeshes.get(gear);
+          if (!m) toolMeshes.set(gear, (m = toolMesh(gear)));
+          this.tools.set(gear, (h = this.stage.spawnMesh(m, IDENTITY)));
+        }
+        h.setVisible(true);
+        this.tool = h;
       }
       const piece = TOOL_PIECE[gear];
       this.tool.setMatrix(world.subarray(piece * 16, piece * 16 + 16));
     } else if (this.tool) {
-      this.tool.release();
+      this.tool.setVisible(false);
       this.tool = null;
     }
     if (this.load && this.load.kind !== load) {
-      this.load.h.release();
+      this.load.h.setVisible(false);
       this.load = null;
     }
     if (load) {
-      this.load ??= { kind: load, h: this.stage.spawnMesh(carriedMesh(load), IDENTITY) };
+      if (!this.load) {
+        let h = this.loads.get(load);
+        if (!h) this.loads.set(load, (h = this.stage.spawnMesh(carriedMesh(load), IDENTITY)));
+        h.setVisible(true);
+        this.load = { kind: load, h };
+      }
       const [ax, ay, az] = holdAnchor(load);
       const m = new Array<number>(16);
       for (let i = 0; i < 12; i++) m[i] = world[i]!;
@@ -125,7 +145,7 @@ export class Figure {
   setCut(on: boolean): void {
     if (this.released) return;
     const w = on ? -2 : 0;
-    for (const h of [...this.pieces, this.extra, this.tool, this.load?.h]) h?.setParams(1, 0, 0, w);
+    for (const h of [...this.pieces, this.extra, ...this.tools.values(), ...this.loads.values()]) h.setParams(1, 0, 0, w);
   }
 
   release(): void {
@@ -133,8 +153,8 @@ export class Figure {
     this.released = true;
     for (const h of this.pieces) h.release();
     this.extra.release();
-    this.tool?.release();
-    this.load?.h.release();
+    for (const h of this.tools.values()) h.release();
+    for (const h of this.loads.values()) h.release();
   }
 }
 

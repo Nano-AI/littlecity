@@ -44,6 +44,8 @@ interface State {
   cryMeshes: MeshData[];
   flames: InstanceHandle[];
   smokeAcc: number;
+  /** The raid over and hidden: let go next frame. */
+  hidden: boolean;
   /** Seconds of play with this town shown (for raids on their own). */
   played: number;
   /** The next raid on its own may come at this many seconds of play. */
@@ -95,7 +97,7 @@ export default defineSystem<State>({
     const own = ownStage(ctx.stage);
     const raids = raidsOf(ctx.stage);
     const d = mischiefOf(ctx.stage);
-    const st: State = { own, stage: ctx.stage, raids, d, off: () => {}, now: 0, pending: [], cries: new Map(), cryMeshes: [], flames: [], smokeAcc: 0, played: 0, nextAuto: null };
+    const st: State = { own, stage: ctx.stage, raids, d, off: () => {}, now: 0, pending: [], cries: new Map(), cryMeshes: [], flames: [], smokeAcc: 0, hidden: false, played: 0, nextAuto: null };
     raids.current = null;
     raids.start = (s: Summon) => start(st, s);
     const offD = d.on((e: MischiefEvent) => {
@@ -146,7 +148,14 @@ export default defineSystem<State>({
       st.d.threats = raid.threats();
       drawCries(st, raid, signals.time.seconds);
       drawFlames(st, raid, dt, signals.time.seconds);
-      if (raid.beat === 'done') {
+      if (raid.beat === 'done' && !st.hidden) {
+        // Hidden this frame, let go the next: nothing of it goes while it is drawn.
+        raid.hideAll();
+        for (const h of st.cries.values()) h.setVisible(false);
+        for (const h of st.flames) h.setVisible(false);
+        st.hidden = true;
+      } else if (raid.beat === 'done') {
+        st.hidden = false;
         raids.end();
         clearDrawn(st);
         st.d.threats = [];
@@ -241,16 +250,14 @@ function drawCries(st: State, raid: Raid, seconds: number): void {
     if (r.cry <= 0 || !p || !p.visible || p.inCloud) continue;
     live.add(r.i);
     let h = st.cries.get(r.i);
-    if (!h) st.cries.set(r.i, (h = st.own.stage.spawnMesh(st.cryMeshes[(r.i + Math.floor(seconds / 7)) % 3]!, HIDDEN)));
+    if (!h) st.cries.set(r.i, (h = st.own.stage.spawnMesh(st.cryMeshes[r.i % 3]!, HIDDEN)));
+    h.setVisible(true);
     // Over the head (the horns), jiggling on twos.
     const jig = Math.floor(seconds * 8) % 2 ? 0.012 : 0;
     h.setMatrix(facingCamera(p.x, p.y + 0.62 + jig, p.z, cam, k));
   }
-  for (const [i, h] of st.cries) {
-    if (live.has(i)) continue;
-    h.release();
-    st.cries.delete(i);
-  }
+  // A cry over: hidden, kept for the next (one each raider at most).
+  for (const [i, h] of st.cries) if (!live.has(i)) h.setVisible(false);
 }
 
 /** Flames on a burning longship or boat, and smoke off it, while it burns and goes down. */

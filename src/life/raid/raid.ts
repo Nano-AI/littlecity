@@ -247,7 +247,7 @@ export class Raid {
 
   /** Every frame: the ships, and the raiders at sea. */
   stepSea(dt: number, seconds: number, wind: number): void {
-    if (this.ended) return;
+    if (this.ended || this.beat === 'done') return;
     this.t += dt;
     this.age += dt;
     this.moveShip(dt);
@@ -291,7 +291,7 @@ export class Raid {
         v.x = q.x;
         v.z = q.z;
         v.yaw = q.yaw;
-        v.sail = clamp01((left - 0.8) / 2.5);
+        v.sail = this.kind === 'boats' ? Math.max(0.6, clamp01((left - 0.8) / 2.5)) : clamp01((left - 0.8) / 2.5);
         v.rowing = 0.5 + 0.5 * clamp01(1 - left / 6);
         if (this.s >= p.length) {
           if (this.kind === 'landing') this.shipState = 'spin';
@@ -342,8 +342,9 @@ export class Raid {
         v.rowing = 0;
         break;
       case 'hove':
+        // Hove to, its striped sail half-brailed: still the first thing anybody sees out there.
         v.rowing = 0.15;
-        v.sail = 0;
+        v.sail += (0.6 - v.sail) * Math.min(1, dt);
         break;
       case 'out': {
         const b = site.beached!;
@@ -1337,6 +1338,14 @@ export class Raid {
   }
 
   // ───────────────────────────────────────────────────────── the end ──
+
+  /** Over: every drawing hidden (the system lets them go a frame later, so nothing goes while it is drawn). */
+  hideAll(): void {
+    for (const r of this.raiders) r.fig?.hideAll();
+    for (const f of this.crewFigs) f.hideAll();
+    this.ship.hideAll();
+    for (const b of this.boats) b.hideAll();
+  }
 
   /** Ends it now, everything put away (undo, a new town, a raid called off). */
   end(board: Board | null): void {

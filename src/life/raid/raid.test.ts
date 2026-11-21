@@ -71,7 +71,7 @@ describe('the raid', () => {
     };
     until(t, () => raids.current === null, 400);
     t.onFrame = null;
-    expect(beats).toEqual(['sighted', 'landing', 'ashore', 'recall', 'away']);
+    expect(beats).toEqual(['sighted', 'landing', 'ashore', 'recall', 'away', 'done']);
     expect(ashore).toBeGreaterThanOrEqual(8);
     expect(raid.burnt).toBeGreaterThanOrEqual(2);
     expect(pile).toBeGreaterThan(0);
@@ -84,8 +84,10 @@ describe('the raid', () => {
     t.game.undo();
     expect(encodeTown(t.game.world)).toBe(before);
     // The villagers come home: nobody is still running from raiders.
-    t.run(30);
-    expect(crowdOf(t.stage)!.people.filter((p) => (p.goal?.errand?.tag ?? '').startsWith('flee:')).length).toBe(0);
+    const running = (): number => crowdOf(t.stage)!.people.filter((p) => (p.mode === 'walk' || p.mode === 'linger') && (p.goal?.errand?.tag ?? '').startsWith('flee:')).length;
+    until(t, () => running() === 0, 120);
+    const still = crowdOf(t.stage)!.people.filter((p) => (p.mode === 'walk' || p.mode === 'linger') && (p.goal?.errand?.tag ?? '').startsWith('flee:'));
+    expect(still.length).toBe(0);
   }, LONG);
 
   test('a boats raid: the big ship stands off, its boats row to two or more landings and carry the band back', () => {

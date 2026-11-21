@@ -19,9 +19,9 @@ export const RAID = defineStyle(
     /** Seconds ashore before the chief blows the horn for home (at most; sooner once there is nothing left to take or burn). */
     ashore: 70,
     /** Buildings the torch-bearers set alight: this share of the town's buildings, at least and at most this many (the fire spreads on its own from them). */
-    burnShare: 0.12,
+    burnShare: 0.16,
     burnMin: 2,
-    burnMax: 7,
+    burnMax: 9,
     /** Trips a looter makes, at most. */
     trips: 2,
     /** Seconds a looter is inside a building, and holds the kick at its door. */

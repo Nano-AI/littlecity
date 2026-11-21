@@ -62,6 +62,8 @@ export class Vessel {
   private oarsH: InstanceHandle[];
   private heapH: InstanceHandle | null = null;
   private heapShown = 0;
+  /** Heaps outgrown (hidden; let go with the vessel). */
+  private oldHeaps: InstanceHandle[] = [];
   private swell: Swell = { heave: 0, roll: 0, pitch: 0 };
   private cut = false;
   private released = false;
@@ -150,7 +152,8 @@ export class Vessel {
     const want = Math.min(3, this.heap);
     if (want !== this.heapShown) {
       this.heapShown = want;
-      this.heapH?.release();
+      this.heapH?.setVisible(false);
+      if (this.heapH) this.oldHeaps.push(this.heapH);
       this.heapH = want > 0 ? this.stage.spawnMesh(lootHeapMesh(want, ship ? this.size : 0.7), HIDDEN) : null;
       if (this.heapH && this.cut) this.heapH.setParams(1, 0, 0, -2);
     }
@@ -211,9 +214,14 @@ export class Vessel {
     this.sailH?.setVisible(false);
   }
 
+  /** Hidden, every piece (before it is let go). */
+  hideAll(): void {
+    for (const h of [this.hullH, this.yardH, this.sailH, this.heapH, ...this.oarsH]) h?.setVisible(false);
+  }
+
   release(): void {
     if (this.released) return;
     this.released = true;
-    for (const h of [this.hullH, this.yardH, this.sailH, this.heapH, ...this.oarsH]) h?.release();
+    for (const h of [this.hullH, this.yardH, this.sailH, this.heapH, ...this.oarsH, ...this.oldHeaps]) h?.release();
   }
 }
