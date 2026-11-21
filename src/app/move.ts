@@ -5,7 +5,11 @@
 // Owner: Interface.
 //
 // Two ways in:
-//   move.html#<parcel>   the usual: the parcel rides in the fragment, which never reaches a server
+//   move.html#<parcel>   the usual: the parcel rides in the fragment, which never reaches a server.
+//                        Once it is filed this page goes back to the old address with ?moved=<print>,
+//                        so the old page knows it arrived (and does not send it again) before it
+//                        forwards into the game: a parcel that never arrives (littlecity.io out of reach)
+//                        is sent again on the next visit.
 //   move.html?opener     a parcel too big for a URL: the old page opened this one in a window and
 //                        posts the parcel once it hears 'lc-move-ready'
 //
@@ -29,6 +33,8 @@ export interface Parcel {
   local: Record<string, string>;
   towns: TownEntry[];
   open: string;
+  /** The old page's fingerprint of what it sent: handed back to it once the parcel is filed. */
+  print?: string;
 }
 
 /** The fragment form: 'z.' + base64url(gzip(JSON)), or 'j.' + base64url(JSON) where gzip is missing. */
@@ -162,7 +168,8 @@ async function main(): Promise<void> {
   try {
     const parcel = await readParcel(text);
     await moveIn(parcel, storage());
-    enter(parcel.open);
+    if (parcel.print) location.replace(`${OLD_ORIGIN}/littlecity/?moved=${encodeURIComponent(parcel.print)}&open=${encodeURIComponent(parcel.open)}`);
+    else enter(parcel.open);
   } catch {
     fail();
   }
