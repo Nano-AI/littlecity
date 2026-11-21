@@ -37,6 +37,7 @@ import { buildRiverside } from './districts/riverside';
 import { buildCourtyard, buildHousing } from './districts/housing';
 import { buildInfill } from './districts/infill';
 import { buildMillCorner } from './districts/mill-corner';
+import { buildWindmills } from './districts/mills';
 import { buildAcropolis, buildChapel, buildCliffHouse, buildHilltop, buildLighthouse, buildWatchtower } from './districts/monuments';
 import { buildSmallSquare, buildSquare } from './districts/square';
 import { buildBoardwalk, buildBridge, buildInhabitedBridge, buildJetty, buildViaduct } from './districts/water';
@@ -273,8 +274,14 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
     return planTown(terrain, seed, { avoid: opts.avoid, never: 'castle' });
   }
   for (let n = 2; n <= MORE_HOUSING[primary]; n++) buildHousing(town, n, 8 + n * 2);
-  const unjoined = joinStreets(town);
+  let unjoined = joinStreets(town);
   for (const step of AFTER_STREETS[primary]) STEPS[step.split(':')[0]!]?.(town);
+  // Windmills in every town (Derek, 2026-11-21), once the streets are joined (each mill stands within a short
+  // walk of them) and the kind's street pieces are down, before the cottages, trees and woods fill the ground:
+  // the kind's forms (mills.ts).
+  const before = town.districts.length;
+  buildWindmills(town, primary);
+  if (town.districts.length > before) unjoined = joinStreets(town);
   buildFlowerBed(town, 0);
   buildFlowerBed(town, 1);
   // A farming village keeps its cottages near the green: the rest of the island is farmland.
