@@ -1276,3 +1276,23 @@ the brush wider; on touch "Tap − and + …"). `Stepper.hint()`,
 under `little-city.length-hint` (a count, or `learned` once a length is
 changed; three showings at most). Test `tests/e2e/length-hint.e2e.test.ts`.
 Gate: 2,189 passed, 10 skipped, clean.
+
+**Soft ink merged** (`b9391a3`, Opus, `swarm/soft-ink`; the agent died
+once on a network outage and was resumed). Why round things showed
+rigid lines: lathe balls smooth only round the axis (bands along the
+profile crease at about 30°), overlapping lumps crease where they meet,
+and pieces had separate ink ids. Tool: `src/gen/soft.ts`
+(`soft(b, { ink }, …)`, `smoothBall`, `smoothLathe`): one ink id and
+normals from a smooth field over the lumps; no shader change, no frame
+cost. Applied to: the fight cloud (redrawn: one lumpy two-tone dust
+ball on twos with ink motion marks; 11 outlined puffs before), the
+swearing balloon and chat bubble (one outline with the tail, symbols as
+strokes, up to 1.8× bigger when zoomed out), heads and hair and hands,
+dogs, cats, hens, sheep, fruit heaps and tree fruit, carried goods,
+field balls. Gallery `scenarios/gallery/soft-ink.scenario.ts`. Kept
+angular: buildings, crates, tools, limbs, hat brims. Not done: cow,
+bird wings, tree crowns. +2.2 % triangles on bench-2000, frame time
+unchanged. 14 guide pictures redrawn. Gate: 2,197 passed, 10 skipped,
+clean. Orchestrator looked at before/after of the cloud, bubbles,
+people and the dog.
+Running: wedding (resumed after the same outage).
