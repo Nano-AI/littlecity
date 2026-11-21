@@ -46,6 +46,7 @@ import { DRAWER_IDS, drawerItems, isLandTool, isMischiefTool, isToolId, paintsRu
 import { createMischiefTools } from './mischief';
 import { createHand } from './hand';
 import { mischiefOf } from '@/life/mischief/director';
+import { raidsOf } from '@/life/raid/raids';
 import { attachPointer } from './pointer';
 import { createStepper } from './stepper';
 import { createTray, type Tray } from './tray';
@@ -214,6 +215,7 @@ function inSlices<T>(search: Generator<void, T>, signal: AbortSignal, sliceMs = 
 }
 const SOUND_KEY = 'little-city.sound';
 const REBUILD_KEY = 'little-city.rebuild';
+const RAIDERS_KEY = 'little-city.raiders';
 const LAND_HINT_KEY = 'little-city.land-hint';
 const LENGTH_HINT_KEY = 'little-city.length-hint';
 /** How many times the length note is shown before it is taken as read (it also stops once a length has been changed). */
@@ -424,6 +426,15 @@ export function createInterface(host: InterfaceHost): Interface {
     setMusicVolume: (v) => void writeVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_EVENT, v),
     soundVolume: () => readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT),
     setSoundVolume: (v) => void writeVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_EVENT, v),
+    raiders: () => raidsOf(view.stage).auto,
+    setRaiders(on) {
+      raidsOf(view.stage).auto = on;
+      try {
+        localStorage.setItem(RAIDERS_KEY, on ? 'on' : 'off');
+      } catch {
+        // No storage: the choice lasts until the page closes.
+      }
+    },
     rebuild: () => mischiefOf(view.stage).rebuild,
     setRebuild(on) {
       mischiefOf(view.stage).rebuild = on;
@@ -434,6 +445,12 @@ export function createInterface(host: InterfaceHost): Interface {
       }
     },
   });
+  try {
+    // Raiders come on their own unless switched off (never in a town's first minutes: src/style/raid.ts).
+    raidsOf(view.stage).auto = localStorage.getItem(RAIDERS_KEY) !== 'off';
+  } catch {
+    // Default: on.
+  }
   try {
     mischiefOf(view.stage).rebuild = localStorage.getItem(REBUILD_KEY) !== 'off';
   } catch {

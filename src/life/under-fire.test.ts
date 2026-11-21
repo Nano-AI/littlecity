@@ -25,6 +25,7 @@ import { buildScenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { createTurmoil, type KindStats } from '../../tests/helpers/turmoil';
 import { crowdOf } from './doors/table';
+import { raidsOf } from './raid/raids';
 import { FULL, sized } from '../../tests/helpers/tier';
 
 /** Seconds after the drop: the bang (about 3.5 s), the batches, the fires, and as much of the mend as the tier allows. */
@@ -87,6 +88,35 @@ describe('a grown town nuked and mending', () => {
     for (const s of stats.values()) if (s.nonFinite > 0) problems.push(`${s.kind}: ${s.nonFinite} frames not finite`);
     expect(problems).toEqual([]);
   }, FULL ? 300_000 : 60_000);
+
+  test('a raid from the first sight of the sail to the last of it, then the mend: no teleports, nothing vanishing, nothing left', () => {
+    const built = buildScenario(findScenario('grown-town-1')!);
+    const t = createTurmoil({ world: built.world, terrain: built.terrain });
+    t.run(4);
+    t.mark();
+    const raids = raidsOf(t.stage);
+    expect(raids.summon({ at: null, kind: 'landing' })).toBeNull();
+    const raid = raids.current!;
+    let ashore = 0;
+    t.onFrame = () => {
+      if (raids.current) ashore = Math.max(ashore, raid.raiders.filter((r) => r.person).length);
+    };
+    for (let s = 0; s < 400 && raids.current; s++) t.run(1);
+    t.onFrame = null;
+    expect(raids.current, 'the raid ran to its end').toBeNull();
+    expect(ashore).toBeGreaterThanOrEqual(8);
+    expect([...t.game.world.blocks.values()].some((b) => b.ruin), 'it set the town alight').toBe(true);
+    t.run(sized(20, 120));
+    const stats = new Map(t.report().map((r) => [r.kind, r]));
+    const problems: string[] = [];
+    for (const [kind, s] of stats) {
+      if (s.nonFinite > 0) problems.push(`${kind}: ${s.nonFinite} frames not finite`);
+      if (kind.startsWith('raid') && s.vanished > 0) problems.push(`${kind}: ${s.vanished} vanished`);
+    }
+    for (const what of ['jumps', 'regrow'] as const) if ((stats.get('person')?.[what] ?? 0) > 0) problems.push(`person: ${what} ${stats.get('person')![what]}`);
+    expect(problems).toEqual([]);
+    expect(crowdOf(t.stage)!.people.some((p) => p.raider && p.mode !== 'gone')).toBe(false);
+  }, FULL ? 400_000 : 200_000);
 
   test('a fire reaching a house being mended: it stays lifeless (no lights, cat or signs coming back) while it burns', () => {
     const built = buildScenario(findScenario('grown-town-1')!);

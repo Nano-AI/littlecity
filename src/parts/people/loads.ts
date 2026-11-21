@@ -17,6 +17,7 @@ import { drawLanternPole, drawTrestle } from './supper';
 import { drawRolledBlanket } from './picnic';
 import { drawCone, drawIceCart } from './beach';
 import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, drawFurledParasol, drawOpenParasolHeld } from './beach';
+import { drawLoot, type Loot } from './loot';
 
 /**
  * Something carried (drawn in the hands; src/parts/people/loads.ts) or set down somewhere (a store).
@@ -41,7 +42,7 @@ import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, d
  * L66, a picnic (picnic.ts):
  *   blanket-n       a checked blanket rolled up, on the shoulder
  */
-export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | 'trestle' | 'lantern-pole' | 'icecart' | 'cone' | `blanket-${0 | 1 | 2 | 3}` | BeachLoad;
+export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | 'trestle' | 'lantern-pole' | 'icecart' | 'cone' | `blanket-${0 | 1 | 2 | 3}` | BeachLoad | Loot;
 
 /** The six canvas colours (beach.ts CANVAS_COLOURS) and four pail colours. */
 type Canvas = 0 | 1 | 2 | 3 | 4 | 5;
@@ -77,6 +78,8 @@ function drawLoad(b: MeshBuilder, kind: Load, big = BIG): void {
 function drawLoadAt(b: MeshBuilder, kind: Load): void {
   b.setPattern(PATTERN.none);
   if (drawBeachLoad(b, kind)) return;
+  // The raid's loot (loot.ts).
+  if (drawLoot(b, kind)) return;
   switch (kind) {
     case 'sack':
       b.setInk('sack').setColor('#e3b866').setPattern(PATTERN.cloth);
@@ -299,11 +302,20 @@ export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   'blanket-1': 'shoulder',
   'blanket-2': 'shoulder',
   'blanket-3': 'shoulder',
+  // The raid's loot: a chest, a ham and a bolt of cloth on the shoulder; the pig and the cheese held up in
+  // front; the hen and the candlestick held up high.
+  chest: 'shoulder',
+  ham: 'shoulder',
+  cloth: 'shoulder',
+  pig: 'chest',
+  cheese: 'chest',
+  hen: 'high',
+  candlestick: 'high',
 };
 /** Loads drawn at their own size whatever the camera's distance (they are big enough, or would swamp their carrier). */
 export const NOT_GROWN: ReadonlySet<Load> = new Set<Load>(['icecart', 'cart', 'cart-1', 'cart-2', 'cart-3', ...BEACH_LOADS.filter((k) => k.startsWith('parasol-open-'))]);
 /** Loads heavy enough that their carrier leans into them and walks slower. */
-export const HEAVY: ReadonlySet<Load> = new Set<Load>(['trestle', 'sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
+export const HEAVY: ReadonlySet<Load> = new Set<Load>(['trestle', 'sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3', 'chest']);
 
 const rotX = (a: number): Mat4Like => rotationX(a);
 const rotZ = (a: number): Mat4Like => [Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -358,6 +370,13 @@ const HOLD: Record<Load, Mat4Like> = {
   'blanket-1': translation(0.085, 0.3, -0.02),
   'blanket-2': translation(0.085, 0.3, -0.02),
   'blanket-3': translation(0.085, 0.3, -0.02),
+  chest: translation(0.07, 0.26, -0.02),
+  ham: multiply(translation(0.075, 0.3, -0.04), rotX(Math.PI / 2 - 0.3)),
+  cloth: translation(0.075, 0.3, -0.03),
+  pig: translation(0, 0.18, 0.09),
+  cheese: translation(0, 0.18, 0.09),
+  hen: translation(0.085, 0.335, 0.05),
+  candlestick: translation(0.085, 0.335, 0.05),
 };
 
 const cache = new Map<string, MeshData>();

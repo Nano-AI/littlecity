@@ -3,6 +3,7 @@
 //   Lightning  click a building: a storm cloud gathers, a bolt strikes, it catches fire
 //   Bomb    click anywhere: a bomb drops there, fizzes, and goes off
 //   Mallet  click a building: it is knocked a stage worse (cracked, half, rubble)
+//   Raid    click near a shore: raiders come in off the nearest coast (src/life/raid)
 //   Hand    press on a person or an animal: picked up; drag and let go to throw it (./hand.ts)
 //   Mend    click a damaged building: scaffolding goes up, then it is mended a
 //           stage a click; Shift-click mends it at once
@@ -23,12 +24,14 @@ import type { Pick } from './pick';
 import { el } from './dom';
 import { icon } from './icons';
 import type { MischiefToolId } from './pieces';
+import { raidsOf } from '@/life/raid/raids';
 
 /** The field guide's Mischief group: what each tool does, in a sentence (no recipe town: nothing here is built). */
 export const MISCHIEF_GUIDE: readonly { tool: MischiefToolId; name: string; how: string }[] = [
   { tool: 'torch', name: 'Lightning', how: 'Click a building: a little storm cloud gathers over it and a bolt of lightning sets it alight. Timber and thatch burn fast and the wind carries the fire along a row; a street, a wall or water stops it, and stone only scorches.' },
   { tool: 'bomb', name: 'Bomb', how: 'Click anywhere: a bomb drops, fizzes and goes off. What is right beside it falls to rubble, what is near loses its glass, and every bird takes off. In the sea it only splashes.' },
   { tool: 'nuke', name: 'Nuke', how: 'The big one: a siren, a long whistle, a white flash, a shockwave racing out, a fireball rising into a mushroom cloud. Everything for streets around is flattened, fires start at the edge, and a crater is left in the ground. One undo puts even the ground back.' },
+  { tool: 'raid', name: 'Raid', how: 'Click near a shore: a longship with a striped sail and a dragon at its prow comes in off the nearest coast, or a big one stands off and sends rowing boats. The raiders storm ashore roaring, set the thatch alight, kick in doors and carry off sacks, chests and a pig, then sail away with the town in flames. Sink their ship with a bomb or a bolt of lightning and they are stranded: the town chases them into the sea. Undo puts it all back.' },
   { tool: 'mallet', name: 'Mallet', how: 'Click a building to knock it a stage worse: cracked, then half-wrecked, then a heap of its own bricks.' },
   { tool: 'hand', name: 'Hand', how: 'Press on anybody out in the town, or a dog, a cat, a hen, a sheep or a soldier: up they come, kicking. Drag them over the roofs and let go to drop them, or flick to throw them across the island. They land, see stars, get up and carry on; whoever they hit goes over too.' },
   { tool: 'mend', name: 'Mend', how: 'Click something damaged: scaffolding goes up, and each click mends a stage until it is exactly as you built it. Shift-click mends it at once.' },
@@ -163,6 +166,17 @@ export function createMischiefTools(host: {
         const y = pick.hit === 'water' ? p[1] : pick.hit === 'block' && pick.normal[1] > 0 ? (keyY(pick.cell) + 1) * CELL_H : p[1];
         if (tool === 'nuke') director.dropNuke([p[0], y, p[2]]);
         else director.dropBomb([p[0], y, p[2]]);
+        hint(tool);
+        return true;
+      }
+      if (tool === 'raid') {
+        // The raid (src/life/raid): a longship off the coast nearest the click (anywhere on the town will do).
+        const at = pick ? { x: pick.point[0], z: pick.point[2] } : null;
+        const why = raidsOf(host.view.stage).summon({ at });
+        if (why) {
+          host.refuse(why);
+          return false;
+        }
         hint(tool);
         return true;
       }

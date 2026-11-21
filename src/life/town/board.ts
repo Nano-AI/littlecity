@@ -305,6 +305,9 @@ export function createBoard(opts: BoardOptions): Board {
       end(p, true);
     },
     assign(p, plan) {
+      // A raider (src/life/raid) is sent only by the raid: the town's chains never take one (a fire's
+      // clear-out, a bomb's drill).
+      if (p.raider && plan.chain.id !== 'raid') return;
       end(p, true);
       plans.set(p, plan);
       opts.crowd.rethink(p);

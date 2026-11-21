@@ -21,6 +21,9 @@
 //   --then '<edits>' --after 400   a second batch of edits, that many ms into the sequence
 //   mischief (design section 13b), in either list: 'fire@10,1,10' sets that block alight, 'strike@10,1,10' strikes it with lightning, 'bomb@10,1,10'
 //   drops a bomb on the floor of that cell (y = the level it lands on), 'knock@10,1,10' knocks its
+//   the raid: 'raid@10,0,10' summons raiders near that cell (the kind as the island and chance choose),
+//   'raidland@…' a landing raid, 'raidboats@…' a boats raid; 'shipsink@0,0,0' drops a bomb on the raid's ship
+//   (x: cells off its side). --follow-raid keeps the camera on the raid (its ship, then the band).
 //   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo,
 //   'crowdbomb@d,0,0' / 'crowdnuke@d,0,0' drops one d cells off the busiest knot of people out and aims the camera there
 //   --hand person|dog|cat|hen|sheep|soldier|grazer,<dx>,<dz>,<ms>[,drop]   the Mischief drawer's Hand, with real
@@ -208,6 +211,19 @@ try {
           let top = e.y;
           while (lc.world().blocks.has(key(e.x, top + 1, e.z))) top++;
           done.push(m.strike(key(e.x, top, e.z), [e.x + 0.5, (top + 1) * 0.8, e.z + 0.5]) ? 'struck' : 'struck, would not catch');
+          continue;
+        }
+        if (e.verb === 'raid' || e.verb === 'raidland' || e.verb === 'raidboats') {
+          // The raid: a longship near that cell (raid: as the island and chance choose; raidland, raidboats: that kind).
+          const why = lc.raids.summon({ at: { x: e.x + 0.5, z: e.z + 0.5 }, ...(e.verb === 'raidland' ? { kind: 'landing' } : e.verb === 'raidboats' ? { kind: 'boats' } : {}) });
+          done.push(why ? `no raid: ${why}` : `raid (${lc.raids.current.kind})`);
+          continue;
+        }
+        if (e.verb === 'shipsink' && lc.raids.current) {
+          // Bombs the raid's ship where it is now (d cells off its side).
+          const s = lc.raids.current.ship;
+          m.dropBomb([s.x + Math.cos(s.yaw) * e.x, 0.6, s.z - Math.sin(s.yaw) * e.x]);
+          done.push('bombed the longship');
           continue;
         }
         if (e.verb === 'crowdbomb' || e.verb === 'crowdnuke') {
@@ -407,6 +423,14 @@ try {
       await play(FRAME);
     }
     if (flags.aim && flags.follow) await aim();
+    if (flags['follow-raid']) {
+      await page.evaluate(() => {
+        const r = window.__lc.raids?.current;
+        if (!r) return;
+        const f = r.focus();
+        window.__lc.view.setCamera({ target: [f.x, f.y + 0.3, f.z] });
+      });
+    }
     const png = await page.locator('#town').screenshot();
     shots.push({ png, label: `${Math.round(at)} ms` });
     // --open all | --open door@<cell>:<dir>,…: after the first frame, those doors swing open and stay open.

@@ -44,6 +44,7 @@ import type { ErrandHost, ErrandStep, Load } from './errand';
 import { HEAVY } from '@/parts/people/loads';
 import type { Finery } from '@/parts/people/finery';
 import type { BeachWear } from '@/parts/people/beachwear';
+import type { Barbarian } from '@/parts/people/barbarian';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone' | 'thrown';
@@ -204,8 +205,13 @@ export interface Person {
   inCloud: boolean;
   /** In an event's party (a wedding, a parade): never drawn into a scuffle. */
   party: boolean;
-  /** Dressed for an event (L57: the wedding party's finery; L63: for the beach), or a hat knocked askew (L50), else null. */
-  costume: Finery | BeachWear | 'askew' | null;
+  /** Dressed for an event (L57: the wedding party's finery; L63: for the beach; the raid: a raider), or a hat knocked askew (L50), else null. */
+  costume: Finery | BeachWear | Barbarian | 'askew' | null;
+  /**
+   * The raid (src/life/raid): one of a raiding band, not a resident. Every chain leaves them alone (canWork,
+   * the board's `assign`); only the raid's own chain sends them anywhere.
+   */
+  raider?: boolean;
   /** L26, L57: the pose to show while stopped to look (startled), instead of standing: a wave, a clap. */
   admire?: PoseName | null;
   /**
@@ -338,6 +344,9 @@ const FACE_FIRST = 1;
 const DIR_HEADING = [Math.PI, Math.PI / 2, 0, -Math.PI / 2] as const; // N E S W as headings (0 faces +z)
 
 const scratch = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
+
+/** Who runs rather than walks: children, raiders, and anybody running from them (src/life/raid). */
+const runs = (p: Person): boolean => p.child || p.raider === true || (p.brisk && (p.goal?.errand?.tag ?? '').startsWith('flee:'));
 
 export function createCrowd(opts: CrowdOptions = {}): Crowd {
   const people: Person[] = [];
@@ -829,7 +838,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     p.mode = 'walk';
     p.dodge = p.dodgeTo = p.dodgeV = p.offX = p.offZ = 0;
     p.visible = true;
-    p.pose = p.child ? 'run' : 'walk';
+    p.pose = runs(p) ? 'run' : 'walk';
     p.seat = -1;
     p.stuck = 0;
     p.flying = false;
@@ -1182,7 +1191,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     if (moved > 0.02 * dt * 30) p.rethought = false;
     if (moved > 1e-6) {
       p.stride += (moved * PERSON.stepsPerCell * 0.5) / (p.child ? 0.8 : 1);
-      p.pose = p.child ? 'run' : 'walk';
+      p.pose = runs(p) ? 'run' : 'walk';
       p.stuck = p.stuck < 0 ? Math.min(0, p.stuck + dt) : 0;
     } else {
       // Held up: stand, do not march on the spot.
@@ -1263,6 +1272,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
       for (const q of people) {
         if (q === p || !q.visible || q.mode !== 'walk') continue;
+        // A raiding band is a mob: they jostle through one another (src/life/raid), never queue.
+        if (p.raider && q.raider) continue;
         const dx = q.x - p.x, dz = q.z - p.z;
         if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(q.y - p.y) > 0.3) continue;
         // Two people meeting (L26): going opposite ways, about to pass, on open ground. Once per meeting.
@@ -1307,7 +1318,7 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         const rx = -fz, rz = fx;
         let nearest = Infinity, target = 0, blocked = false;
         for (const q of people) {
-          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown') continue;
+          if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown' || (p.raider && q.raider)) continue;
           if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
           const dx = q.x - p.x, dz = q.z - p.z;
           if (dx > 1.4 || dx < -1.4 || dz > 1.4 || dz < -1.4 || Math.abs(q.y - p.y) > 0.3) continue;
@@ -1793,7 +1804,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
           p.want = null;
           if (p.goal?.kind === 'leave') p.goal = null;
         }
-        if (!still && !p.leaving) {
+        // A raider (src/life/raid) is nobody's resident: the raid sends them home, not the town's change.
+        if (!still && !p.leaving && !p.raider) {
           if (p.mode === 'home') {
             // The house came down with them in it: they are standing where its door was.
             setHome(p.home, -1);

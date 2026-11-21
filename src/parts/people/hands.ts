@@ -23,6 +23,7 @@ import type { Vec3 } from '@/core/mat4';
 import type { Hold, Load } from './loads';
 import type { Rig } from './person';
 import type { Pose } from './pose';
+import { RAID_SHAFTS } from './raid-gear';
 
 /** From the shoulder to the middle of the hand, figure units (the arm is rig.arm long, the hand its last 0.03). */
 export function handReach(rig: Rig): number {
@@ -212,6 +213,8 @@ export const SHAFTS: Readonly<Record<string, [Vec3, Vec3]>> = {
   pike: [[0.085, 0.0, 0.05], [0.085, 0.66, 0.05]],
   torch: [[0.085, 0.12, 0.07], [0.085, 0.32, 0.09]],
   lance: [[0.09, 0.06, 0.06], [0.09, 0.8, 0.07]],
+  // The raid (raid-gear.ts): a brand, an axe, a club held up over the head; the chief's horn.
+  ...RAID_SHAFTS,
 };
 
 /** Where the right hand closes on a shaft: where the shaft passes at arm's length, the lower crossing. */

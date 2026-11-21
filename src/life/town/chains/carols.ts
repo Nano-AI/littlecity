@@ -244,7 +244,7 @@ export function carolChain(): CarolChain {
         }
         return;
       }
-      if (board.stage && mischiefOf(board.stage).bombs.length > 0) {
+      if (board.stage && (mischiefOf(board.stage).bombs.length > 0 || mischiefOf(board.stage).threats.length > 0)) {
         finish(board, true);
         return;
       }

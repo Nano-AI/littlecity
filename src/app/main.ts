@@ -28,6 +28,7 @@ import type { Edit, Terrain, World } from '@/core/world';
 import type { LifeRuntime } from '@/life/api';
 import { createLife } from '@/life/runtime';
 import { mischiefOf } from '@/life/mischief/director';
+import { raidsOf } from '@/life/raid/raids';
 import { applyCalendar } from '@/life/season';
 import { createSignals, type TownSignals } from '@/life/signals';
 import { createTownView, type CameraPose } from '@/render/index';
@@ -408,6 +409,8 @@ window.__lc = {
   autosave,
   keeper,
   mischief,
+  /** The raid (src/life/raid): `raids.summon({ at, kind })`, `raids.current`. */
+  raids: raidsOf(view.stage),
   music,
   /** How sharp the page is drawn: the level in use and the levels (src/render/quality.ts). */
   quality: () => view.quality?.() ?? null,

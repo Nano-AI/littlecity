@@ -50,6 +50,9 @@ export interface MenuActions {
   /** Mischief (design section 13b): the town mends its own damage. Left out of the menu when absent. */
   rebuild?(): boolean;
   setRebuild?(on: boolean): void;
+  /** The raid (src/life/raid): raiders come on their own now and then. Left out of the menu when absent. */
+  raiders?(): boolean;
+  setRaiders?(on: boolean): void;
 }
 
 export interface Menu {
@@ -221,6 +224,22 @@ export function createMenu(actions: MenuActions): Menu {
             true,
           )
         : null;
+    const raidLabel = (on: boolean): string => (on ? 'Raiders: on' : 'Raiders: off');
+    const raiders =
+      actions.raiders && actions.setRaiders
+        ? item(
+            'raiders',
+            'raid',
+            raidLabel(actions.raiders()),
+            () => {
+              const next = !actions.raiders!();
+              actions.setRaiders!(next);
+              raiders!.querySelector('.lc-btn-label')!.textContent = raidLabel(next);
+              raiders!.setAttribute('aria-label', raidLabel(next));
+            },
+            true,
+          )
+        : null;
     panel.replaceChildren(
       item('grow', 'grow', 'Grow a town', showGrow, true),
       el('div', { class: 'lc-menu-rule' }),
@@ -236,6 +255,7 @@ export function createMenu(actions: MenuActions): Menu {
       sound,
       ...(sounds ? [sounds] : []),
       ...(rebuild ? [rebuild] : []),
+      ...(raiders ? [raiders] : []),
     );
   };
 

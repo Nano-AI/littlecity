@@ -490,7 +490,7 @@ export function snowDayChain(): SnowDayChain {
     if (!board.stage || !man) return false;
     const d = mischiefOf(board.stage);
     const c = centre(board);
-    return d.bombs.some((b) => b.nuke || Math.hypot(b.point[0] - c.x, b.point[2] - c.z) < 12);
+    return d.bombs.some((b) => b.nuke || Math.hypot(b.point[0] - c.x, b.point[2] - c.z) < 12) || d.threats.some((t) => Math.hypot(t.x - c.x, t.z - c.z) < 10);
   };
 
   const chain: SnowDayChain = {
