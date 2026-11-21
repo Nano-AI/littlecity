@@ -1002,6 +1002,53 @@ its carrier. Nothing is ever left floating or vanishes in view.
     belvedere in the walking graph; soldiers drilling in the bailey; a
     hoist that lifts.
 
+### Scenes of town life (Derek's request, 2026-11-21)
+
+Small stories a player can stop and watch: people set out carrying things,
+set up, do the thing with a few roles, pack up and go home. They share one
+register (`src/life/town/scenes.ts`): a big scene (one that takes a crowd)
+starts only while fewer than two are on, 40 s or more after the last big one
+began, and never while the wedding is gathering its party; the wedding keeps
+its own clock and reports to it. One note at a time names a scene with
+Watch (`src/app/scene-note.ts`), at most one every 100 s. Life time drives
+every cadence, so a held time of day, season or weather keeps them coming.
+
+- **L63 · 2 · A beach day** — sand cells at the water's edge on the walking
+  graph, in the part most front doors open onto, gathered into one beach
+  where they lie within two cells of each other; four or more, within 40
+  steps of a front door, in a town of 8 houses or more, is a beach. The two
+  biggest (counting up to 12 cells, then the nearest the town) get up to 7
+  posts `beach|pitch|<n>` on the stretch nearest the front doors, side by
+  side, facing the water, and one `beach|back|<n>` off the sand behind it.
+  **When:** summer weighing half or more of the season, no rain or snow, cloud
+  at most 0.8, by day; the first 15–35 s after the town is seen, then 60–120 s
+  after the last at that beach ended; with the time of day running, only with
+  140 s of day left. **Who:** up to 30 % of the town, one household a pitch
+  (a grown-up, up to two children, another grown-up), living within 40 steps,
+  called over 30 s, farthest first. **Story:** each goes home to change
+  (bathing costume with white bands, knee length, or a white shirt and pale
+  rolled trousers; a straw sun hat for some) and comes out carrying their
+  part: a furled parasol with a towel rolled round its foot, a folded
+  deckchair, a basket, a child's pail and spade, a beach ball. At the pitch the
+  parasol is planted (a puff of sand) and the towel laid, the chair opened,
+  the basket and pail set down. Then 150–210 s of the day, each doing one thing
+  at a time for 22–44 s: lying on the towel, asleep with the hat over the face,
+  lounging or reading in the deckchair, sitting on the sand, looking out to
+  sea, paddling in the shallows with splashes, swimming out 2 cells and back
+  (wading in, a swimmer and a ripple each stroke, wading out); children dig a
+  sandcastle (heap, keep, two towers, moat and flag, a stage every 9 s of
+  digging), paddle and throw the ball high between two of them. Then each
+  folds and picks up their things and they walk home and change. **Rain**
+  (over 0.15) or a bomb within 12 cells: everything grabbed at once, towels
+  over heads, the parasol held up open as an umbrella, home at a run.
+  **Afterwards:** sandcastles stand 240–480 s, then the sea takes them (they
+  slump, then go in a puff of sand; in rain 8 s and 30 s). **Must not:** leave
+  a thing with nobody: a thing whose owner was called away waits for somebody
+  of that house (after 60 s anybody grown-up within 24 steps) to fetch it home;
+  the beach erased takes its things and castles with a puff and sends everybody
+  home. Bathers are a party (never in a scuffle) and are held by the chain,
+  so the wedding and other chains do not take them.
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

@@ -18,6 +18,8 @@ import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '
 
 /** Seconds of life before the wedding's picture is taken: the couple on the doorstep in a shower of petals, the guard of honour either side, the doves going up (timed in a test run of its recipe). */
 const WEDDING_GUIDE_AT = 96;
+/** Seconds of life before the beach day's picture: the parasols up along the sand, the families there (timed in a run of its recipe). */
+const BEACH_GUIDE_AT = 130;
 
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
@@ -1284,7 +1286,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     frame: [18, 17, 22, 21, 2],
   },
 
-  // ── days the town earns (L56, L57) ────────────────────────────────────
+  // ── days the town earns (L56, L57, L63) ────────────────────────────────────
   {
     id: 'market-day',
     group: 'events',
@@ -1327,6 +1329,26 @@ export const ENTRIES: readonly GuideEntry[] = [
     // In the middle of a wedding: the couple come out (WEDDING_GUIDE_AT).
     life: { settle: WEDDING_GUIDE_AT, residents: true },
     frame: [16, 16, 24, 21, 2],
+  },
+  {
+    id: 'beach-day',
+    group: 'events',
+    name: 'A beach day',
+    how: 'Build a town of eight houses or more near sand by the sea (sand is the strip where flat land meets the water). On fair summer days families walk down with parasols, deckchairs and pails, set up along the shore, paddle, swim and build sandcastles, then pack up and go home; rain sends them running.',
+    proof: { socket: { rule: 'L63.beach' } },
+    seed: 7803,
+    ground: seaSouth,
+    build(b) {
+      b.path(12, 17, 29, 17);
+      for (let i = 0; i < 5; i++) b.house(13 + i * 4, 14, { w: 2, d: 3, floors: 2, color: (i * 3) % 8 });
+      b.house(12, 10, { w: 2, d: 2, color: 6 }).house(17, 10, { w: 2, d: 2, color: 2 }).house(22, 10, { w: 2, d: 2, color: 4 });
+      b.path(12, 12, 23, 12).path(11, 12, 11, 17);
+    },
+    view: { yaw: 20, pitch: 40 },
+    pad: 0.2,
+    // The families set up on the sand (BEACH_GUIDE_AT).
+    life: { settle: BEACH_GUIDE_AT, residents: true },
+    frame: [12, 17, 21, 21, 2],
   },
 ];
 
