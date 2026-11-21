@@ -36,6 +36,7 @@ import { createGuide, type Guide } from './guide';
 import { clampLength, createScrollSteps, growthOf, maxLengthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
 import { createMenu } from './menu';
+import { createTownsSheet, type TownsHost } from './towns';
 import { faceZone, pickCell, type Pick } from './pick';
 import { DRAWER_IDS, drawerItems, isLandTool, isMischiefTool, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
 import { createMischiefTools } from './mischief';
@@ -72,6 +73,12 @@ export interface InterfaceHost {
   newIsland(): void;
   /** Replaces the town with one read from a file. */
   openTown(world: World): void;
+  /** Added by My towns: every town the player has made (src/app/towns.ts). Without it, no menu entry. */
+  towns?: Omit<TownsHost, 'newIsland'>;
+  /** A town is about to be grown on the island on screen: its kind ("A harbour town"), and whether it replaces one still growing. */
+  growing?(name: string, regrow: boolean): void;
+  /** The growth is finished (or stopped): the town on screen is the grown one. */
+  grown?(): void;
   /** Where the interface's elements go. Default: document.body. */
   parent?: HTMLElement;
 }
@@ -88,6 +95,8 @@ export interface Interface {
   readonly fly: FlyMode;
   /** The dressing for the newest world arrived (the guide's ticks for lamps, laundry and parks). */
   dressed(dressing: DressingPlan): void;
+  /** L57: glides the camera to look at a place (as Escape glides back to the whole island). */
+  glideTo(target: readonly [number, number, number], zoom?: number): void;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -238,6 +247,7 @@ export function createInterface(host: InterfaceHost): Interface {
     onDone() {
       growingNote?.();
       growingNote = null;
+      host.grown?.();
       api.sync();
     },
   });
@@ -247,15 +257,39 @@ export function createInterface(host: InterfaceHost): Interface {
     mischief.undo();
     // A new town: nothing of the old one's mischief (a scorch, a cloud, a fire, a mend under way) stays.
     mischiefOf(view.stage).reset();
+    const regrow = growth.active;
     growth.stop();
     setGhost(null, '');
     const plan = planTown(game.terrain, game.world.seed, { avoid });
     shown = shown.includes(plan.character) ? [plan.character] : [...shown, plan.character];
-    growth.start(plan.edits);
     const name = CHARACTER_NAMES[plan.character];
     const article = /^[aeiou]/.test(name) ? 'An' : 'A';
+    // My towns: a town grown over one built by hand is a new town; the one it covers stays kept.
+    host.growing?.(`${article} ${name}`, regrow);
+    growth.start(plan.edits);
     if (growth.active) growingNote = feedback.banner(`${article} ${name} is growing.`, [{ label: 'Finish now', primary: true, run: () => growth.skip() }]);
   };
+
+  const leaveForNewIsland = (): void => {
+    mischief.undo();
+    growth.stop();
+    host.newIsland();
+  };
+  const townsHost = host.towns;
+  const towns = townsHost
+    ? createTownsSheet(
+        {
+          ...townsHost,
+          open(id) {
+            mischief.undo();
+            growth.stop();
+            return townsHost.open(id);
+          },
+          newIsland: leaveForNewIsland,
+        },
+        (text) => feedback.toast(text),
+      )
+    : null;
 
   const menu = createMenu({
     // On the island there is: a different kind of town each time, so asking again is worth it.
@@ -266,11 +300,8 @@ export function createInterface(host: InterfaceHost): Interface {
       grow(shown);
     },
     hasTown: () => !onlyStartingTrees(game.world, game.terrain),
-    newIsland: () => {
-      mischief.undo();
-      growth.stop();
-      host.newIsland();
-    },
+    newIsland: leaveForNewIsland,
+    ...(towns ? { myTowns: () => void towns.open() } : {}),
     shareLink: () => void share(),
     postcard: () => void postcard(),
     downloadTown: () => downloadTown(game.world),
@@ -412,6 +443,7 @@ export function createInterface(host: InterfaceHost): Interface {
     guide.el,
     ...sliders.map((s) => s.el),
     fly.el,
+    ...(towns ? [towns.el] : []),
   );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
   tray.el.style.setProperty('--lc-slots', String(slots));
@@ -922,8 +954,8 @@ export function createInterface(host: InterfaceHost): Interface {
   /** The glide to the view a new island opens on: from, to, and how far along (0 to 1). */
   let recentre: { from: CameraPose; to: CameraPose; t: number; at: number } | null = null;
   const RECENTRE_SECONDS = 0.8;
-  const startRecentre = (): void => {
-    const home = host.homeCamera?.();
+  const startRecentre = (to?: CameraPose): void => {
+    const home = to ?? host.homeCamera?.();
     if (!home) return;
     const from = view.getCamera();
     // The shorter way round.
@@ -1093,6 +1125,10 @@ export function createInterface(host: InterfaceHost): Interface {
     dressed(dressing) {
       guide.dressed(dressing);
       fly.dressed(dressing);
+    },
+    glideTo(target, zoom) {
+      const now = view.getCamera();
+      startRecentre({ ...now, target: [target[0], target[1], target[2]], zoom: Math.max(now.zoom, zoom ?? 0) });
     },
     frame() {
       stepRecentre();

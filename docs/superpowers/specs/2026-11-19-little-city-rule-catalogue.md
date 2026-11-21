@@ -860,23 +860,62 @@ its carrier. Nothing is ever left floating or vanishes in view.
   cross, so walkers go round it. **Must not:** put a pitch where people must
   pass single file, on a doorstep, or beside a stall.
 - **L57 · 2 · A wedding** (LF-01) — a chapel (R-H01) whose door opens onto
-  the walking graph, with a square (else a street) within 12 steps that can
+  the walking graph, with a square (else a street) within 20 steps that can
   be walked to → posts outside the chapel door (`wedding|door`) and at the
   square cell nearest its middle within reach (`wedding|square`); the chapel
-  nearest the heart if several. On the first day the town is seen (25–45 s
-  in) and then 70% of days (seeded, early in the day): two of the six
-  grown-ups living nearest the chapel, from different houses (seeded), walk
-  there and go in; up
-  to 8 guests (children too) within 22 steps gather in a loose half-ring
-  round the doorstep, two to a cell over its neighbours and the cells in
-  front of it, looking at the door; 4 s after enough are there (or 40 s) the
-  couple comes out, she in white with flowers, he in a dark coat and hat;
-  every bell in the town peals (L29) and petals burst over the doorstep;
-  they walk to the square, the guests following, children running ahead,
-  and everybody stands about cheering and chatting 14 s, then goes home,
-  where the couple change back. Everybody in it is in the party (L50 never
-  takes them). **Must not:** happen at night; the chapel erased or the
-  couple gone calls it off and everybody goes about their day.
+  nearest the heart if several. **When:** the first 25–45 s after the town
+  is first seen, then one every 300–420 s of life after the last ended
+  (seeded), by day only and, with the time of day running, only if it can
+  be over by the end of dusk (240 s); with the time held at day they still
+  come round, held at dusk or night never. **Who:** up to 20 (40 % of the
+  town's people; at least the couple), who live within 32 steps' walk
+  (where they are, home to change, then the chapel): the couple (two of the
+  six grown-ups nearest, from different houses), a priest (the bell ringer
+  if free), up to two flower children, one to three pairs of bridesmaids
+  and ushers, and guests. **Dressed** (drawn over the person,
+  `src/parts/people/finery.ts`): the bride in a white gown with a train, a
+  veil and a wreath, carrying flowers; the groom in black with a white
+  shirt front, tails, a buttonhole and a top hat; ushers in black, some in
+  top hats; bridesmaids in pale gowns with wreaths and posies; flower
+  children in white with a pink sash and a wreath, a basket of petals;
+  guests in pale dresses with picture hats or wreaths, or dark suits with
+  bowlers or top hats; the priest in a black cassock and white collar.
+  Everyone changes at home, before (anyone out walks home first) and
+  after. **Gather:** called in ones and twos, farthest first; the priest
+  puts up a flower arch with bows and bunting over the door (a puff) and
+  stands beside it; the couple go in; the rest line the way from the door
+  in two rows facing across it, 0.4 apart, the flower children at the far
+  end (a guard of honour). **Vows:** once three quarters of the guard are
+  in place (or 90 s) the couple are inside 6 s while every bell peals
+  (L29; heard: rounds down a scale). **Out:** they come out under the arch;
+  the bells peal again, a shower of petals over them and a handful from
+  each of the guard, nine white doves go up from the doorstep; a kiss; a
+  second shower (5 s). **Procession:** the couple walk up the aisle to the
+  flower children, then the column walks at 0.42 cells a second, two
+  abreast, rows 0.4 apart, in order (flower children strewing petals, the
+  couple arm in arm, bridesmaid and usher pairs, guests), the guard falling
+  in a pair at a time as the column passes, along the planned way: by a
+  fountain, a square or a street on the way if one makes the walk at least
+  4 steps longer without doubling back (34 steps at most), else straight
+  there; the doves circle overhead; guests throw handfuls over the couple.
+  People not in it within 2.4 cells stop and watch (wave, clap, children
+  cheer); anyone standing in its way steps aside. **Celebrate (32 s):** a
+  ring of guests round the couple, who dance; petals at the start and 16
+  and 24 s in; the bride throws her bouquet and a guest catches it; the
+  band at a bandstand within 14 steps strikes up. Then all walk home and
+  change; the doves fly off on the wind. **Afterwards:** the petals lie
+  where they fell (a pink trail) for 50 s, then the priest comes out with a
+  broom and sweeps them up cell by cell from the door and takes the arch
+  in; any he cannot reach (or with nobody to sweep) blow away. The app
+  shows a note once per wedding when the bells ring ("Wedding bells at the
+  chapel": Watch glides the camera there; Not now), gone when it ends.
+  Everybody in it is in the party (L50 never takes them). **Must not:**
+  happen at night; anything shrink or fade out of being; leave anyone in
+  finery away from the party. The chapel or square erased, the chapel
+  burning or hit, a bomb within 10 cells, a nuke, the couple gone or unable
+  to get there, or 420 s passing calls it off: everyone walks home and
+  changes. The town changing under the column breaks it up into the ring at
+  the square.
 
 - **L58 · 2 · Trade from the quay** — a town with a quay (R-D01) → up to 5
   shops, inns and market stalls within 24 steps of it that can be walked to

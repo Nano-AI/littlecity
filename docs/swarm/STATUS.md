@@ -1296,3 +1296,21 @@ unchanged. 14 guide pictures redrawn. Gate: 2,197 passed, 10 skipped,
 clean. Orchestrator looked at before/after of the cloud, bubbles,
 people and the dog.
 Running: wedding (resumed after the same outage).
+
+**2026-11-20 evening.** The session restarted; the wedding agent
+(`a7e07ea5e184a05e3`, `swarm/wedding`, head `893e832`, clean tree, many
+commits, no report yet) was resumed to run its gate and report. Other
+sessions are active on their own branches (`save/my-towns`,
+`analytics/posthog`, `music/background`, `promo/link-preview-2`,
+`capture/promo`); one of them added `e628796` (link preview) to the
+working branch. Memory note from another session: players lost towns
+before; saved-town compatibility is a hard constraint.
+**Choosing kinds (Derek).** Wants to choose the island archetype on New
+island (mountain, plains, hills, river valley…) and the town kind when
+growing (random still offered). → new agent `a2c1548b27336eb26` on
+`swarm/choose-kinds` (Opus). Island kinds are to be found by SEED SEARCH
+(draw seeds until generator 2's real result matches), so nothing about
+what a seed generates or the save format changes. Town kinds via
+`planTown`'s `character`; a new island for a chosen town kind is
+searched to suit it.
+Running: wedding (finishing), choose-kinds.

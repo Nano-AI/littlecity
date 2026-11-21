@@ -153,5 +153,11 @@ Nobody is sent to linger in a cluttered cell, except to sit at its seats.
   (L57). Their posts are `errand` sockets from `src/rules/life/L5*.rule.ts`.
   `people.system.ts` runs a `LivingTown` (crowd + board);
   `window.__lcTown` is it, for sequences.
+- **The wedding (L57)** dresses its party in finery drawn over the person
+  (`src/parts/people/finery.ts`, placed by `people.system.ts` with the body)
+  and marches them as one body on a track (`track.ts`), holding them in
+  `linger` while it moves them; see `src/life/town/chains/wedding.ts`.
+  Bystanders stop to watch it pass: `Person.admire` is the pose they show
+  while `startled` (a wave, a clap).
 - **No extra people**: every chain takes its hands from the residents, so the
   cap (60, 30 on a phone) holds.

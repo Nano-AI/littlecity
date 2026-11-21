@@ -11,6 +11,8 @@
 //                      passes the middle of the town
 //   now and then       a gull, by day, if the town has gulls
 //   evening            one bell, as the lamps can first be lit
+//   a wedding (L57)    the bells peal: rounds down a scale, as the couple go
+//                      in and again as they come out (mechanisms/peal.ts)
 //
 // Everything is quiet: the master level is low and every voice is softer
 // still. Pure choices (when the bell rings, when a gull calls) are here as
@@ -23,6 +25,7 @@ import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
 import { shipSoundsOf } from '../ships/news';
 import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from './volume';
+import { pealAt } from '../mechanisms/peal';
 import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
 
 const SOUND_KEY = 'little-city.sound';
@@ -59,7 +62,17 @@ interface State {
   pops: number;
   lastNote: number;
   windAt: number;
+  /** L57: the last wedding peal rung (life seconds), so each is heard once. */
+  peal: number | null;
   off: (() => void)[];
+}
+
+/** L57: a peal's strokes: rounds on six bells down a major scale, `rounds` times (seconds from its start, frequency). */
+export function pealStrokes(rounds = 4): { at: number; freq: number }[] {
+  const scale = [784, 698.5, 659.3, 587.3, 523.3, 392];
+  const out: { at: number; freq: number }[] = [];
+  for (let r = 0; r < rounds; r++) scale.forEach((freq, i) => out.push({ at: r * (scale.length * 0.3 + 0.3) + i * 0.3, freq }));
+  return out;
 }
 
 const hasAudio = (): boolean => typeof window !== 'undefined' && typeof window.AudioContext === 'function';
@@ -131,7 +144,7 @@ export default defineSystem<State>({
   id: 'sound',
   order: 100,
   create(ctx) {
-    const state: State = { wanted: false, audio: null, shape: null, prev: null, gullIn: gullGap(ctx.seed, 0), gulls: 0, pops: 0, lastNote: -1, windAt: 0, off: [] };
+    const state: State = { wanted: false, audio: null, shape: null, prev: null, gullIn: gullGap(ctx.seed, 0), gulls: 0, pops: 0, lastNote: -1, windAt: 0, peal: null, off: [] };
     if (!hasAudio()) return state;
     state.wanted = readWanted();
     // The first gesture with sound on starts it (browsers allow audio only from a gesture).
@@ -198,6 +211,14 @@ export default defineSystem<State>({
       } else strike(a.ac, a.master, 92, 'plank', 0.08);
     }
     if (bell) strike(a.ac, a.master, 392, 'bell', 0.09);
+    // L57: a wedding's peal.
+    const peal = pealAt(ctx.stage);
+    if (peal !== null && peal !== state.peal) {
+      state.peal = peal;
+      const now = a.ac.currentTime;
+      // (Only one rung just now: not an old one, heard late when the sound is turned on.)
+      if (time.seconds - peal < 2) for (const s of pealStrokes()) strike(a.ac, a.master, s.freq, 'bell', 0.05, now + s.at);
+    }
     // Wind: a few times a second, the level follows the wind in the middle of the town.
     state.windAt -= dt;
     if (state.windAt <= 0) {

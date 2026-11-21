@@ -1,6 +1,6 @@
 // The ☰ menu (design section 7): grow a town (design 15a; it opens a second
 // screen that asks where: on this island or on a new one), new island (with
-// a confirm), share link, postcard, town file out and in, sound, and how loud
+// a confirm), My towns (src/ui/towns.ts), share link, postcard, town file out and in, sound, and how loud
 // the music and the sounds are. (The dev
 // tuning panel is not in the game: removed at Derek's request, 2026-11-20.
 // It lives on in the gallery.)
@@ -17,6 +17,8 @@ export interface MenuActions {
   /** The island holds more than its starting trees: growing over it (or leaving it) asks first. */
   hasTown(): boolean;
   newIsland(): void;
+  /** My towns: every town the player has made. Left out of the menu when absent. */
+  myTowns?(): void;
   shareLink(): void;
   postcard(): void;
   downloadTown(): void;
@@ -132,6 +134,7 @@ export function createMenu(actions: MenuActions): Menu {
     panel.replaceChildren(
       item('grow', 'grow', 'Grow a town', showGrow, true),
       el('div', { class: 'lc-menu-rule' }),
+      ...(actions.myTowns ? [item('towns', 'towns', 'My towns', actions.myTowns)] : []),
       item('new', 'island', 'New island', showConfirm, true),
       item('share', 'share', 'Share link', actions.shareLink),
       item('postcard', 'postcard', 'Postcard', actions.postcard),
@@ -162,7 +165,7 @@ export function createMenu(actions: MenuActions): Menu {
     panel.replaceChildren(
       el('div', { class: 'lc-confirm', attrs: { 'data-ui': 'confirm' } }, [
         el('p', { text: 'Start a new island?' }),
-        el('small', { text: 'The town you have now will be gone.' }),
+        el('small', { text: actions.myTowns ? 'The town you have now stays in My towns.' : 'The town you have now will be gone.' }),
         el('div', { class: 'lc-confirm-buttons' }, [
           el('button', {
             class: 'lc-text-btn lc-primary',
