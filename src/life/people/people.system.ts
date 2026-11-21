@@ -269,7 +269,10 @@ export function toolOf(p: Person, pose: string): Tool | null {
   if (pose === 'dig') return 'spade';
   // An errand's load fills their hands (loads.ts draws it): no other tool while it does.
   if (p.load) return null;
-  // The raid: a raider's brand, axe or club held up, the chief's horn (barbarian.ts).
+  // The raid: a townsperson taking on a raider, with a broom or a frying pan held up.
+  const chase = p.goal?.errand?.tag;
+  if (chase === 'chase:brawl' && !p.load) return rand(0, p.id, 'pan') < 0.5 ? 'pan' : 'broom';
+  // The raid: a raider's brand, axe or club held up, the chief's standard (barbarian.ts).
   if (isBarbarian(p.costume) && pose !== 'sit' && pose !== 'lie' && pose !== 'dust') return raiderGear(p.costume);
   if (pose === 'hammer') return 'hammer';
   if (pose === 'juggle') return Math.floor(p.poseTime * 5) % 2 === 0 ? 'balls-a' : 'balls-b';

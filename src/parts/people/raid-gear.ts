@@ -10,8 +10,8 @@ import { PATTERN, type MeshBuilder } from '@/gen/mesh';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
 
-export type RaidTool = 'brand' | 'axe' | 'club' | 'horn' | 'standard';
-export const RAID_TOOLS: readonly RaidTool[] = ['brand', 'axe', 'club', 'horn', 'standard'];
+export type RaidTool = 'brand' | 'axe' | 'club' | 'horn' | 'standard' | 'pan';
+export const RAID_TOOLS: readonly RaidTool[] = ['brand', 'axe', 'club', 'horn', 'standard', 'pan'];
 
 /** [foot, top] of each raid tool's shaft in the body frame (figure units). */
 export const RAID_SHAFTS: Readonly<Record<RaidTool, [Vec3, Vec3]>> = {
@@ -21,6 +21,8 @@ export const RAID_SHAFTS: Readonly<Record<RaidTool, [Vec3, Vec3]>> = {
   horn: [[0.085, 0.27, 0.09], [0.075, 0.4, 0.14]],
   // The chief's standard: a tall pole, the banner high over his head (over the roofs from the town view).
   standard: [[0.09, 0.12, 0.05], [0.1, 1.1, 0.07]],
+  // A townswoman's frying pan, raised to give a raider what for.
+  pan: [[0.09, 0.24, 0.08], [0.1, 0.42, 0.1]],
 };
 
 export function drawRaidTool(b: MeshBuilder, tool: RaidTool): void {
@@ -57,6 +59,10 @@ export function drawRaidTool(b: MeshBuilder, tool: RaidTool): void {
         const t = (i / 5) * Math.PI * 2;
         b.at(translation(x + Math.cos(t) * 0.036, y + 0.012, z + Math.sin(t) * 0.036), () => b.lathe([[0.009, -0.006], [0, 0.01]], { segments: 4, capBottom: true }));
       }
+      break;
+    case 'pan':
+      b.setInk('pan').setColor('#3a3a40').setPattern(PATTERN.metal);
+      b.at(compose(translation(x, y + 0.06, z + 0.01), rotationX(Math.PI / 2 - 0.25)), () => b.lathe([[0, 0], [0.065, 0], [0.072, 0.02]], { segments: 10, capBottom: true }));
       break;
     case 'standard': {
       // A red banner with a yellow border and a black raven, hung from a crossbar at the top, and streamers.

@@ -955,6 +955,8 @@ export class Raid {
       }
     }
     if (this.beat === 'ashore' || this.beat === 'recall' || this.beat === 'away') this.runTown(dt, board, time);
+    if (this.beat === 'ashore') this.fightBack(dt, board);
+    this.afterBrawl(board);
     if (this.beat === 'ashore') {
       if (this.lootTargets.length === 0 && this.burnTargets.length === 0) this.chooseTargets(board);
       const busy = this.raiders.some((r) => r.where === 'jump' || r.where === 'wade-in' || r.where === 'aboard' && this.boatState.includes('row-in'));
@@ -973,6 +975,88 @@ export class Raid {
       if (p.mode === 'linger' && p.goal?.errand?.tag === 'raid:to-sea') this.intoSea(r, board);
     }
     void chainId;
+  }
+
+  /** A brawl going on between a townsperson and a raider, and who loses it (the raider, mostly). */
+  private brawl: { raider: Raider; champ: Person; raiderLoses: boolean; started: boolean; until: number } | null = null;
+  private brawlIn = 12;
+  /** Brawls so far, and raiders sent packing by them. */
+  brawls = 0;
+  beatenCount = 0;
+
+  /**
+   * The town fights back, comically: now and then the boldest townsperson near a raider (a guard of the
+   * castle first) runs at him with a broom or a frying pan, and the two vanish into a dust-cloud brawl
+   * (the scuffle, L50). Mostly the raider loses: he sits dazed with stars round his head, then runs for the
+   * boat. Sometimes the townsperson does, and runs home. Nobody is hurt.
+   */
+  private fightBack(dt: number, board: Board): void {
+    if (this.brawl) return;
+    this.brawlIn -= dt;
+    if (this.brawlIn > 0 || board.crowd.scuffles.now) return;
+    this.brawlIn = 7 + rand(this.seed, 'brawl-in', this.brawls) * 7;
+    let best: { r: Raider; q: Person; d: number } | null = null;
+    for (const r of this.raiders) {
+      const p = r.person;
+      if (!p || r.role === 'chief' || r.routed || r.beaten || !p.visible || p.scuffle || (p.mode !== 'walk' && p.mode !== 'linger')) continue;
+      if (p.mode === 'walk' && p.walk && p.walk[p.at]!.kind !== 'move') continue;
+      for (const q of board.crowd.people) {
+        if (q.raider || q.child || !q.visible || q.scuffle || q.leaving || (q.mode !== 'walk' && q.mode !== 'linger')) continue;
+        const guard = q.work?.job === 'guard';
+        // The bold: a guard, or one in five of the rest.
+        if (!guard && rand(q.seed, 'bold') > 0.2) continue;
+        const d = Math.hypot(q.x - p.x, q.z - p.z) - (guard ? 3 : 0);
+        if (d > 6 || Math.abs(q.y - p.y) > 0.9) continue;
+        if (!best || d < best.d) best = { r, q, d };
+      }
+    }
+    if (!best) return;
+    const { r, q } = best;
+    const p = r.person!;
+    const nav = board.nav;
+    if (!nav || !reaches(board, q, p.cell)) return;
+    const c = board.centre(p.cell);
+    const dx = q.x - p.x, dz = q.z - p.z, dd = Math.hypot(dx, dz) || 1;
+    const spot = { x: Math.max(c.x - 0.45, Math.min(c.x + 0.45, p.x + (dx / dd) * 0.35)), z: Math.max(c.z - 0.45, Math.min(c.z + 0.45, p.z + (dz / dd) * 0.35)) };
+    const brawl = { raider: r, champ: q, raiderLoses: q.work?.job === 'guard' || rand(this.seed, 'brawl', this.brawls) < 0.78, started: false, until: this.age + 20 };
+    this.brawl = brawl;
+    this.brawls++;
+    this.fled.set(q, this.age + 40);
+    board.assign(q, { chain: this.chainOf(board), at: 0, steps: [board.stepAt(p.cell, { spot, face: Math.atan2(-dx, -dz), pose: 'wave', linger: 1.2, brisk: true, tag: 'chase:brawl', done: () => {
+      const rp = r.person;
+      if (!rp || this.brawl !== brawl || Math.hypot(rp.x - q.x, rp.z - q.z) > 1.4) return false;
+      // The raider stops where he is for it.
+      if (board.crowd.scuffles.between(q, rp)) {
+        brawl.started = true;
+        r.cry = 1.2;
+      }
+    } })] });
+  }
+
+  /** A brawl over: the loser is dazed (the scuffle's stars), then goes: the raider for the boat, the townsperson home. */
+  private afterBrawl(board: Board): void {
+    const b = this.brawl;
+    if (!b) return;
+    const rp = b.raider.person;
+    const on = (rp?.scuffle && rp.scuffle === b.champ.scuffle) || false;
+    if (b.started && !on) {
+      this.brawl = null;
+      if (b.raiderLoses && rp) {
+        b.raider.beaten = true;
+        this.beatenCount++;
+        board.drop(rp);
+        board.crowd.rethink(rp);
+      }
+      // The townsperson goes home, the winner shaking a fist on the way.
+      const home = board.homeStep(b.champ, { tag: b.raiderLoses ? 'chase:home' : 'flee:home', brisk: true });
+      if (home) board.assign(b.champ, { chain: this.chainOf(board), at: 0, steps: [{ ...home, linger: 0 }] });
+      return;
+    }
+    // Never got to blows (the raider walked off, the way was blocked): given up.
+    if (!b.started && this.age > b.until) {
+      this.brawl = null;
+      if (board.plans.get(b.champ)?.chain.id === 'raid') board.drop(b.champ);
+    }
   }
 
   /** The town's people within reach of the band run: indoors, or away down the streets. */

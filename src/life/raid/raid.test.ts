@@ -73,7 +73,10 @@ describe('the raid', () => {
     t.onFrame = null;
     expect(beats).toEqual(['sighted', 'landing', 'ashore', 'recall', 'away', 'done']);
     expect(ashore).toBeGreaterThanOrEqual(8);
-    expect(raid.burnt).toBeGreaterThanOrEqual(2);
+    expect(raid.burnt).toBeGreaterThanOrEqual(4);
+    // The town fought back: a brawl or more, and a raider or more sent packing.
+    console.log('brawls', raid.brawls, 'beaten', raid.beatenCount, 'burnt', raid.burnt, 'quarters', raid.quarters.length);
+    expect(raid.brawls).toBeGreaterThan(0);
     expect(pile).toBeGreaterThan(0);
     expect(raid.ship.heap).toBeGreaterThan(0);
     expect(offGraph).toEqual([]);
