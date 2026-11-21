@@ -1339,3 +1339,25 @@ from far off; gathering takes up to 90 s in a big town; editing the
 town mid-march breaks the column. Not built: hats thrown, bunting along
 the route. GPU frame time not measured.
 Running: choose-kinds.
+
+**Choosing kinds merged** (`b9860ad`, Opus, `swarm/choose-kinds`). New
+island → "What kind of island?": Surprise me, Plains, Hills, Mountain,
+River valley, Islands, defined in `src/terrain/kinds.ts` by what
+generator 2 really returns and reached by a seed search (median 4–7 ms;
+4,000 seeds / 40 islands at most, then the closest). Grow a town →
+where → "What kind of town?": Surprise me, then the eight kinds in two
+columns (`src/townmaker/kinds.ts`); on this island a kind it cannot
+carry is greyed (river with no long river; marble or castle with no
+site, asked of the planner itself); on a new island a seed is searched
+to suit the kind. Generators, save format and codec unchanged. First
+merge attempt conflicted with other sessions' My towns and music in
+`menu.ts`, `interface.ts`, `main.ts`; the agent merged the working
+branch and resolved: every way off an island goes through
+`leaveForNewIsland` (the town is kept in My towns), and the line under
+the question says "The town you have now stays in My towns." New
+browser test walks four kept towns. Gate: 2,230 passed, 12 skipped,
+clean. Not offered: a river-less valley (same as Hills); lake, volcano
+or ridge-valley islands would need a third generator saved as
+`terrainGen: 3`. The "working" animation for a long search was never
+seen on screen (searches finish too fast).
+Running: nothing of mine. Other sessions are active on this branch.
