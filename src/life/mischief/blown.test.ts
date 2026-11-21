@@ -13,6 +13,7 @@ import { crowdOf } from '@/life/doors/table';
 import type { Person } from '@/life/people/crowd';
 import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { throwerOf } from './thrown.system';
+import { crittersOf } from './critters';
 
 function town(name = 'grown-town-1'): { t: Turmoil; h: (x: number, z: number) => number } {
   const built = buildScenario(findScenario(name)!);
@@ -105,5 +106,33 @@ describe('people blown about', () => {
     expect(w.thrown.size).toBeGreaterThan(0);
     for (const p of w.thrown) expect(Math.hypot(p.x - p0.x, p.z - p0.z)).toBeLessThan(12);
     expect(crowd.people.filter((p) => p.mode === 'thrown').length).toBe(0);
+  }, 120_000);
+
+  test('animals too: cats, dogs, hens and sheep fly, lie with their legs in the air, and go back to where they were', () => {
+    const { t, h } = town();
+    const critters = crittersOf(t.stage);
+    expect(critters.size).toBeGreaterThan(3);
+    const kinds = new Set<string>();
+    const flew = new Set<string>();
+    const problems: string[] = [];
+    t.onFrame = () => {
+      const g = throwerOf(t.stage)?.ground;
+      for (const c of critters.values()) {
+        const b = c.body;
+        if (!b) continue;
+        flew.add(c.id);
+        kinds.add(c.kind);
+        for (const v of c.m) if (!Number.isFinite(v)) problems.push(`${c.id} not finite`);
+        const foot = b.upright ? b.y : b.y - b.radius;
+        if (g && b.phase !== 'swim' && b.phase !== 'climb' && b.phase !== 'held' && g.blocked(b.x, foot + 0.05, b.z)) problems.push(`${c.id} inside something (${b.phase})`);
+      }
+    };
+    t.mischief.dropNuke([24.5, h(24.5, 24.5), 24.5]);
+    t.run(40);
+    expect(problems.slice(0, 5)).toEqual([]);
+    expect(flew.size).toBeGreaterThan(3);
+    expect(kinds.size).toBeGreaterThan(1);
+    // All back where they were, carrying on by themselves.
+    expect([...critters.values()].filter((c) => c.body).map((c) => `${c.id} ${c.body!.phase}`)).toEqual([]);
   }, 120_000);
 });

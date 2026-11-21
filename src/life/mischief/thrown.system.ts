@@ -24,6 +24,7 @@ import { spoutMesh } from './meshes';
 import { ownStage, type Owned } from './owned';
 import { createThrower, type Thrown, type Thrower } from './thrower';
 import { quatToMat3 } from './thrown';
+import { crittersOf, type Critter } from './critters';
 import type { NavGraph, ShapePlan } from '@/resolve/plan';
 
 const HIDE: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -75,6 +76,7 @@ interface State {
   shape: ShapePlan | null;
   nav: NavGraph | null;
   art: Map<Thrown, Art>;
+  critterArt: Map<Critter, InstanceHandle[]>;
   spouts: { h: InstanceHandle; age: number }[];
   time: number;
   off: () => void;
@@ -153,7 +155,7 @@ export default defineSystem<State>({
   // After the director (the mischief system, 10) has told of a blast; before the people are drawn (20).
   order: 15,
   create(ctx) {
-    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), spouts: [], time: 0, off: () => {} };
+    const st: State = { d: mischiefOf(ctx.stage), own: ownStage(ctx.stage), crowd: null, thrower: null, shape: null, nav: null, art: new Map(), critterArt: new Map(), spouts: [], time: 0, off: () => {} };
     st.off = st.d.on((e) => onEvent(st, e));
     return st;
   },
@@ -170,7 +172,7 @@ export default defineSystem<State>({
       for (const a of st.art.values()) dropArt(a);
       st.art.clear();
       st.crowd = crowd;
-      st.thrower = crowd ? createThrower(crowd) : null;
+      st.thrower = crowd ? createThrower(crowd, crittersOf(ctx.stage)) : null;
       if (st.thrower) {
         throwers.set(ctx.stage, st.thrower);
         if (st.shape) st.thrower.sync(st.shape, st.nav);
@@ -201,6 +203,44 @@ export default defineSystem<State>({
       }
       th.events.length = 0;
       drawArt(st, stage, th, a);
+    }
+    // Animals: a splash, a puff, stars round the head while they lie on their backs.
+    for (const [c, hs] of st.critterArt) {
+      if (c.body && t.critterEvents.has(c)) continue;
+      for (const h of hs) h.release();
+      st.critterArt.delete(c);
+    }
+    for (const [c, evs] of t.critterEvents) {
+      const b = c.body;
+      if (!b) continue;
+      for (const ev of evs) {
+        if (ev === 'splash') st.spouts.push({ h: stage.spawnMesh(spoutMesh(), [0.35, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.35, 0, b.x, SEA_Y - 0.02, b.z, 1]), age: 0 });
+        else if (ev === 'land' || ev === 'bounce' || ev === 'wall' || ev === 'roof') {
+          const x = b.x, y = b.upright ? b.y : b.y - b.radius, z = b.z;
+          fxOf(ctx.stage).play(DUST, 0.4, (u, m) => place(x, y + 0.03 + u * 0.08, z, 0, 0.14 + u * 0.24, 0.14 + u * 0.24, 0.14 + u * 0.24, m));
+        }
+      }
+      evs.length = 0;
+      const dizzy = b.upright && (b.phase === 'lie' || b.phase === 'roof' || b.phase === 'slide');
+      let hs = st.critterArt.get(c);
+      if (dizzy && !hs) {
+        starMesh ??= dazeStarMesh();
+        st.critterArt.set(c, (hs = [0, 1, 2].map(() => stage.spawnMesh(starMesh!, HIDE))));
+      } else if (!dizzy && hs) {
+        for (const h of hs) h.release();
+        st.critterArt.delete(c);
+        hs = undefined;
+      }
+      if (hs) {
+        const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
+        const sc = farScale() * STARS.size * 0.8;
+        const hx = b.x + Math.sin(b.heading) * c.height * 0.4, hz = b.z + Math.cos(b.heading) * c.height * 0.4, hy = b.y + c.height * 0.9;
+        hs.forEach((h, i) => {
+          const ang = tick * STARS.speed + (i / 3) * Math.PI * 2;
+          const cc = Math.cos(-ang) * sc, ss = Math.sin(-ang) * sc;
+          h.setMatrix([cc, 0, -ss, 0, 0, sc, 0, 0, ss, 0, cc, 0, hx + Math.cos(ang) * 0.09 * sc, hy, hz + Math.sin(ang) * 0.09 * sc, 1]);
+        });
+      }
     }
     // Splashes: up and back down into the water.
     for (let i = st.spouts.length - 1; i >= 0; i--) {

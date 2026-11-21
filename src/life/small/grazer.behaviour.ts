@@ -9,6 +9,7 @@
 import { multiply, rotationY } from '@/core/mat4';
 import { defineBehaviour } from '../api';
 import { easeInOut } from '../motion/ease';
+import { critterPoseOf } from '../mischief/critters';
 
 interface State {
   turn: number;
@@ -25,6 +26,13 @@ export default defineBehaviour({
     return { turn: 0, from: 0, to: 0, t: 1, wait: 5 + 15 * ctx.rand('wait'), n: 0 };
   },
   update(state, dt, signals, ctx) {
+    // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): drawn where that says.
+    const held = critterPoseOf(ctx.stage, ctx.item.id, 'grazer', multiply(ctx.instance.base, rotationY(state.turn)), 0.3);
+    if (held) {
+      ctx.instance.setMatrix(held);
+      state.t = Math.max(state.t, 0.999);
+      return;
+    }
     if (state.t >= 1) {
       if (signals.time.isNight) return;
       state.wait -= dt;

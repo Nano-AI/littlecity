@@ -14,6 +14,7 @@ import { defineBehaviour } from '../api';
 import { angleDelta, arc, easeInOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
+import { critterPose } from '../mischief/critters';
 
 /** Columns a second, ambling. */
 const AMBLE = 0.22;
@@ -61,6 +62,13 @@ export default defineBehaviour({
       state.meadow = new Set(state.cells.map((c) => columnIndex(keyX(c), keyZ(c))));
     }
     const shape = ctx.shape;
+    // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): drawn where that says, its own state left be.
+    const held = critterPose(ctx.stage, ctx.item.id, 'sheep', state.x, groundAt(shape, state.x, state.z), state.z, state.yaw, 0.3);
+    if (held) {
+      ctx.instance.setMatrix(held);
+      state.drawn = NaN;
+      return;
+    }
     const night = signals.time.isNight;
     let hop = 0;
     if (!state.walking) {

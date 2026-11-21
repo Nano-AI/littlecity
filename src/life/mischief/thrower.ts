@@ -30,6 +30,8 @@ import { nodeCentre, nodeHeight } from '../people/walk';
 import { createGround, type Ground } from './ground';
 import { NUKE_TIME, waveRadius } from './nuke-timing';
 import { hold, launch, makeBody, quatToMat3, stepBody, THROWN, type Body, type BodyEvent } from './thrown';
+import type { Critter } from './critters';
+import { hashString } from '@/core/rand';
 
 /** The numbers of being blown about. */
 export const BLOWN = {
@@ -102,7 +104,39 @@ export interface Thrower {
   step(dt: number): void;
   /** Everyone back on their feet now, where the walking graph has room for them (undo, a new town). */
   reset(): void;
+  /** Animals and the like (critters.ts): the same, for one of those. */
+  flingCritter(c: Critter, vx: number, vy: number, vz: number, opts?: { dizzy?: number; spin?: number }): boolean;
+  grabCritter(c: Critter): boolean;
+  carryCritter(c: Critter, x: number, y: number, z: number): void;
+  /** The critters thrown now, with what they did since the last frame (taken by the drawing). */
+  readonly critterEvents: Map<Critter, BodyEvent[]>;
   readonly ground: Ground | null;
+}
+
+/** How a blast at (x, y, z) throws something standing at (px, py, pz): velocity and spin, or null if out of its reach. */
+export function blastVelocity(x: number, y: number, z: number, px: number, py: number, pz: number, seed: number, kind: 'nuke' | 'bomb' | 'bolt'): [number, number, number, number] | null {
+  const dx = px - x, dz = pz - z, dy = (py - y) * 1.5;
+  const d = Math.hypot(dx, dz, kind === 'nuke' ? 0 : dy);
+  const reach = kind === 'nuke' ? BLOWN.nukeReach : kind === 'bomb' ? BLOWN.bombReach : BLOWN.boltReach;
+  if (d > reach) return null;
+  const k = Math.max(0, 1 - d / reach);
+  const s = kind === 'nuke' ? k ** 1.25 : k;
+  const r = (what: string): number => rand(seed, 'blast', what, Math.round(x * 7 + z * 13));
+  let along: number, up: number;
+  if (kind === 'nuke') {
+    along = BLOWN.nukeAlong[0] + (BLOWN.nukeAlong[1] - BLOWN.nukeAlong[0]) * s;
+    up = BLOWN.nukeUp[0] + (BLOWN.nukeUp[1] - BLOWN.nukeUp[0]) * s;
+  } else if (kind === 'bomb') {
+    along = BLOWN.bombAlong[0] + (BLOWN.bombAlong[1] - BLOWN.bombAlong[0]) * s;
+    up = BLOWN.bombUp[0] + (BLOWN.bombUp[1] - BLOWN.bombUp[0]) * s;
+  } else {
+    along = BLOWN.boltAlong;
+    up = BLOWN.boltUp;
+  }
+  along *= 0.85 + r('along') * 0.3;
+  up *= 0.85 + r('up') * 0.3;
+  const a = (d > 0.05 ? Math.atan2(dx, dz) : r('dir') * Math.PI * 2) + (r('veer') - 0.5) * 0.5;
+  return [Math.sin(a) * along, up, Math.cos(a) * along, BLOWN.spin[0] + (BLOWN.spin[1] - BLOWN.spin[0]) * s * (0.8 + r('spin') * 0.4)];
 }
 
 /** Can a person who has got up walk to their hat (on the ground, near, about their level)? */
@@ -118,7 +152,7 @@ function hatInReach(b: Body, hat: Body, g: Ground): boolean {
   return true;
 }
 
-export function createThrower(crowd: Crowd): Thrower {
+export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new Map()): Thrower {
   const thrown = new Map<Person, Thrown>();
   let shape: ShapePlan | null = null;
   let nav: NavGraph | null = null;
@@ -128,7 +162,100 @@ export function createThrower(crowd: Crowd): Thrower {
     return ground;
   };
   /** Shockwaves on their way out: where from, how long since, who they have thrown. */
-  const waves: { x: number; y: number; z: number; t: number; hit: Set<Person> }[] = [];
+  const waves: { x: number; y: number; z: number; t: number; hit: Set<Person | Critter> }[] = [];
+  const critterEvents = new Map<Critter, BodyEvent[]>();
+
+  // ── critters ────────────────────────────────────────────────────────────────
+  const takeCritter = (c: Critter): Body => {
+    if (c.body) return c.body;
+    c.home = { x: c.x, y: c.y, z: c.z, heading: c.heading };
+    const b = makeBody(hashString(c.id), c.x, c.y, c.z, c.heading, c.height * 0.5, c.height * 0.4);
+    c.body = b;
+    critterEvents.set(c, []);
+    return b;
+  };
+  const flingCritter = (c: Critter, vx: number, vy: number, vz: number, opts: { dizzy?: number; spin?: number } = {}): boolean => {
+    const b = takeCritter(c);
+    const sp = Math.hypot(vx, vy, vz);
+    launch(b, vx, vy, vz, opts.spin ?? Math.min(BLOWN.spin[1], BLOWN.spin[0] + sp * 1.4));
+    b.dizzy = opts.dizzy ?? 1.6 + rand(b.seed, 'dizzy', b.age) * 2;
+    b.rise = 0.9;
+    return true;
+  };
+  const blastCritter = (x: number, y: number, z: number, c: Critter, kind: 'nuke' | 'bomb' | 'bolt'): void => {
+    const v = blastVelocity(x, y, z, c.x, c.y, c.z, hashString(c.id), kind);
+    // Small and light: they go a little further.
+    if (v) flingCritter(c, v[0] * 1.15, v[1] * 1.1, v[2] * 1.15, { spin: v[3] * 1.2 });
+  };
+  const doneCritter = (c: Critter): void => {
+    c.body = null;
+    c.home = null;
+    critterEvents.delete(c);
+  };
+  const cm = new Float32Array(9);
+  /** The matrix a critter is drawn with now: T · R · T(0, −pivot, 0) · S. */
+  const poseCritter = (c: Critter): void => {
+    const b = c.body!, m = c.m, sc = c.scale;
+    const px = b.x, pz = b.z, pivot = b.pivot;
+    let py = b.y;
+    if (!b.upright) {
+      quatToMat3(b.q, cm);
+      if (b.phase === 'held') {
+        // Wriggling: a kick from side to side, on twos.
+        const k = Math.floor(b.age * 8) % 2 ? 0.3 : -0.3;
+        rotZ(cm, k);
+      }
+    } else {
+      let roll = 0;
+      if (b.phase === 'lie' || b.phase === 'roof' || b.phase === 'slide') roll = Math.PI; // on its back, legs in the air
+      else if (b.phase === 'up') roll = b.t < 0.3 ? Math.PI * (1 - b.t / 0.3) : (Math.floor(b.t * 10) % 2 ? 0.12 : -0.12) * (b.t < 0.7 ? 1 : 0);
+      setYaw(cm, b.heading);
+      rotZ(cm, roll);
+      py = b.y + pivot;
+      if (b.phase === 'walk') py += Math.abs(Math.sin(b.t * 14)) * 0.03;
+      if (b.phase === 'swim') py = SEA_Y - c.height * 0.25 + pivot;
+    }
+    const ox = -cm[3]! * pivot, oy = -cm[4]! * pivot, oz = -cm[5]! * pivot;
+    m[0] = cm[0]! * sc; m[1] = cm[1]! * sc; m[2] = cm[2]! * sc; m[3] = 0;
+    m[4] = cm[3]! * sc; m[5] = cm[4]! * sc; m[6] = cm[5]! * sc; m[7] = 0;
+    m[8] = cm[6]! * sc; m[9] = cm[7]! * sc; m[10] = cm[8]! * sc; m[11] = 0;
+    m[12] = px + ox; m[13] = py + oy; m[14] = pz + oz; m[15] = 1;
+  };
+  const stepCritters = (dt: number, g: Ground): void => {
+    for (const [id, c] of critters) {
+      c.quiet++;
+      // Its behaviour has gone (the town changed under it): forgotten.
+      if (c.quiet > 20) {
+        critters.delete(id);
+        critterEvents.delete(c);
+        continue;
+      }
+      const b = c.body;
+      if (!b) continue;
+      const home = c.home!;
+      const before = b.phase;
+      const ev = stepBody(b, dt, g);
+      if (ev) critterEvents.get(c)?.push(ev);
+      if (ev === 'splash') b.goal = { x: home.x, y: home.y, z: home.z };
+      if (b.phase === 'walk' && before !== 'walk') {
+        // Home: on foot if the way is clear, else in one great bound.
+        const clear = Array.from({ length: 12 }, (_, i) => (i + 1) / 12).every((u) => !g.blocked(b.x + (home.x - b.x) * u, Math.max(b.y, home.y) + 0.08, b.z + (home.z - b.z) * u));
+        if (clear && Math.hypot(home.x - b.x, home.z - b.z) < 4) b.goal = { x: home.x, y: home.y, z: home.z };
+        else {
+          b.from = { x: b.x, y: b.y, z: b.z };
+          b.goal = { x: home.x, y: home.y, z: home.z };
+          b.phase = 'climb';
+          b.t = 0;
+        }
+      }
+      if (b.phase === 'done') {
+        b.heading = home.heading;
+        doneCritter(c);
+        continue;
+      }
+      poseCritter(c);
+    }
+  };
 
   const canThrow = (p: Person): boolean => p.visible && p.mode !== 'home' && p.mode !== 'visit' && p.mode !== 'gone' && !p.shutIn;
 
@@ -175,28 +302,8 @@ export function createThrower(crowd: Crowd): Thrower {
   };
 
   const blastAt = (x: number, y: number, z: number, p: Person, kind: 'nuke' | 'bomb' | 'bolt'): void => {
-    const dx = p.x - x, dz = p.z - z, dy = (p.y - y) * 1.5;
-    const d = Math.hypot(dx, dz, kind === 'nuke' ? 0 : dy);
-    const reach = kind === 'nuke' ? BLOWN.nukeReach : kind === 'bomb' ? BLOWN.bombReach : BLOWN.boltReach;
-    if (d > reach) return;
-    const k = Math.max(0, 1 - d / reach);
-    const s = kind === 'nuke' ? k ** 1.25 : k;
-    const r = (what: string): number => rand(p.seed, 'blast', what, Math.round(x * 7 + z * 13));
-    let along: number, up: number;
-    if (kind === 'nuke') {
-      along = BLOWN.nukeAlong[0] + (BLOWN.nukeAlong[1] - BLOWN.nukeAlong[0]) * s;
-      up = BLOWN.nukeUp[0] + (BLOWN.nukeUp[1] - BLOWN.nukeUp[0]) * s;
-    } else if (kind === 'bomb') {
-      along = BLOWN.bombAlong[0] + (BLOWN.bombAlong[1] - BLOWN.bombAlong[0]) * s;
-      up = BLOWN.bombUp[0] + (BLOWN.bombUp[1] - BLOWN.bombUp[0]) * s;
-    } else {
-      along = BLOWN.boltAlong;
-      up = BLOWN.boltUp;
-    }
-    along *= 0.85 + r('along') * 0.3;
-    up *= 0.85 + r('up') * 0.3;
-    const a = (d > 0.05 ? Math.atan2(dx, dz) : r('dir') * Math.PI * 2) + (r('veer') - 0.5) * 0.5;
-    fling(p, Math.sin(a) * along, up, Math.cos(a) * along, { spin: BLOWN.spin[0] + (BLOWN.spin[1] - BLOWN.spin[0]) * s * (0.8 + r('spin') * 0.4) });
+    const v = blastVelocity(x, y, z, p.x, p.y, p.z, p.seed, kind);
+    if (v) fling(p, v[0], v[1], v[2], { spin: v[3] });
   };
 
   /** The walkable spot nearest a body that has got up, in the node's cell: where they walk to. */
@@ -386,6 +493,7 @@ export function createThrower(crowd: Crowd): Thrower {
         return;
       }
       for (const p of crowd.people) if (canThrow(p)) blastAt(x, y, z, p, kind);
+      for (const c of critters.values()) blastCritter(x, y, z, c, kind);
     },
     fling,
     grab(p) {
@@ -413,10 +521,16 @@ export function createThrower(crowd: Crowd): Thrower {
           w.hit.add(p);
           blastAt(w.x, w.y, w.z, p, 'nuke');
         }
+        for (const c of critters.values()) {
+          if (w.hit.has(c) || Math.hypot(c.x - w.x, c.z - w.z) > r) continue;
+          w.hit.add(c);
+          blastCritter(w.x, w.y, w.z, c, 'nuke');
+        }
         if (w.t >= NUKE_TIME.waveTime) waves.splice(i, 1);
       }
       const g = groundNow();
-      if (!g || thrown.size === 0) return;
+      if (!g) return;
+      stepCritters(dt, g);
       for (const t of [...thrown.values()]) {
         const b = t.body;
         const before = b.phase;
@@ -483,8 +597,22 @@ export function createThrower(crowd: Crowd): Thrower {
         else draw(t);
       }
     },
+    flingCritter,
+    grabCritter(c) {
+      hold(takeCritter(c));
+      return true;
+    },
+    carryCritter(c, x, y, z) {
+      const b = c.body;
+      if (!b || b.phase !== 'held') return;
+      b.x = x;
+      b.y = y;
+      b.z = z;
+    },
+    critterEvents,
     reset() {
       waves.length = 0;
+      for (const c of critters.values()) if (c.body) doneCritter(c);
       for (const t of [...thrown.values()]) {
         const p = t.person;
         const node = crowd.nearestNode(p.x, p.y, p.z);
@@ -502,4 +630,22 @@ export function createThrower(crowd: Crowd): Thrower {
     },
   };
   return thrower;
+}
+
+function setYaw(m: Float32Array, yaw: number): void {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  m[0] = c; m[1] = 0; m[2] = -s;
+  m[3] = 0; m[4] = 1; m[5] = 0;
+  m[6] = s; m[7] = 0; m[8] = c;
+}
+
+/** m = m · Rz(a) (a roll about the thing's own forward axis... its own z). */
+function rotZ(m: Float32Array, a: number): void {
+  if (a === 0) return;
+  const c = Math.cos(a), s = Math.sin(a);
+  for (let r = 0; r < 3; r++) {
+    const x = m[r]!, y = m[3 + r]!;
+    m[r] = x * c + y * s;
+    m[3 + r] = -x * s + y * c;
+  }
 }
