@@ -101,8 +101,9 @@ export interface WeddingChain extends Chain {
   readonly members: readonly Member[];
   /** The procession's way, from the chapel door to the square (null when none is on). */
   readonly track: Track | null;
-  /** Where the head of the column is along the track. */
+  /** Where the head of the column is along the track; and whether it is on the march (the couple are up the aisle). */
   readonly head: number;
+  readonly marching: boolean;
   /** Weddings held so far, and the ones called off. */
   readonly held: number;
   readonly calledOff: number;
@@ -330,7 +331,8 @@ export function weddingChain(): WeddingChain {
     const tr = plan(board);
     if (!tr) return false;
     const homeOf = (p: Person): CellKey => homeCell(board, p) ?? p.cell;
-    const near = (p: Person): number => board.dist(homeOf(p), d.cell);
+    // How far they have to come: home to change first (nothing, if they are in), then to the chapel.
+    const near = (p: Person): number => board.dist(homeOf(p), d.cell) + (p.mode === 'home' ? 0 : board.dist(p.cell, homeOf(p)));
     const free = board.crowd.people.filter(
       (p) => !p.shutIn && !p.leaving && p.mode !== 'gone' && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && !p.load && reaches(board, p, d.cell) && homeCell(board, p) !== null && near(p) <= WEDDING.reach && !dressed.has(p),
     );
@@ -413,12 +415,13 @@ export function weddingChain(): WeddingChain {
     head = front + (flowers.length > 0 ? 0 : sp);
     aisle = 0;
     // Called in ones and twos: the couple and the priest first, the rest over the gathering time.
-    const rest_ = members.filter((m) => m.p !== bride && m.p !== groom && m.p !== priest);
+    // (The farthest first, so they come in ones and twos over the same few seconds.)
+    const rest_ = members.filter((m) => m.p !== bride && m.p !== groom && m.p !== priest).sort((a, b) => near(b.p) - near(a.p) || (a.p.id < b.p.id ? -1 : 1));
     for (const m of members) {
       m.calls = board.now;
       if (m.p === bride || m.p === groom || m.p === priest) continue;
       const k = rest_.indexOf(m);
-      m.calls = board.now + 1 + (k / Math.max(1, rest_.length)) * WEDDING.gather * 0.5 + rand(m.p.seed, 'wed-call', held) * 2;
+      m.calls = board.now + 1 + (k / Math.max(1, rest_.length)) * WEDDING.gather * 0.3 + rand(m.p.seed, 'wed-call', held) * 2;
     }
     for (const m of members) {
       board.claim(m.p, chain);
@@ -576,7 +579,15 @@ export function weddingChain(): WeddingChain {
     if (marching) head = Math.min(track.length, head + pace * dt);
     const moved = head - was;
     for (const m of active()) {
-      if (m.row < 0 || !inPlace(board, m)) continue;
+      if (m.row < 0) continue;
+      if (!inPlace(board, m)) {
+        // Still on their way when the column has gone by their place: too late, home.
+        if (!m.joined && m.row !== cr && slotOf(m, head) > m.guardS + 0.3) {
+          m.lost = true;
+          if (board.plans.get(m.p)?.chain === chain) sendHome(board, m.p);
+        }
+        continue;
+      }
       const p = m.p;
       const isCouple = m.row === cr;
       const slot = isCouple && !marching ? aisle : slotOf(m, head);
@@ -616,18 +627,18 @@ export function weddingChain(): WeddingChain {
   const strew = (board: Board): void => {
     const pe = petalsOf(board);
     if (board.now >= strewAt) {
-      strewAt = board.now + 0.32;
+      strewAt = board.now + 0.42;
       for (const m of active()) {
         if (m.role !== 'flower' || !m.joined) continue;
         const p = m.p;
         const fx = Math.sin(p.heading), fz = Math.cos(p.heading);
         // A handful to each side ahead, from the basket at the hip.
         const side = rand(p.seed, 'strew', Math.floor(board.now * 4)) < 0.5 ? -1 : 1;
-        pe.toss(p.x + fx * 0.06, p.y + 0.28, p.z + fz * 0.06, 4, { up: 0.12, spread: 0.18, floor: p.y, dirX: fx * 0.7 - fz * side * 0.5, dirZ: fz * 0.7 + fx * side * 0.5, reach: 0.22, seed: rand(p.seed, 'strew-s', Math.floor(board.now * 4)) * 1e6 });
+        pe.toss(p.x + fx * 0.06, p.y + 0.28, p.z + fz * 0.06, 3, { up: 0.12, spread: 0.18, floor: p.y, dirX: fx * 0.7 - fz * side * 0.5, dirZ: fz * 0.7 + fx * side * 0.5, reach: 0.22, seed: rand(p.seed, 'strew-s', Math.floor(board.now * 4)) * 1e6 });
       }
     }
     if (board.now >= throwAt) {
-      throwAt = board.now + 0.55;
+      throwAt = board.now + 0.8;
       const c = couple[0];
       const throwers = active().filter((m) => m.joined && (m.role === 'guest' || m.role === 'maid' || m.role === 'usher'));
       if (c && throwers.length > 0) {
@@ -905,6 +916,9 @@ export function weddingChain(): WeddingChain {
     get head() {
       return head;
     },
+    get marching() {
+      return marching;
+    },
     get held() {
       return held;
     },
@@ -978,7 +992,8 @@ export function weddingChain(): WeddingChain {
       total += dt;
       if (phase === 'none') {
         if (!door || !square || !time.isDay || board.now < next) return;
-        const dayLeft = moving ? (partPhases().day.end - time.phase) * loopSeconds() : Infinity;
+        // (Over before night: by the end of dusk, with the time of day running.)
+        const dayLeft = moving ? (partPhases().dusk.end - time.phase) * loopSeconds() : Infinity;
         if (dayLeft < WEDDING.needs) return;
         if (!begin(board)) next = board.now + 30;
         return;
@@ -1013,20 +1028,21 @@ export function weddingChain(): WeddingChain {
         const inside = couple.every((p) => p.mode === 'visit' && board.plans.get(p)?.steps[board.plans.get(p)!.at]?.tag === 'wedding:out');
         const guard = active().filter((m) => m.row >= 0 && m.p !== bride && m.p !== groom);
         const waiting = guard.filter((m) => m.p.mode === 'linger' && m.p.goal?.errand?.tag === 'wedding:wait').length;
-        const ready = waiting >= Math.ceil(guard.length * 0.8) && t > 12;
-        if (inside && (ready || t > WEDDING.gather)) {
+        const ready = waiting >= Math.ceil(guard.length * 0.75) && t > 12;
+        if (inside && (ready || t > WEDDING.gatherMost)) {
           phase = 'vows';
           t = 0;
           if (board.stage) ringPeal(board.stage, board.now);
         }
-        if (t > WEDDING.gatherMost) finish(board, true);
+        if (t > WEDDING.gatherMost + 40) finish(board, true);
       } else if (phase === 'vows') {
         if (t > WEDDING.vows) for (const p of couple) if (p.mode === 'visit') release(board, p, 0);
         if (atDoor >= 2) {
           phase = 'out';
           t = 0;
           // The guard that did not come in time is not in it.
-          for (const m of active()) if (m.row >= 0 && m.p !== bride && m.p !== groom && !inPlace(board, m)) m.lost = true;
+          // Anybody not yet called or still dressing is not in it; those on their way may still take their place.
+          for (const m of active()) if (m.row >= 0 && m.p !== bride && m.p !== groom && (!m.called || board.plans.get(m.p)?.steps[board.plans.get(m.p)!.at]?.tag === 'wedding:dress')) m.lost = true;
           for (const m of members) if (m.lost && board.plans.get(m.p)?.chain === chain && m.p.mode !== 'home') sendHome(board, m.p);
           if (board.stage) ringPeal(board.stage, board.now);
           const c = board.centre(door!.cell);

@@ -10,7 +10,9 @@ import { isFinery } from '@/parts/people/finery';
 import { findScenario } from '@/scenario/discover';
 import { WEDDING } from '@/style/town-life';
 import weddingTown from '../../../scenarios/life/L57.wedding.scenario';
-import { nearestOnTrack } from '../people/track';
+import { trackAt, type TrackPoint } from '../people/track';
+
+const pt: TrackPoint = { x: 0, y: 0, z: 0, dx: 0, dz: 1, node: 0 };
 import { clock, scenarioTown, watch, type TestTown } from '../people/testing';
 import type { WeddingChain, WeddingPhase } from './chains/wedding';
 import { createLivingTown, type LivingTown } from './index';
@@ -53,32 +55,31 @@ describe('L57: the wedding', () => {
     let mostLying = 0;
     let watchers = 0;
     let endedAt = -1;
-    const r = run(grown(), 600, (t, wed, s) => {
+    let swept = -1;
+    const rows = new Set<number>();
+    const r = run(grown(), 560, (t, wed, s) => {
       if (phases[phases.length - 1] !== wed.phase) phases.push(wed.phase);
       if (wed.phase !== 'none') {
         party = Math.max(party, wed.members.length);
         for (const m of wed.members) roles.add(m.role);
       } else if (phases.includes('celebrate') && endedAt < 0) endedAt = s;
+      if (endedAt > 0 && swept < 0 && (wed.petals?.lying ?? 1) === 0) swept = s;
       mostLying = Math.max(mostLying, wed.petals?.lying ?? 0);
       // In it, in the guard or the column, they are in their finery.
       for (const m of wed.members) if (!m.lost && m.p.visible && (m.joined || m.p.goal?.errand?.tag === 'wedding:wait') && !isFinery(m.p.costume)) undressedInParty++;
-      if (wed.phase === 'procession' && wed.track) {
+      if (wed.phase === 'procession' && wed.track && wed.marching) {
         watchers += t.crowd.people.filter((p) => !p.party && p.startled > 0 && p.admire).length;
-        // Rows in order along the way, a row's gap apart (the last row first in, the first last out).
-        const rows = new Map<number, number[]>();
+        // Everybody in the column is at their place: their row's distance behind the head, on their side of the way.
         for (const m of wed.members) {
           if (m.lost || !m.joined || m.join < 1 || m.row < 0) continue;
-          const at = nearestOnTrack(wed.track, m.p.x, m.p.z);
-          rows.set(m.row, [...(rows.get(m.row) ?? []), at]);
+          rows.add(m.row);
+          const at = trackAt(wed.track, Math.max(0, wed.head - m.row * WEDDING.spacing), pt);
+          const off = Math.hypot(m.p.x - at.x, m.p.z - at.z);
+          if (off > WEDDING.file + 0.12 && badOrder.length < 5) badOrder.push(`${s.toFixed(1)} s: ${m.role} of row ${m.row} ${off.toFixed(2)} from their place`);
         }
-        const keys = [...rows.keys()].sort((a, b) => a - b);
-        if (keys.length >= 3) marched++;
-        longest = Math.max(longest, keys.length);
-        for (let i = 1; i < keys.length; i++) {
-          const a = Math.min(...rows.get(keys[i - 1]!)!), b = Math.max(...rows.get(keys[i]!)!);
-          const gap = (a - b) / (keys[i]! - keys[i - 1]!);
-          if ((gap < WEDDING.spacing - 0.18 || gap > WEDDING.spacing + 0.18) && badOrder.length < 5) badOrder.push(`${s.toFixed(1)} s: rows ${keys[i - 1]} and ${keys[i]} ${gap.toFixed(2)} apart`);
-        }
+        if (rows.size >= 3) marched++;
+        longest = Math.max(longest, rows.size);
+        rows.clear();
       }
     });
     expect(r.problems).toEqual([]);
@@ -91,19 +92,21 @@ describe('L57: the wedding', () => {
     expect(badOrder).toEqual([]);
     expect(watchers).toBeGreaterThan(0);
     expect(mostLying).toBeGreaterThan(150);
-    // Long over: everybody is home and changed, and the way is swept.
+    // Long over: everybody but the next wedding's party is home and changed, and the way was swept.
     expect(endedAt).toBeGreaterThan(0);
+    expect(swept).toBeGreaterThan(endedAt);
+    const next = new Set(r.wed.members.map((m) => m.p));
     for (const p of r.t.crowd.people) {
+      if (next.has(p)) continue;
       expect(isFinery(p.costume), `${p.id} still dressed (${p.mode}, ${p.goal?.errand?.tag})`).toBe(false);
       expect(p.party).toBe(false);
     }
-    expect(r.wed.petals?.lying ?? 0).toBe(0);
   });
 
   test('a small town: a smaller party, still the whole thing, and nothing left lying', () => {
     const phases: WeddingPhase[] = [];
     let party = 0;
-    const r = run(small, 560, (_t, wed) => {
+    const r = run(small, 420, (_t, wed) => {
       if (phases[phases.length - 1] !== wed.phase) phases.push(wed.phase);
       party = Math.max(party, wed.members.length);
     });
@@ -111,7 +114,8 @@ describe('L57: the wedding', () => {
     expect(phases).toContain('celebrate');
     expect(party).toBeGreaterThanOrEqual(4);
     expect(party).toBeLessThanOrEqual(WEDDING.party);
-    for (const p of r.t.crowd.people) expect(isFinery(p.costume)).toBe(false);
+    const next = new Set(r.wed.members.map((m) => m.p));
+    for (const p of r.t.crowd.people) if (!next.has(p)) expect(isFinery(p.costume), `${p.id} still dressed (${p.mode}, ${p.goal?.errand?.tag}, phase ${r.wed.phase})`).toBe(false);
   });
 
   test('the chapel erased mid-procession: called off, everybody walks home and changes, nobody leaves the graph', () => {

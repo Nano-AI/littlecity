@@ -172,15 +172,15 @@ export const WEDDING = defineStyle(
     /** Seconds from the end of one wedding to the next, at least (and up to `everySpread` more); only by day, with day enough left to hold it. */
     every: 300,
     everySpread: 120,
-    /** Seconds of daylight a wedding needs left when it starts (with the time of day running). */
-    needs: 170,
-    /** The party at most, and its share of the town's people; the farthest (grid steps) guests come from. */
+    /** Seconds a wedding needs left before night when it starts (with the time of day running): it is over by the end of dusk. */
+    needs: 240,
+    /** The party at most, and its share of the town's people; the farthest (grid steps) anybody in it walks to get there: home to change, then to the chapel. */
     party: 20,
     share: 0.4,
-    reach: 30,
+    reach: 32,
     /** Seconds the guests are given to gather (they come in ones and twos), and the most it may drag on before the couple come out anyway. */
     gather: 40,
-    gatherMost: 80,
+    gatherMost: 90,
     /** Seconds the couple are inside (the bells ring); seconds on the doorstep (the kiss, the shower of petals). */
     vows: 6,
     step: 5,
@@ -202,7 +202,7 @@ export const WEDDING = defineStyle(
     firstSpread: [0, 120, 1],
     every: [30, 1800, 10],
     everySpread: [0, 600, 10],
-    needs: [0, 270, 5],
+    needs: [0, 330, 5],
     party: [2, 30, 1],
     share: [0.05, 1, 0.05],
     reach: [4, 60, 1],
