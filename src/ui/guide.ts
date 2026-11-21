@@ -12,6 +12,7 @@
 import { ENTRIES, GROUPS, type GuideEntry } from '@/guide/entries';
 import { mischiefGuideSection } from './mischief';
 import { contentsOf, holds, propsOf, type TownContents } from '@/guide/proof';
+import { track } from '@/app/analytics';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { el, iconButton } from './dom';
 import { icon } from './icons';
@@ -150,6 +151,7 @@ export function createGuide(host: GuideHost): Guide {
     },
     open() {
       if (api.isOpen) return;
+      track('guide_opened');
       panel.removeAttribute('hidden');
       panel.parentElement?.classList.add('lc-guide-open');
       panel.style.translate = '';

@@ -38,6 +38,7 @@ import { generateTerrain, initialWorld, NEW_ISLAND_GEN, terrainOf, type TerrainG
 import { townFromHash } from '@/ui/files';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
+import { startAnalytics, track, townShown } from './analytics';
 import { createAutosave } from './autosave';
 import { createGame, type GameStart } from './game';
 
@@ -113,6 +114,7 @@ const game = createGame(tiered(start), {
   show(shape: ShapePlan, landed: Edit | null) {
     view.setTown(shape, null);
     life.sync({ shape, dressing: null });
+    townShown(shape, landed !== null);
     if (landed?.type === 'placeBlock') signals.emit('blockLanded', landed.cell);
     if (landed?.type === 'eraseBlock') signals.emit('blockRemoved', landed.cell);
   },
@@ -214,6 +216,11 @@ ui = createInterface({
   },
 });
 
+// ── analytics (src/app/analytics.ts) ─────────────────────────────────────
+startAnalytics({ scenario: scn !== undefined });
+track('town_opened', { how: shared?.ok ? (visiting ? 'shared_visiting' : 'shared') : saved ? 'saved' : 'new' });
+townShown(game.shape, false);
+
 // ── share links ──────────────────────────────────────────────────────────
 if (shared && !shared.ok) {
   // A broken link: say so plainly and leave the player's own town as it is (plan Review Focus 2).
@@ -225,6 +232,7 @@ if (shared && !shared.ok) {
       label: 'Keep it as mine',
       primary: true,
       run() {
+        track('shared_town_kept');
         leaveSpecialTown();
         autosave.schedule();
       },
@@ -232,6 +240,7 @@ if (shared && !shared.ok) {
     {
       label: 'Back to my town',
       run() {
+        track('shared_town_left');
         leaveSpecialTown();
         const mine = loadTown(storage());
         open(mine ? townOf(mine) : freshIsland(newSeed()));
