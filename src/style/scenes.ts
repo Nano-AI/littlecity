@@ -1,0 +1,83 @@
+// Scenes of town life (L63 and up): the beach day and the small seasonal
+// events, and the shared cadence that spreads them over a town. Owner: the
+// living town. Every number here is in life seconds or cells.
+
+import { defineStyle } from '@/core/style';
+
+/** The shared cadence (src/life/town/scenes.ts): how many big scenes at once, how far apart they start. */
+export const SCENES = defineStyle(
+  'scenes',
+  {
+    /** Big scenes (the wedding, a beach day, a fair...) going on at once in a town, at most. */
+    most: 2,
+    /** Seconds between the starts of any two big scenes, at least (so they do not all begin together). */
+    gap: 40,
+    /** Seconds between two notes in the corner (no nagging), at least. */
+    noteGap: 100,
+  },
+  { most: [1, 6, 1], gap: [0, 300, 5], noteGap: [0, 600, 10] },
+);
+
+/** L63: a beach day in summer. */
+export const BEACH = defineStyle(
+  'beach',
+  {
+    /** Seconds after the town is first seen (in summer, fair, by day) that the first beach day may start, at least, and up to `firstSpread` more. */
+    first: 15,
+    firstSpread: 20,
+    /** Seconds from the end of one beach day at a beach to the next there, at least, and up to `everySpread` more. */
+    every: 60,
+    everySpread: 60,
+    /** Seconds the families stay once they are set up, at least, and up to `staySpread` more. */
+    stay: 150,
+    staySpread: 60,
+    /** With the time of day running: seconds of day that must be left to start one, and the seconds left at which they pack up. */
+    needs: 140,
+    packAt: 30,
+    /** Pitches (parasols) on one beach at most, and the share of the town's people who may be on the beaches at once. */
+    pitches: 7,
+    share: 0.3,
+    /** Grid steps from home to the beach, at most. */
+    reach: 40,
+    /** Seconds over which the families are called (they come in ones and twos). */
+    call: 30,
+    /** Rain that sends everybody running home with towels over their heads; and the most cloud for a beach day to start. */
+    rain: 0.15,
+    cloud: 0.8,
+    /** Summer's weight in the season for a beach day to start. */
+    summer: 0.5,
+    /** Seconds a sandcastle stands after its builder has gone, at least (and up to as long again), before the sea takes it; rain that washes it down sooner. */
+    castle: 240,
+    castleRain: 0.3,
+    /** Seconds a swimmer is out (there and back), and how far out they go (cells). */
+    swim: 22,
+    swimOut: 2.2,
+    /** Seconds of one thing (lying, reading, paddling...) before somebody changes to another, at least, and up to as long again. */
+    act: 22,
+  },
+  {
+    first: [0, 300, 1], firstSpread: [0, 120, 1], every: [0, 900, 5], everySpread: [0, 600, 5], stay: [20, 900, 5], staySpread: [0, 600, 5],
+    needs: [0, 270, 5], packAt: [0, 120, 1], pitches: [1, 12, 1], share: [0.05, 1, 0.05], reach: [6, 80, 1], call: [0, 120, 1],
+    rain: [0, 1, 0.01], cloud: [0, 1, 0.05], summer: [0, 1, 0.05], castle: [10, 900, 10], castleRain: [0, 1, 0.05], swim: [6, 60, 1], swimOut: [0.5, 5, 0.1], act: [4, 120, 1],
+  },
+);
+
+/** L63: the colours of the beach (parasols, chairs, towels, bathing costumes). */
+export const BEACH_COLOURS = {
+  /** Parasols and deckchairs: striped with white. */
+  canvas: ['#e56b58', '#5b86d6', '#f2b53a', '#3fa58a', '#e47ab0', '#8a6fd1'] as readonly string[],
+  /** Towels: bright, laid flat on the sand. */
+  towels: ['#f08a5d', '#68b5e8', '#f4d35e', '#b8e07a', '#f497c0', '#fdfaf3'] as readonly string[],
+  /** Bathing costumes: strong colours with white bands. */
+  costumes: ['#d9473c', '#2f5ea8', '#1f7a6a', '#c43f7f', '#2b2f4a', '#e08a2e'] as readonly string[],
+  /** Sun hats. */
+  hats: ['#f4e2a8', '#fdfaf3', '#f6c9a0', '#e9d48c'] as readonly string[],
+  hatBands: ['#e56b58', '#5b86d6', '#3fa58a', '#2b2f4a'] as readonly string[],
+  /** The sandcastle: damp sand, darker than the beach. */
+  castle: '#dcc283',
+  castleDark: '#cfb06e',
+  flag: '#e56b58',
+  ball: ['#e5503f', '#fdfaf3', '#3d7fd6', '#f6c63e'] as readonly string[],
+  pail: ['#e5503f', '#3d7fd6', '#f6c63e', '#3fa58a'] as readonly string[],
+  book: ['#b0413e', '#2f5ea8', '#3c7a4e'] as readonly string[],
+};

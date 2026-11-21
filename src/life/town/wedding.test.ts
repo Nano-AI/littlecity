@@ -99,7 +99,8 @@ describe('L57: the wedding', () => {
     for (const p of r.t.crowd.people) {
       if (next.has(p)) continue;
       expect(isFinery(p.costume), `${p.id} still dressed (${p.mode}, ${p.goal?.errand?.tag})`).toBe(false);
-      expect(p.party).toBe(false);
+      // (A party of another kind may be on: a beach day, L63.)
+      expect(p.party && r.t.board.claimedBy(p)?.id !== 'beach').toBe(false);
     }
   });
 
@@ -132,7 +133,7 @@ describe('L57: the wedding', () => {
     expect(r.wed.phase).toBe('none');
     for (const p of r.t.crowd.people) {
       expect(isFinery(p.costume)).toBe(false);
-      expect(p.party).toBe(false);
+      expect(p.party && r.t.board.claimedBy(p)?.id !== 'beach').toBe(false);
     }
   });
 

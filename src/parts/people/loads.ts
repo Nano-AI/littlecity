@@ -8,11 +8,12 @@
 // pixels. Figure units (a person is 0.42 tall; the figure's scale takes
 // them to the world).
 
-import { multiply, rotationX, translation, type Mat4Like } from '@/core/mat4';
+import { compose, multiply, rotationX, translation, type Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { smoothBall, smoothLathe, soft } from '@/gen/soft';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
+import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, drawFurledParasol, drawOpenParasolHeld } from './beach';
 
 /**
  * Something carried (drawn in the hands; src/parts/people/loads.ts) or set down somewhere (a store).
@@ -24,8 +25,27 @@ import { PALETTE } from '@/style/palette';
  *   basket   a basket of vegetables          washing  a basket of washing
  *   sheaf    a sheaf of wheat                petals   a basket of petals
  *   bouquet  a bride's flowers
+ * L63, the beach (beach.ts draws them; the number is the family's colour):
+ *   parasol-n       a furled parasol with a rolled towel, on the shoulder
+ *   parasol-open-n  the same held up open (running home in the rain)
+ *   deckchair-n     a folded deckchair on the left shoulder
+ *   hamper          a basket for the day, at the side
+ *   pail-n          a child's pail and spade, at the side
+ *   beachball       a beach ball, in both hands
  */
-export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe';
+export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | BeachLoad;
+
+/** The six canvas colours (beach.ts CANVAS_COLOURS) and four pail colours. */
+type Canvas = 0 | 1 | 2 | 3 | 4 | 5;
+export type BeachLoad = `parasol-${Canvas}` | `parasol-open-${Canvas}` | `deckchair-${Canvas}` | 'hamper' | `pail-${0 | 1 | 2 | 3}` | 'beachball';
+export const BEACH_LOADS: readonly BeachLoad[] = [
+  ...([0, 1, 2, 3, 4, 5] as const).flatMap((i) => [`parasol-${i}`, `parasol-open-${i}`, `deckchair-${i}`] as const),
+  'hamper',
+  ...([0, 1, 2, 3] as const).map((i) => `pail-${i}` as const),
+  'beachball',
+];
+/** The number at the end of a beach load's name (its colour), or 0. */
+const colourOf = (kind: string): number => Number(kind.slice(kind.lastIndexOf('-') + 1)) || 0;
 
 /** A round thing (an apple, a bun, a bloom): smooth both ways (src/gen/soft.ts), so no rings show. */
 function ball(b: MeshBuilder, rx: number, ry: number, segments = 7): void {
@@ -48,6 +68,7 @@ function drawLoad(b: MeshBuilder, kind: Load, big = BIG): void {
 
 function drawLoadAt(b: MeshBuilder, kind: Load): void {
   b.setPattern(PATTERN.none);
+  if (drawBeachLoad(b, kind)) return;
   switch (kind) {
     case 'sack':
       b.setInk('sack').setColor('#e3b866').setPattern(PATTERN.cloth);
@@ -207,6 +228,19 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
   }
 }
 
+/** L63: the beach's loads, in the figure's units at their own size; false for any other load. */
+function drawBeachLoad(b: MeshBuilder, kind: Load): boolean {
+  if (kind.startsWith('parasol-open-')) drawOpenParasolHeld(b, colourOf(kind));
+  else if (kind.startsWith('parasol-')) drawFurledParasol(b, colourOf(kind));
+  else if (kind.startsWith('deckchair-')) drawFoldedChair(b, colourOf(kind));
+  else if (kind.startsWith('pail-')) drawCarriedPail(b, colourOf(kind));
+  else if (kind === 'hamper') drawCarriedHamper(b);
+  else if (kind === 'beachball') drawCarriedBall(b);
+  else return false;
+  return true;
+}
+const isBeach = (kind: Load): boolean => (BEACH_LOADS as readonly string[]).includes(kind);
+
 /**
  * How each load is carried, so it shows above or in front of the carrier from far off:
  *   shoulder   on the right shoulder, steadied by the right hand (a sack, a crate, a sheaf, a ladder)
@@ -220,7 +254,9 @@ function drawLoadAt(b: MeshBuilder, kind: Load): void {
  *   push       a handcart pushed ahead of them on its wheels
  */
 export type Hold = 'shoulder' | 'shoulderL' | 'head' | 'high' | 'yoke' | 'side' | 'chest' | 'pole' | 'push';
+const BEACH_HOLD = (kind: BeachLoad): Hold => (kind.startsWith('parasol-open-') ? 'high' : kind.startsWith('parasol-') ? 'shoulder' : kind.startsWith('deckchair-') ? 'shoulderL' : kind === 'beachball' ? 'chest' : 'side');
 export const HOLD_OF: Readonly<Record<Load, Hold>> = {
+  ...(Object.fromEntries(BEACH_LOADS.map((k) => [k, BEACH_HOLD(k)])) as Record<BeachLoad, Hold>),
   sack: 'shoulder',
   crate: 'shoulder',
   sheaf: 'shoulder',
@@ -243,6 +279,8 @@ export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   'cart-3': 'push',
   scythe: 'shoulder',
 };
+/** Loads drawn at their own size whatever the camera's distance (they are big enough, or would swamp their carrier). */
+export const NOT_GROWN: ReadonlySet<Load> = new Set<Load>(['cart', 'cart-1', 'cart-2', 'cart-3', ...BEACH_LOADS.filter((k) => k.startsWith('parasol-open-'))]);
 /** Loads heavy enough that their carrier leans into them and walks slower. */
 export const HEAVY: ReadonlySet<Load> = new Set<Load>(['sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
 
@@ -250,7 +288,22 @@ const rotX = (a: number): Mat4Like => rotationX(a);
 const rotZ = (a: number): Mat4Like => [Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 /** Where each load sits, in the figure's body frame (origin at the feet, +Y up, +Z forward; the shoulders are at 0.25, the top of the head 0.42). */
+const BEACH_AT = (kind: BeachLoad): Mat4Like =>
+  kind.startsWith('parasol-open-')
+    ? translation(0.088, 0.325, 0.055)
+    : kind.startsWith('parasol-')
+      ? // Fore and aft on the right shoulder, the furled end forward and up; held about the shoulder.
+        compose(translation(0.078, 0.305, 0), rotationX(-0.38), translation(0, 0, -0.24))
+      : kind.startsWith('deckchair-')
+        ? // On its edge on the left shoulder, beside the head.
+          compose(translation(-0.085, 0.31, -0.02), rotationX(-0.12))
+        : kind === 'beachball'
+          ? translation(0, 0.2, 0.085)
+          : kind === 'hamper'
+            ? translation(0.115, 0.04, 0.03)
+            : translation(0.115, 0.055, 0.03);
 const HOLD: Record<Load, Mat4Like> = {
+  ...(Object.fromEntries(BEACH_LOADS.map((k) => [k, BEACH_AT(k)])) as Record<BeachLoad, Mat4Like>),
   // Lying fore and aft along the shoulder.
   sack: multiply(translation(0.075, 0.3, -0.14), rotX(Math.PI / 2)),
   crate: translation(0.07, 0.26, 0),
@@ -305,7 +358,8 @@ export function carriedMesh(kind: Load): MeshData {
         b.setInk('ropes').setColor(PALETTE.ink).setPattern(PATTERN.none);
         for (const x of [-0.19, 0.19]) b.box([x - 0.003, 0.11, -0.003], [x + 0.003, 0.26, 0.003]);
         for (const x of [-0.19, 0.19]) b.at(translation(x, 0.02, 0), () => drawLoad(b, kind, 1.3));
-      } else if (kind === 'ladder') drawLoad(b, kind, 1.25);
+      } else if (isBeach(kind)) drawLoadAt(b, kind);
+      else if (kind === 'ladder') drawLoad(b, kind, 1.25);
       else if (HOLD_OF[kind] === 'push') drawLoad(b, kind, 1.15);
       else if (kind === 'lantern') {
         // On a short pole held up before them.

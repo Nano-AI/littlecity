@@ -8,6 +8,7 @@ import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
 import { tube } from '@/parts/ground/kit';
 import { balloon, dot } from './balloon';
+import { bookMesh, drawSpade } from './beach';
 
 /**
  * A chat bubble: a white rounded balloon and its tail cut from one outline (balloon.ts: one clean line
@@ -76,14 +77,16 @@ export function lineMesh(): MeshData {
  *   reach   the lamplighter at a lamp     right arm frame: the arm raised, the pole on up to the lamp
  * All in the figure's own units (the piece's matrix scales them with the person).
  */
-export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe' | 'umbrella-a' | 'umbrella-b' | 'umbrella-c' | 'racket' | 'mallet';
-export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe', 'umbrella-a', 'umbrella-b', 'umbrella-c', 'racket', 'mallet'];
+export type Tool = 'broom' | 'rod' | 'can' | 'sack' | 'tray' | 'pole' | 'reach' | 'pike' | 'torch' | 'lance' | 'hammer' | 'balls-a' | 'balls-b' | 'scythe' | 'umbrella-a' | 'umbrella-b' | 'umbrella-c' | 'racket' | 'mallet' | 'book' | 'spade';
+export const TOOLS: readonly Tool[] = ['broom', 'rod', 'can', 'sack', 'tray', 'pole', 'reach', 'pike', 'torch', 'lance', 'hammer', 'balls-a', 'balls-b', 'scythe', 'umbrella-a', 'umbrella-b', 'umbrella-c', 'racket', 'mallet', 'book', 'spade'];
 /** Which piece of the figure (PIECES order) a tool is held by; 5: a long tool laid in the hands along its own line (hands.ts). */
-export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 5, rod: 5, can: 4, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 5, 'umbrella-a': 0, 'umbrella-b': 0, 'umbrella-c': 0, racket: 4, mallet: 4 };
+export const TOOL_PIECE: Readonly<Record<Tool, number>> = { broom: 5, rod: 5, can: 4, sack: 0, tray: 0, pole: 4, reach: 4, pike: 0, torch: 0, lance: 0, hammer: 4, 'balls-a': 0, 'balls-b': 0, scythe: 5, 'umbrella-a': 0, 'umbrella-b': 0, 'umbrella-c': 0, racket: 4, mallet: 4, book: 0, spade: 4 };
 /** Seasons: the umbrellas residents put up in the rain, in three colours. */
 export const UMBRELLAS: readonly Tool[] = ['umbrella-a', 'umbrella-b', 'umbrella-c'];
 
 export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
+  // L63: a book to read in a deckchair (body frame, held in both hands: hands.ts CHEST_TOOLS).
+  if (tool === 'book') return bookMesh(0);
   const b = new MeshBuilder({ ink: `tool-${tool}` });
   b.setInk('tool').setPattern(PATTERN.none);
   switch (tool) {
@@ -220,6 +223,10 @@ export function toolMesh(tool: Tool, colour: string = PALETTE.red): MeshData {
       }
       break;
     }
+    case 'spade':
+      // L63: a child's spade in the right fist, digging a sandcastle.
+      drawSpade(b);
+      break;
     case 'mallet':
       // The playing field: a croquet mallet, its long shaft down from the fist, the head across the foot.
       b.setColor(PALETTE.wood);
