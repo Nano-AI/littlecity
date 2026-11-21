@@ -40,6 +40,7 @@ import { createScuffles, type Scuffle, type Scuffles } from './scuffle';
 import type { ErrandHost, ErrandStep, Load } from './errand';
 import { HEAVY } from '@/parts/people/loads';
 import type { Finery } from '@/parts/people/finery';
+import type { BeachWear } from '@/parts/people/beachwear';
 import { buildWalk, doorDirs, nodeCentre, nodeHeight, pieceAt, type DoorPlace, type Piece, type Point } from './walk';
 
 export type Mode = 'home' | 'walk' | 'linger' | 'visit' | 'hop' | 'wait' | 'gone';
@@ -200,10 +201,17 @@ export interface Person {
   inCloud: boolean;
   /** In an event's party (a wedding, a parade): never drawn into a scuffle. */
   party: boolean;
-  /** Dressed for an event (L57: the wedding party's finery), or a hat knocked askew (L50), else null. */
-  costume: Finery | 'askew' | null;
+  /** Dressed for an event (L57: the wedding party's finery; L63: for the beach), or a hat knocked askew (L50), else null. */
+  costume: Finery | BeachWear | 'askew' | null;
   /** L26, L57: the pose to show while stopped to look (startled), instead of standing: a wave, a clap. */
   admire?: PoseName | null;
+  /**
+   * L63: where the figure is drawn, offset from where they stand (world x, z), for somebody out past the
+   * edge of the land cell they are in: paddling in the shallows, wading in to swim. Drawing only: their
+   * place on the walking graph stays where it is. Undefined or 0 for everybody else.
+   */
+  drawX?: number;
+  drawZ?: number;
 }
 
 export interface CrowdEvents {

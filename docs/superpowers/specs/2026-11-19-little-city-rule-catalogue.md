@@ -1002,6 +1002,117 @@ its carrier. Nothing is ever left floating or vanishes in view.
     belvedere in the walking graph; soldiers drilling in the bailey; a
     hoist that lifts.
 
+### Scenes of town life (Derek's request, 2026-11-21)
+
+Small stories a player can stop and watch: people set out carrying things,
+set up, do the thing with a few roles, pack up and go home. They share one
+register (`src/life/town/scenes.ts`): a big scene (one that takes a crowd)
+starts only while fewer than two are on, 40 s or more after the last big one
+began, and never while the wedding is gathering its party; the wedding keeps
+its own clock and reports to it. One note at a time names a scene with
+Watch (`src/app/scene-note.ts`), at most one every 100 s. Life time drives
+every cadence, so a held time of day, season or weather keeps them coming.
+
+- **L63 · 2 · A beach day** — sand cells at the water's edge on the walking
+  graph, in the part most front doors open onto, gathered into one beach
+  where they lie within two cells of each other; four or more, within 40
+  steps of a front door, in a town of 8 houses or more, is a beach. The two
+  biggest (counting up to 12 cells, then the nearest the town) get up to 7
+  posts `beach|pitch|<n>` on the stretch nearest the front doors, side by
+  side, facing the water, and one `beach|back|<n>` off the sand behind it.
+  **When:** summer weighing half or more of the season, no rain or snow, cloud
+  at most 0.8, by day; the first 15–35 s after the town is seen, then 60–120 s
+  after the last at that beach ended; with the time of day running, only with
+  140 s of day left. **Who:** up to 30 % of the town, one household a pitch
+  (a grown-up, up to two children, another grown-up), living within 40 steps,
+  called over 30 s, farthest first. **Story:** each goes home to change
+  (bathing costume with white bands, knee length, or a white shirt and pale
+  rolled trousers; a straw sun hat for some) and comes out carrying their
+  part: a furled parasol with a towel rolled round its foot, a folded
+  deckchair, a basket, a child's pail and spade, a beach ball. At the pitch the
+  parasol is planted (a puff of sand) and the towel laid, the chair opened,
+  the basket and pail set down. Then 150–210 s of the day, each doing one thing
+  at a time for 22–44 s: lying on the towel, asleep with the hat over the face,
+  lounging or reading in the deckchair, sitting on the sand, looking out to
+  sea, paddling in the shallows with splashes, swimming out 2 cells and back
+  (wading in, a swimmer and a ripple each stroke, wading out); children dig a
+  sandcastle (heap, keep, two towers, moat and flag, a stage every 9 s of
+  digging), paddle and throw the ball high between two of them. Then each
+  folds and picks up their things and they walk home and change. **Rain**
+  (over 0.15) or a bomb within 12 cells: everything grabbed at once, towels
+  over heads, the parasol held up open as an umbrella, home at a run.
+  **Afterwards:** sandcastles stand 240–480 s, then the sea takes them (they
+  slump, then go in a puff of sand; in rain 8 s and 30 s). **Must not:** leave
+  a thing with nobody: a thing whose owner was called away waits for somebody
+  of that house (after 60 s anybody grown-up within 24 steps) to fetch it home;
+  the beach erased takes its things and castles with a puff and sends everybody
+  home. Bathers are a party (never in a scuffle) and are held by the chain,
+  so the wedding and other chains do not take them.
+
+- **L64 · 2 · A snow day** — the biggest square (else the longest street) →
+  `snow|man|` at its free cell nearest the middle (two steps or more from the
+  festival's snowman, D35) and `snow|side|a`, `snow|side|b` two cells either
+  side of it along its longer way. **When:** settled snow (cover 0.5 or more),
+  no rain, by day; 15–35 s after the snow has settled, then 150–240 s after the
+  last ended. **Who:** up to 8, children first and one to three grown-ups,
+  living within 30 steps, in their winter coats and woolly hats. **Story:**
+  they come at a run and stand in a ring round the middle (to 40 s); two roll
+  snowballs round and round inside the cell, the balls growing ahead of them;
+  the big one is pushed into the middle (the body), the second lifted on (the
+  middle), a small one rolled for the head; a grown-up gives it coal eyes, a
+  carrot nose, coal buttons and stick arms, then a hat and a scarf (34 s, the
+  others cheering and hopping); then they split into two sides two cells
+  either side of it and throw (40 s): one stoops to scoop, throws, the ball
+  arcs high over the snowman and bursts in a white puff on somebody on the
+  other side, who jumps; then home. A snowman still standing from before is
+  not built again: straight to the fight. **Afterwards:** the snowman stands
+  until the snow melts (cover under 0.3): it slumps, the hat slipping and the
+  nose fallen, and after 40 s goes in a puff. **Must not:** keep anybody when
+  the square goes (everybody home, the snowman with a puff) or a bomb falls
+  within 12 cells.
+
+- **L65 · 2 · A harvest supper** — the biggest square (a plaza with a full
+  3 × 3) → posts `supper|table|<i>` on a straight run of four (at least three)
+  free plaza cells through its middle along its longer way (not cluttered,
+  not a doorstep, one level). **When:** autumn weighing half or more, no rain;
+  with the time of day running, once a day, starting with 110 s of day left so
+  it goes on into dusk; with the time held at day or dusk, 40 s after the town
+  is seen and then 300–420 s after the last. **Who:** 40 % of the town, up to
+  four a table cell, living within 32 steps: a grown-up for each table cell,
+  one for the lanterns, guests. **Story:** each table's carrier brings a table
+  top on the shoulder and sets it down (a puff: a trestle table with a white
+  cloth, an orange runner and a bench either side; walkers go round, 30 more to
+  cross); the lantern-bearer puts up a pole at each end and the string of
+  paper lanterns goes up over the table (they glow at dusk); guests come in
+  ones and twos, each with a loaf, a basket, a tray of buns or a fish, set it
+  on the table before their place and sit, four to a cell, facing across.
+  At table 75 s, taking turns to talk (a squiggle over one head, then another);
+  40 s in, all stand and raise a toast (3.5 s). Then each takes up what they
+  brought (dish, table top, lantern pole) and walks home. **Must not:** stay in
+  rain (packed up at once) or with a bomb within 12 cells; leave a table on a
+  square that was built over (it goes with a puff, everybody home).
+
+- **L66 · 2 · Picnics** — open grass or garden near the houses (a walking
+  cell on bare grass or a garden floor, not a playing field, sand, clutter or a
+  doorstep, all four neighbours walkable, 2–30 steps from a front door, in a
+  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>`, three cells or
+  more apart, under or beside trees first (a tree within two cells), then
+  nearest the houses. **When:** spring weighing half or more (or summer in a
+  town with no beach), no rain, cloud at most 0.85, by day; 30 s after the town
+  is seen, then 120–220 s after the last ended. **Who:** one household a spot
+  (a grown-up with the blanket, up to two children, another grown-up with the
+  basket), living within 30 steps. **Story:** the blanket rolled and strapped
+  on the shoulder, the basket at the side; at the spot the blanket is shaken
+  out and spread (a puff: a checked blanket with a pie, a loaf, apples and a
+  jug on it), the basket set at its corner; 110–160 s: the grown-ups sit at its
+  sides facing in, talking in turns, now and then lying back; the children run
+  round and round it chasing each other, resting on its edge between chases.
+  Then the blanket is rolled up and shouldered, the basket picked up, home.
+  **Rain** (over 0.15): everything grabbed up and home at a brisk walk.
+  **Must not:** leave a blanket down with nobody of its family left to take it
+  up (it goes with a puff when the last of them has gone); stay on grass built
+  over (everything with a puff, everybody home).
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

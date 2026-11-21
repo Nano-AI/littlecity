@@ -63,3 +63,13 @@ export function standAt(board: Board, post: { cell: CellKey; dir?: Dir4 }, reach
 export function postOf(board: Board, chain: string, role: string): Post | undefined {
   return board.posts(chain).find((p) => p.role === role);
 }
+
+/**
+ * Nobody else's: no chain holds them, no plan is under way, and they are not standing at (or walking to) a
+ * step of somebody's errand (a player on a court keeps the step after their plan has run out). What a scene
+ * asks before it takes somebody.
+ */
+export function unbusy(board: Board, p: Person): boolean {
+  if (board.claimedBy(p) || board.plans.has(p)) return false;
+  return !(p.goal?.errand && (p.mode === 'linger' || p.mode === 'walk' || p.mode === 'visit'));
+}

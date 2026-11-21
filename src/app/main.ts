@@ -22,7 +22,7 @@
 //
 // window.__lc is the debug handle browser tests and the console use.
 
-import { weddingNote, type WeddingNote } from './wedding-note';
+import { sceneNote, type SceneNote } from './scene-note';
 import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
 import type { LifeRuntime } from '@/life/api';
@@ -119,7 +119,7 @@ let signals: TownSignals = createSignals(start.world.seed);
 applyCalendar(signals, params.get('season') ?? scn?.season, params.get('weather') ?? scn?.weather, params.get('settle') === '1' || (scn !== undefined && (scn.season !== undefined || scn.weather !== undefined)));
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
-let note: WeddingNote | null = null;
+let note: SceneNote | null = null;
 
 const autosave = createAutosave({
   storage: storage(),
@@ -382,8 +382,8 @@ function frame(now: number): void {
   mischief.flush();
   render();
   ui?.frame();
-  // L57: the note when a wedding is on.
-  if (ui) (note ??= weddingNote(ui)).update(view.stage);
+  // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
+  if (ui) (note ??= sceneNote(ui)).update(view.stage);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

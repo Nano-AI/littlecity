@@ -161,3 +161,17 @@ Nobody is sent to linger in a cluttered cell, except to sit at its seats.
   while `startled` (a wave, a clap).
 - **No extra people**: every chain takes its hands from the residents, so the
   cap (60, 30 on a phone) holds.
+
+## Scenes (L63 and up)
+
+- Beach day, snow day, harvest supper, picnics: chains in `src/life/town/chains/`
+  (`beach.ts`, `snow-day.ts`, `supper.ts`, `picnic.ts`), sharing a cadence and a
+  note through `src/life/town/scenes.ts`; design section 13c.
+- `Person.drawX/drawZ` (L63): the figure drawn out past the edge of the cell it
+  stands in (a paddler in the shallows, a bather wading in); drawing only.
+- New poses `lie`, `lounge`, `read`, `dig`, `splash`; tools `book`, `spade`;
+  loads for the beach, the supper and picnics in `loads.ts`.
+- Watch: `node src/life/testing/sequence.mjs L63.beach --season summer --warm 140000`,
+  `L64.snow-day --season winter --weather snow --settle --warm 45000`,
+  `L65.supper --season autumn --time dusk --warm 40000`, `L66.picnic --season spring --warm 75000`.
+  Frame cost: `node src/life/testing/scene-cost.mjs grown-town-4 --season summer`.

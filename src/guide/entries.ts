@@ -18,6 +18,10 @@ import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '
 
 /** Seconds of life before the wedding's picture is taken: the couple on the doorstep in a shower of petals, the guard of honour either side, the doves going up (timed in a test run of its recipe). */
 const WEDDING_GUIDE_AT = 96;
+/** Seconds of life before the beach day's picture: the parasols up along the sand, the families there (timed in a run of its recipe). */
+const BEACH_GUIDE_AT = 130;
+/** Seconds of life before the picnics' picture: blankets spread, families round them. */
+const PICNIC_GUIDE_AT = 85;
 
 export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
 
@@ -1284,7 +1288,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     frame: [18, 17, 22, 21, 2],
   },
 
-  // ── days the town earns (L56, L57) ────────────────────────────────────
+  // ── days the town earns (L56, L57, L63) ────────────────────────────────────
   {
     id: 'market-day',
     group: 'events',
@@ -1327,6 +1331,44 @@ export const ENTRIES: readonly GuideEntry[] = [
     // In the middle of a wedding: the couple come out (WEDDING_GUIDE_AT).
     life: { settle: WEDDING_GUIDE_AT, residents: true },
     frame: [16, 16, 24, 21, 2],
+  },
+  {
+    id: 'beach-day',
+    group: 'events',
+    name: 'A beach day',
+    how: 'Build a town of eight houses or more near sand by the sea (sand is the strip where flat land meets the water). On fair summer days families walk down with parasols, deckchairs and pails, set up along the shore, paddle, swim and build sandcastles, then pack up and go home; rain sends them running.',
+    proof: { socket: { rule: 'L63.beach' } },
+    seed: 7803,
+    ground: seaSouth,
+    build(b) {
+      b.path(12, 17, 29, 17);
+      for (let i = 0; i < 5; i++) b.house(13 + i * 4, 14, { w: 2, d: 3, floors: 2, color: (i * 3) % 8 });
+      b.house(12, 10, { w: 2, d: 2, color: 6 }).house(17, 10, { w: 2, d: 2, color: 2 }).house(22, 10, { w: 2, d: 2, color: 4 });
+      b.path(12, 12, 23, 12).path(11, 12, 11, 17);
+    },
+    view: { yaw: 20, pitch: 40 },
+    pad: 0.2,
+    // The families set up on the sand (BEACH_GUIDE_AT).
+    life: { settle: BEACH_GUIDE_AT, residents: true },
+    frame: [12, 17, 21, 21, 2],
+  },
+  {
+    id: 'picnic',
+    group: 'events',
+    name: 'Picnics',
+    how: 'Leave open grass with a few trees beside your houses. On fair spring days (and in summer, if the town has no beach) families carry out checked blankets and baskets, spread them on the grass and sit round them while the children chase about.',
+    proof: { socket: { rule: 'L66.picnic' } },
+    seed: 7804,
+    build(b) {
+      b.path(12, 17, 31, 17);
+      for (let i = 0; i < 5; i++) b.house(13 + i * 4, 14, { w: 2, d: 3, floors: 2, color: (i * 3 + 1) % 8 });
+      for (const [x, z] of [[16, 21], [22, 22], [27, 20], [19, 25], [25, 25]] as const) b.put('tree', x, z);
+    },
+    view: { yaw: 25, pitch: 42 },
+    pad: 0.2,
+    // The blankets out on the grass (PICNIC_GUIDE_AT).
+    life: { settle: PICNIC_GUIDE_AT, residents: true },
+    frame: [12, 17, 22, 21, 1],
   },
 ];
 

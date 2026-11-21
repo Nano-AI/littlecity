@@ -24,11 +24,15 @@ import { danceChain, pickChain, schoolChain, showChain, smithChain, vendChain } 
 import { waterChain } from './chains/water';
 import { mischiefChains } from '../mischief/response';
 import { fieldChain } from './chains/field';
+import { beachChain } from './chains/beach';
+import { snowDayChain } from './chains/snow-day';
+import { supperChain } from './chains/supper';
+import { picnicChain } from './chains/picnic';
 
 /** Every chain, in the order they are offered a person (the first that wants them has them). */
 export function allChains(): Chain[] {
   // Mischief (design section 13b) first: a fire or a bomb comes before anybody's errand.
-  return [...mischiefChains(), weddingChain(), buildChain(), watchChain(), breadChain(), fishChain(), tradeChain(), harvestChain(), laundryChain(), schoolChain(), smithChain(), showChain(), vendChain(), pickChain(), danceChain(), fieldChain(), marketChain(), waterChain(), dogsChain()];
+  return [...mischiefChains(), weddingChain(), beachChain(), snowDayChain(), supperChain(), picnicChain(), buildChain(), watchChain(), breadChain(), fishChain(), tradeChain(), harvestChain(), laundryChain(), schoolChain(), smithChain(), showChain(), vendChain(), pickChain(), danceChain(), fieldChain(), marketChain(), waterChain(), dogsChain()];
 }
 
 /** Whoever keeps the peace near a scuffle: the watchman out on his round, else a guard on duty; sent over at a trot. */

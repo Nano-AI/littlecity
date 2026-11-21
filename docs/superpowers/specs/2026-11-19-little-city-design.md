@@ -1113,6 +1113,56 @@ come back. Nothing destructive ever happens unless the player starts it.
   flat licking shapes on twos, smoke as soft puffs, the blast as a drawn
   burst.
 
+## 13c. Scenes of town life (Derek's request, 2026-11-21)
+
+"The big thing I care about is stuff happening." Beside the town's work
+(the chains of 13 and L51–L62) the town has SCENES: small stories a player
+can stop and watch, each with people setting out carrying things, setting
+up, doing the thing in a few roles with a moment or two worth catching,
+packing up and walking home. Catalogue L57 (the wedding) and L63–L66.
+
+| Scene | When | Where | Reads from the town view by |
+|---|---|---|---|
+| Beach day (L63) | summer, fair, by day | sand at the sea near the houses | a row of striped parasols along the shore |
+| Snow day (L64) | settled snow, by day | the biggest square | a snowman going up, a ring of children, snowballs arcing |
+| Harvest supper (L65) | autumn, late day into dusk | down the middle of the biggest square | a long white table with lanterns strung over it |
+| Picnics (L66) | spring (summer without a beach), fair, by day | open grass by trees near the houses | checked blankets with families round them |
+| Wedding (L57) | by day, any season | chapel to square | the black-and-white party, petals, the column |
+
+**Rules for every scene.** Its posts come from a rule (`src/rules/life/
+L6x.*.rule.ts`); its story is a chain on the board (`src/life/town/chains/`),
+so its people are residents (the cap holds) held by the chain while it runs
+(one person is in one thing at a time; the wedding and the scenes never take
+each other's people). Things are carried (`src/parts/people/loads.ts`), set
+down with a puff and picked up again; nothing shrinks or fades out of being
+(a thing left with nobody waits to be fetched; its place erased takes it with
+a puff, as a store's are). Costumes are drawn over the person
+(`finery.ts`, `beachwear.ts`). Each calls itself off cleanly (its place
+erased or built over, a bomb near, rain where rain matters) and its people
+walk home.
+
+**Cadence** (`src/life/town/scenes.ts`). One register a town: a big scene
+starts only while fewer than SCENES.most (2) are on, SCENES.gap (40 s) after
+the last big one began, and never while the wedding is gathering its party
+(the wedding keeps its own clock and reports to the register). Every cadence
+runs on life time, never on the day counter, so a slider held at summer noon
+keeps giving beach days (one every 60–120 s after the last ends), held winter
+snow keeps giving snow days (the snowman from before stands: straight to the
+fight), held autumn day or dusk keeps giving suppers (every 300–420 s); with
+the time running the supper comes once a day, starting 110 s before dusk.
+A five-minute watch of a grown town held at day, measured (grown-town-4,
+grown-market): spring, picnics at 30 s and a wedding at 40 s; summer, a beach
+day at 16–35 s, a wedding at 40 s, a second beach day at 217 s; autumn, a
+wedding and a supper; winter, a snow day at 24–29 s and a wedding; at most
+two at once; besides the games on the fields, market day and the shows.
+
+**Notes** (`src/app/scene-note.ts`, replacing the wedding's own). One small
+card at the top names a scene once it is worth a look ("A beach day on the
+shore", "A snowball fight on the square", "A harvest supper on the square",
+"Picnics on the grass", "Wedding bells at the chapel") with Watch (the camera
+glides there) and Not now; never two at once, at most one every
+SCENES.noteGap (100 s): a scene that comes up meanwhile has none.
+
 ## 14. Performance budgets
 
 Measured on an M-series MacBook at default zoom with the reference town

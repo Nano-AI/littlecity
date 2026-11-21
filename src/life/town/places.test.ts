@@ -13,13 +13,14 @@ import green from '../../../scenarios/rules/U15.village-green.scenario';
 import drying from '../../../scenarios/rules/U17.drying-green.scenario';
 import orchard from '../../../scenarios/rules/U18.orchard.scenario';
 import { clock, scenarioTown, watch } from '../people/testing';
-import { createLivingTown } from './index';
+import { allChains, createLivingTown } from './index';
 
 /** Steps the town, and counts how often anybody lingers (or is inside) on a step with each tag. */
 function tally(sc: Scenario, seconds: number): { tags: Map<string, Set<string>>; problems: string[] } {
   const town = scenarioTown(sc);
   const c = clock(town.world.seed, 'day');
-  const t = createLivingTown({ seed: town.world.seed });
+  // (The town's scenes, a beach day on the fixture's sandy rim, would take the hands these places need: left out.)
+  const t = createLivingTown({ seed: town.world.seed, chains: allChains().filter((x) => x.id !== 'beach') });
   t.sync(town.shape, town.dressing, c.time);
   const w = watch(t.crowd, { maxStuck: 14 });
   const tags = new Map<string, Set<string>>();

@@ -45,9 +45,15 @@ export type PoseName =
   | 'kick' //   the right leg swung through
   | 'dive' //   arms and legs flung out sideways (a goalkeeper)
   | 'bowl' //   down low, a long step, the arm swinging through
-  | 'clap'; //  hands together in front, again and again
+  | 'clap' //  hands together in front, again and again
+  // L63, the beach:
+  | 'lie' //    flat on the back on a towel, arms at the sides, a foot shifting now and then
+  | 'lounge' // leaning far back in a deckchair, legs out
+  | 'read' //   the same, holding a book up (hands.ts puts the hands on it)
+  | 'dig' //    kneeling, bent over, digging with a spade in the right hand
+  | 'splash'; // paddling: arms out for balance, a foot kicking the water up
 
-export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow', 'ready', 'dribble', 'shoot', 'pass', 'swing', 'serve', 'kick', 'dive', 'bowl', 'clap'];
+export const POSES: readonly PoseName[] = ['stand', 'walk', 'run', 'sit', 'tend', 'look', 'wave', 'chat', 'fish', 'hop', 'hat', 'carry', 'sweep', 'kite', 'cheer', 'cover', 'dust', 'shake', 'hammer', 'juggle', 'mow', 'ready', 'dribble', 'shoot', 'pass', 'swing', 'serve', 'kick', 'dive', 'bowl', 'clap', 'lie', 'lounge', 'read', 'dig', 'splash'];
 
 export interface Pose {
   /** Swing forward (+) or back (−) about the hip or shoulder, radians. */
@@ -386,6 +392,51 @@ export function poseOf(name: PoseName, phase: number, seed = 0): Pose {
       const k = beat(2, 4);
       p.armL = p.armR = 1.25;
       p.outL = p.outR = k === 0 ? -0.36 : -0.1;
+      break;
+    }
+    // ── the beach (L63) ──
+    case 'lie': {
+      // On the back: the body tipped back flat about the hips, the legs out flat ahead, all brought down to the towel.
+      const k = beat(16, 0.8);
+      p.lean = -1.52;
+      p.legL = 1.52;
+      p.legR = k === 9 || k === 10 ? 1.3 : 1.52; // a knee comes up a little now and then
+      p.armL = p.armR = 0.05;
+      p.outL = p.outR = 0.22;
+      p.lift = -0.082;
+      if (k === 4) p.armR = 0.6; // a hand to the brow
+      break;
+    }
+    case 'lounge':
+    case 'read': {
+      const k = beat(14, 0.9);
+      p.lean = -0.55;
+      p.legL = 1.25;
+      p.legR = k === 6 ? 1.0 : 1.25;
+      p.armL = p.armR = 0.45;
+      p.outL = p.outR = 0.3;
+      if (name === 'read') p.twist = k === 11 ? 0.12 : 0; // a page turned
+      break;
+    }
+    case 'dig': {
+      const k = beat(4, 3);
+      p.lean = 0.78;
+      p.legL = p.legR = -1.2;
+      p.lift = -0.062;
+      p.armR = k === 0 || k === 1 ? 1.1 : 0.55;
+      p.outR = -0.1;
+      p.armL = 0.7;
+      p.outL = 0.25;
+      break;
+    }
+    case 'splash': {
+      const k = beat(4, 3.2);
+      p.armL = p.armR = 0.35;
+      p.outL = p.outR = 0.95 + (k % 2) * 0.15;
+      p.legL = k === 1 ? 0.45 : 0;
+      p.legR = k === 3 ? 0.45 : 0;
+      p.lift = k === 1 || k === 3 ? 0.01 : 0;
+      p.lean = 0.06;
       break;
     }
   }

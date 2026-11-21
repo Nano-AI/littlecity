@@ -233,6 +233,8 @@ export const JUGGLE: Readonly<Record<string, [Vec3, Vec3]>> = {
 export const CHEST_TOOLS: Readonly<Record<string, [Vec3, Vec3]>> = {
   sack: [[0.05, 0.2, 0.085], [-0.05, 0.2, 0.085]],
   tray: [[0.06, 0.18, 0.07], [-0.06, 0.18, 0.07]],
+  // L63: a book held open, reading in a deckchair (beach.ts BOOK_GRIPS).
+  book: [[0.045, 0.205, 0.072], [-0.045, 0.205, 0.072]],
 };
 
 /**

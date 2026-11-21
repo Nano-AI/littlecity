@@ -30,8 +30,9 @@ import { restingMesh } from '@/parts/people/loads';
 import { place } from '../motion/pose';
 import { fxOf } from '../fx/fx';
 import { markCensusReady, recordHome } from './home';
-import { carriedMesh, HEAVY, HOLD_OF, holdAnchor } from '@/parts/people/loads';
+import { carriedMesh, HEAVY, HOLD_OF, holdAnchor, NOT_GROWN } from '@/parts/people/loads';
 import { fineryLook, fineryMesh, isFinery } from '@/parts/people/finery';
+import { beachLook, beachMesh, isBeachWear } from '@/parts/people/beachwear';
 import { applyHold } from '@/parts/people/hands';
 import type { Load } from './errand';
 import { scaresOf } from '../birds/scare';
@@ -239,6 +240,8 @@ function loadScale(): number {
 /** L57: dressed for a wedding (finery.ts: the bride in white, the groom in black, …). */
 export function costumeLook(base: Look, costume: Person['costume'], id = ''): Look {
   if (isFinery(costume)) return fineryLook(base, costume, id);
+  // L63: dressed for the beach.
+  if (isBeachWear(costume)) return beachLook(base, costume, id);
   // L50: after a scuffle the hat sits askew (drawn on its own, tipped; see draw()).
   if (costume === 'askew') return { ...base, hat: 'none' };
   return base;
@@ -251,6 +254,9 @@ export function toolOf(p: Person, pose: string): Tool | null {
   const tag = p.mode === 'linger' ? p.goal?.errand?.tag : undefined;
   if (tag === 'field:racket') return 'racket';
   if (tag === 'field:mallet') return 'mallet';
+  // L63: a book in a deckchair, a spade at a sandcastle.
+  if (pose === 'read') return 'book';
+  if (pose === 'dig') return 'spade';
   // An errand's load fills their hands (loads.ts draws it): no other tool while it does.
   if (p.load) return null;
   if (pose === 'hammer') return 'hammer';
@@ -336,7 +342,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     const meshes = buildPerson(d.look, p.id);
     d.handles = PIECES.map((piece) => stage.spawnMesh(meshes[piece], IDENTITY));
     // L57: their wedding finery, over the figure.
-    const extra = isFinery(p.costume) ? fineryMesh(d.look, d.rig, p.costume, p.id) : null;
+    const extra = isFinery(p.costume) ? fineryMesh(d.look, d.rig, p.costume, p.id) : isBeachWear(p.costume) ? beachMesh(d.look, d.rig, p.costume, p.id) : null;
     d.finery = extra ? stage.spawnMesh(extra, IDENTITY) : null;
     d.shown = false;
   }
@@ -369,7 +375,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   const away = edge ? 1 - p.fade : 0;
   // Down below the water (SEA_Y) by the end, head and all: a step out, then the drop.
   const depth = Math.max(0.5, p.y - SEA_Y + DESIGN_HEIGHT * scale + 0.05);
-  const px = p.x + p.edgeX * away, pz = p.z + p.edgeZ * away;
+  const px = p.x + p.edgeX * away + (p.drawX ?? 0), pz = p.z + p.edgeZ * away + (p.drawZ ?? 0);
   // The drop comes over the last part of the way: off a dock's end at once, down a beach into the shallows.
   const len = Math.hypot(p.edgeX, p.edgeZ);
   const from = len > 1 ? 0.62 : 0.15;
@@ -459,7 +465,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     // About its hold anchor, and bigger when the camera is far off (so a sack still reads on a shoulder
     // from the whole-island view; close up it is its own size).
     const [ax, ay, az] = holdAnchor(d.load.kind);
-    const k = HOLD_OF[d.load.kind] === 'push' ? 1 : loadScale();
+    const k = NOT_GROWN.has(d.load.kind) ? 1 : loadScale();
     for (let i = 0; i < 12; i++) loadM[i] = world[i]! * (i % 4 === 3 ? 1 : k);
     loadM[12] = world[0]! * ax + world[4]! * ay + world[8]! * az + world[12]!;
     loadM[13] = world[1]! * ax + world[5]! * ay + world[9]! * az + world[13]!;
