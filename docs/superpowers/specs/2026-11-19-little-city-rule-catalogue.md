@@ -1071,6 +1071,27 @@ every cadence, so a held time of day, season or weather keeps them coming.
   the square goes (everybody home, the snowman with a puff) or a bomb falls
   within 12 cells.
 
+- **L65 · 2 · A harvest supper** — the biggest square (a plaza with a full
+  3 × 3) → posts `supper|table|<i>` on a straight run of four (at least three)
+  free plaza cells through its middle along its longer way (not cluttered,
+  not a doorstep, one level). **When:** autumn weighing half or more, no rain;
+  with the time of day running, once a day, starting with 110 s of day left so
+  it goes on into dusk; with the time held at day or dusk, 40 s after the town
+  is seen and then 300–420 s after the last. **Who:** 40 % of the town, up to
+  four a table cell, living within 32 steps: a grown-up for each table cell,
+  one for the lanterns, guests. **Story:** each table's carrier brings a table
+  top on the shoulder and sets it down (a puff: a trestle table with a white
+  cloth, an orange runner and a bench either side; walkers go round, 30 more to
+  cross); the lantern-bearer puts up a pole at each end and the string of
+  paper lanterns goes up over the table (they glow at dusk); guests come in
+  ones and twos, each with a loaf, a basket, a tray of buns or a fish, set it
+  on the table before their place and sit, four to a cell, facing across.
+  At table 75 s, taking turns to talk (a squiggle over one head, then another);
+  40 s in, all stand and raise a toast (3.5 s). Then each takes up what they
+  brought (dish, table top, lantern pole) and walks home. **Must not:** stay in
+  rain (packed up at once) or with a bomb within 12 cells; leave a table on a
+  square that was built over (it goes with a puff, everybody home).
+
 ### Animals and small motion
 
 - **L29 · 2 · Mechanisms** — fountain jets; clock hands; bells swing at dusk;

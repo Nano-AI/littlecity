@@ -13,6 +13,7 @@ import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { smoothBall, smoothLathe, soft } from '@/gen/soft';
 import { tube } from '@/parts/ground/kit';
 import { PALETTE } from '@/style/palette';
+import { drawLanternPole, drawTrestle } from './supper';
 import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, drawFurledParasol, drawOpenParasolHeld } from './beach';
 
 /**
@@ -32,8 +33,11 @@ import { drawCarriedBall, drawCarriedHamper, drawCarriedPail, drawFoldedChair, d
  *   hamper          a basket for the day, at the side
  *   pail-n          a child's pail and spade, at the side
  *   beachball       a beach ball, in both hands
+ * L65, the harvest supper (supper.ts):
+ *   trestle         a table top with its cloth, on the shoulder
+ *   lantern-pole    a pole hung with paper lanterns
  */
-export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | BeachLoad;
+export type Load = 'sack' | 'tray' | 'loaf' | 'bucket' | 'fish' | 'fishes' | 'ladder' | 'hod' | 'crate' | 'lantern' | 'basket' | 'washing' | 'sheaf' | 'petals' | 'bouquet' | 'barrel' | 'cart' | 'cart-1' | 'cart-2' | 'cart-3' | 'scythe' | 'trestle' | 'lantern-pole' | BeachLoad;
 
 /** The six canvas colours (beach.ts CANVAS_COLOURS) and four pail colours. */
 type Canvas = 0 | 1 | 2 | 3 | 4 | 5;
@@ -236,10 +240,12 @@ function drawBeachLoad(b: MeshBuilder, kind: Load): boolean {
   else if (kind.startsWith('pail-')) drawCarriedPail(b, colourOf(kind));
   else if (kind === 'hamper') drawCarriedHamper(b);
   else if (kind === 'beachball') drawCarriedBall(b);
+  else if (kind === 'trestle') drawTrestle(b);
+  else if (kind === 'lantern-pole') drawLanternPole(b);
   else return false;
   return true;
 }
-const isBeach = (kind: Load): boolean => (BEACH_LOADS as readonly string[]).includes(kind);
+const isBeach = (kind: Load): boolean => (BEACH_LOADS as readonly string[]).includes(kind) || kind === 'trestle' || kind === 'lantern-pole';
 
 /**
  * How each load is carried, so it shows above or in front of the carrier from far off:
@@ -278,11 +284,13 @@ export const HOLD_OF: Readonly<Record<Load, Hold>> = {
   'cart-2': 'push',
   'cart-3': 'push',
   scythe: 'shoulder',
+  trestle: 'shoulder',
+  'lantern-pole': 'pole',
 };
 /** Loads drawn at their own size whatever the camera's distance (they are big enough, or would swamp their carrier). */
 export const NOT_GROWN: ReadonlySet<Load> = new Set<Load>(['cart', 'cart-1', 'cart-2', 'cart-3', ...BEACH_LOADS.filter((k) => k.startsWith('parasol-open-'))]);
 /** Loads heavy enough that their carrier leans into them and walks slower. */
-export const HEAVY: ReadonlySet<Load> = new Set<Load>(['sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
+export const HEAVY: ReadonlySet<Load> = new Set<Load>(['trestle', 'sack', 'crate', 'sheaf', 'hod', 'fish', 'bucket', 'washing', 'ladder', 'barrel', 'cart-2', 'cart-3']);
 
 const rotX = (a: number): Mat4Like => rotationX(a);
 const rotZ = (a: number): Mat4Like => [Math.cos(a), Math.sin(a), 0, 0, -Math.sin(a), Math.cos(a), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -329,6 +337,8 @@ const HOLD: Record<Load, Mat4Like> = {
   'cart-2': translation(0, 0, 0.33),
   'cart-3': translation(0, 0, 0.33),
   scythe: multiply(translation(0.08, 0.2, -0.04), rotX(-0.5)),
+  trestle: translation(0.1, 0.3, 0.02),
+  'lantern-pole': translation(0.09, 0.36, 0.06),
 };
 
 const cache = new Map<string, MeshData>();

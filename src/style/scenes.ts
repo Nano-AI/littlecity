@@ -118,3 +118,33 @@ export const SNOW_COLOURS = {
   carrot: '#f08a3a',
   scarves: ['#d9473c', '#2f5ea8', '#3fa58a', '#e3b04b'] as readonly string[],
 };
+
+/** L65: a harvest supper on the square. */
+export const SUPPER = defineStyle(
+  'supper',
+  {
+    /** Autumn's weight in the season for a supper. */
+    autumn: 0.5,
+    /** With the time of day running: it starts with this many seconds of day left, so it goes on into dusk under the lanterns. */
+    startLeft: 110,
+    /** With the time held: seconds after the town is seen for the first, and from the end of one to the next. */
+    first: 40,
+    every: 300,
+    everySpread: 120,
+    /** Table cells (each seats four), and the share of the town at table at most. */
+    tables: 4,
+    share: 0.4,
+    reach: 32,
+    /** Seconds: to set up at most, at table, the toast (from sitting down). */
+    setup: 60,
+    supper: 75,
+    toast: 40,
+  },
+  { autumn: [0, 1, 0.05], startLeft: [20, 270, 5], first: [0, 300, 1], every: [30, 1800, 10], everySpread: [0, 600, 10], tables: [2, 6, 1], share: [0.05, 1, 0.05], reach: [6, 60, 1], setup: [10, 200, 5], supper: [10, 300, 5], toast: [5, 200, 5] },
+);
+
+export const SUPPER_COLOURS = {
+  cloth: '#fbf8f2',
+  runner: '#d9873a',
+  lanterns: ['#ffcf6b', '#f08a5d', '#ffe39a', '#e56b58'] as readonly string[],
+};
