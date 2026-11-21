@@ -1517,3 +1517,20 @@ does not read). The ship welcome has not been seen in a picture by
 anyone. Not built: a miller's cart, skating, leaf piles, a street
 performer, fishing, a promenade.
 Running: ragdoll and the Hand.
+
+**Nuke goes off on landing (orchestrator, Derek 2026-11-21).**
+`NUKE.fuse` 1.1 → 0 (`src/life/mischief/director.ts`); the siren and
+whistle end at the landing (`nukeWarning`). Done by the orchestrator,
+not the mischief agent, because the ragdoll agent is in those files; it
+was told. Gate: 2,284 passed, 12 skipped, clean.
+**Barbarian raids (Derek).** New agent `af67b2b62016bdcfb` on
+`swarm/barbarians` (Opus): a longship runs up the beach, or a bigger
+one stands off and sends rowing boats; a band of horned-helmet raiders
+storms the town, sets fires through the existing fire engine, loots
+visibly, and sails off; villagers flee, the garrison scuffles; the
+player can sink the ship (stranded raiders are chased into the sea); a
+Raiders on/off switch in the menu, a Raid tool to summon one, and rare
+raids on their own registered with the scenes' register. Nothing saved.
+Order: figures and longship, the landing raid, looting, stopping them,
+the offshore ship, raids on their own.
+Running: ragdoll and the Hand, barbarians.
