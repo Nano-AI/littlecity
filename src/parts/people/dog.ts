@@ -7,6 +7,7 @@
 
 import { multiply, rotationX, translation } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
+import { smoothBall, soft } from '@/gen/soft';
 import { PALETTE } from '@/style/palette';
 
 export type DogPose = 'stand' | 'trot-a' | 'trot-b' | 'sit' | 'bark';
@@ -19,15 +20,11 @@ export const DOG_COATS: readonly [string, string][] = [
   ['#d9a35f', '#f4eee2'],
 ];
 
-function ball(b: MeshBuilder, rx: number, ry: number, rz: number, segments = 8): void {
-  const prof: [number, number][] = [];
-  for (let i = 0; i <= 6; i++) {
-    const a = Math.PI * (1 - i / 6);
-    prof.push([Math.max(0, Math.sin(a)), Math.cos(a)]);
-  }
-  b.at([rx, 0, 0, 0, 0, ry, 0, 0, 0, 0, rz, 0, 0, 0, 0, 1], () => b.lathe(prof, { segments }));
-}
-
+/**
+ * A dog in one pose and coat. Drawn as two soft bodies (src/gen/soft.ts): the body with its patch, legs
+ * and tail is one round mass with one outline, the head with its snout another (the line where the head
+ * sits on the body is drawn on purpose); the ears and the nose keep lines of their own.
+ */
 export function dogMesh(pose: DogPose, coat: number): MeshData {
   const [fur, patch] = DOG_COATS[((coat % DOG_COATS.length) + DOG_COATS.length) % DOG_COATS.length]!;
   const b = new MeshBuilder({ ink: `dog-${pose}-${coat}` });
@@ -35,39 +32,48 @@ export function dogMesh(pose: DogPose, coat: number): MeshData {
   const legY = 0.06;
   // The body tips up at the front when it sits or barks.
   const tilt = sit ? -0.6 : bark ? -0.35 : 0;
-  b.setPattern(PATTERN.none);
-  b.at(multiply(translation(0, legY + 0.035 + (sit ? 0.02 : 0), sit ? -0.03 : 0), rotationX(tilt)), () => {
-    b.setInk('body').setColor(fur);
-    ball(b, 0.045, 0.042, 0.075);
-    b.setInk('patch').setColor(patch);
-    b.at(translation(0.02, 0.025, -0.01), () => ball(b, 0.022, 0.016, 0.03));
-    // Head and ears.
-    b.at(translation(0, 0.05, 0.07), () => {
-      b.setInk('head').setColor(fur);
-      ball(b, 0.038, 0.036, 0.038);
-      b.setInk('snout').setColor(fur);
-      b.at(translation(0, -0.008, 0.035), () => ball(b, 0.02, 0.016, 0.022));
-      b.setInk('nose').setColor(PALETTE.ink);
-      b.at(translation(0, -0.002, 0.056), () => ball(b, 0.007, 0.006, 0.006));
-      b.setInk('ears').setColor(patch);
-      for (const s of [-1, 1]) b.at(translation(s * 0.032, 0.0, 0.0), () => ball(b, 0.012, 0.03, 0.018));
-    });
-    // The tail, up and a little curled.
-    b.setInk('tail').setColor(fur);
-    b.at(multiply(translation(0, 0.035, -0.075), rotationX(bark ? -1.2 : -0.8)), () => ball(b, 0.01, 0.01, 0.04));
-  });
-  // Legs: front pair and back pair, swung for the trot.
+  const torso = multiply(translation(0, legY + 0.035 + (sit ? 0.02 : 0), sit ? -0.03 : 0), rotationX(tilt));
   const swing = pose === 'trot-a' ? 0.018 : pose === 'trot-b' ? -0.018 : 0;
-  b.setInk('legs').setColor(fur);
-  for (const [x, z, front] of [[-0.025, 0.045, true], [0.025, 0.045, true], [-0.025, -0.045, false], [0.025, -0.045, false]] as const) {
-    const s = (x < 0 ? 1 : -1) * (front ? 1 : -1) * swing;
-    if (sit && !front) {
-      // Haunches down.
-      b.at(translation(x * 1.2, 0.02, z + 0.01), () => ball(b, 0.02, 0.02, 0.03));
-      continue;
+  b.setPattern(PATTERN.none);
+  soft(b, { ink: 'body' }, (s) => {
+    s.at(torso, () => {
+      s.b.setColor(fur);
+      s.ball(0, 0, 0, 0.045, 0.042, 0.075, 12, 7);
+      // The patch is a colour on the coat, not a shape of its own.
+      s.b.setColor(patch);
+      s.at(translation(0.02, 0.025, -0.01), () => smoothBall(s.b, 0, 0, 0, 0.022, 0.016, 0.03, 8, 5));
+      // The tail, up and a little curled.
+      s.b.setColor(fur);
+      s.at(multiply(translation(0, 0.035, -0.075), rotationX(bark ? -1.2 : -0.8)), () => s.ball(0, 0, 0, 0.011, 0.011, 0.04, 8, 5));
+    });
+    // Legs: front pair and back pair, swung for the trot; little round posts, part of the body's mass.
+    s.b.setColor(fur);
+    for (const [x, z, front] of [[-0.025, 0.045, true], [0.025, 0.045, true], [-0.025, -0.045, false], [0.025, -0.045, false]] as const) {
+      const sw = (x < 0 ? 1 : -1) * (front ? 1 : -1) * swing;
+      if (sit && !front) {
+        // Haunches down.
+        s.ball(x * 1.2, 0.02, z + 0.01, 0.02, 0.02, 0.03, 8, 5);
+        continue;
+      }
+      const lift = bark && front ? 0.03 : 0;
+      const h = (legY + 0.03 - lift) / 2;
+      // A post with rounded ends (not a spindle): its normals from a lump the length of it.
+      const lr = 0.0115;
+      s.hold(x, lift + h, z + sw, lr, h * 1.15, lr);
+      s.at(translation(x, lift, z + sw), () => s.b.lathe([[0, 0], [lr * 0.75, 0.002], [lr, lr * 0.8], [lr, h * 2 - lr], [0, h * 2]], { segments: 7 }));
     }
-    const lift = bark && front ? 0.03 : 0;
-    b.box([x - 0.01, lift, z + s - 0.01], [x + 0.01, legY + 0.02, z + s + 0.01]);
-  }
+  });
+  // Head and ears.
+  b.at(multiply(torso, translation(0, 0.05, 0.07)), () => {
+    soft(b, { ink: 'head' }, (s) => {
+      s.b.setColor(fur);
+      s.ball(0, 0, 0, 0.038, 0.036, 0.038, 12, 7);
+      s.ball(0, -0.008, 0.035, 0.02, 0.016, 0.022, 10, 6);
+    });
+    b.setInk('nose').setColor(PALETTE.ink);
+    smoothBall(b, 0, -0.002, 0.056, 0.007, 0.006, 0.006, 8, 4);
+    b.setInk('ears').setColor(patch);
+    for (const side of [-1, 1]) smoothBall(b, side * 0.032, 0, 0, 0.012, 0.03, 0.018, 8, 5);
+  });
   return b.build();
 }

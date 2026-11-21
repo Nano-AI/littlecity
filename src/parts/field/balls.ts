@@ -3,19 +3,11 @@
 // its spin shows when it rolls or flies.
 
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
+import { smoothBall } from '@/gen/soft';
 import { PALETTE } from '@/style/palette';
 
 export type BallKind = 'basketball' | 'tennis' | 'football' | 'bowl' | 'bowl-b' | 'jack' | 'boule' | 'croquet-a' | 'croquet-b' | 'croquet-c' | 'croquet-d';
 
-/** A sphere of radius r as a lathe, `rings` bands from bottom to top. */
-function sphere(b: MeshBuilder, r: number, rings = 6, segments = 10, from = 0, to = rings): void {
-  const prof: [number, number][] = [];
-  for (let i = from; i <= to; i++) {
-    const t = (i / rings) * Math.PI;
-    prof.push([Math.max(1e-4, Math.sin(t) * r), -Math.cos(t) * r]);
-  }
-  b.lathe(prof, { segments, smooth: true });
-}
 
 const COLOURS: Record<BallKind, string> = {
   basketball: '#e8743f',
@@ -34,7 +26,8 @@ const COLOURS: Record<BallKind, string> = {
 export function ballMesh(kind: BallKind, r: number): MeshData {
   const b = new MeshBuilder({ ink: `ball-${kind}` });
   b.setInk('ball').setColor(COLOURS[kind]).setPattern(PATTERN.none);
-  sphere(b, r);
+  // Smooth both ways (src/gen/soft.ts): a lathe ball's rings showed as bands round it.
+  smoothBall(b, 0, 0, 0, r, r, r, 12, 7);
   // Something to see it turn by.
   if (kind === 'basketball') {
     b.setInk('seam').setColor('#3a2f2a');

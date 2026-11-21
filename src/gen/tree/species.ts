@@ -110,7 +110,8 @@ function speckle(b: MeshBuilder, r: Rng, x: number, y: number, z: number, R: num
       const a = Math.atan2(SUN[1], SUN[0]) + (r('fa', i) - 0.5) * 3.4;
       const up = -0.25 + r('fu', i) * 1.05;
       const s = Math.sqrt(Math.max(0, 1 - up * up));
-      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 5, rings: 2, normal: TONE.lit });
+      // Round (six sides, three rings), not a five-sided diamond: an apple reads as an apple.
+      lump(b, x + Math.cos(a) * s * R * 1.02, y + up * ry * 1.02, z + Math.sin(a) * s * R * 1.02, size, size, size, { seg: 6, rings: 3, normal: TONE.lit });
     }
   });
 }

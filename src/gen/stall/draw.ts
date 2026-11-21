@@ -20,6 +20,7 @@
 import { compose, rotationX, rotationY, scaling, translation, type Vec3 } from '@/core/mat4';
 import type { Dir4 } from '@/core/grid';
 import { PATTERN, type ColorInput, type MeshBuilder } from '@/gen/mesh';
+import { soft } from '@/gen/soft';
 import { lump as kitLump, mixColor, mound as kitMound, rngOf, TONE, tube, vary, type LumpOptions, type Rgb, type Rng } from '@/parts/ground/kit';
 import type { Goods, StallRole } from '@/rules/roles/ground-props';
 import { PALETTE, RAMPS } from '@/style/palette';
@@ -245,12 +246,23 @@ function fruit(ctx: Ctx): void {
         b.at(compose(translation(cx, Y, cz), rotationY((r('cy', i) - 0.5) * 0.12)), () => b.boxAt([0, 0, 0], [0.22, 0.06, 0.31], { skip: ['bottom'] })),
       ),
     );
-    b.with({ color: FRUIT[(first + i * 2) % FRUIT.length]!, ink: `fruit${i}` }, () => {
-      ctx.mound(cx, Y + 0.05, cz, 0.09, 0.055, 0.135, { seg: 7, rings: 2, normal: TONE.lit });
-      for (let k = 0; k < 2; k++) {
-        ctx.lump(cx + (r('fx', i, k) - 0.5) * 0.07, Y + 0.088 + r('fy', i, k) * 0.015, cz + (k - 0.5) * 0.12, 0.046, 0.042, 0.046, { seg: 5, rings: 3, normal: TONE.lit, twist: r('ft', i, k) * 6 });
-      }
-    });
+    // The heap: round fruit piled on a mound, one soft body (src/gen/soft.ts): a single outline round
+    // the heap, scalloped by the fruit on top, and each fruit's round shading running into the next
+    // with no line between them.
+    ctx.rigid(() =>
+      soft(b, { ink: `fruit${i}`, sharpness: 12 }, (s) => {
+        s.b.setColor(FRUIT[(first + i * 2) % FRUIT.length]!);
+        s.hold(cx, Y + 0.05, cz, 0.095, 0.05, 0.14);
+        kitMound(s.b, cx, Y + 0.05, cz, 0.095, 0.05, 0.14, { seg: 6, rings: 1 });
+        for (let k = 0; k < 4; k++) {
+          const q = (what: string): number => r('f', what, i, k);
+          const rr = 0.044 + q('r') * 0.008;
+          const x = cx + ((k % 2) - 0.5) * 0.09 + (q('x') - 0.5) * 0.012;
+          const z = cz + (Math.floor(k / 2) - 0.5) * 0.12 + (q('z') - 0.5) * 0.014;
+          s.ball(x, Y + 0.072 + q('y') * 0.014, z, rr, rr * 0.92, rr, 8, 3);
+        }
+      }),
+    );
   }
 }
 

@@ -1257,3 +1257,42 @@ single outline of the nuke/storm cloud (orchestrator's reading of "new
 color") on them and on small round things (faces, fruit, the dog) →
 new agent `ab27513c35386a432` on `swarm/soft-ink` (Opus).
 Running: soft-ink.
+
+**Wedding as an event (Derek, 2026-11-20).** "Events should be pretty
+obvious": bride and groom and the party in black and white, a whole
+procession, many more petals. → new agent `a7e07ea5e184a05e3` on
+`swarm/wedding` (Opus): costumes for the whole party, 14–20 guests, an
+ordered column on a longer route, petal showers and a trail, a staged
+doorstep and a celebration at the square, bystanders watching, a
+findable cue, and the cadence (including what a held time of day does
+to it). Told to keep clear of the soft-ink agent's people parts.
+Running: soft-ink, wedding.
+
+**Length note (orchestrator, Derek 2026-11-20).** The first times a
+piece with a length (or a land tool's brush) is picked, a small note
+over the stepper says "Scroll to make it longer or shorter" (taller /
+the brush wider; on touch "Tap − and + …"). `Stepper.hint()`,
+`lengthHint()` and `offerLengthHint` in `src/ui/interface.ts`; stored
+under `little-city.length-hint` (a count, or `learned` once a length is
+changed; three showings at most). Test `tests/e2e/length-hint.e2e.test.ts`.
+Gate: 2,189 passed, 10 skipped, clean.
+
+**Soft ink merged** (`b9391a3`, Opus, `swarm/soft-ink`; the agent died
+once on a network outage and was resumed). Why round things showed
+rigid lines: lathe balls smooth only round the axis (bands along the
+profile crease at about 30°), overlapping lumps crease where they meet,
+and pieces had separate ink ids. Tool: `src/gen/soft.ts`
+(`soft(b, { ink }, …)`, `smoothBall`, `smoothLathe`): one ink id and
+normals from a smooth field over the lumps; no shader change, no frame
+cost. Applied to: the fight cloud (redrawn: one lumpy two-tone dust
+ball on twos with ink motion marks; 11 outlined puffs before), the
+swearing balloon and chat bubble (one outline with the tail, symbols as
+strokes, up to 1.8× bigger when zoomed out), heads and hair and hands,
+dogs, cats, hens, sheep, fruit heaps and tree fruit, carried goods,
+field balls. Gallery `scenarios/gallery/soft-ink.scenario.ts`. Kept
+angular: buildings, crates, tools, limbs, hat brims. Not done: cow,
+bird wings, tree crowns. +2.2 % triangles on bench-2000, frame time
+unchanged. 14 guide pictures redrawn. Gate: 2,197 passed, 10 skipped,
+clean. Orchestrator looked at before/after of the cloud, bubbles,
+people and the dog.
+Running: wedding (resumed after the same outage).

@@ -5,7 +5,7 @@
 // way the motion does not explain. Writes the worst regions as magnified crops (frames A | B | C |
 // mask: red blinked, orange popped) and a heat map per case to .context/flicker/<label>/.
 //
-//   node src/render/testing/flicker.mjs [--label before] [--only substring] [--frames 40] [--quick]
+//   node src/render/testing/flicker.mjs [--label before] [--only substring] [--frames 40] [--quick] [--scenario soft-ink --target 14,1,13]
 //
 // --quick runs only the day cases at pixel ratio 1. --against <label> uses that run's thresholds, so
 // two versions of the view are scored on exactly the same terms (the threshold is otherwise set from
@@ -47,6 +47,18 @@ for (const ratio of [1, 2]) {
 }
 // Open sea, close: nothing but water and its wave marks, which used to slide over the sea as the view turned.
 add('everything', { sea: { yaw: 45, pitch: 32, zoom: 9, target: [39, 0, 39] } }, 'sea', { ...desk, ratio: 1, ink: 'full' }, 'day', 'yaw');
+// --scenario <name> --target x,y,z: that scenario alone, round that point, at overview, playing and close zoom
+// (yaw, pitch and zoom by day at 1x; yaw at 2x and on a phone), instead of the cases above.
+if (flags.scenario) {
+  cases.length = 0;
+  const t = String(flags.target ?? '24,1,24').split(',').map(Number);
+  const S = { overview: { yaw: 45, pitch: 35, zoom: 1.6, target: t }, playing: { yaw: 45, pitch: 33, zoom: 3.4, target: t }, close: { yaw: 30, pitch: 30, zoom: 12, target: t } };
+  for (const zoom of ['overview', 'playing', 'close']) {
+    for (const motion of ['yaw', 'pitch', 'zoom']) add(String(flags.scenario), S, zoom, { ...desk, ratio: 1, ink: 'full' }, 'day', motion);
+    add(String(flags.scenario), S, zoom, { ...desk, ratio: 2, ink: 'full' }, 'day', 'yaw');
+    add(String(flags.scenario), S, zoom, { ...phone, ratio: 2, ink: 'half' }, 'day', 'yaw');
+  }
+}
 const nameOf = (c) => `${c.scenario}-${c.eye ? 'fly-' : ''}${c.zoom}-${c.motion}-${c.time}-${c.ink === 'half' ? 'phone' : `${c.ratio}x`}`;
 let wanted = cases;
 if (flags.quick) wanted = wanted.filter((c) => c.time === 'day' && c.ratio === 1);
