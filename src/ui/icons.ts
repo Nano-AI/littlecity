@@ -553,6 +553,11 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M32.4 16 L38 15.9 L38.1 22 L32.5 22.1 Z" fill="${C.pink}" stroke-width="1.5"/>` +
     `<path ${thin} d="M26 26.4 L37.6 26.2 M26 30.6 L35 30.4"/>` +
     `<path stroke-width="1.5" d="M10 31.6 Q13.6 22.6 17.4 26.4 Q20 21.6 22.6 31.4 Z" fill="${C.leaf}"/>`,
+  // A bin with its lid and handle: delete (My towns). Derek, 2026-11-21: a trash can, not the eraser.
+  trash:
+    `<g stroke-width="2.6"><path d="M13.4 14.6 L15.4 39.2 L32.8 39.4 L34.8 14.4 Z" fill="${C.white}"/>` +
+    `<path d="M9.6 14.4 L38.6 14"/><path d="M19 13.8 L19.6 9.2 L28.6 9 L29.2 13.8"/>` +
+    `<path stroke-width="2" d="M20.6 20.2 L21.2 33.6 M27.6 20.2 L27 33.6"/></g>`,
   download: `<g stroke-width="2.6"><path d="M24 8 L24.1 28 M16 20.6 L24.1 28.6 L32 20.6"/><path d="M9 30.4 L9.2 39.4 L39 39.2 L39.2 30.2"/></g>`,
   open: `<g stroke-width="2.6"><path d="M24 30 L24.1 9 M16 16.6 L24.1 8.6 L32 16.6"/><path d="M9 30.4 L9.2 39.4 L39 39.2 L39.2 30.2"/></g>`,
   'sound-on':

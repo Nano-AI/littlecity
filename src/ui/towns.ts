@@ -102,7 +102,7 @@ export function createTownsSheet(host: TownsHost, say: (text: string) => void): 
     });
     const tools = el('div', { class: 'lc-town-tools' }, [
       iconButton('download', 'Save to a file', { class: 'lc-town-tool', attrs: { 'data-towns': 'download' }, on: { click: () => host.download(t.id) } }),
-      here ? null : iconButton('erase', 'Delete', { class: 'lc-town-tool', attrs: { 'data-towns': 'delete' }, on: { click: () => askDelete() } }),
+      here ? null : iconButton('trash', 'Delete', { class: 'lc-town-tool', attrs: { 'data-towns': 'delete' }, on: { click: () => askDelete() } }),
     ]);
     const node = el('div', { class: `lc-town-card${here ? ' lc-town-here' : ''}`, attrs: { 'data-town': t.id } }, [
       pic,
@@ -148,10 +148,10 @@ export function createTownsSheet(host: TownsHost, say: (text: string) => void): 
       back.removeAttribute('hidden');
       const { towns, current } = await host.list();
       if (ticket !== opening || !api.isOpen) return;
-      // The town on screen first, then the rest, newest first.
       const here = towns.filter((t) => t.id === current);
       const rest = towns.filter((t) => t.id !== current);
-      grid.replaceChildren(...here.map((t) => card(t, true)), newCard(), ...rest.map((t) => card(t, false)));
+      // New island comes first, always in the same place (Derek, 2026-11-21); then the town on screen, then the rest.
+      grid.replaceChildren(newCard(), ...here.map((t) => card(t, true)), ...rest.map((t) => card(t, false)));
       close.focus();
     },
     close() {

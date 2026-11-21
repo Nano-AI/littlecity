@@ -73,6 +73,9 @@ describe('My towns', () => {
     await openTowns(page);
     expect(await page.locator('[data-town]:not(.lc-town-here) [data-towns="name"]').inputValue()).toBe('Windy Point');
     expect(await page.locator('.lc-town-here [data-towns="delete"]').count()).toBe(0);
+    // New island is always the first card, the town on screen the second; Delete is a bin.
+    expect(await page.evaluate(`[...document.querySelector('[data-ui="towns-grid"]').children].slice(0, 2).map((c) => (c.matches('[data-towns="new"]') ? 'new' : c.matches('.lc-town-here') ? 'here' : 'other'))`)).toEqual(['new', 'here']);
+    expect(await page.getAttribute('[data-town]:not(.lc-town-here) [data-towns="delete"]', 'aria-label')).toBe('Delete');
     await page.click('[data-town]:not(.lc-town-here) [data-towns="delete"]');
     expect(await page.textContent('[data-ui="town-delete"]')).toContain('Delete Windy Point?');
     await page.click('[data-towns="delete-yes"]');
