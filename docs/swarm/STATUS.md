@@ -1571,3 +1571,42 @@ the air, carts, boats, ships, loads knocked loose, the town reacting.
 Buildings: recommendation only (lift and wobble first; real moving
 touches saving and undo).
 Running: barbarians, ragdoll round 2.
+
+**Barbarian raids merged** (`96d14f1`, Opus, `swarm/barbarians`).
+Landing raid: a longship (striped sail, dragon prow, shields, oars)
+comes in with a horn, the alarm bell rings, a note "Raiders off the
+coast!" (always shown), it beaches, 8–16 raiders (a chief, brands, axes,
+clubs; horned helmets, capes, shields) charge with "RAAR!" balloons,
+set 2–9 buildings alight through the fire engine, loot visibly
+(barrels, sacks, a chest, a ham, a pig) to a pile, townspeople within 7
+cells flee and nearby scenes break up; horn at 70 s, away with the
+loot; about two minutes. Boats raid: a bigger ship stands off and sends
+two to four rowing boats. Stopped by sinking the ship (bomb, nuke,
+lightning by distance); a band stranded ashore loses heart and is
+chased into the sea. A Raid tool; a Raiders switch (on by default;
+first raid not before 8 min of play, then every 12–20 min; towns of 14+
+buildings, not at night, not at a wedding). One undo step for the whole
+raid; nothing saved. `src/life/raid/**`, handoff `docs/swarm/handoff/raid.md`,
+catalogue L69–L72. Orchestrator's eye: the longship and the close view
+are very good; the band bunches in a line against the first row of
+houses and the raid stays in one corner of the town; from the
+whole-island view the band, the flight and the loot do not read. Not
+built: garrison and scuffles, villagers fighting back, livestock,
+stalls emptied.
+**Ragdoll round 2 merged** (`aaf96b3`, Opus). The nuke now reads from
+the normal view (orchestrator saw a frame 1 s after: people and sheep
+in the air all over the town): throws of 6–13 units/s upward, nobody
+launched in the first 0.3 s, flyers drawn up to 2.9× at the far zoom by
+height, speed lines, yelps. Flyers moved 30 times a second (cost back
+in the noise). Bigger stars, three dizzy poses. The Hand lifts small
+boats (bob, capsize, or lie hull up on land), big ships (out of traffic
+while held; on land 30 s then refloated; `lifted`/`aground` in
+`visit.ts`), the knight and his horse; loads knocked loose and picked
+up; onlookers look up; a building held lifts a little and wobbles and
+settles back byte-identical. Looks wrong: a galleon on houses lies
+partly inside them. Not done: carts, birds in the air. Raiders at sea
+and the longship are the raid's own drawings and are not liftable yet.
+Also: `under-fire` and `terrain2-town` long tests get a 240 s limit in
+the gate (they timed out at 60 s under load three times). Gate on both
+merges together: 2,324 passed, 12 skipped, clean.
+Running: raids round 2.
