@@ -170,7 +170,7 @@ export const PICNIC = defineStyle(
 );
 
 export const PICNIC_COLOURS = {
-  checks: ['#d9473c', '#2f5ea8', '#3fa58a', '#e3a02b'] as readonly string[],
-  mid: ['#f2a49b', '#a9bde3', '#a7d8c6', '#f2d29b'] as readonly string[],
+  checks: ['#d62f22', '#2456b8', '#1f9a74', '#e8901a'] as readonly string[],
+  mid: ['#ee7d70', '#7f9fe0', '#6fcaa6', '#f4b85c'] as readonly string[],
   pie: '#d9a25a',
 };

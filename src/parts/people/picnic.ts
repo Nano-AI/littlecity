@@ -13,7 +13,7 @@ const cache = new Map<string, MeshData>();
 const pick = (xs: readonly string[], i: number): string => xs[((i % xs.length) + xs.length) % xs.length]!;
 
 /** The blanket's half-size (world units): a square a little over half a cell across. */
-export const BLANKET = 0.36;
+export const BLANKET = 0.43;
 
 /** A checked blanket spread flat, with the food on it. `colour` picks the check. */
 export function blanketMesh(colour: number): MeshData {

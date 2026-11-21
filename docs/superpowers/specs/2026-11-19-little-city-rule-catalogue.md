@@ -1095,9 +1095,12 @@ every cadence, so a held time of day, season or weather keeps them coming.
 - **L66 · 2 · Picnics** — open grass or garden near the houses (a walking
   cell on bare grass or a garden floor, not a playing field, sand, clutter or a
   doorstep, all four neighbours walkable, 2–30 steps from a front door, in a
-  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>`, three cells or
-  more apart, under or beside trees first (a tree within two cells), then
-  nearest the houses. **When:** spring weighing half or more (or summer in a
+  town of 3 houses or more) → up to 4 posts `picnic|spot|<i>` together as a
+  picnic ground: the best spot (under or beside trees first, a tree within two
+  cells, then nearest the houses) and the best others two to three cells round
+  it, two apart. The first blanket has a big parasol over it (the second
+  grown-up carries it instead of a basket), and the first child of the ground
+  flies a kite high over it (reeled in before they go). **When:** spring weighing half or more (or summer in a
   town with no beach), no rain, cloud at most 0.85, by day; 30 s after the town
   is seen, then 120–220 s after the last ended. **Who:** one household a spot
   (a grown-up with the blanket, up to two children, another grown-up with the
