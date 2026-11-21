@@ -135,4 +135,22 @@ describe('people blown about', () => {
     // All back where they were, carrying on by themselves.
     expect([...critters.values()].filter((c) => c.body).map((c) => `${c.id} ${c.body!.phase}`)).toEqual([]);
   }, 120_000);
+
+  test('undo in the middle of it: everybody is back on their feet at once, nothing thrown is left', () => {
+    const { t, h } = town();
+    const crowd = crowdOf(t.stage)!;
+    t.mischief.dropNuke([24.5, h(24.5, 24.5), 24.5]);
+    // Into the bang and the flights.
+    for (let i = 0; i < 200 && crowd.people.filter((p) => p.mode === 'thrown').length < 10; i++) t.run(0.1);
+    expect(crowd.people.filter((p) => p.mode === 'thrown').length).toBeGreaterThan(9);
+    t.mischief.cancel();
+    t.run(0.1);
+    expect(crowd.people.filter((p) => p.mode === 'thrown' || p.tumble).length).toBe(0);
+    expect(throwerOf(t.stage)!.thrown.size).toBe(0);
+    expect([...crittersOf(t.stage).values()].filter((c) => c.body).length).toBe(0);
+    for (const p of crowd.people) {
+      if (!p.visible || p.mode === 'gone' || p.mode === 'home' || p.mode === 'visit' || p.mode === 'hop') continue;
+      expect(p.node).toBeGreaterThanOrEqual(0);
+    }
+  }, 120_000);
 });

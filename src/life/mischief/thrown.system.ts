@@ -81,9 +81,9 @@ function handRingMesh(): MeshData {
 function heldShadowMesh(): MeshData {
   if (shadowMesh) return shadowMesh;
   const b = new MeshBuilder({ ink: 'hand-shadow' });
-  b.setPattern(PATTERN.none).setInk('shadow').setColor('#5b5566');
-  b.lathe([[0.5, 0], [0.5, 0.006], [0, 0.008]], { segments: 16 });
-  b.setInk('line').setColor('#5b5566');
+  b.setPattern(PATTERN.none).setInk('shadow').setColor('#9a93a3');
+  b.lathe([[0.32, 0], [0.32, 0.006], [0, 0.008]], { segments: 16 });
+  b.setInk('line').setColor('#7d7688');
   b.boxAt([0, 0, 0], [0.012, 1, 0.012]);
   return (shadowMesh = b.build());
 }
