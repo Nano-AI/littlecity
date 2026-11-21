@@ -80,6 +80,8 @@ export const BEACH_COLOURS = {
   ball: ['#e5503f', '#fdfaf3', '#3d7fd6', '#f6c63e'] as readonly string[],
   pail: ['#e5503f', '#3d7fd6', '#f6c63e', '#3fa58a'] as readonly string[],
   book: ['#b0413e', '#2f5ea8', '#3c7a4e'] as readonly string[],
+  /** The ice-cream cart: its lid and umbrella, the tubs, a scoop. */
+  icecream: ['#f497c0', '#fff3d6', '#f7b6cf'] as readonly string[],
 };
 
 /** L64: a snow day. */

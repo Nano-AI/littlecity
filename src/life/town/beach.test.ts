@@ -93,6 +93,22 @@ describe('L63: the beach day', () => {
     expect(r.beach.castles.length).toBeGreaterThan(0);
   });
 
+  test('the ice-cream cart: wheeled down while the beach day is on, a queue, cones sold, wheeled home after', () => {
+    let parked = 0, queue = 0, cones = 0, carts = 0;
+    const r = run(town, 420, (t) => {
+      const ice = t.board.chains.find((x) => x.id === 'icecream') as unknown as { parked: number; queueing: number; sold: number };
+      parked = Math.max(parked, ice.parked);
+      queue = Math.max(queue, ice.queueing);
+      cones = ice.sold;
+      carts = Math.max(carts, t.crowd.people.filter((p) => p.load === 'icecart').length);
+    });
+    expect(r.problems).toEqual([]);
+    expect(carts).toBe(1);
+    expect(parked).toBe(1);
+    expect(queue).toBeGreaterThanOrEqual(2);
+    expect(cones).toBeGreaterThanOrEqual(3);
+  });
+
   test('rain sends them running home with towels over their heads, and everything goes with them', () => {
     let rained = -1, towels = 0, umbrellas = 0;
     const r = run(town, 260, (t, beach, s) => {

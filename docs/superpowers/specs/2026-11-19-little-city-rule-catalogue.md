@@ -1048,6 +1048,14 @@ every cadence, so a held time of day, season or weather keeps them coming.
   the beach erased takes its things and castles with a puff and sends everybody
   home. Bathers are a party (never in a scuffle) and are held by the chain,
   so the wedding and other chains do not take them.
+  **The ice-cream cart** (`chains/icecream.ts`, at `beach|back`): once the
+  families are set up, a grown-up living within 30 steps wheels the cart down
+  (white, a pink lid, a striped umbrella), parks it behind the sand and stands
+  at it calling out; residents choosing what to do within 22 steps (children
+  half the time, grown-ups a quarter) queue, four at most (two in a line, then
+  round to the side, shuffling up), and each in turn gets a cone (2.4 s, the
+  seller bending to the tub) and walks off with it held up. When the day is
+  over the cart is wheeled home and the queue goes off.
 
 - **L64 · 2 · A snow day** — the biggest square (else the longest street) →
   `snow|man|` at its free cell nearest the middle (two steps or more from the
