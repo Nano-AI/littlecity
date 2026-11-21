@@ -112,6 +112,8 @@ export interface Thrower {
   carryCritter(c: Critter, x: number, y: number, z: number): void;
   /** The Hand is over something it could pick up (drawn as a ring on the ground round it), or null. */
   hover: (() => { x: number; y: number; z: number; r: number } | null) | null;
+  /** A boat thrown down hard into the sea goes over (set by the drawing system, which can reach the wrecks). */
+  capsize: ((c: Critter, x: number, z: number, yaw: number) => void) | null;
   /** The critters thrown now, with what they did since the last frame (taken by the drawing). */
   readonly critterEvents: Map<Critter, BodyEvent[]>;
   readonly ground: Ground | null;
@@ -211,6 +213,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     return true;
   };
   const blastCritter = (x: number, y: number, z: number, c: Critter, kind: 'nuke' | 'bomb' | 'bolt'): void => {
+    // Boats have their own wrecks in a blast (boatwreck.ts); only the Hand throws them.
+    if (c.id.startsWith('boat:')) return;
     const v = blastVelocity(x, y, z, c.x, c.y, c.z, hashString(c.id), kind);
     // Small and light: they go a little further.
     if (v) flingCritter(c, v[0] * 1.15, v[1] * 1.1, v[2] * 1.15, { spin: v[3] * 1.2 });
@@ -286,9 +290,16 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       // Where it says it is now (it may have moved on: a soldier's place in the column).
       const home = { x: c.x, y: c.y, z: c.z, heading: c.heading };
       const before = b.phase;
+      const fall = b.vy;
       const ev = stepBody(b, dt, g);
       if (ev) critterEvents.get(c)?.push(ev);
       if (ev === 'splash') b.goal = { x: home.x, y: home.y, z: home.z };
+      // A boat thrown down hard: over it goes, there (its wreck takes it from here).
+      if (ev === 'splash' && c.id.startsWith('boat:') && fall < -6 && thrower.capsize) {
+        thrower.capsize(c, b.x, b.z, b.heading);
+        doneCritter(c);
+        continue;
+      }
       if (b.phase === 'walk' && before !== 'walk') {
         // Home: on foot if the way is clear, else in one great bound.
         const clear = Array.from({ length: 12 }, (_, i) => (i + 1) / 12).every((u) => !g.blocked(b.x + (home.x - b.x) * u, Math.max(b.y, home.y) + 0.08, b.z + (home.z - b.z) * u));
@@ -688,6 +699,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     },
     critterEvents,
     hover: null,
+    capsize: null,
     reset() {
       waves.length = 0;
       for (const c of critters.values()) if (c.body) doneCritter(c);

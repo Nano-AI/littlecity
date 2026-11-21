@@ -14,6 +14,7 @@ import type { Person } from '@/life/people/crowd';
 import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { throwerOf } from './thrown.system';
 import { crittersOf } from './critters';
+import { boatWrecksOf } from './boatwreck';
 
 function town(name = 'grown-town-1'): { t: Turmoil; h: (x: number, z: number) => number } {
   const built = buildScenario(findScenario(name)!);
@@ -154,5 +155,34 @@ describe('people blown about', () => {
       if (!p.visible || p.mode === 'gone' || p.mode === 'home' || p.mode === 'visit' || p.mode === 'hop') continue;
       expect(p.node).toBeGreaterThanOrEqual(0);
     }
+  }, 120_000);
+
+  test('the Hand and a small boat: lifted, thrown onto the land it lies hull up and goes back to the sea; thrown down hard into the sea it capsizes', () => {
+    const { t } = town();
+    t.run(6);
+    const boats = [...crittersOf(t.stage).values()].filter((c) => c.id.startsWith('boat:') && c.quiet === 0);
+    expect(boats.length).toBeGreaterThan(1);
+    const th = throwerOf(t.stage)!;
+    const g = th.ground!;
+    // One onto the land: carried over the middle of the island and dropped.
+    const a = boats[0]!;
+    expect(th.grabCritter(a)).toBe(true);
+    th.carryCritter(a, 24.5, g.surface(24.5, 24.5, 99).h + 1.2, 24.5);
+    th.flingCritter(a, 0, 0, 0);
+    let landed = false;
+    for (let i = 0; i < 400 && a.body; i++) {
+      t.run(0.1);
+      if (a.body && (a.body.phase === 'lie' || a.body.phase === 'up')) landed = true;
+    }
+    expect(landed).toBe(true);
+    expect(a.body).toBeNull();
+    // One thrown down hard into the sea beside where it was: over it goes, a wreck.
+    const b = boats[1]!;
+    expect(th.grabCritter(b)).toBe(true);
+    th.carryCritter(b, b.x, 3.5, b.z);
+    th.flingCritter(b, 0, -9, 0);
+    for (let i = 0; i < 30 && b.body; i++) t.run(0.1);
+    expect(b.body).toBeNull();
+    expect(boatWrecksOf(t.stage).get(b.id.slice('boat:'.length))?.stage).toBe(3);
   }, 120_000);
 });

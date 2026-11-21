@@ -14,6 +14,7 @@ import { SEA_Y } from '@/core/grid';
 import type { Mat4 } from '@/core/mat4';
 import type { LifeStage } from '../api';
 import { fly } from '../motion/pose';
+import { critterPose } from './critters';
 
 /** Seconds a capsized boat floats hull up before it goes under, and how long that takes. */
 const AFLOAT = 30, UNDER = 6;
@@ -41,12 +42,14 @@ interface Seen {
 interface Registry {
   seen: Map<string, Seen>;
   wrecks: Map<string, BoatWreck>;
+  /** Boats the Hand threw down into the sea, for the wreck drawing to put their crews in the water. */
+  capsized: { id: string; type: string; x: number; z: number; yaw: number }[];
 }
 
 const byStage = new WeakMap<LifeStage, Registry>();
 function registry(stage: LifeStage): Registry {
   let r = byStage.get(stage);
-  if (!r) byStage.set(stage, (r = { seen: new Map(), wrecks: new Map() }));
+  if (!r) byStage.set(stage, (r = { seen: new Map(), wrecks: new Map(), capsized: [] }));
   return r;
 }
 
@@ -60,6 +63,14 @@ const SIZE: Record<string, [number, number]> = { rowboat: [0.33, 0.15], rower: [
 export function boatPose(stage: LifeStage, id: string, type: string, m: Mat4, now: number): boolean {
   const r = registry(stage);
   const w = r.wrecks.get(id);
+  if (!w || w.stage === 1) {
+    // The Hand may have it (critters.ts): lifted out of the water with whoever is aboard, thrown, dropped.
+    const held = critterPose(stage, `boat:${id}`, type, m[12]!, SEA_Y, m[14]!, Math.atan2(m[8]!, m[10]!), 0.22, 1);
+    if (held) {
+      for (let i = 0; i < 16; i++) m[i] = held[i]!;
+      return true;
+    }
+  }
   if (!w) {
     r.seen.set(id, { type, x: m[12]!, z: m[14]!, yaw: Math.atan2(m[8]!, m[10]!), now });
     return false;
@@ -122,6 +133,21 @@ export function boatAt(stage: LifeStage, id: string): { x: number; z: number; y:
   if (w && w.stage > 1) return { x: w.x, z: w.z, y: SEA_Y };
   const s = r.seen.get(id);
   return s ? { x: s.x, z: s.z, y: SEA_Y } : null;
+}
+
+/** A small boat thrown down hard into the sea (the Hand): it capsizes where it lands. */
+export function capsizeBoat(stage: LifeStage, id: string, x: number, z: number, yaw: number, now: number): void {
+  const r = registry(stage);
+  r.wrecks.set(id, { stage: 3, at: now, x, z, yaw, side: 1 });
+  r.capsized.push({ id, type: r.seen.get(id)?.type ?? 'rowboat', x, z, yaw });
+}
+
+/** The boats thrown over since last asked (shipwreck.system puts their crews in the water). */
+export function takeCapsized(stage: LifeStage): { id: string; type: string; x: number; z: number; yaw: number }[] {
+  const r = registry(stage);
+  const out = r.capsized;
+  r.capsized = [];
+  return out;
 }
 
 /** Undo, or a different town: no boat is wrecked any more. */

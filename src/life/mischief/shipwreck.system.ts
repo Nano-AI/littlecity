@@ -29,7 +29,7 @@ import { mischiefOf, NUKE, type Director, type MischiefEvent } from './director'
 import { wakeRing } from '../boats/afloat';
 import { crowdOf } from '../doors/table';
 import { flameMesh, shockRingMesh, smokeMesh, spoutMesh, swimmerMesh, wreckPieceMesh } from './meshes';
-import { boatAt, forgetBoatWrecks, strikeBoats } from './boatwreck';
+import { boatAt, forgetBoatWrecks, strikeBoats, takeCapsized } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 
 const HIDDEN: Mat4 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
@@ -370,6 +370,11 @@ export default defineSystem<State>({
     st.now = signals.time.seconds;
     st.d.clock = st.now;
     const stage = ctx.stage;
+    // Small boats the Hand threw down into the sea: over they went, and whoever was aboard swims for it.
+    for (const b of takeCapsized(stage)) {
+      const seed = Math.floor(b.x * 97 + b.z * 53) + 3;
+      abandon(st, { ship: null, stage: 3, d: 0, kind: 'barge', x: b.x, z: b.z, yaw: b.yaw, stern: -0.4, bow: 0.4, halfBeam: 0.2, crew: b.type === 'fishing-boat' ? 2 : 1 }, seed);
+    }
     for (let i = st.pending.length - 1; i >= 0; i--) {
       const p = st.pending[i]!;
       if (st.time < p.at) continue;

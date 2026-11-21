@@ -395,7 +395,7 @@ function swim(b: Body, dt: number, ground: Ground): BodyEvent {
   if (!g || b.t < 0.6) return null;
   const dx = g.x - b.x, dz = g.z - b.z, d = Math.hypot(dx, dz);
   b.heading = Math.atan2(dx, dz);
-  const step = Math.min(d, THROWN.swim * dt);
+  const step = Math.min(d, Math.max(THROWN.swim, b.pace * 0.85) * dt);
   const nx = b.x + (dx / (d || 1)) * step, nz = b.z + (dz / (d || 1)) * step;
   // Out at the first dry footing on the way (a beach, a quay's side), or at the goal.
   const dry = !ground.wet(nx, nz);

@@ -21,6 +21,7 @@ import { place } from '../motion/pose';
 import type { Crowd } from '../people/crowd';
 import { mischiefOf, type Director, type MischiefEvent } from './director';
 import { spoutMesh } from './meshes';
+import { capsizeBoat } from './boatwreck';
 import { ownStage, type Owned } from './owned';
 import { createThrower, farScale, flightGrow, airOf, type Thrown, type Thrower } from './thrower';
 import { PALETTE } from '@/style/palette';
@@ -235,6 +236,8 @@ export default defineSystem<State>({
       st.thrower = crowd ? createThrower(crowd, crittersOf(ctx.stage)) : null;
       if (st.thrower) {
         throwers.set(ctx.stage, st.thrower);
+        const stage0 = ctx.stage;
+        st.thrower.capsize = (c, x, z, yaw) => capsizeBoat(stage0, c.id.slice('boat:'.length), x, z, yaw, st.d.clock);
         // The debug handle (sequences, browser tests), as window.__lcPeople is the crowd's.
         (globalThis as { __lcThrown?: unknown }).__lcThrown = { thrower: st.thrower, critters: crittersOf(ctx.stage) };
         if (st.shape) st.thrower.sync(st.shape, st.nav);
