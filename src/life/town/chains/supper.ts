@@ -39,7 +39,7 @@ import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
 import { partPhases } from '../../signals';
 import { type Board, type Chain, type Plan, type PlanStep, type Post } from '../board';
-import { canWork, homeCell, reaches } from '../hands';
+import { canWork, homeCell, reaches, unbusy } from '../hands';
 import { scenesOf, type Scene } from '../scenes';
 
 export type SupperPhase = 'none' | 'setup' | 'supper' | 'pack';
@@ -178,7 +178,7 @@ export function supperChain(): SupperChain {
       return h === null ? Infinity : board.dist(h, target);
     };
     const free = people
-      .filter((p) => !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target) && far(p) <= SUPPER.reach)
+      .filter((p) => unbusy(board, p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target) && far(p) <= SUPPER.reach)
       .sort((a, b) => far(a) - far(b) || (a.id < b.id ? -1 : 1));
     const seats = posts.length * 4;
     const size = Math.min(seats, Math.max(4, Math.round(people.length * SUPPER.share)));

@@ -36,7 +36,7 @@ import { mischiefOf } from '../../mischief/director';
 import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
 import { type Board, type Chain, type Plan, type PlanStep, type Post } from '../board';
-import { canWork, homeCell, reaches } from '../hands';
+import { canWork, homeCell, reaches, unbusy } from '../hands';
 import { scenesOf, type Scene } from '../scenes';
 
 export type SnowPhase = 'none' | 'gather' | 'build' | 'fight';
@@ -133,7 +133,7 @@ export function snowDayChain(): SnowDayChain {
   const begin = (board: Board): boolean => {
     if (phase !== 'none' || !man || !sides.a || !sides.b || !board.nav) return false;
     const target = man.cell;
-    const free = board.crowd.people.filter((p) => !p.shutIn && !p.leaving && p.mode !== 'gone' && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target));
+    const free = board.crowd.people.filter((p) => !p.shutIn && !p.leaving && p.mode !== 'gone' && unbusy(board, p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target));
     const far = (p: Person): number => {
       const h = homeCell(board, p);
       return h === null ? Infinity : board.dist(h, target) + (p.mode === 'home' ? 0 : board.dist(p.cell, target)) * 0.3;

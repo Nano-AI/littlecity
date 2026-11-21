@@ -62,7 +62,7 @@ import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
 import { partPhases } from '../../signals';
 import { DIR_HEADING, type Board, type Chain, type Plan, type PlanStep, type Post } from '../board';
-import { canWork, homeCell, reaches } from '../hands';
+import { canWork, homeCell, reaches, unbusy } from '../hands';
 import { scenesOf, type Scene } from '../scenes';
 
 type Role = 'parasol' | 'chair' | 'hamper' | 'pail' | 'ball';
@@ -352,7 +352,7 @@ export function beachChain(): BeachChain {
     const people = board.crowd.people.filter((p) => !p.shutIn && p.mode !== 'gone' && !p.leaving);
     const already = [...bathers.values()].filter((b) => !b.lost).length;
     let room = Math.max(0, Math.floor(people.length * BEACH.share) - already);
-    const free = (p: Person): boolean => !p.shutIn && !p.leaving && p.mode !== 'gone' && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && !p.load && !p.party && !dressed.has(p) && reaches(board, p, target);
+    const free = (p: Person): boolean => !p.shutIn && !p.leaving && p.mode !== 'gone' && unbusy(board, p) && !p.scuffle && !p.load && !p.party && !dressed.has(p) && reaches(board, p, target);
     // Households near enough, with a grown-up free: nearest first, with a little seeded shuffle so it is not always the same.
     const houses = new Map<number, Person[]>();
     for (const p of people) {

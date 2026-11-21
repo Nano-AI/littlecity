@@ -31,7 +31,7 @@ import { fxOf } from '../../fx/fx';
 import { place } from '../../motion/pose';
 import type { Person } from '../../people/crowd';
 import { type Board, type Chain, type Plan, type Post } from '../board';
-import { canWork, homeCell, reaches } from '../hands';
+import { canWork, homeCell, reaches, unbusy } from '../hands';
 import { scenesOf, type Scene } from '../scenes';
 
 type Role = 'blanket' | 'hamper' | 'child';
@@ -102,7 +102,7 @@ export function picnicChain(): PicnicChain {
     const out: Spot[] = [];
     for (const [k, post] of posts.entries()) {
       const target = post.cell;
-      const free = board.crowd.people.filter((p) => !taken.has(p) && !p.shutIn && !p.leaving && p.mode !== 'gone' && !board.claimedBy(p) && !board.plans.has(p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target));
+      const free = board.crowd.people.filter((p) => !taken.has(p) && !p.shutIn && !p.leaving && p.mode !== 'gone' && unbusy(board, p) && !p.scuffle && !p.load && !p.party && reaches(board, p, target));
       const houses = new Map<number, Person[]>();
       for (const p of free) houses.set(p.home, [...(houses.get(p.home) ?? []), p]);
       const far = (list: Person[]): number => {
