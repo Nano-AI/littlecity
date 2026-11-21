@@ -166,23 +166,80 @@ export const MARKET = defineStyle(
 export const WEDDING = defineStyle(
   'wedding',
   {
-    /** Share of days with a wedding (the first day the town is seen always has one), and how far into the day it may start (phase). */
-    chance: 0.7,
-    latest: 0.2,
-    /** Seconds after the town is first seen that the first day's wedding starts, at least. */
+    /** Seconds after the town is first seen that the first wedding starts, at least (and up to `firstSpread` more). */
     first: 25,
-    /** Guests at most, and the farthest (grid steps) they come from. */
-    guests: 8,
-    reach: 22,
-    /** Seconds the guests gather before the couple comes out regardless; seconds the couple is inside. */
+    firstSpread: 20,
+    /** Seconds from the end of one wedding to the next, at least (and up to `everySpread` more); only by day, with day enough left to hold it. */
+    every: 300,
+    everySpread: 120,
+    /** Seconds of daylight a wedding needs left when it starts (with the time of day running). */
+    needs: 170,
+    /** The party at most, and its share of the town's people; the farthest (grid steps) guests come from. */
+    party: 20,
+    share: 0.4,
+    reach: 30,
+    /** Seconds the guests are given to gather (they come in ones and twos), and the most it may drag on before the couple come out anyway. */
     gather: 40,
-    vows: 4,
-    /** Seconds on the doorstep (petals, bells) and at the square. */
-    step: 3.5,
-    square: 14,
+    gatherMost: 80,
+    /** Seconds the couple are inside (the bells ring); seconds on the doorstep (the kiss, the shower of petals). */
+    vows: 6,
+    step: 5,
+    /** The procession: walking speed (cells a second), the gap between rows and between the two files. */
+    pace: 0.42,
+    spacing: 0.4,
+    file: 0.13,
+    /** The longest way round (grid steps of walking) the procession may take to the square. */
+    route: 34,
+    /** At the square: seconds of celebration (the ring of guests, the first dance, hats in the air). */
+    square: 32,
+    /** Petals on the ground: seconds they lie before they are swept up. */
+    lie: 50,
+    /** Seconds the whole thing may take at most before it is called off. */
+    most: 420,
   },
-  { chance: [0, 1, 0.01], latest: [0, 0.5, 0.01], first: [0, 300, 1], guests: [0, 16, 1], reach: [4, 48, 1], gather: [5, 120, 1], vows: [0, 30, 0.5], step: [0, 10, 0.5], square: [0, 60, 1] },
+  {
+    first: [0, 300, 1],
+    firstSpread: [0, 120, 1],
+    every: [30, 1800, 10],
+    everySpread: [0, 600, 10],
+    needs: [0, 270, 5],
+    party: [2, 30, 1],
+    share: [0.05, 1, 0.05],
+    reach: [4, 60, 1],
+    gather: [5, 120, 1],
+    gatherMost: [10, 240, 1],
+    vows: [0, 30, 0.5],
+    step: [0, 15, 0.5],
+    pace: [0.2, 1, 0.02],
+    spacing: [0.25, 0.7, 0.01],
+    file: [0.06, 0.2, 0.01],
+    route: [8, 80, 1],
+    square: [0, 90, 1],
+    lie: [0, 300, 5],
+    most: [60, 900, 10],
+  },
 );
+
+/** L57: the colours of wedding finery and of the petals. */
+export const FINERY = {
+  white: '#fbf8f2',
+  veil: '#fffdf8',
+  black: '#26252e',
+  grey: '#6c6a74',
+  /** Bridesmaids' and guests' pale dresses. */
+  pale: ['#fbf8f2', '#f9e3ea', '#fdf3dc', '#e9eef8', '#fbf8f2'] as readonly string[],
+  /** Dark suits. */
+  dark: ['#26252e', '#2f3448', '#3a3540'] as readonly string[],
+  ties: ['#c9496b', '#8f9cc8', '#26252e', '#e6c35a'] as readonly string[],
+  hats: ['#fbf8f2', '#f4c9d6', '#f2e0b0', '#cfe0f2'] as readonly string[],
+  rose: '#e2557c',
+  pink: '#f4a3bf',
+  yellow: '#ffd96e',
+  /** Petals: pinks first (they show on the cream of a path), a few white and red. */
+  petals: ['#f17ea2', '#f4a3bf', '#e2557c', '#fbf8f2', '#f9c3d4', '#d9435f'] as readonly string[],
+  /** Bunting and ribbons on the chapel on the day. */
+  ribbons: ['#fbf8f2', '#f4a3bf', '#fbf8f2', '#e2557c'] as readonly string[],
+};
 
 /** L51 and up: what people carry. */
 export const LOADS = defineStyle(
