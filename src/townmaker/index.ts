@@ -248,12 +248,26 @@ export function planTown(terrain: Terrain, seed: number, opts: GrowOptions = {})
   }
   const forum = primary === 'marble' ? lastForumForm : null;
   if (primary === 'marble' && town.square) plan.shift();
+  // On ground levelled for it, the castle takes its terrace before the square can.
+  if (primary === 'castle' && opts.levelled) plan.sort((a, b) => (b === 'castle' ? 1 : 0) - (a === 'castle' ? 1 : 0));
   for (const step of plan) {
     const [name, a, b] = step.split(':');
     if (name === 'housing') buildHousing(town, Number(a), Number(b));
     else STEPS[name!]?.(town);
   }
   // A castle town with no castle (no site fits it) is no castle town: grow another kind.
+  if (primary === 'castle' && !opts.levelled && !town.districts.some((d) => d.name === 'castle')) {
+    // Level a knoll for a small castle (6 × 7) before giving up on it.
+    // Toward the high ground, away from the square (a castle stands apart, its gate eight or more from it).
+    let high: [number, number] = [24, 24];
+    for (let i = 0, best = -1; i < 48 * 48; i++) if (terrain.height[i]! > best) [best, high] = [terrain.height[i]!, [i % 48, Math.floor(i / 48)]];
+    for (const [maxDelta, near] of [[2, high], [3, high], [3, site.centre]] as const) {
+      const lev = levelSite(terrain, site, 6, 7, near, { maxDelta, maxCost: 6 * 7 * 1.5 });
+      if (!lev) continue;
+      const grown = planTown(lev.terrain, seed, { ...opts, character: 'castle', levelled: true });
+      if (grown.districts.some((d) => d.name === 'castle')) return { ...grown, edits: [...lev.edits, ...grown.edits], levelled: lev.cost };
+    }
+  }
   if (primary === 'castle' && !opts.character && !opts.never && !town.districts.some((d) => d.name === 'castle')) {
     return planTown(terrain, seed, { avoid: opts.avoid, never: 'castle' });
   }
