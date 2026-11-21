@@ -111,6 +111,20 @@ function cameraAngles(): { yaw: number; pitch: number } {
   return c ? { yaw: c.yaw * deg, pitch: c.pitch * deg } : { yaw: 45 * deg, pitch: 35 * deg };
 }
 
+/** How much bigger to draw a balloon from far off: 1 close in (zoom 6 and more, and fly mode), up to 1.8 from the whole island. */
+function balloonScale(): number {
+  const view = (globalThis as { __lc?: { view?: { getCamera?(): { zoom: number }; getEyeCamera?(): unknown } } }).__lc?.view;
+  if (!view?.getCamera || view.getEyeCamera?.()) return 1;
+  const z = view.getCamera().zoom;
+  return 1 + 0.8 * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
+}
+
+/** A flat drawing (a balloon) at (x, y, z) turned square to the camera, scaled by `sc`: Ry(yaw) · Rx(-pitch) · S. */
+function facing(x: number, y: number, z: number, cam: { yaw: number; pitch: number }, sc: number): Mat4Like {
+  const c = Math.cos(cam.yaw), sn = Math.sin(cam.yaw), ct = Math.cos(cam.pitch), st = Math.sin(cam.pitch);
+  return [c * sc, 0, -sn * sc, 0, -sn * st * sc, ct * sc, -c * st * sc, 0, sn * ct * sc, st * sc, c * ct * sc, 0, x, y, z, 1];
+}
+
 /** Poses the scuffle's drawings, on twos (SCUFFLE.drawRate). */
 function drawArt(a: ScuffleArt, s: Scuffle, seconds: number): void {
   const tick = Math.floor(seconds * SCUFFLE.drawRate);
@@ -155,7 +169,8 @@ function drawArt(a: ScuffleArt, s: Scuffle, seconds: number): void {
   a.swears.forEach((h, i) => {
     const on = fight && s.age > 0.2 && i === which;
     h.setVisible(on);
-    if (on) h.setMatrix(m(s.cx, s.y + SCUFFLE.cloudH + 0.1 + (tick % 2) * 0.015, s.cz, cam.yaw, 1.35, cam.pitch));
+    // Drawn bigger from farther off (as carried loads are), so its symbols still read in the builder's view.
+    if (on) h.setMatrix(m(s.cx, s.y + SCUFFLE.cloudH + 0.1 + (tick % 2) * 0.015, s.cz, cam.yaw, 1.35 * balloonScale(), cam.pitch));
   });
   // Stars round the dazed heads.
   const dazed = s.phase === 'dazed' || (s.phase === 'up' && s.t < 0.4);
@@ -585,11 +600,8 @@ export default defineSystem<State>({
       const talking = p.bubble && p.visible;
       if (talking) {
         d.bubble ??= ctx.stage.spawnMesh((state.bubbleMesh ??= bubbleMesh()), IDENTITY);
-        const m = Array.from(IDENTITY);
-        m[12] = p.x;
-        m[13] = p.y + (DESIGN_HEIGHT + 0.2) * d.look.scale;
-        m[14] = p.z;
-        d.bubble.setMatrix(m);
+        // A flat balloon, turned to the camera as the scuffle's swearing is.
+        d.bubble.setMatrix(facing(p.x, p.y + (DESIGN_HEIGHT + 0.2) * d.look.scale, p.z, cameraAngles(), balloonScale()));
       } else if (d.bubble) {
         d.bubble.release();
         d.bubble = null;

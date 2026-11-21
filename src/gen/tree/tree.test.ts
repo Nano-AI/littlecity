@@ -26,7 +26,7 @@ const BUDGET: Record<TreeRole, number> = {
   'willow': 520 + BRANCHES,
   'pine': 420,
   'planter-tree': 500,
-  'fruit-tree': 620 + BRANCHES,
+  'fruit-tree': 660 + BRANCHES, // (soft ink: round fruit, six sides and three rings, not five-sided diamonds)
   'grove-tree': 620 + BRANCHES,
 };
 const COMPANION = 200;

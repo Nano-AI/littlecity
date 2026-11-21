@@ -26,11 +26,12 @@ describe('the person', () => {
     }
   });
 
-  test('a person is two ink groups (the head, and everything below the neck) and under 500 triangles', () => {
+  test('a person is two ink groups (the head, and everything below the neck) and under 600 triangles', () => {
+    // (Soft ink rounded the head and the hands: about 465 on average, 400 before, for a head that reads round in fly mode.)
     for (let seed = 1; seed < 40; seed++) {
       const { mesh } = whole(seed * 31);
       expect(inkGroups(mesh).size).toBe(2);
-      expect(triangleCount(mesh)).toBeLessThan(500);
+      expect(triangleCount(mesh)).toBeLessThan(600);
       expect(triangleCount(mesh)).toBeGreaterThan(150);
     }
   });

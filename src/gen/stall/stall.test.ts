@@ -15,7 +15,8 @@ import stallGen, { STALL_ROLES } from './stall.gen';
 const SEEDS = [1, 2, 3, 17, 404, 9001];
 const FRONTS: Dir4[] = [N, E, S, W];
 /** Triangles per stall. The flower stall is eleven buckets of flowers. */
-const BUDGET: Record<StallRole, number> = { 'market-stall': 700, 'fish-stall': 640, 'flower-stall': 800 };
+// (Soft ink: a fruit stall's heaps are round fruit, one soft body each, about 220 more than the flat heaps were.)
+const BUDGET: Record<StallRole, number> = { 'market-stall': 840, 'fish-stall': 640, 'flower-stall': 800 };
 
 function draw(look: StallLook): MeshData {
   const b = new MeshBuilder({ ink: look.seed });
