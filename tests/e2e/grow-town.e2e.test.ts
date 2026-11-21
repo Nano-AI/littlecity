@@ -89,17 +89,17 @@ describe('grow a town', () => {
     // Where → back to the menu.
     await page.click('[data-menu="grow-back"]');
     await page.waitForSelector('[data-menu="share"]');
-    // What kind (this island) → back to where. Growing over this island loses nothing (one undo), so no warning.
+    // What kind (this island) → back to where. Growing over this island leaves nothing behind (one undo; a town built by hand stays in My towns), so no line.
     await page.click('[data-menu="grow"]');
     await page.click('[data-menu="grow-here"]');
     await page.waitForSelector('[data-ui="town-kinds"]');
-    expect(await page.textContent('[data-ui="town-kinds"]')).not.toContain('will be gone');
+    expect(await page.textContent('[data-ui="town-kinds"]')).not.toContain('The town you have now');
     await page.click('[data-menu="town-back"]');
     await page.waitForSelector('[data-ui="grow-choice"]');
-    // What kind (a new island): the town there is now will be gone, said once, here.
+    // What kind (a new island): where the town there is now goes (it stays in My towns), said once, here.
     await page.click('[data-menu="grow-new"]');
     await page.waitForSelector('[data-ui="town-kinds"][data-where="new"]');
-    expect(await page.textContent('[data-ui="town-kinds"]')).toContain('The town you have now will be gone.');
+    expect(await page.textContent('[data-ui="town-kinds"]')).toContain('The town you have now stays in My towns.');
     // Escape closes the menu from a kind screen; nothing happened.
     await page.keyboard.press('Escape');
     expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
@@ -175,6 +175,71 @@ describe('grow a town', () => {
     expect(await page.evaluate('window.__lc.world().terrainGen')).toBe(2);
     expect(await page.evaluate('window.__lc.world().blocks.size')).toBeLessThan(20);
     expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('My towns: a town left for a new island of a kind, or for a town of a kind on a new island, is kept', async () => {
+    const { page, errors } = await app.open('/?seed=5&gen=1');
+    await page.waitForFunction('window.__lc !== undefined');
+    const kept = `window.__lc.keeper.current`;
+    const keptIds = async (): Promise<string[]> => (await page.evaluate(`window.__lc.keeper.list().then((l) => l.map((t) => t.id))`)) as string[];
+    const seed = (): Promise<number> => page.evaluate('window.__lc.world().seed') as Promise<number>;
+    // Erase one tree by hand: a change of the player's to the town on screen.
+    const byHand = `(() => { const w = window.__lc.world(); const c = [...w.blocks].find(([, b]) => b.kind === 'tree'); return c ? window.__lc.edit({ type: 'eraseBlock', cell: c[0] }) : false; })()`;
+
+    // A town built by hand.
+    await page.mouse.click(640, 400);
+    await page.waitForFunction(`${kept} !== null`);
+    const first = (await page.evaluate(kept)) as string;
+
+    // New island → Hills: the first town stays in My towns; the new island is a new town once built on.
+    const seed1 = await seed();
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="new"]');
+    expect(await page.textContent('[data-ui="confirm"]')).toContain('The town you have now stays in My towns.');
+    await page.click('[data-menu="island-hills"]');
+    await page.waitForFunction(`window.__lc.world().seed !== ${seed1}`);
+    expect(await page.evaluate(kept)).toBe(null);
+    await page.mouse.click(640, 400);
+    await page.waitForFunction(`${kept} !== null && ${kept} !== ${JSON.stringify(first)}`);
+    const second = (await page.evaluate(kept)) as string;
+
+    // Grow a town → On a new island → Castle town: the second town stays too; the castle town is a third.
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-new"]');
+    await page.click('[data-menu="town-castle"]');
+    await page.waitForFunction(growing);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(`!${growing}`);
+    await page.waitForFunction(`${kept} !== null && ![${JSON.stringify(first)}, ${JSON.stringify(second)}].includes(${kept})`);
+    const third = (await page.evaluate(kept)) as string;
+
+    // Growing again over a grown town is another try at the same town: no new entry.
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-here"]');
+    await page.click('[data-menu="town-any"]');
+    await page.waitForFunction(growing);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(`!${growing}`);
+    expect(await page.evaluate(kept)).toBe(third);
+
+    // Changed by hand, then grown over with a chosen kind: the changed town stays kept; the new one is a fourth.
+    expect(await page.evaluate(byHand)).toBe(true);
+    await page.click('[data-ui="menu-button"]');
+    await page.click('[data-menu="grow"]');
+    await page.click('[data-menu="grow-here"]');
+    await page.waitForSelector('[data-menu="town-market"]:not([disabled])');
+    await page.click('[data-menu="town-market"]');
+    await page.waitForFunction(growing);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(`!${growing}`);
+    await page.waitForFunction(`${kept} !== null && ${kept} !== ${JSON.stringify(third)}`);
+
+    await page.waitForFunction(`window.__lc.keeper.list().then((l) => l.length >= 4)`);
+    const ids = await keptIds();
+    for (const id of [first, second, third]) expect(ids).toContain(id);
     expect(errors).toEqual([]);
   });
 

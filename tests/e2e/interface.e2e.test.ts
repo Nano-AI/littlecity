@@ -449,11 +449,23 @@ describe('desktop: mouse and keys', () => {
   test('the menu: new island asks first; sound toggles; a refusal is shown, not thrown', async () => {
     const { page, errors } = await open(TOWN);
     await page.click('[data-ui="menu-button"]');
-    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'rebuild']);
+    expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'towns', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'rebuild']);
 
     // Sound is off until the player turns it on.
     expect(await debug(page, 'sound')).toBe(false);
     await page.click('[data-menu="sound"]');
+    expect(await debug(page, 'sound')).toBe(true);
+    await page.click('[data-menu="sound"]');
+    expect(await debug(page, 'sound')).toBe(false);
+    // How loud: the music's slider (0 is off) and the sounds' (moving it up turns sound on).
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.4);
+    await page.locator('[data-ui="volume-music"]').fill('75');
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.75);
+    expect(await js(page, `localStorage.getItem('little-city.music-volume')`)).toBe('0.75');
+    await page.locator('[data-ui="volume-music"]').fill('0');
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0);
+    await page.locator('[data-ui="volume-sound"]').fill('50');
+    expect(await js(page, `localStorage.getItem('little-city.sound-volume')`)).toBe('0.5');
     expect(await debug(page, 'sound')).toBe(true);
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);
@@ -469,14 +481,14 @@ describe('desktop: mouse and keys', () => {
     expect(await page.isHidden('[data-ui="menu"]')).toBe(true);
     expect(await count(page)).toBe(5);
 
-    // New island: it asks what kind and says the town will be gone; Back changes nothing; Surprise me starts over.
+    // New island: it asks what kind and says the town stays in My towns; Back changes nothing; Surprise me starts over.
     const seed = await js<number>(page, 'window.__lc.world().seed');
     await pick(page, 'house');
     await page.mouse.click(...(await ground(page, 24, 27)));
     await page.click('[data-ui="menu-button"]');
     await page.click('[data-menu="new"]');
     await page.waitForSelector('[data-ui="confirm"]');
-    expect(await page.textContent('[data-ui="confirm"]')).toContain('The town you have now will be gone.');
+    expect(await page.textContent('[data-ui="confirm"]')).toContain('The town you have now stays in My towns.');
     await page.click('[data-menu="new-back"]');
     await page.waitForSelector('[data-menu="share"]');
     expect(await js(page, 'window.__lc.world().seed')).toBe(seed);

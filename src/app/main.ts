@@ -22,6 +22,7 @@
 //
 // window.__lc is the debug handle browser tests and the console use.
 
+import { weddingNote, type WeddingNote } from './wedding-note';
 import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
 import type { LifeRuntime } from '@/life/api';
@@ -35,11 +36,15 @@ import type { ShapePlan } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { generateTerrain, initialWorld, NEW_ISLAND_GEN, terrainOf, type TerrainGen } from '@/terrain/terrain';
-import { townFromHash } from '@/ui/files';
+import { download, townFromHash, townPicture } from '@/ui/files';
+import { onlyStartingTrees } from '@/ui/growth';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
 import { createAutosave } from './autosave';
 import { createGame, type GameStart } from './game';
+import { createMusic } from './music';
+import { browserLibrary } from './library';
+import { createKeeper, ID_KEY } from './towns';
 
 function storage(): Storage | null {
   try {
@@ -66,6 +71,18 @@ const seedParam = params.get('seed');
 let scn: Scenario | undefined = scenarioName ? findScenario(scenarioName) : undefined;
 if (scenarioName && !scn) console.warn(`no scenario named '${scenarioName}'`);
 
+// My towns (src/app/towns.ts): the keeper files the saved town in the library before anything can be saved over it.
+/** The town on screen, once the game exists (the keeper asks before it does). */
+let gameNow: { readonly world: World; readonly terrain: Terrain } | null = null;
+/** Something of the player's is on the island: more than its starting trees, or reshaped land. */
+const isTown = (w: World): boolean => (w.terrainEdits?.size ?? 0) > 0 || !onlyStartingTrees(w, gameNow?.world === w ? gameNow.terrain : terrainOf(w));
+const keeper = createKeeper({
+  storage: storage(),
+  library: browserLibrary(storage()).then((r) => r.library),
+  worth: isTown,
+  onTrouble: () => ui?.feedback.toast('My towns could not be written just now. The town you are on is still saved.'),
+});
+
 const saved = scn || seedParam !== null ? null : loadTown(storage());
 const shared = townFromHash(location.hash);
 /** A shared town opened by someone who has a town of their own: shown, but not saved over theirs until they say so. */
@@ -82,6 +99,7 @@ if (shared?.ok) {
   scenarioCamera = built.cameras[0];
 } else if (saved) {
   start = townOf(saved);
+  keeper.current = keeper.savedId;
 } else {
   start = freshIsland(seedParam !== null ? Number(seedParam) | 0 : newSeed());
 }
@@ -100,10 +118,12 @@ let signals: TownSignals = createSignals(start.world.seed);
 applyCalendar(signals, params.get('season') ?? scn?.season, params.get('weather') ?? scn?.weather, params.get('settle') === '1' || (scn !== undefined && (scn.season !== undefined || scn.weather !== undefined)));
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
+let note: WeddingNote | null = null;
 
 const autosave = createAutosave({
   storage: storage(),
   world: () => game.world,
+  write: (w) => keeper.save(w),
   onFail: () => ui?.feedback.toast('This browser will not let the town be saved, so it lasts only until you close the page.'),
 });
 autosave.enabled = !scn && !visiting;
@@ -122,7 +142,12 @@ const game = createGame(tiered(start), {
   },
 });
 
+gameNow = game;
+
 // Mischief (design section 13b): what it does reaches the town as ordinary edits, one undo step per act.
+// The background piano: the page's, not a town's (it plays on through a new island).
+const music = createMusic();
+
 const mischief = mischiefOf(view.stage);
 mischief.connect({
   begin: () => game.begin(),
@@ -146,6 +171,22 @@ function open(next: GameStart): void {
   life = createLife(view.stage, signals);
   game.restart(tiered(next));
 }
+
+/** A picture of the town on screen for My towns, if it is a kept town. */
+function snap(): void {
+  if (!autosave.enabled || keeper.current === null) return;
+  const pic = townPicture(canvas, render);
+  if (pic) keeper.thumb(pic);
+}
+/** Before the town on screen gives way to another: its last edits saved, its picture taken. */
+function leaving(): void {
+  if (!autosave.enabled) return;
+  autosave.flush();
+  snap();
+}
+/** The world when the last growth finished: growing again over it is another try, not a new town. */
+let grownWorld: World | null = null;
+const fileName = (name: string): string => `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'my-town'}.littlecity`;
 
 function leaveSpecialTown(): void {
   scn = undefined;
@@ -204,16 +245,56 @@ ui = createInterface({
   renderNow: render,
   homeCamera,
   newIsland(seed) {
+    leaving();
+    keeper.detach();
     leaveSpecialTown();
     // A seed found for a kind of island (src/terrain/kinds.ts) was found on the newest generator.
     open(seed === undefined ? freshIsland(newSeed()) : freshIsland(seed, NEW_ISLAND_GEN));
   },
   openTown(world) {
+    leaving();
+    keeper.detach();
     leaveSpecialTown();
     open(townOf(world));
-    ui?.feedback.toast('Town opened.');
+    autosave.schedule();
+    ui?.feedback.toast('Town opened. It is in My towns now too.');
+  },
+  growing(name, regrow) {
+    // Grown over a town built by hand: that town stays as it was in My towns, and this is a new one.
+    if (!regrow && autosave.enabled && game.world !== grownWorld && isTown(game.world)) {
+      leaving();
+      keeper.detach();
+    }
+    keeper.suggestName(name);
+  },
+  grown() {
+    grownWorld = game.world;
+  },
+  towns: {
+    async list() {
+      leaving();
+      const towns = await keeper.list();
+      return { towns, current: autosave.enabled ? keeper.current : null };
+    },
+    open(id) {
+      leaving();
+      const result = keeper.open(id);
+      if (!result.ok) return result.reason;
+      leaveSpecialTown();
+      open(townOf(result.world));
+      return null;
+    },
+    rename: (id, name) => keeper.rename(id, name),
+    remove: (id) => keeper.remove(id),
+    download(id) {
+      void keeper.list().then((all) => {
+        const town = all.find((t) => t.id === id);
+        if (town) download(new Blob([town.code], { type: 'text/plain' }), fileName(town.name));
+      });
+    },
   },
 });
+if (keeper.savedUnreadable) ui.feedback.toast('Your last town could not be opened by this version of Little City. It is kept safe in My towns.');
 
 // ── share links ──────────────────────────────────────────────────────────
 if (shared && !shared.ok) {
@@ -226,6 +307,7 @@ if (shared && !shared.ok) {
       label: 'Keep it as mine',
       primary: true,
       run() {
+        keeper.detach();
         leaveSpecialTown();
         autosave.schedule();
       },
@@ -235,6 +317,7 @@ if (shared && !shared.ok) {
       run() {
         leaveSpecialTown();
         const mine = loadTown(storage());
+        keeper.current = mine ? storage()?.getItem(ID_KEY) || null : null;
         open(mine ? townOf(mine) : freshIsland(newSeed()));
       },
     },
@@ -247,7 +330,7 @@ if (shared && !shared.ok) {
 
 window.addEventListener('pagehide', () => autosave.flush());
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') autosave.flush();
+  if (document.visibilityState === 'hidden') leaving();
 });
 
 // ── how sharp ────────────────────────────────────────────────────────────
@@ -290,6 +373,8 @@ function frame(now: number): void {
   mischief.flush();
   render();
   ui?.frame();
+  // L57: the note when a wedding is on.
+  if (ui) (note ??= weddingNote(ui)).update(view.stage);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -312,7 +397,9 @@ window.__lc = {
   game,
   ui,
   autosave,
+  keeper,
   mischief,
+  music,
   /** How sharp the page is drawn: the level in use and the levels (src/render/quality.ts). */
   quality: () => view.quality?.() ?? null,
 };

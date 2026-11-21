@@ -19,7 +19,8 @@
     "shots": "node tools/shots.mjs",
     "inspect": "node tools/inspect.mjs",
     "bench": "node tools/bench.mjs",
-    "guide": "node tools/guide.mjs"
+    "guide": "node tools/guide.mjs",
+    "music": "node tools/music.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

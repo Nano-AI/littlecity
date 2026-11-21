@@ -1296,3 +1296,46 @@ unchanged. 14 guide pictures redrawn. Gate: 2,197 passed, 10 skipped,
 clean. Orchestrator looked at before/after of the cloud, bubbles,
 people and the dog.
 Running: wedding (resumed after the same outage).
+
+**2026-11-20 evening.** The session restarted; the wedding agent
+(`a7e07ea5e184a05e3`, `swarm/wedding`, head `893e832`, clean tree, many
+commits, no report yet) was resumed to run its gate and report. Other
+sessions are active on their own branches (`save/my-towns`,
+`analytics/posthog`, `music/background`, `promo/link-preview-2`,
+`capture/promo`); one of them added `e628796` (link preview) to the
+working branch. Memory note from another session: players lost towns
+before; saved-town compatibility is a hard constraint.
+**Choosing kinds (Derek).** Wants to choose the island archetype on New
+island (mountain, plains, hills, river valley…) and the town kind when
+growing (random still offered). → new agent `a2c1548b27336eb26` on
+`swarm/choose-kinds` (Opus). Island kinds are to be found by SEED SEARCH
+(draw seeds until generator 2's real result matches), so nothing about
+what a seed generates or the save format changes. Town kinds via
+`planTown`'s `character`; a new island for a chosen town kind is
+searched to suit it.
+Running: wedding (finishing), choose-kinds.
+
+**Wedding as an event merged** (`31787b5`, Opus, `swarm/wedding`; cut
+off twice, resumed twice). Party: 40 % of the town, at most 20 (couple,
+priest, flower children, bridesmaid and usher pairs, guests), in finery
+drawn over the person (`src/parts/people/finery.ts`). Gather (to 90 s):
+a flower arch over the door, a guard of honour in two rows. Vows, then
+out under the arch: bells (now heard), petal showers, handfuls thrown,
+nine doves, a kiss. Procession: one column on a track at 0.42 cells/s,
+two abreast, by a fountain or square where that adds 4+ steps;
+bystanders within 2.4 cells stop and wave. Celebration 32 s: ring,
+dance, bouquet thrown, the band if a bandstand is within 14 steps. The
+petal trail lies 50 s, then the priest sweeps it. Cue: a note "Wedding
+bells at the chapel" with Watch (`src/app/wedding-note.ts`,
+`glideTo`). Cadence: first 25–45 s in, then 300–420 s after the last
+ends, by day; before, with the time slider held at day there was
+exactly ONE wedding per session (the day counter only moved at dawn),
+which is why Derek never saw one. L57 reach raised 12 → 20 (the three
+grown towns with a chapel and no post now get one). Tests
+`src/life/town/wedding.test.ts`. Gate: 2,202 passed, 10 skipped, clean.
+Weak (agent's): not legible from the whole-island view (people are a
+few pixels; the note is what makes it findable); doves read as gulls
+from far off; gathering takes up to 90 s in a big town; editing the
+town mid-march breaks the column. Not built: hats thrown, bunting along
+the route. GPU frame time not measured.
+Running: choose-kinds.

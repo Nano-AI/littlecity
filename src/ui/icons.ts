@@ -424,6 +424,14 @@ const DRAWINGS: Record<string, string> = {
     `<path d="M22 26 L22.4 18.4" stroke="${C.trunk}" stroke-width="2.4"/>` +
     `<path d="M15.6 15.4 Q16 9 22.2 8.6 Q28.6 8.4 29.4 14.6 Q29.6 19.6 22.6 19.8 Q16 19.8 15.6 15.4 Z" fill="${C.leaf}"/>` +
     sparkle(37.4, 12, 4.6, `fill="${C.yellow}" stroke-width="1.5"`),
+  // My towns: two pictures of towns, one behind the other.
+  towns:
+    `<path d="M13.4 7.8 L40.6 6.4 L41.8 28.8 L14.6 30.2 Z" fill="${C.white}" stroke-width="1.8"/>` +
+    `<path stroke-width="1.5" d="M22.6 24.4 Q29 17.6 34.4 22.8 Q37.4 19.8 40.6 24.2" fill="none"/>` +
+    `<path d="M6.4 16.4 L33.8 16.2 L34 40.6 L6.6 40.8 Z" fill="${C.white}"/>` +
+    `<path stroke-width="1.6" d="M8.8 38.6 Q13.6 30.4 20.4 33.2 Q26.4 28.6 31.8 38.4 Z" fill="${C.grass}"/>` +
+    `<path stroke-width="1.6" d="M14.4 33.8 L14.4 27.8 L18 24.2 L21.6 27.8 L21.6 32.6 Z" fill="${C.pink}"/>` +
+    sparkle(28.4, 22.2, 3.4, `fill="${C.yellow}" stroke-width="1.3"`),
   // Grow a town: three little houses in a row with a sparkle.
   grow:
     `<path d="M5.6 38.6 L5.8 27.4 L11.4 21.6 L17.2 27.4 L17.2 38.6 Z" fill="${C.wall}"/>` +
@@ -553,6 +561,13 @@ const DRAWINGS: Record<string, string> = {
   'sound-off':
     `<path d="M8.6 19.6 L15.6 19.4 L24.6 11.6 L24.8 36.4 L15.6 28.6 L8.8 28.6 Z" fill="${C.white}"/>` +
     `<path stroke-width="2.4" d="M31 19 L40.4 29.2 M40.4 19 L31 29.2"/>`,
+  // The menu's volume rows: a pair of quavers for the music, a little speaker for the sounds.
+  music:
+    `<path stroke-width="2.4" d="M18 33.6 L18.2 13.4 L36 10 L36.2 29.8"/><path stroke-width="2.4" d="M18.2 19 L36 15.6"/>` +
+    `<ellipse cx="14.2" cy="34" rx="4.4" ry="3.4" fill="${C.pink}"/><ellipse cx="32.2" cy="30.4" rx="4.4" ry="3.4" fill="${C.pink}"/>`,
+  volume:
+    `<path d="M10.6 19.6 L17.6 19.4 L26.6 11.6 L26.8 36.4 L17.6 28.6 L10.8 28.6 Z" fill="${C.white}"/>` +
+    `<path stroke-width="2.4" d="M32 18.4 Q36.4 24 32 29.8"/>`,
   tune:
     `<path stroke-width="2.4" d="M8 14 L40 13.8 M8 24.2 L40 24 M8 34.2 L40 34"/>` +
     `<circle cx="17" cy="14" r="3.6" fill="${C.yellow}"/><circle cx="31" cy="24" r="3.6" fill="${C.pink}"/><circle cx="21" cy="34" r="3.6" fill="${C.sea}"/>`,

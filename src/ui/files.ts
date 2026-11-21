@@ -85,3 +85,32 @@ export function makePostcard(canvas: HTMLCanvasElement, renderNow: () => void): 
   g.strokeRect(border, border, w, h);
   return new Promise((resolve) => card.toBlob(resolve, 'image/png'));
 }
+
+/**
+ * A small picture of the town as the player sees it now, for My towns: a JPEG
+ * data URL about 320 px wide, cropped to 8:5 around the middle of the view.
+ * Like the postcard, the canvas is copied straight after a frame is drawn.
+ * Null if the browser will not draw one.
+ */
+export function townPicture(canvas: HTMLCanvasElement, renderNow: () => void, width = 320): string | null {
+  try {
+    renderNow();
+    const w = canvas.width, h = canvas.height;
+    if (!w || !h) return null;
+    const aspect = 8 / 5;
+    const sw = Math.min(w, h * aspect), sh = sw / aspect;
+    const pic = document.createElement('canvas');
+    pic.width = width;
+    pic.height = Math.round(width / aspect);
+    const g = pic.getContext('2d');
+    if (!g) return null;
+    g.fillStyle = PALETTE.paper;
+    g.fillRect(0, 0, pic.width, pic.height);
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(canvas, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, pic.width, pic.height);
+    const url = pic.toDataURL('image/jpeg', 0.78);
+    return url.startsWith('data:image/') ? url : null;
+  } catch {
+    return null;
+  }
+}

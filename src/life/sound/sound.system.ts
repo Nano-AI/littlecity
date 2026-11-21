@@ -11,6 +11,8 @@
 //                      passes the middle of the town
 //   now and then       a gull, by day, if the town has gulls
 //   evening            one bell, as the lamps can first be lit
+//   a wedding (L57)    the bells peal: rounds down a scale, as the couple go
+//                      in and again as they come out (mechanisms/peal.ts)
 //
 // Everything is quiet: the master level is low and every voice is softer
 // still. Pure choices (when the bell rings, when a gull calls) are here as
@@ -22,11 +24,15 @@ import type { ShapePlan } from '@/resolve/plan';
 import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
 import { shipSoundsOf } from '../ships/news';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from './volume';
+import { pealAt } from '../mechanisms/peal';
 import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
 
 const SOUND_KEY = 'little-city.sound';
 /** Master level: everything is a background to building. */
 const MASTER = 0.5;
+/** The master level with the player's volume for sounds on it (the menu's slider). */
+const level = (): number => MASTER * readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT);
 
 /** True on the step where the evening begins (the moment lamps can first be lit). */
 export function bellNow(prev: TimeSignal | null, now: TimeSignal): boolean {
@@ -56,7 +62,17 @@ interface State {
   pops: number;
   lastNote: number;
   windAt: number;
+  /** L57: the last wedding peal rung (life seconds), so each is heard once. */
+  peal: number | null;
   off: (() => void)[];
+}
+
+/** L57: a peal's strokes: rounds on six bells down a major scale, `rounds` times (seconds from its start, frequency). */
+export function pealStrokes(rounds = 4): { at: number; freq: number }[] {
+  const scale = [784, 698.5, 659.3, 587.3, 523.3, 392];
+  const out: { at: number; freq: number }[] = [];
+  for (let r = 0; r < rounds; r++) scale.forEach((freq, i) => out.push({ at: r * (scale.length * 0.3 + 0.3) + i * 0.3, freq }));
+  return out;
 }
 
 const hasAudio = (): boolean => typeof window !== 'undefined' && typeof window.AudioContext === 'function';
@@ -73,13 +89,13 @@ function readWanted(): boolean {
 function start(state: State, seed: number): void {
   if (state.audio) {
     void state.audio.ac.resume();
-    state.audio.master.gain.setTargetAtTime(MASTER, state.audio.ac.currentTime, 0.2);
+    state.audio.master.gain.setTargetAtTime(level(), state.audio.ac.currentTime, 0.2);
     return;
   }
   const ac = new AudioContext();
   const master = ac.createGain();
   master.gain.value = 0;
-  master.gain.setTargetAtTime(MASTER, ac.currentTime, 0.4);
+  master.gain.setTargetAtTime(level(), ac.currentTime, 0.4);
   master.connect(ac.destination);
   const noise = noiseBuffer(ac, seed);
   // The sea: low, slow noise whose level breathes like waves on a beach.
@@ -128,7 +144,7 @@ export default defineSystem<State>({
   id: 'sound',
   order: 100,
   create(ctx) {
-    const state: State = { wanted: false, audio: null, shape: null, prev: null, gullIn: gullGap(ctx.seed, 0), gulls: 0, pops: 0, lastNote: -1, windAt: 0, off: [] };
+    const state: State = { wanted: false, audio: null, shape: null, prev: null, gullIn: gullGap(ctx.seed, 0), gulls: 0, pops: 0, lastNote: -1, windAt: 0, peal: null, off: [] };
     if (!hasAudio()) return state;
     state.wanted = readWanted();
     // The first gesture with sound on starts it (browsers allow audio only from a gesture).
@@ -142,8 +158,14 @@ export default defineSystem<State>({
     };
     window.addEventListener('pointerdown', gesture);
     window.addEventListener('keydown', gesture);
+    const volume = (e: Event): void => {
+      const a = state.audio;
+      if (a && state.wanted) a.master.gain.setTargetAtTime(MASTER * (e as CustomEvent<number>).detail, a.ac.currentTime, 0.08);
+    };
     window.addEventListener('lc:sound', toggle);
+    window.addEventListener(SOUND_VOLUME_EVENT, volume);
     state.off.push(
+      () => window.removeEventListener(SOUND_VOLUME_EVENT, volume),
       () => window.removeEventListener('pointerdown', gesture),
       () => window.removeEventListener('keydown', gesture),
       () => window.removeEventListener('lc:sound', toggle),
@@ -189,6 +211,14 @@ export default defineSystem<State>({
       } else strike(a.ac, a.master, 92, 'plank', 0.08);
     }
     if (bell) strike(a.ac, a.master, 392, 'bell', 0.09);
+    // L57: a wedding's peal.
+    const peal = pealAt(ctx.stage);
+    if (peal !== null && peal !== state.peal) {
+      state.peal = peal;
+      const now = a.ac.currentTime;
+      // (Only one rung just now: not an old one, heard late when the sound is turned on.)
+      if (time.seconds - peal < 2) for (const s of pealStrokes()) strike(a.ac, a.master, s.freq, 'bell', 0.05, now + s.at);
+    }
     // Wind: a few times a second, the level follows the wind in the middle of the town.
     state.windAt -= dt;
     if (state.windAt <= 0) {

@@ -1,8 +1,9 @@
 // The ☰ menu (design section 7): grow a town (design 15a: a second screen
 // asks where, on this island or on a new one, and a third what kind of town),
-// new island (a second screen asks what kind of island, and says the town
-// there is now will be gone), share link, postcard, town file out and in,
-// and sound. (The dev tuning panel is not in the game: removed at Derek's
+// new island (a second screen asks what kind of island, and says what becomes
+// of the town there is now), My towns (src/ui/towns.ts), share link,
+// postcard, town file out and in, sound, and how loud the music and the
+// sounds are. (The dev tuning panel is not in the game: removed at Derek's
 // request, 2026-11-20. It lives on in the gallery.)
 //
 // A choice whose work takes a while (finding an island of a kind) returns a
@@ -13,6 +14,7 @@
 import { ISLAND_KIND_NAMES, ISLAND_KINDS, type IslandKind } from '@/terrain/kinds';
 import { CHARACTER_NAMES, CHARACTERS, type Character } from '@/townmaker/character';
 import { el, iconButton, setIcon } from './dom';
+import { icon } from './icons';
 
 /** What a choice does; a promise keeps the menu open, working, until it settles. */
 export type Work = void | Promise<unknown>;
@@ -31,6 +33,8 @@ export interface MenuActions {
   hasTown(): boolean;
   /** A new island of this kind, or (null) any. The signal says the player called it off. */
   newIsland(kind: IslandKind | null, signal: AbortSignal): Work;
+  /** My towns: every town the player has made. Left out of the menu when absent. */
+  myTowns?(): void;
   shareLink(): void;
   postcard(): void;
   downloadTown(): void;
@@ -38,6 +42,11 @@ export interface MenuActions {
   /** Sound on or off; the menu shows the current state. */
   sound(): boolean;
   setSound(on: boolean): void;
+  /** How loud, 0–1: the background music (0 is off) and the game's sounds. Left out of the menu when absent. */
+  musicVolume?(): number;
+  setMusicVolume?(v: number): void;
+  soundVolume?(): number;
+  setSoundVolume?(v: number): void;
   /** Mischief (design section 13b): the town mends its own damage. Left out of the menu when absent. */
   rebuild?(): boolean;
   setRebuild?(on: boolean): void;
@@ -136,10 +145,29 @@ export function createMenu(actions: MenuActions): Menu {
       }),
     ]);
 
-  /** The line under a kind screen's question when the town there is now would go. */
-  const losing = (): HTMLElement | null => (actions.hasTown() ? el('small', { text: 'The town you have now will be gone.' }) : null);
+  /**
+   * The line under a kind screen's question when the player leaves the town there is now: it is kept
+   * in My towns where there is My towns, and gone where there is not.
+   */
+  const leaving = (): HTMLElement | null =>
+    actions.hasTown() ? el('small', { text: actions.myTowns ? 'The town you have now stays in My towns.' : 'The town you have now will be gone.' }) : null;
+
+  /** A volume row: an icon, a name and a slider 0–100. Not a menu item: the menu stays open while it is dragged. */
+  const volume = (id: string, iconId: string, label: string, value: number, set: (v: number) => void): HTMLElement => {
+    const range = el('input', {
+      attrs: { type: 'range', min: '0', max: '100', step: '5', value: String(Math.round(value * 100)), 'aria-label': `${label} volume`, 'data-ui': `volume-${id}` },
+    });
+    range.addEventListener('input', () => set(Number(range.value) / 100));
+    return el('label', { class: 'lc-menu-volume' }, [el('span', { class: 'lc-btn-icon', html: icon(iconId) }), el('span', { class: 'lc-menu-volume-label', text: label }), range]);
+  };
 
   const showItems = (): void => {
+    const showSound = (on: boolean): void => {
+      setIcon(sound, on ? 'sound-on' : 'sound-off');
+      sound.querySelector('.lc-btn-label')!.textContent = on ? 'Sound: on' : 'Sound: off';
+      sound.setAttribute('aria-label', on ? 'Sound: on' : 'Sound: off');
+      sounds?.classList.toggle('lc-menu-volume-off', !on);
+    };
     const soundOn = actions.sound();
     const sound = item(
       'sound',
@@ -148,12 +176,23 @@ export function createMenu(actions: MenuActions): Menu {
       () => {
         const next = !actions.sound();
         actions.setSound(next);
-        setIcon(sound, next ? 'sound-on' : 'sound-off');
-        sound.querySelector('.lc-btn-label')!.textContent = next ? 'Sound: on' : 'Sound: off';
-        sound.setAttribute('aria-label', next ? 'Sound: on' : 'Sound: off');
+        showSound(next);
       },
       true,
     );
+    const music = actions.musicVolume && actions.setMusicVolume ? volume('music', 'music', 'Music', actions.musicVolume(), (v) => actions.setMusicVolume!(v)) : null;
+    // Moving the sounds' slider up turns sound on: nobody sets a level for something that is off.
+    const sounds =
+      actions.soundVolume && actions.setSoundVolume
+        ? volume('sound', 'volume', 'Sounds', actions.soundVolume(), (v) => {
+            actions.setSoundVolume!(v);
+            if (v > 0 && !actions.sound()) {
+              actions.setSound(true);
+              showSound(true);
+            }
+          })
+        : null;
+    sounds?.classList.toggle('lc-menu-volume-off', !soundOn);
     const label = (on: boolean): string => (on ? 'Rebuild: on' : 'Rebuild: off');
     const rebuild =
       actions.rebuild && actions.setRebuild
@@ -173,6 +212,7 @@ export function createMenu(actions: MenuActions): Menu {
     panel.replaceChildren(
       item('grow', 'grow', 'Grow a town', showGrow, true),
       el('div', { class: 'lc-menu-rule' }),
+      ...(actions.myTowns ? [item('towns', 'towns', 'My towns', actions.myTowns)] : []),
       item('new', 'island', 'New island', showIslandKinds, true),
       item('share', 'share', 'Share link', actions.shareLink),
       item('postcard', 'postcard', 'Postcard', actions.postcard),
@@ -180,7 +220,9 @@ export function createMenu(actions: MenuActions): Menu {
       item('download', 'download', 'Save town to a file', actions.downloadTown),
       item('open', 'open', 'Open a town file', () => file.click()),
       el('div', { class: 'lc-menu-rule' }),
+      ...(music ? [music] : []),
       sound,
+      ...(sounds ? [sounds] : []),
       ...(rebuild ? [rebuild] : []),
     );
   };
@@ -219,7 +261,7 @@ export function createMenu(actions: MenuActions): Menu {
     any.classList.add('lc-kind-any');
     const screen = el('div', { class: 'lc-confirm lc-choice lc-kinds lc-kinds-wide', attrs: { 'data-ui': 'town-kinds', 'data-where': where } }, [
       el('p', { text: 'What kind of town?' }),
-      where === 'new' ? losing() : null,
+      where === 'new' ? leaving() : null,
       el('div', { class: 'lc-kind-grid' }, [any, ...rows.values()]),
       back('town-back', showGrow),
     ]);
@@ -232,12 +274,12 @@ export function createMenu(actions: MenuActions): Menu {
     }
   };
 
-  /** New island, second screen: what kind of island (saying the town there is now will be gone). */
+  /** New island, second screen: what kind of island (saying what becomes of the town there is now). */
   const showIslandKinds = (): void => {
     panel.replaceChildren(
       el('div', { class: 'lc-confirm lc-choice lc-kinds', attrs: { 'data-ui': 'confirm' } }, [
         el('p', { text: 'What kind of island?' }),
-        losing(),
+        leaving(),
         kindItem('new-yes', 'dice', 'Surprise me', (signal) => actions.newIsland(null, signal)),
         ...ISLAND_KINDS.map((kind) => kindItem(`island-${kind}`, `isle-${kind}`, ISLAND_KIND_NAMES[kind], (signal) => actions.newIsland(kind, signal))),
         back('new-back', showItems),

@@ -341,8 +341,10 @@ running → hold day → hold dusk → hold night. ⟡ (wings) is fly mode.
 **Choosing the kind of island** (Derek, 2026-11-20: "When you create a new
 island, you get to choose mountain island or grass island or valley, river
 valley, plains, hills"). "New island" opens a second screen, "What kind of
-island?", with a small line "The town you have now will be gone." when there
-is more on the island than its starting trees (this screen is the
+island?", with a small line "The town you have now stays in My towns." (or "… will
+be gone." where there is no My towns) when there is more on the island
+than its starting trees or its ground has been reshaped; every new-island
+path goes the same way as New island did, so the town left is kept (this screen is the
 confirmation: picking a kind starts the new island; Back returns to the
 menu). The choices are bare labels with a small icon each: Surprise me (any
 island, as before), Plains, Hills, Mountain, River valley, Islands.
@@ -1153,7 +1155,28 @@ level; under browser automation the sharpest level is held unless
 
 ## 15. Saving and sharing
 
-- Autosave to `localStorage` after every edit (debounced 500 ms). One town.
+- Autosave to `localStorage` after every edit (debounced 500 ms): the town
+  that opens next visit.
+- **My towns** (Derek's request, 2026-11-20; `src/app/towns.ts`,
+  `src/ui/towns.ts`): every town the player makes is kept, in IndexedDB
+  (localStorage if IndexedDB is refused), as its share code with a small
+  picture taken when the player leaves it. A town is kept from its first
+  save with something of the player's in it (more than the starting trees,
+  or reshaped land). New island, opening a file, keeping a shared town and
+  growing over a town built by hand each start a new kept town; growing
+  again over a town just grown is another try at the same one. The menu's
+  My towns opens a grid of cards: the town on screen first ("Here now"),
+  then a New island card, then the rest, newest first. A card opens its
+  town; the name is changed in place; a town goes out as a file, or is
+  deleted after a second question (never the town on screen). Grown towns
+  are named for their kind ("A harbour town"), others "Town 1", "Town 2".
+  - **Nothing is ever written over.** On start the saved town is filed in
+    the library before anything can save over it, readable or not: a code
+    this version cannot read is kept as it is (the player is told, and its
+    card says a newer Little City may open it). Before the saved town is
+    replaced by a different kept town it is copied aside synchronously
+    (`little-city.town.previous`), so a slow or failing library cannot lose
+    it; the next start files it.
 - **Share link**: the whole town (there is no server) in the URL fragment,
   base64url, starting `LC` and a format version. Opening the link loads that
   town as a copy. If the encoded town exceeds 6,000 characters the menu
@@ -1182,7 +1205,7 @@ level; under browser automation the sharpest level is held unless
     A damaged, truncated or unknown code is refused with a plain sentence,
     never a crash. Encoding and decoding take a few milliseconds.
 - **Postcard**: saves the current view as a PNG with a paper border.
-- **New island**: confirms, then new seed and empty world.
+- **New island**: confirms (the town on screen stays in My towns), then new seed and empty world.
 - Undo and redo cover every edit, at least 200 steps, cleared on new island.
 
 ## 15a. Grow a town (Derek's request, 2026-11-19)
@@ -1225,9 +1248,10 @@ town is meant to show off every building combination the rules know.
   it to be random. I mean, have a random option, but allow me to choose").
   All choices are bare labels with a small icon (Derek, 2026-11-20: no
   subtitles); Back on each screen goes one screen back; there is no other
-  confirmation. Growing over this island loses nothing (one undo); on the
-  new-island kind screen, when there is more than starting trees, the line
-  "The town you have now will be gone." stands under the question.
+  confirmation. Growing over this island is one undo, and a town built by
+  hand stays in My towns as its own entry (a grown town grown over again
+  does not); on the new-island kind screen the same line as for New island
+  ("stays in My towns") stands under the question.
 - **Choosing the kind** (`src/townmaker/kinds.ts`). Surprise me comes first
   and is the dice as before: neither place repeats a character until every
   character that suits the island has had a turn, so a handful of goes
