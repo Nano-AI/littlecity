@@ -1,37 +1,73 @@
-// The background music: one slow piano piece (public/music, made by tools/music.mjs), played
-// quietly while the town is built, with a pause before it comes round again. Owner: Interface.
+// The background music: three slow piano pieces (public/music, made by tools/music.mjs), played
+// quietly while the town is built, one after another with a pause between. Owner: Interface.
+//
+// A visit starts with the first piece, the one the game began with; then the others in a shuffled
+// order, then all of them shuffled again, and so on: every piece once a round, and never the same
+// piece twice in a row (nextRound). One file is fetched at a time: the next piece's only when the
+// one before it has ended.
 //
 // It belongs to the page, not to a town: a new island does not start it over. It starts on the
 // player's first click or key (browsers allow sound only from a gesture), fades in, stops while the
 // page is hidden, and follows the menu's Music slider ('lc:music-volume'; 0 is off).
 //
 // The level is a gain node where there is Web Audio (an iPhone ignores an audio element's own
-// volume), and the element's volume otherwise.
+// volume), and the element's volume otherwise. All the pieces play through the one audio element
+// (the one the first gesture allowed to sound), so the gain node is made once.
 
 import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, readVolume } from '@/life/sound/volume';
 
-/** The pause between one playing and the next, seconds. */
+/** The pieces' files in public/music, the first the one the game began with. */
+const PIECES = ['little-city-piano', 'little-city-piano-2', 'little-city-piano-3'];
+/** The pause between one piece and the next, seconds. */
 const GAP = 24;
 /** The fade in when it first starts, and when it comes back after being off: seconds to most of the way. */
 const FADE = 1.6;
 
+/**
+ * The order of the next round, every piece once (pieces are numbered from 0). The first round of a
+ * visit (`previous` null) starts with piece 0 and shuffles the rest; a later round is a shuffle of
+ * them all that does not begin with `previous`, the piece just heard. `random` gives numbers in [0, 1).
+ */
+export function nextRound(previous: number | null, count: number, random: () => number = Math.random): number[] {
+  const order = Array.from({ length: Math.max(0, count) }, (_, i) => i);
+  const swap = (a: number, b: number): void => {
+    const held = order[a]!;
+    order[a] = order[b]!;
+    order[b] = held;
+  };
+  /** A whole number from `lo` to `hi`, both included. */
+  const pick = (lo: number, hi: number): number => Math.min(hi, lo + Math.floor(random() * (hi - lo + 1)));
+  const fixed = previous === null ? 1 : 0;
+  for (let i = order.length - 1; i > fixed; i--) swap(i, pick(fixed, i));
+  // The piece just heard would be first: it changes places with one of the others.
+  if (previous !== null && order.length > 1 && order[0] === previous) swap(0, pick(1, order.length - 1));
+  return order;
+}
+
 export interface Music {
   /** The level in use, 0–1. */
   readonly volume: number;
-  /** The piece has been started (after the first gesture, with the level above 0). */
+  /** The music has been started (after the first gesture, with the level above 0). */
   readonly started: boolean;
+  /** The piece playing, or the one waiting to play after the pause: its number, from 0. */
+  readonly track: number;
   dispose(): void;
 }
 
-export function createMusic(url: string = `${import.meta.env.BASE_URL}music/little-city-piano.mp3`): Music {
+export function createMusic(urls: readonly string[] = PIECES.map((name) => `${import.meta.env.BASE_URL}music/${name}.mp3`), random: () => number = Math.random): Music {
   let volume = readVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_DEFAULT);
   let element: HTMLAudioElement | null = null;
   let gain: GainNode | null = null;
   let context: AudioContext | null = null;
   let again: ReturnType<typeof setTimeout> | null = null;
-  /** Between two playings: nothing sounds until `again` fires. */
+  /** Between two pieces: nothing sounds until `again` fires. */
   let resting = false;
+  /** The file of the piece waiting to play would not load. */
+  let missing = false;
   let gestured = false;
+  /** What is left of this round, and the piece playing (or waiting to). */
+  const round = nextRound(null, urls.length, random);
+  let track = round.shift() ?? 0;
 
   const setLevel = (seconds: number): void => {
     if (gain && context) gain.gain.setTargetAtTime(volume, context.currentTime, seconds / 3);
@@ -43,12 +79,32 @@ export function createMusic(url: string = `${import.meta.env.BASE_URL}music/litt
     // A refusal (no gesture yet, the file missing) is not an error: the next gesture tries again.
     void element.play().catch(() => undefined);
   };
+  /** A piece is over: the pause, with the next piece's file fetched meanwhile, then that piece. */
+  const rest = (): void => {
+    if (!element) return;
+    resting = true;
+    missing = false;
+    if (round.length === 0) round.push(...nextRound(track, urls.length, random));
+    track = round.shift() ?? 0;
+    element.src = urls[track]!;
+    again = setTimeout(() => {
+      again = null;
+      // A piece whose file would not come is passed over: another pause, and the one after it.
+      if (missing) return rest();
+      resting = false;
+      play();
+    }, GAP * 1000);
+  };
+  const failed = (): void => {
+    if (resting) missing = true;
+    else rest();
+  };
   const start = (): void => {
-    if (element || volume <= 0) return;
+    if (element || volume <= 0 || urls.length === 0) return;
     try {
       element = new Audio();
       element.preload = 'auto';
-      element.src = url;
+      element.src = urls[track]!;
       const Ctx = window.AudioContext;
       if (typeof Ctx === 'function') {
         context = new Ctx();
@@ -56,14 +112,8 @@ export function createMusic(url: string = `${import.meta.env.BASE_URL}music/litt
         gain.gain.value = 0;
         context.createMediaElementSource(element).connect(gain).connect(context.destination);
       } else element.volume = 0;
-      element.addEventListener('ended', () => {
-        resting = true;
-        again = setTimeout(() => {
-          resting = false;
-          again = null;
-          play();
-        }, GAP * 1000);
-      });
+      element.addEventListener('ended', rest);
+      element.addEventListener('error', failed);
     } catch {
       // No audio here (or not this kind): the game is silent, as it was.
       element = null;
@@ -110,6 +160,9 @@ export function createMusic(url: string = `${import.meta.env.BASE_URL}music/litt
     },
     get started() {
       return element !== null;
+    },
+    get track() {
+      return track;
     },
     dispose() {
       window.removeEventListener('pointerdown', gesture);
