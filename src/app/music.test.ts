@@ -13,18 +13,14 @@ function seeded(seed: number): () => number {
 }
 
 describe('the order of the pieces', () => {
-  test('the first round starts with the first piece and plays each of the others once', () => {
-    for (let seed = 0; seed < 200; seed++) {
-      const round = nextRound(null, 3, seeded(seed));
-      expect(round[0]).toBe(0);
-      expect([...round].sort()).toEqual([0, 1, 2]);
-    }
+  test('the first round is every piece once', () => {
+    for (let seed = 0; seed < 200; seed++) expect([...nextRound(null, 3, seeded(seed))].sort()).toEqual([0, 1, 2]);
   });
 
-  test('the others come in either order', () => {
+  test('any piece may open a visit, in any order', () => {
     const seen = new Set<string>();
-    for (let seed = 0; seed < 200; seed++) seen.add(nextRound(null, 3, seeded(seed)).join(''));
-    expect([...seen].sort()).toEqual(['012', '021']);
+    for (let seed = 0; seed < 400; seed++) seen.add(nextRound(null, 3, seeded(seed)).join(''));
+    expect([...seen].sort()).toEqual(['012', '021', '102', '120', '201', '210']);
   });
 
   test('a later round is every piece once, and never begins with the piece just heard', () => {
@@ -50,7 +46,6 @@ describe('the order of the pieces', () => {
       heard.push(...round);
       previous = round[round.length - 1]!;
     }
-    expect(heard[0]).toBe(0);
     for (let i = 1; i < heard.length; i++) expect(heard[i]).not.toBe(heard[i - 1]);
     for (let i = 0; i < heard.length; i += 3) expect(heard.slice(i, i + 3).sort()).toEqual([0, 1, 2]);
   });
@@ -111,15 +106,14 @@ describe('the player', () => {
     vi.unstubAllGlobals();
   });
 
-  test('nothing until the first gesture; then the first piece', () => {
+  test('nothing until the first gesture; then a piece', () => {
     const music = createMusic(URLS, seeded(3));
     expect(music.started).toBe(false);
     expect(FakeAudio.made).toHaveLength(0);
     page.dispatchEvent(new Event('pointerdown'));
     expect(music.started).toBe(true);
-    expect(music.track).toBe(0);
     expect(FakeAudio.made).toHaveLength(1);
-    expect(FakeAudio.made[0]!.played).toEqual(['one.mp3']);
+    expect(FakeAudio.made[0]!.played).toEqual([URLS[music.track]]);
     expect(FakeAudio.made[0]!.volume).toBe(music.volume);
     music.dispose();
   });
@@ -142,7 +136,6 @@ describe('the player', () => {
       expect(audio.played[k]).not.toBe(audio.played[k - 1]);
     }
     expect(FakeAudio.made).toHaveLength(1);
-    expect(audio.played[0]).toBe('one.mp3');
     for (let i = 0; i < audio.played.length; i += 3) expect(audio.played.slice(i, i + 3).sort()).toEqual([...URLS].sort());
     music.dispose();
   });
@@ -152,16 +145,17 @@ describe('the player', () => {
     page.dispatchEvent(new Event('pointerdown'));
     const audio = FakeAudio.made[0]!;
     // While it should be playing: on to the next, after the pause.
+    const first = audio.src;
     audio.emit('error');
     const second = audio.src;
-    expect(second).not.toBe('one.mp3');
+    expect(second).not.toBe(first);
     // And the next one's file fails during the pause: that pause ends in another, and the third piece plays.
     audio.emit('error');
     vi.advanceTimersByTime(25_000);
-    expect(audio.played).toEqual(['one.mp3']);
+    expect(audio.played).toEqual([first]);
     expect(audio.src).not.toBe(second);
     vi.advanceTimersByTime(25_000);
-    expect(audio.played).toEqual(['one.mp3', audio.src]);
+    expect(audio.played).toEqual([first, audio.src]);
     music.dispose();
   });
 
@@ -169,6 +163,7 @@ describe('the player', () => {
     const music = createMusic(URLS, seeded(1));
     page.dispatchEvent(new Event('pointerdown'));
     const audio = FakeAudio.made[0]!;
+    const playing = audio.src;
     page.dispatchEvent(new CustomEvent('lc:music-volume', { detail: 0 }));
     expect(music.volume).toBe(0);
     expect(audio.paused).toBe(true);
@@ -176,7 +171,7 @@ describe('the player', () => {
     expect(music.volume).toBe(0.75);
     expect(audio.volume).toBe(0.75);
     expect(audio.paused).toBe(false);
-    expect(audio.src).toBe('one.mp3');
+    expect(audio.src).toBe(playing);
     music.dispose();
   });
 });

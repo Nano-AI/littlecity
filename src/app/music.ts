@@ -1,7 +1,7 @@
 // The background music: three slow piano pieces (public/music, made by tools/music.mjs), played
 // quietly while the town is built, one after another with a pause between. Owner: Interface.
 //
-// A visit starts with the first piece, the one the game began with; then the others in a shuffled
+// The pieces are shuffled (Derek, 2026-11-21: "just shuffle the order"): a round in a shuffled
 // order, then all of them shuffled again, and so on: every piece once a round, and never the same
 // piece twice in a row (nextRound). One file is fetched at a time: the next piece's only when the
 // one before it has ended.
@@ -24,9 +24,9 @@ const GAP = 24;
 const FADE = 1.6;
 
 /**
- * The order of the next round, every piece once (pieces are numbered from 0). The first round of a
- * visit (`previous` null) starts with piece 0 and shuffles the rest; a later round is a shuffle of
- * them all that does not begin with `previous`, the piece just heard. `random` gives numbers in [0, 1).
+ * The order of the next round, every piece once (pieces are numbered from 0). Every round is a
+ * shuffle of them all (any piece may open a visit); a later round does not begin with `previous`,
+ * the piece just heard. `random` gives numbers in [0, 1).
  */
 export function nextRound(previous: number | null, count: number, random: () => number = Math.random): number[] {
   const order = Array.from({ length: Math.max(0, count) }, (_, i) => i);
@@ -37,8 +37,7 @@ export function nextRound(previous: number | null, count: number, random: () => 
   };
   /** A whole number from `lo` to `hi`, both included. */
   const pick = (lo: number, hi: number): number => Math.min(hi, lo + Math.floor(random() * (hi - lo + 1)));
-  const fixed = previous === null ? 1 : 0;
-  for (let i = order.length - 1; i > fixed; i--) swap(i, pick(fixed, i));
+  for (let i = order.length - 1; i > 0; i--) swap(i, pick(0, i));
   // The piece just heard would be first: it changes places with one of the others.
   if (previous !== null && order.length > 1 && order[0] === previous) swap(0, pick(1, order.length - 1));
   return order;
