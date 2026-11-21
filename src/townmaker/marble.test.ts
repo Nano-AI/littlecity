@@ -17,12 +17,26 @@ describe('a marble city on nearly every island', () => {
   test('generator 2: offered on all but the islands with no room at all for its compact forum', () => {
     const refused: number[] = [];
     let levelled = 0;
-    for (let seed = 1; seed <= sized(16, 40); seed++) {
-      const t = generateTerrain(seed, 2);
-      const p = planKind(t, seed, 'marble');
-      if (!p) refused.push(seed);
-      else if (p.levelled > 0) levelled++;
+    const lines: string[] = [];
+    for (const [gen, last] of [[2, sized(16, 40)], [1, sized(6, 30)]] as const) {
+      for (let seed = 1; seed <= last; seed++) {
+        const t = generateTerrain(seed, gen);
+        const p = planKind(t, seed, 'marble');
+        if (!p) {
+          if (gen === 2) refused.push(seed);
+          lines.push(`g${gen} s${seed}: refused`);
+          continue;
+        }
+        if (p.levelled > 0) levelled++;
+        let marble = 0;
+        let w = initialWorld(seed, t, gen);
+        for (const cell of [...w.blocks.keys()]) w = applyEdit(w, t, { type: 'eraseBlock', cell });
+        for (const e of p.edits) w = applyEdit(w, t, e);
+        for (const b of w.blocks.values()) if (b.kind === 'marble' || b.kind === 'pillar') marble++;
+        lines.push(`g${gen} s${seed}: forum ${p.forum}${p.levelled ? `, levelled ${p.levelled} column-levels` : ''}, marble and pillars ${marble}`);
+      }
     }
+    console.log(`marble cities:\n${lines.join('\n')}`);
     // Seed 18 is a ring of land round a lagoon: no 9 × 12 of land anywhere.
     expect(refused.filter((s) => s !== 18)).toEqual([]);
     expect(levelled).toBeGreaterThan(0);
