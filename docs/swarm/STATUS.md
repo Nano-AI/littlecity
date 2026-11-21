@@ -1455,3 +1455,27 @@ bin (`trash` in `src/ui/icons.ts`), not the eraser. `src/ui/towns.ts`
 (another session's file, a two-line change). Gate: 2,243 passed; 2
 timeouts at load 17 (`tests/terrain2-town.test.ts`,
 `src/life/under-fire.test.ts`), both pass alone in 16 s.
+
+**Town scenes round 1 merged** (`474addb`, Opus, `swarm/town-scenes`).
+Four scenes, one a season: beach day L63 (summer, fair, by day; up to
+30 % of the town, a household per pitch, parasols, deckchairs, towels,
+sandcastles, paddling and swimming, 150–210 s; rain sends them home at
+a run), snow day L64 (deep snow: a snowman built in five stages on the
+biggest square, then a snowball fight), harvest supper L65 (autumn, 110
+s before dusk: tables carried to the square, a lantern string, 40 % of
+the town at table, a toast), picnics L66 (spring, and summer with no
+beach: up to four families on checked blankets). One register for big
+scenes (`src/life/town/scenes.ts`: at most two at once, 40 s apart,
+none while a wedding gathers) and one note with Watch
+(`src/app/scene-note.ts`, was the wedding's; at most one every 100 s).
+Timing runs on elapsed game time, so held sliders keep scenes coming
+(held summer noon: a beach day every 1–2 min). All 15 grown towns have
+a beach. Catalogue L63–L66, design section 13c, a test file and a
+scenario each. Gate: 2,274 passed, 12 skipped, clean. Orchestrator
+looked at all four: the beach (a row of striped parasols) and the
+supper (a long table under lanterns) read at a glance; the snow day
+reads at town zoom; picnics are small. No guide picture for the snow
+day or supper (the guide's picture tool cannot hold a season). Round 2
+sent: carol singers, an ice-cream cart, fishing off the pier, skating,
+leaf piles, a street performer, an evening promenade.
+Running: town-scenes round 2.
