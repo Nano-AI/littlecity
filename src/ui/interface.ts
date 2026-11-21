@@ -44,6 +44,7 @@ import { createTownsSheet, type TownsHost } from './towns';
 import { faceZone, pickCell, type Pick } from './pick';
 import { DRAWER_IDS, drawerItems, isLandTool, isMischiefTool, isToolId, paintsRuns, type DrawerId, type ItemId } from './pieces';
 import { createMischiefTools } from './mischief';
+import { createHand } from './hand';
 import { mischiefOf } from '@/life/mischief/director';
 import { raidsOf } from '@/life/raid/raids';
 import { attachPointer } from './pointer';
@@ -262,6 +263,12 @@ export function createInterface(host: InterfaceHost): Interface {
     refuse: (reason) => refuse(reason, lastUse.x, lastUse.y),
   });
   const offMischief = mischiefOf(view.stage).on(() => api.sync());
+  // The Hand (./hand.ts): picks up what is under a press, carries it, throws it.
+  const hand = createHand(view);
+  const coarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  /** A press the Hand took: the run that follows is the Hand's, whatever happens to what it holds. */
+  let handRun = false;
+  const handHeld = (): boolean => !tray.state.idle && tray.state.item === 'hand' && !growth.active;
   const undoNow = (): void => {
     if (!mischief.undo()) game.undo();
   };
@@ -1018,9 +1025,11 @@ export function createInterface(host: InterfaceHost): Interface {
     scroll: scrollLength,
     hover(x, y) {
       hoverAt = { x, y };
+      if (handHeld()) canvas.style.cursor = hand.hover(x, y) ? 'grab' : '';
       updateGhost();
     },
     hoverEnd() {
+      hand.hoverEnd();
       hoverAt = null;
       shownRun = null;
       setGhost(null, '');
@@ -1053,11 +1062,26 @@ export function createInterface(host: InterfaceHost): Interface {
       };
       return true;
     },
+    grab(x, y) {
+      if (dismissing || copying || !handHeld()) return false;
+      if (!hand.grab(x, y, coarse())) return false;
+      canvas.style.cursor = 'grabbing';
+      handRun = true;
+      tally('mischief_hand');
+      return true;
+    },
     runMove(x, y) {
+      if (handRun) return hand.move(x, y);
       if (stroke) strokeMove(x, y);
       else runStep(x, y);
     },
     runEnd() {
+      if (handRun) {
+        handRun = false;
+        if (hand.holding) hand.release();
+        canvas.style.cursor = '';
+        return;
+      }
       if (stroke) return strokeEnd();
       run = null;
       game.end();
@@ -1115,6 +1139,12 @@ export function createInterface(host: InterfaceHost): Interface {
   // (While flying, fly mode takes Escape first.)
   const onEscape = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape' || typing(e) || growth.active || fly.active) return;
+    // Holding something in the Hand: it is put down, and nothing else happens.
+    if (hand.holding) {
+      hand.drop();
+      canvas.style.cursor = '';
+      return;
+    }
     if (!closeAll()) startRecentre();
   };
   window.addEventListener('keydown', onEscape, true);
@@ -1207,6 +1237,11 @@ export function createInterface(host: InterfaceHost): Interface {
   }
   let toldIdle = false;
   tray.onChange((state) => {
+    // Another tool (or none): whatever the Hand holds is put down.
+    if (state.idle || state.item !== 'hand') {
+      hand.drop();
+      hand.hoverEnd();
+    }
     if (state.idle && !toldIdle) {
       toldIdle = true;
       feedback.toast('Nothing in hand: just look around. Pick a piece to build again.');

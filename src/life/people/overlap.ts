@@ -25,7 +25,7 @@ export interface OverlapWatch {
 
 /** Whether a person is out and solid: drawn, not hopping, not walking in or out of a doorway or the sea. */
 export function solid(p: Person): boolean {
-  if (!p.visible || p.mode === 'gone' || p.mode === 'hop' || p.fade < 1) return false;
+  if (!p.visible || p.mode === 'gone' || p.mode === 'hop' || p.mode === 'thrown' || p.fade < 1) return false;
   if (p.mode === 'walk' && p.walk && p.walk[p.at]!.kind !== 'move') return false;
   return true;
 }

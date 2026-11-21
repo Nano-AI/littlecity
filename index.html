@@ -5,15 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#f2ede3" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>Little City</title>
-    <meta name="description" content="A tiny hand-drawn city builder. Place a few blocks and watch a little town come alive." />
+    <title>Little City — a peaceful, hand-drawn city builder you play in your browser</title>
+    <meta name="description" content="A peaceful, hand-drawn city builder sandbox. No money, no goals, no tycoon: place a few blocks and watch a little town come alive. Free, in your browser." />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1" />
+    <meta name="application-name" content="Little City" />
+    <meta name="apple-mobile-web-app-title" content="Little City" />
     <!-- Link previews (iMessage, Discord, Slack, X). Crawlers need absolute URLs and do not run scripts,
          so every link shows this one picture, whichever town the link carries. -->
     <link rel="canonical" href="https://littlecity.io/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Little City" />
-    <meta property="og:title" content="Little City" />
-    <meta property="og:description" content="A tiny hand-drawn city builder. Place a few blocks and watch a little town come alive." />
+    <meta property="og:title" content="Little City — a peaceful, hand-drawn city builder" />
+    <meta property="og:description" content="A peaceful, hand-drawn city builder sandbox. No money, no goals, no tycoon: place a few blocks and watch a little town come alive. Free, in your browser." />
     <meta property="og:url" content="https://littlecity.io/" />
     <meta property="og:image" content="https://littlecity.io/og.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
@@ -27,22 +30,35 @@
     <meta property="og:video:width" content="1280" />
     <meta property="og:video:height" content="720" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Little City" />
-    <meta name="twitter:description" content="A tiny hand-drawn city builder. Place a few blocks and watch a little town come alive." />
+    <meta name="twitter:title" content="Little City — a peaceful, hand-drawn city builder" />
+    <meta name="twitter:description" content="A peaceful, hand-drawn city builder sandbox. No money, no goals, no tycoon: place a few blocks and watch a little town come alive. Free, in your browser." />
     <meta name="twitter:image" content="https://littlecity.io/og.jpg" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- seo:data (the game and the site as structured data: tools/seo/site.ts writes them in on deploy) -->
     <link rel="stylesheet" href="/src/ui/ui.css" />
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #f2ede3; color: #3a2f2a; }
       body { position: fixed; inset: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      .lc-about { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
       #town { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
     </style>
   </head>
   <body>
-    <canvas id="town"></canvas>
+    <canvas id="town" aria-label="Little City: your town, drawn in ink and pencil"></canvas>
+    <!-- What the page is, for search engines and screen readers: the game itself is the canvas above.
+         Kept true to the game (tools/seo/site.ts has the long version, published at /about/). -->
+    <main class="lc-about">
+      <h1>Little City: a peaceful, hand-drawn city builder</h1>
+      <p>A peaceful, hand-drawn city builder sandbox you play free in your browser. No money, no goals, no tycoon: place a few blocks and watch a little town come alive.</p>
+      <p>Put down a house, a tower, a path or a dock and the town works out what they should be: a house beside a tall tower becomes a chapel, a house on a square becomes a shop, four blocks by the sea become a lighthouse. People walk to work, the miller carries flour to the bakery, boats go out fishing, and the town holds market days, weddings and snow days through the seasons.</p>
+      <p>Or grow a whole town on a new island: a harbour town, a marble city, a castle town, a market town, a river town, a farming village, a hill town or a garden town.</p>
+      <p>Free, no download, no account. Works on computers, iPhone, iPad and Android.</p>
+      <nav><a href="/about/" tabindex="-1">About Little City</a> · <a href="/guide/" tabindex="-1">The building guide: every special building and how to get it</a></nav>
+    </main>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

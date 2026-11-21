@@ -35,6 +35,8 @@ export interface Raids {
   /** Sounds of the raid (the sound system listens). */
   on(fn: (s: RaidSound) => void): () => void;
   emit(s: RaidSound): void;
+  /** Why the last raid on its own did not come (for watching and tests), or ''. */
+  why: string;
   /** Raids begun on this stage, and the life time the last one began (for the cadence). */
   count: number;
   lastAt: number;
@@ -55,6 +57,7 @@ export function raidsOf(stage: LifeStage | object): Raids {
     const raids: Raids = {
       current: null,
       auto: true,
+      why: '',
       count: 0,
       lastAt: -Infinity,
       shape: null,

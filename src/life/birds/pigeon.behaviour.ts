@@ -17,6 +17,7 @@ import { BIRDS } from '@/style/birds';
 import { defineBehaviour, type LifeContext, type Signals } from '../api';
 import { angleDelta, arc, easeInOut, easeOut, glide, lerp } from '../motion/ease';
 import { fly, yawOf } from '../motion/pose';
+import { critterPose } from '../mischief/critters';
 import { onTwos } from '../motion/twos';
 import { attitude, steer, Wings, type Attitude } from './flight';
 import { scareDistance, scaresOf, type Scare } from './scare';
@@ -320,6 +321,19 @@ export function updatePigeon(s: PigeonState, dt: number, signals: Signals, ctx: 
       s.y = floorAt(s, s.x, s.z);
     }
     if ((s.mode === 'perched' || s.mode === 'toPerch') && !s.hasPerch) burst(s, ctx, { x: s.body.x + 1, z: s.body.z }, 0);
+  }
+  // Mischief: on the ground it can be blown about or picked up (src/life/mischief/critters.ts): it flaps
+  // wildly while it goes, then walks back to where it was and carries on.
+  if (s.mode === 'ground') {
+    const held = critterPose(ctx.stage, ctx.item.id, 'pigeon', s.x, s.y, s.z, s.yaw, 0.12);
+    if (held) {
+      ctx.instance.setMatrix(held);
+      s.wings.show(true);
+      s.wings.pose(held, Math.floor(s.t * 10) % 2 ? 0.9 : -0.6);
+      s.t += dt;
+      s.drawn = NaN;
+      return;
+    }
   }
   settleHome(s, dt);
   s.t += dt;

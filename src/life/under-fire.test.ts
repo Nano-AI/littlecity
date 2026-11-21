@@ -24,10 +24,14 @@ import { ruinMending } from '@/world/damage';
 import { buildScenario } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { createTurmoil, type KindStats } from '../../tests/helpers/turmoil';
+import { crowdOf } from './doors/table';
 import { FULL, sized } from '../../tests/helpers/tier';
 
 /** Seconds after the drop: the bang (about 3.5 s), the batches, the fires, and as much of the mend as the tier allows. */
 const SECONDS = sized(30, 160);
+
+/** People seen thrown (blown about by the ring) during the run: their flights are held to the same no-teleport rule as walking. */
+let thrownSeen = 0;
 
 function underFire(): Map<string, KindStats> {
   const built = buildScenario(findScenario('grown-town-1')!);
@@ -35,8 +39,13 @@ function underFire(): Map<string, KindStats> {
   t.run(4);
   t.mark();
   const h = built.terrain.height[columnIndex(24, 24)]!;
+  const seen = new Set<string>();
+  t.onFrame = () => {
+    for (const p of crowdOf(t.stage)?.people ?? []) if (p.mode === 'thrown') seen.add(p.id);
+  };
   t.mischief.dropNuke([24.5, h * CELL_H, 24.5]);
   t.run(SECONDS);
+  thrownSeen = seen.size;
   expect([...t.game.world.blocks.values()].some((b) => b.ruin), 'the nuke wrecked the town').toBe(true);
   return new Map(t.report().map((r) => [r.kind, r]));
 }
@@ -67,6 +76,9 @@ describe('a grown town nuked and mending', () => {
     none('cat', 'vanished');
     none('cat', 'moved');
     none('cat', 'jumps');
+    // The ring throws the town about (blown about, design 13b): a flight is a fast move, never a teleport, so
+    // 'person' jumps stay at none with dozens of people in the air.
+    expect(thrownSeen).toBeGreaterThan(20);
     none('person', 'jumps');
     none('person', 'regrow'); // the shrink-and-grow of yesterday
     none('dog', 'jumps');

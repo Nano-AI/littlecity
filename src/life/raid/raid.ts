@@ -190,6 +190,7 @@ export class Raid {
   /** Something the system draws over a raider: a war cry. */
   ended = false;
   private exitAt = 0;
+  private pointed = false;
 
   constructor(private host: RaidHost, readonly site: RaidSite, readonly seed: number, buildings: number) {
     this.n = ++raidCount;
@@ -264,7 +265,11 @@ export class Raid {
       this.host.sound({ type: 'bell', x: h.x, z: h.z });
     }
     if (this.beat === 'away' && this.shipState === 'gone' && this.boats.every((b, i) => this.boatState[i] === 'sunk' || this.boatState[i] === 'towed')) this.finishSoon();
-    if (this.beat === 'away' && this.shipState === 'sunk' && this.raiders.every((r) => r.where === 'lost' || r.where === 'home')) this.finishSoon();
+    // Everybody back aboard or gone: a sunk ship's raid is over; a ship still afloat (its boats sunk, its band swum off) sails away.
+    if (this.raiders.every((r) => r.where === 'lost' || r.where === 'home') && this.beat !== 'sighted') {
+      if (this.shipState === 'sunk') this.finishSoon();
+      else if (this.shipState === 'hove' || this.shipState === 'beached') this.shipLeaves();
+    }
     if (this.exitAt > 0 && this.age >= this.exitAt) this.beat = 'done';
   }
 
@@ -687,7 +692,7 @@ export class Raid {
   /** A raider has come back aboard: when the vessel's raiders are all in, it goes. */
   private checkAllAboard(vessel: number): void {
     const mine = this.raiders.filter((r) => r.vessel === vessel);
-    if (mine.some((r) => r.where !== 'home' && r.where !== 'lost' && r.where !== 'swim')) return;
+    if (mine.some((r) => r.where !== 'home' && r.where !== 'lost' && r.where !== 'swim' && !(r.routed && r.where === 'ashore'))) return;
     if (vessel === 0) {
       if (this.kind === 'landing') this.shipLeaves();
       return;
@@ -859,6 +864,20 @@ export class Raid {
         urgent: true,
       });
     }
+    // Sighted: the townspeople nearest the shore stop and point out to sea (one waving the alarm).
+    if (this.beat === 'sighted' && !this.pointed && this.age > 4 && !this.ship.edgeCut) {
+      this.pointed = true;
+      const l = this.site.landings[0]!;
+      const near = crowd.people
+        .filter((p) => !p.raider && p.visible && (p.mode === 'walk' || p.mode === 'linger') && !p.scuffle && Math.hypot(p.x - l.x, p.z - l.z) < 16)
+        .sort((a, b) => Math.hypot(a.x - l.x, a.z - l.z) - Math.hypot(b.x - l.x, b.z - l.z) || (a.id < b.id ? -1 : 1))
+        .slice(0, 4);
+      near.forEach((p, k) => {
+        p.startled = 5 + k * 0.5;
+        p.startledFace = Math.atan2(this.ship.x - p.x, this.ship.z - p.z);
+        p.admire = k === 0 ? 'wave' : 'look';
+      });
+    }
     // Piles of loot at the landings: claimed again (a store not claimed at a sync is cleared away).
     for (const p of this.piles) board.store(p.key, p.spots);
     // Ashore: into the crowd.
@@ -931,6 +950,8 @@ export class Raid {
     }
     if (this.beat === 'recall' && this.stranded && !this.heartless) this.loseHeart(board);
     if (this.beat === 'recall' || this.beat === 'away') this.boardThose(board);
+    // Never a stall: whoever is not back by the time the rest have waited long enough is left behind, and runs for the sea.
+    if (this.beat === 'recall' && this.t > 40 && !this.heartless) this.leaveBehind(board);
     // Routed raiders at the water's edge go into the sea and swim off.
     for (const r of this.raiders) {
       if (!r.routed || r.where !== 'ashore' || !r.person) continue;
@@ -951,7 +972,7 @@ export class Raid {
     if (threats.length === 0) return;
     const near = (x: number, z: number): number => Math.min(...threats.map((t) => Math.hypot(t.x - x, t.z - z)));
     for (const p of board.crowd.people) {
-      if (p.raider || !p.visible || p.mode === 'gone' || p.mode === 'home' || p.mode === 'visit' || p.scuffle || p.leaving || p.shutIn) continue;
+      if (p.raider || !p.visible || p.mode === 'gone' || p.mode === 'home' || p.mode === 'visit' || (p.mode as string) === 'thrown' || p.scuffle || p.leaving || p.shutIn) continue;
       if ((this.fled.get(p) ?? -Infinity) > this.age) continue;
       if (p.mode === 'walk' && p.walk && p.walk[p.at]!.kind !== 'move') continue;
       const tag = p.goal?.errand?.tag ?? '';
@@ -1040,6 +1061,19 @@ export class Raid {
       board.drop(r.person);
       board.crowd.rethink(r.person);
     }
+  }
+
+  /** Waited long enough: whoever is not back (blown away, carried off, lost in the lanes) is left behind and runs for the sea. */
+  private leaveBehind(board: Board): void {
+    this.heartless = true;
+    for (const r of this.raiders) {
+      if (r.where !== 'ashore') continue;
+      r.routed = true;
+      if (r.person && board.plans.has(r.person)) board.drop(r.person);
+      if (r.person) board.crowd.rethink(r.person);
+    }
+    this.checkAllAboard(0);
+    this.boats.forEach((_, i) => this.checkAllAboard(i + 1));
   }
 
   /** Stranded: the band loses heart, and the town chases them into the sea. */

@@ -1517,3 +1517,57 @@ does not read). The ship welcome has not been seen in a picture by
 anyone. Not built: a miller's cart, skating, leaf piles, a street
 performer, fishing, a promenade.
 Running: ragdoll and the Hand.
+
+**Nuke goes off on landing (orchestrator, Derek 2026-11-21).**
+`NUKE.fuse` 1.1 → 0 (`src/life/mischief/director.ts`); the siren and
+whistle end at the landing (`nukeWarning`). Done by the orchestrator,
+not the mischief agent, because the ragdoll agent is in those files; it
+was told. Gate: 2,284 passed, 12 skipped, clean.
+**Barbarian raids (Derek).** New agent `af67b2b62016bdcfb` on
+`swarm/barbarians` (Opus): a longship runs up the beach, or a bigger
+one stands off and sends rowing boats; a band of horned-helmet raiders
+storms the town, sets fires through the existing fire engine, loots
+visibly, and sails off; villagers flee, the garrison scuffles; the
+player can sink the ship (stranded raiders are chased into the sea); a
+Raiders on/off switch in the menu, a Raid tool to summon one, and rare
+raids on their own registered with the scenes' register. Nothing saved.
+Order: figures and longship, the landing raid, looting, stopping them,
+the offshore ship, raids on their own.
+Running: ragdoll and the Hand, barbarians.
+
+**The site moved (another session, `7d0a70b`, 2026-11-21 about 02:20).**
+The game is now at https://littlecity.io/ ; `tools/deploy-pages.sh`
+publishes to the `gh-pages` branch of the repo `yaoderek/littlecity.io`
+(base `/`, a CNAME file). The old address
+(https://yaoderek.github.io/littlecity/) is meant to hold a forwarding
+page that carries players' towns across (`tools/publish-bridge.sh`);
+never publish the game there again. The orchestrator's publish of the
+nuke change (`08a6661`) went to littlecity.io and is served there
+(bundle `app-CXSwQQkh.js`, checked by resolving the domain to GitHub's
+address directly; this Mac's resolver did not find the name). At 02:30
+the old address still served the previous game build
+(`app-BOv6Kbyq.js`), not the forwarding page: left to the session that
+owns the move.
+
+**Ragdoll and the Hand, round 1 merged** (`0ab41bd`, Opus,
+`swarm/ragdoll`). Blasts throw everyone out of doors (nuke: all, in
+step with the ring; bomb: 3.6 cells; lightning: 1.3), and dogs, cats,
+hens, sheep, grazers, ground pigeons, soldiers: a real arc with a
+flailing tumble, stopped by walls, sliding off roofs, a splash and a
+swim in the sea; two bounces, 2.4–7.4 s dizzy with stars, 3.4 s getting
+up, the hat fetched, back to the walking graph. Fast flyers knock over
+whom they hit. Code: `src/life/mischief/thrown.ts`, `ground.ts`,
+`thrower.ts`, `critters.ts`, `thrown.system.ts`; a crowd mode
+`'thrown'`. The Hand (`src/ui/hand.ts`): press lifts, carried above the
+roofs with a shadow and a line, release drops, a flick throws; people,
+soldiers, dogs, cats, hens, sheep, grazers, ground pigeons; touch too.
+To be throwable a non-crowd actor calls `critterPose(...)` in its
+update. Gate: 2,305 passed, 12 skipped, clean. Falls short: from the
+whole-island view a nuke does NOT visibly toss the population (figures
+too small under the fireball and dust; reads and is funny at zoom
+9–14); stars small; p95 frame after the bang 17–30 ms (was 10–22) from
+redrawing flyers every frame. Not done: the rider and horse, birds in
+the air, carts, boats, ships, loads knocked loose, the town reacting.
+Buildings: recommendation only (lift and wobble first; real moving
+touches saving and undo).
+Running: barbarians, ragdoll round 2.

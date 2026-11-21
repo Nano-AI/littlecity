@@ -1166,6 +1166,24 @@ every cadence, so a held time of day, season or weather keeps them coming.
 
 ---
 
+- **LM01 · 2 · Blown about** (run time, no rule: `src/life/mischief/thrower.ts`)
+  — a nuke's ring (as it reaches each), a bomb (3.6 cells), a bolt (1.3
+  cells) → every person out in the town (`crowd.upend`: out of their walk,
+  haunt and errand) and every throwable animal (`critters.ts`: dogs, cats,
+  hens, sheep, paddock grazers, soldiers) thrown away from the blast,
+  harder nearer the middle; a tumbling arc against the solid map
+  (`ground.ts`: walls stop them, roofs are slid off, the sea is swum out
+  of), bounce, roll, dizzy 2.4–7.4 s with stars, getting up 3.4 s (sit and
+  shake, stand, dust off, look about, fetch a straw hat), a walk to the
+  nearest walkable spot (`crowd.settle`). Animals: on their backs, legs in
+  the air, then home. A fast body bowls over whoever it hits. Undo or a
+  called-off act: all set down at once.
+- **LM02 · 2 · The Hand** (the Mischief drawer, `src/ui/hand.ts`) — press on
+  anybody out in the town or a throwable animal → held, wriggling, carried
+  0.9 over the roofs under the pointer; released still → dropped; released
+  moving → thrown at the pointer's speed (at most 15 units a second); then
+  as LM01. Escape or another tool → put down. Nothing saved, no undo step.
+
 ## U — Urban fill
 
 Rules that make leftover and in-between space into something, the way real

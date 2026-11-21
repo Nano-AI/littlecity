@@ -22,6 +22,7 @@ import { easeInOut } from '../motion/ease';
 import { place } from '../motion/pose';
 import { onTwos } from '../motion/twos';
 import { dogsOf } from '../town/chains/dogs';
+import { critterPoseOf } from '../mischief/critters';
 
 /** Seconds a cat takes to come out of its door to its place; how fast it bolts (units a second); how far it will run for a door. */
 const COME_OUT = 1.1;
@@ -94,6 +95,13 @@ export default defineBehaviour({
       state.awake = 1;
       state.drawn = NaN;
       ctx.instance.setMatrix(multiply(base, compose(translation(state.side * 0.24 * u, Math.abs(Math.sin(u * 9)) * 0.03 * (1 - u), -0.15 + 0.27 * u), rotationY(state.side * 0.6 * (1 - u)))));
+      return;
+    }
+    // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): drawn where that says, its own state left be.
+    const held = critterPoseOf(ctx.stage, ctx.item.id, 'cat', multiply(base, translation(state.side * 0.24, 0, 0.12)), 0.16);
+    if (held) {
+      ctx.instance.setMatrix(held);
+      state.drawn = NaN;
       return;
     }
     const dog = dogsOf(ctx.stage).find((d) => d.doing === 'chase' && Math.hypot(d.x - base[12]!, d.z - base[14]!) < 0.8);

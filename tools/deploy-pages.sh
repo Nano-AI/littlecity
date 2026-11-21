@@ -14,6 +14,8 @@ SHA=$(git rev-parse --short HEAD)
 SITE=yaoderek/littlecity.io
 rm -rf "$OUT"
 VITE_BUILD="$SHA" npx vite build --base=/ --outDir "$OUT" --emptyOutDir >/dev/null
+# The pages search engines read: /about/, /guide/<id>/, the sitemap (tools/seo/site.ts).
+node tools/seo.mjs "$OUT"
 touch "$OUT/.nojekyll"
 echo littlecity.io > "$OUT/CNAME"
 cd "$OUT"

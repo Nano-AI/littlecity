@@ -211,6 +211,8 @@ interface Drawn {
   finery?: InstanceHandle | null;
   /** Seasons: wrapped up for the cold (a coat and a woolly hat). */
   wrapped?: boolean;
+  /** Mischief: drawn without the hat (knocked off). */
+  hatless?: boolean;
   /** The broom's stroke last drawn (a puff of dust at each). */
   stroke: number;
 }
@@ -313,6 +315,25 @@ function emit<E extends 'personPassed' | 'residentHome' | 'lampReached' | 'bellR
   (signals as Partial<SignalsDriver>).emit?.(event, payload as never);
 }
 
+/**
+ * Mischief: a thrown figure, the whole of it turned about a point up its middle (`Person.tumble`):
+ * world = T(x, y, z) · R · S(scale) · T(0, −pivot, 0) · local, into `world`.
+ */
+function tumbled(t: NonNullable<Person['tumble']>, scale: number, x: number, y: number, z: number, n: number): void {
+  const R = t.rot!;
+  for (let i = 0; i < n; i++) {
+    const k = i * 16;
+    for (let col = 0; col < 4; col++) {
+      const o = k + col * 4;
+      const lx = local[o]! * scale, ly = (local[o + 1]! - (col === 3 ? t.pivot : 0)) * scale, lz = local[o + 2]! * scale;
+      world[o] = R[0]! * lx + R[3]! * ly + R[6]! * lz + (col === 3 ? x : 0);
+      world[o + 1] = R[1]! * lx + R[4]! * ly + R[7]! * lz + (col === 3 ? y : 0);
+      world[o + 2] = R[2]! * lx + R[5]! * ly + R[8]! * lz + (col === 3 ? z : 0);
+      world[o + 3] = col === 3 ? 1 : 0;
+    }
+  }
+}
+
 function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   // At the water or the map's edge people climb up into view or step down out of it; elsewhere they fade.
   const edge = p.edgeX !== 0 || p.edgeZ !== 0;
@@ -331,11 +352,15 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   }
   // Seasons: each puts on (or takes off) their winter things at their own point as it turns cold.
   const wrapped = sky.cold > 0.4 + 0.3 * rand(0, p.id, 'wrap-at') && p.costume === null;
-  if (d.costume !== p.costume || (d.wrapped ?? false) !== wrapped) {
+  // Mischief: thrown, and the hat knocked off (it lies on the ground until they pick it up).
+  const hatless = p.tumble?.hatless === true;
+  if (d.costume !== p.costume || (d.wrapped ?? false) !== wrapped || (d.hatless ?? false) !== hatless) {
     // L57: dressed for the wedding (or back in everyday clothes): drawn afresh.
     d.costume = p.costume;
     d.wrapped = wrapped;
+    d.hatless = hatless;
     d.look = wrapped ? wrapLook(d.base, p.id) : costumeLook(d.base, p.costume, p.id);
+    if (hatless) d.look = { ...d.look, hat: 'none' };
     d.rig = rigOf(d.look);
     if (d.handles) for (const h of d.handles) h.release();
     d.handles = null;
@@ -351,9 +376,10 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
     d.finery = extra ? stage.spawnMesh(extra, IDENTITY) : null;
     d.shown = false;
   }
+  const tumble = p.tumble ?? null;
   const name = p.react ?? p.pose;
-  const walking = name === 'walk' || name === 'run';
-  const pose = poseOf(name, walking ? p.stride : p.poseTime, p.rank);
+  const walking = !tumble?.pose && (name === 'walk' || name === 'run');
+  const pose = tumble?.pose ? { ...tumble.pose } : poseOf(name, walking ? p.stride : p.poseTime, p.rank);
   // L26: a strong gust, and a hand goes to the hat.
   if (gust && d.look.hat !== 'none' && (walking || name === 'stand')) {
     pose.armR = 2.95;
@@ -361,7 +387,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   }
   // Hands on what they hold (hands.ts): the thing is placed, then the arms are posed onto it.
   // Seasons: in the rain, an umbrella for anyone walking or standing about with their hands free.
-  const tool =
+  const tool = tumble ? null :
     toolOf(p, name) ??
     (sky.rain > 0.25 && !p.load && rand(0, p.id, 'umbrella') < 0.75 && (walking || name === 'stand' || name === 'look' || name === 'chat')
       ? UMBRELLAS[Math.floor(rand(0, p.id, 'umbrella-colour') * UMBRELLAS.length)]!
@@ -369,7 +395,7 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   // A load is in the hands whatever the pose (a cheer, a turn to look, a flinch): only the scythe leaves them, to mow.
   const holding = p.load !== null && name !== 'mow';
   const longTool = applyHold(pose, d.rig, {
-    tool: tool ?? (walking && p.carrying && !p.load ? (p.work?.job === 'baker' ? 'tray' : 'sack') : null),
+    tool: tool ?? (walking && !tumble && p.carrying && !p.load ? (p.work?.job === 'baker' ? 'tray' : 'sack') : null),
     load: holding ? p.load : null,
     hold: holding ? HOLD_OF[p.load!] : null,
     anchor: holding ? holdAnchor(p.load!) : null,
@@ -385,19 +411,22 @@ function draw(p: Person, d: Drawn, stage: LifeStage, gust: boolean): void {
   const len = Math.hypot(p.edgeX, p.edgeZ);
   const from = len > 1 ? 0.62 : 0.15;
   const py = p.y + p.lift - depth * easeIn(Math.max(0, Math.min(1, (away - from) / (0.92 - from))));
-  rigMatrices(d.look, pose, local, sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
+  rigMatrices(d.look, pose, local, tumble ? tumble.drop : sitting ? sitDrop(d.rig, p.seat / scale) : 0, d.rig);
   if (longTool) local.set(longTool, 80);
-  // world = T(x, y, z) · Ry(heading) · S(scale) · local
-  const c = Math.cos(p.heading) * scale, s = Math.sin(p.heading) * scale;
-  for (let i = 0; i < (longTool ? 6 : 5); i++) {
-    const k = i * 16;
-    for (let col = 0; col < 4; col++) {
-      const o = k + col * 4;
-      const lx = local[o]!, ly = local[o + 1]!, lz = local[o + 2]!;
-      world[o] = c * lx + s * lz + (col === 3 ? px : 0);
-      world[o + 1] = scale * ly + (col === 3 ? py : 0);
-      world[o + 2] = -s * lx + c * lz + (col === 3 ? pz : 0);
-      world[o + 3] = col === 3 ? 1 : 0;
+  if (tumble?.rot) tumbled(tumble, scale, p.x, p.y, p.z, longTool ? 6 : 5);
+  else {
+    // world = T(x, y, z) · Ry(heading) · S(scale) · local
+    const c = Math.cos(p.heading) * scale, s = Math.sin(p.heading) * scale;
+    for (let i = 0; i < (longTool ? 6 : 5); i++) {
+      const k = i * 16;
+      for (let col = 0; col < 4; col++) {
+        const o = k + col * 4;
+        const lx = local[o]!, ly = local[o + 1]!, lz = local[o + 2]!;
+        world[o] = c * lx + s * lz + (col === 3 ? px : 0);
+        world[o + 1] = scale * ly + (col === 3 ? py : 0);
+        world[o + 2] = -s * lx + c * lz + (col === 3 ? pz : 0);
+        world[o + 3] = col === 3 ? 1 : 0;
+      }
     }
   }
   // The tool of their trade, in the hand that holds it.
@@ -610,7 +639,15 @@ export default defineSystem<State>({
     // a second. That is the hand of the thing, and it also spares the page: every frame in which
     // something moved costs the renderer a second pass for the shade on the ground.
     const tick = Math.floor(signals.time.seconds * PERSON.drawRate);
-    if (tick === state.tick && !state.fresh) return;
+    if (tick === state.tick && !state.fresh) {
+      // Except anybody flying through the air (mischief): their place is drawn every frame (their pose is still held).
+      for (const p of state.crowd.people) {
+        if (!p.tumble?.rot) continue;
+        const d = state.drawn.get(p);
+        if (d) draw(p, d, ctx.stage, false);
+      }
+      return;
+    }
     state.tick = tick;
     state.fresh = false;
     for (const p of state.crowd.people) {

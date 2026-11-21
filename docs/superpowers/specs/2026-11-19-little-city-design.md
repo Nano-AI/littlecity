@@ -1085,6 +1085,40 @@ come back. Nothing destructive ever happens unless the player starts it.
 - **More, if they come naturally** (builder's choice): a lightning bolt, a
   sea monster that rises and smashes a pier, a giant's foot. Each must be
   as readable and as funny as the first three.
+- **Blown about (Derek, 2026-11-21: "they don't die, but they get blasted
+  in every direction, just like the trees do").** A nuke's shockwave throws
+  everyone out in the town as its ring reaches them, in step with the ring
+  that flattens the buildings: near the middle high tumbling arcs across
+  several cells, at the rim bowled over where they stand. A bomb throws
+  those within a few cells; lightning knocks over anybody right beside the
+  bolt. Dogs, cats, hens, sheep, paddock animals and the castle's soldiers
+  go too; people indoors stay indoors. In the air: a real ballistic arc,
+  head over heels, arms and legs flung out; a straw hat flies off on its
+  own. Into a wall they stop dead and slide down it; onto a roof they lie
+  dizzy, then slide off the eaves; over a cliff they fall; into the sea
+  they splash and swim to the nearest shore and climb out. A bounce, a
+  roll onto the back, then a few seconds flat with stars circling the head
+  (animals on their backs, legs in the air), staggered so the town does
+  not get up in unison; then they sit up shaking the head, stand, dust
+  off, look about, fetch the hat, walk to the nearest walkable spot and
+  carry on (an errand they were on falls through, as if called away). A
+  body flying fast knocks over whoever it hits. Nobody is hurt, nobody
+  vanishes, nothing of it is saved; undo sets everybody back on their feet
+  at once. (`src/life/mischief/thrown.ts`, `thrower.ts`, `ground.ts`,
+  `critters.ts`, `thrown.system.ts`; catalogue LM01.)
+- **The Hand (Derek, 2026-11-21: "pick up basically any mob ... and throw
+  them around").** A tool in the Mischief drawer. Over somebody it can pick
+  up the cursor is an open hand and a ring is drawn round them; press, and
+  they come up kicking and hang from the pointer, carried clear above the
+  roofs with a shadow and a line down to the ground under them; let go to
+  drop them, flick to throw them (the pointer's speed decides how far).
+  Then they fly, land and get up as anybody blown about does. People
+  (anybody out in the town, the bride mid-wedding included), soldiers,
+  dogs, cats, hens, sheep. On a phone: one finger on them, drag, lift.
+  Escape or another tool puts them down gently. A drag that starts on
+  nothing turns the view, as with every tool. No undo step (nothing saved
+  changes). Not in fly mode (the tray is hidden). Not yet: birds, carts,
+  boats, ships, buildings. (`src/ui/hand.ts`; catalogue LM02.)
 - **What is left.** A destroyed block becomes a **ruin**: a charred or
   broken shell of what it was, saved with the town (`Block.ruin`), still
   standing where it stood, no longer merged into a role or housing anyone.

@@ -9,6 +9,7 @@ import { defineBehaviour } from '../api';
 import { angleDelta, easeOut, glide } from '../motion/ease';
 import { fly } from '../motion/pose';
 import { onTwos } from '../motion/twos';
+import { critterPose } from '../mischief/critters';
 
 /** How far from her spot a hen wanders, in columns. */
 export const HEN_RANGE = 0.45;
@@ -38,6 +39,13 @@ export default defineBehaviour({
   },
   update(state, dt, signals, ctx) {
     const [bx, by, bz] = positionOf(ctx.instance.base);
+    // Mischief: blown about or in the Hand (src/life/mischief/critters.ts): drawn where that says, its own state left be.
+    const held = critterPose(ctx.stage, ctx.item.id, 'hen', state.x, by, state.z, state.yaw, 0.18);
+    if (held) {
+      ctx.instance.setMatrix(held);
+      state.drawn = NaN;
+      return;
+    }
     const night = signals.time.isNight;
     if (state.dashing) {
       state.t = Math.min(1, state.t + dt / 0.45);

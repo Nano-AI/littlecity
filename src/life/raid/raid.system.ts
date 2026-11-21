@@ -47,7 +47,7 @@ interface State {
   /** Seconds of play with this town shown (for raids on their own). */
   played: number;
   /** The next raid on its own may come at this many seconds of play. */
-  nextAuto: number;
+  nextAuto: number | null;
 }
 
 /** Which way the camera looks (the app's view), to turn a war cry to it; the default view where there is none. */
@@ -95,7 +95,7 @@ export default defineSystem<State>({
     const own = ownStage(ctx.stage);
     const raids = raidsOf(ctx.stage);
     const d = mischiefOf(ctx.stage);
-    const st: State = { own, stage: ctx.stage, raids, d, off: () => {}, now: 0, pending: [], cries: new Map(), cryMeshes: [], flames: [], smokeAcc: 0, played: 0, nextAuto: RAID.first };
+    const st: State = { own, stage: ctx.stage, raids, d, off: () => {}, now: 0, pending: [], cries: new Map(), cryMeshes: [], flames: [], smokeAcc: 0, played: 0, nextAuto: null };
     raids.current = null;
     raids.start = (s: Summon) => start(st, s);
     const offD = d.on((e: MischiefEvent) => {
@@ -104,6 +104,8 @@ export default defineSystem<State>({
         // Undo while it is on, a new town, growing one: it ends now, nothing left.
         raids.end();
         clearDrawn(st);
+        // Not straight back: the next on its own waits its full time.
+        st.nextAuto = st.played + RAID.every + rand(raids.count, 'raid-every') * RAID.everySpread;
         return;
       }
       if (!raid) return;
@@ -193,11 +195,16 @@ function start(st: State, s: Summon): string | null {
 /** Raids on their own (the menu's switch): rarely, on a town worth raiding, never in its first minutes, at a wedding, or at night. */
 function autoRaid(st: State, night: boolean): void {
   const raids = st.raids;
-  if (!raids.auto || st.played < st.nextAuto || night) return;
+  if (!raids.auto || st.played < (st.nextAuto ?? RAID.first) || night) return;
   const board = raids.board, shape = raids.shape;
   if (!board || !shape) return;
   // Wait for a quiet moment: no wedding gathering, nothing else big starting, no mischief going on.
-  if (!scenesOf(board).may('raid') || st.d.active) return;
+  // Never at a wedding (gathering or under way), never on top of two other big scenes, never in the middle of mischief.
+  const on = scenesOf(board).on;
+  if (on.some((s) => s.kind === 'wedding') || on.filter((s) => s.big).length >= 2 || st.d.active) {
+    raids.why = 'waiting for a quiet moment';
+    return;
+  }
   let buildings = 0;
   const seen = new Set<number>();
   for (const [c, k] of shape.kinds) {
@@ -212,6 +219,7 @@ function autoRaid(st: State, night: boolean): void {
     return;
   }
   const why = start(st, { at: null, auto: true });
+  raids.why = why ?? '';
   // No shore a ship can reach: look again in a while.
   if (why) st.nextAuto = st.played + 120;
 }

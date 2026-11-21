@@ -174,7 +174,7 @@ function openAround(nav: NavGraph, x: number, y: number, z: number): number {
 
 /** A circle of clear water round (x, z) a hull of this reach can spin in, well inside the map. */
 function roomToTurn(field: SeaField, x: number, z: number, reach: number): boolean {
-  return mapEdge(x, z) < -reach - 1 && field.at(x, z) >= reach + 0.25;
+  return mapEdge(x, z) < -Math.min(reach, 3) - 0.5 && field.at(x, z) >= reach + 0.25;
 }
 
 /** Rounds a route's corners where the rounding stays clear; else leaves it as it is. */
@@ -335,7 +335,7 @@ function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landin
   const spots: { x: number; z: number; d: number }[] = [];
   for (let z = 4; z < SIZE_Z - 4; z += 1) {
     for (let x = 4; x < SIZE_X - 4; x += 1) {
-      if (!roomToTurn(field, x + 0.5, z + 0.5, reach)) continue;
+      if (!roomToTurn(field, x + 0.5, z + 0.5, reach * 0.7)) continue;
       spots.push({ x: x + 0.5, z: z + 0.5, d: Math.hypot(x + 0.5 - heart.x, z + 0.5 - heart.z) });
     }
   }
@@ -345,9 +345,9 @@ function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landin
     const g = bg([spot.x, spot.z]);
     // Landings a boat can row to from here, not too far.
     const reachable = pool.filter((l) => {
-      const wx = l.x + l.ox * 1.1, wz = l.z + l.oz * 1.1;
+      const wx = l.x + l.ox * 2.2, wz = l.z + l.oz * 2.2;
       const c = g.cost[columnIndex(Math.floor(wx), Math.floor(wz))]!;
-      return c < 26;
+      return c < 40;
     });
     if (reachable.length === 0) continue;
     const want = Math.min(4, Math.max(2, Math.round(2 + rand(seed, 'boats') * 2.2)));
@@ -369,7 +369,7 @@ function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landin
     const kept: Landing[] = [];
     for (const l of chosen) {
       const wx = l.x + l.ox * 1.05, wz = l.z + l.oz * 1.05;
-      const route = routeTo(g, [spot.x, spot.z], [wx, wz]);
+      const route = routeTo(g, [spot.x, spot.z], [l.x + l.ox * 2.2, l.z + l.oz * 2.2]);
       if (!route) continue;
       // From beside the ship, along the way, into the shallows square to the shore.
       const lead: Pt = [l.x + l.ox * 2.2, l.z + l.oz * 2.2];
