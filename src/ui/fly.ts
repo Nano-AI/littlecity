@@ -18,6 +18,7 @@
 // The flying itself and what is in the way are src/fly (pure, fixed step).
 // This file is input, the glides and the DOM. Fly mode never edits the town.
 
+import { track } from '@/app/analytics';
 import type { CameraPose, EyePose, TownView } from '@/render/api';
 import { eyeMatchingOrbit } from '@/render/eyecam';
 import type { DressingPlan, ShapePlan } from '@/resolve/plan';
@@ -305,6 +306,7 @@ export function createFly(host: FlyHost): FlyMode {
     available,
     enter() {
       if (!available || phase !== 'off') return false;
+      track('fly_started');
       // The camera as drawn: an ease still under way is finished first.
       from = view.getCamera();
       view.setCamera(from);
