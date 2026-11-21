@@ -1,27 +1,18 @@
 // Shape helpers for the moving things (Animation owner). Like every part,
 // pure: MeshBuilder in, triangles out. See docs/swarm/ART.md for the look.
 
-import { compose, scaling, translation, type Vec3 } from '@/core/mat4';
+import { type Vec3 } from '@/core/mat4';
 import { MIST } from '@/gen/airborne';
 import { MeshBuilder } from '@/gen/mesh';
+import { smoothBall } from '@/gen/soft';
 import { PALETTE } from '@/style/palette';
 
-/** A ball of radius 1 as a lathe profile, `rings` steps from the bottom pole to the top. */
-function ballProfile(rings: number): [number, number][] {
-  const out: [number, number][] = [];
-  for (let i = 0; i <= rings; i++) {
-    const a = (i / rings) * Math.PI;
-    out.push([i === 0 || i === rings ? 0 : Math.sin(a), -Math.cos(a)]);
-  }
-  return out;
-}
-const BALLS = new Map<number, [number, number][]>();
-
-/** A ball squashed to (rx, ry, rz) about (x, y, z). Smooth, so it shades in soft bands and has no creases. */
+/**
+ * A ball squashed to (rx, ry, rz) about (x, y, z). Smooth both ways (src/gen/soft.ts: a lathe ball is
+ * smooth only round its axis, and its rings showed as bands), so it shades in soft bands and has no creases.
+ */
 export function ball(b: MeshBuilder, x: number, y: number, z: number, rx: number, ry = rx, rz = rx, segments = 10, rings = 6): void {
-  let profile = BALLS.get(rings);
-  if (!profile) BALLS.set(rings, (profile = ballProfile(rings)));
-  b.at(compose(translation(x, y, z), scaling(rx, ry, rz)), () => b.lathe(profile, { segments }));
+  smoothBall(b, x, y, z, rx, ry, rz, segments, rings);
 }
 
 /** A flat ring lying in the XZ plane at height y, facing up: inner radius r0, outer r1, from angle a0 to a1. */

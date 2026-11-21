@@ -17,6 +17,7 @@
 import { rand } from '@/core/rand';
 import { compose, rotationX, scaling, translation, type Mat4Like } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
+import { smoothBall, smoothLathe, soft } from '@/gen/soft';
 import { PALETTE } from '@/style/palette';
 import { PERSON } from '@/style/people';
 
@@ -145,75 +146,94 @@ function arm(b: MeshBuilder, look: Look, rig: Rig): void {
   b.setColor(look.top);
   b.box([-w / 2, -len + hand, -d / 2], [w / 2, 0.012, d / 2], { skip: ['bottom'] });
   b.setColor(look.skin);
-  b.box([-w / 2, -len, -d / 2], [w / 2, -len + hand, d / 2], { skip: ['top'] });
+  // The hand: a little round mitten out of the sleeve (a box's corners read as a block close up).
+  b.box([-w / 2, -len + hand * 0.55, -d / 2], [w / 2, -len + hand, d / 2], { skip: ['top', 'bottom'] });
+  smoothBall(b, 0, -len + hand * 0.45, 0, w * 0.62, hand * 0.5, d * 0.55, 5, 3);
 }
 
 function body(b: MeshBuilder, look: Look, rig: Rig): void {
   const g = look.girth;
   const segs = 10;
   b.setInk('body').setPattern(PATTERN.none);
-  // The torso: a bean, a little flatter front to back than side to side.
+  // The torso: a bean, a little flatter front to back than side to side; smooth along its profile as
+  // well as round it, so it shades in soft bands instead of rings.
   b.at(scaling(g, 1, 0.8), () => {
     if (look.dress) {
       b.setColor(look.top);
-      b.lathe([[0, 0.062], [0.082, 0.066], [0.074, 0.12], [0.056, 0.2], [0.05, 0.25], [0.03, 0.283], [0, 0.29]], { segments: segs });
+      smoothLathe(b, [[0, 0.062], [0.082, 0.066], [0.074, 0.12], [0.056, 0.2], [0.05, 0.25], [0.03, 0.283], [0, 0.29]], { segments: segs, crease: 1.2 });
     } else {
       b.setColor(look.bottom);
-      b.lathe([[0, 0.098], [0.05, 0.102], [0.058, 0.152]], { segments: segs });
+      smoothLathe(b, [[0, 0.098], [0.05, 0.102], [0.058, 0.152]], { segments: segs, crease: 1.2 });
       b.setColor(look.top);
-      b.lathe([[0.058, 0.152], [0.057, 0.21], [0.05, 0.25], [0.03, 0.283], [0, 0.29]], { segments: segs });
+      smoothLathe(b, [[0.058, 0.152], [0.057, 0.21], [0.05, 0.25], [0.03, 0.283], [0, 0.29]], { segments: segs, crease: 1.2 });
     }
   });
-  // The head, and what is on it.
+  // The head and its hair: one soft body (src/gen/soft.ts), so the pen draws the round of the head
+  // and nothing across the face or where the hair lies on it; the hair is its colour, not a line.
   const r = rig.head, cy = rig.headY;
-  b.setInk('head');
-  b.setColor(look.skin);
-  b.lathe(arc(r, cy, 0, Math.PI, 6), { segments: segs });
-  const tilt = (rad: number, fn: () => void): void => {
-    b.at(compose(translation(0, cy, 0), rotationX(-rad), translation(0, -cy, 0)), fn);
-  };
-  b.setColor(look.hair);
+  const hs = HEAD_SEGMENTS;
   const hr = r * 1.08;
-  switch (look.hairStyle) {
-    case 'short':
-      tilt(0.42, () => b.lathe(arc(hr, cy, 0, 1.55, 4), { segments: segs }));
-      break;
-    case 'bob':
-      tilt(0.62, () => b.lathe(arc(hr * 1.03, cy, 0, 1.95, 5), { segments: segs }));
-      break;
-    case 'bun':
-      tilt(0.42, () => b.lathe(arc(hr, cy, 0, 1.55, 4), { segments: segs }));
-      b.at(translation(0, cy + r * 0.86, -r * 0.62), () => b.lathe(arc(r * 0.42, 0, 0, Math.PI, 4), { segments: 8 }));
-      break;
-    case 'long':
-      tilt(0.5, () => b.lathe(arc(hr, cy, 0, 1.7, 4), { segments: segs }));
-      // Down the back to the shoulders: the back half of a sleeve.
-      b.lathe([[hr * 0.86, rig.shoulderY - 0.012], [hr * 1.02, cy - r * 0.3], [hr, cy + r * 0.2]], { segments: segs, start: Math.PI + 0.25, sweep: Math.PI - 0.5 });
-      break;
-    case 'bald':
-      break;
-  }
+  soft(b, { ink: 'head' }, (s) => {
+    const tilt = (rad: number, fn: () => void): void => {
+      s.at(compose(translation(0, cy, 0), rotationX(-rad), translation(0, -cy, 0)), fn);
+    };
+    s.b.setColor(look.skin);
+    s.ball(0, cy, 0, r, r, r, hs, 6);
+    s.b.setColor(look.hair);
+    switch (look.hairStyle) {
+      case 'short':
+        tilt(0.42, () => s.b.lathe(arc(hr, cy, 0, 1.55, 4), { segments: hs }));
+        break;
+      case 'bob':
+        tilt(0.62, () => s.b.lathe(arc(hr * 1.03, cy, 0, 1.95, 5), { segments: hs }));
+        break;
+      case 'bun':
+        tilt(0.42, () => s.b.lathe(arc(hr, cy, 0, 1.55, 4), { segments: hs }));
+        s.ball(0, cy + r * 0.86, -r * 0.62, r * 0.42, r * 0.42, r * 0.42, 8, 5);
+        break;
+      case 'long':
+        tilt(0.5, () => s.b.lathe(arc(hr, cy, 0, 1.7, 4), { segments: hs }));
+        // Down the back to the shoulders: the back half of a sleeve, shaded as one with the head.
+        s.hold(0, cy - r * 0.55, -r * 0.1, hr, r * 1.45, hr);
+        s.b.lathe([[hr * 0.86, rig.shoulderY - 0.012], [hr * 1.02, cy - r * 0.3], [hr, cy + r * 0.2]], { segments: hs, start: Math.PI + 0.25, sweep: Math.PI - 0.5 });
+        break;
+      case 'bald':
+        break;
+    }
+    // A cap's crown and a woolly hat sit close on the head like hair: part of its round.
+    if (look.hat === 'cap') {
+      s.b.setColor(look.hatColor);
+      tilt(0.16, () => s.b.lathe(arc(hr * 1.06, cy, 0, 1.25, 4), { segments: hs }));
+    } else if (look.hat === 'bobble') {
+      s.b.setColor(look.hatColor);
+      tilt(0.2, () => s.b.lathe([[hr * 1.08, cy + r * 0.28], [hr * 1.02, cy + r * 0.6], [hr * 0.6, cy + r + 0.018], [0, cy + r + 0.03]], { segments: hs }));
+    }
+  });
   if (look.hat !== 'none') {
-    b.setColor(look.hatColor);
+    // Hats that stand off the head keep their own edges: a brim is drawn on purpose.
+    b.setInk('head').setColor(look.hatColor);
     const top = cy + r;
     if (look.hat === 'straw') {
       const y = top - r * 0.5;
-      b.lathe([[r * 1.62, y], [r * 1.62, y + 0.012], [r * 0.86, y + 0.016], [r * 0.74, y + r * 0.62], [0, y + r * 0.7]], { segments: segs, capBottom: true });
+      smoothLathe(b, [[r * 1.62, y], [r * 1.62, y + 0.012], [r * 0.86, y + 0.016], [r * 0.74, y + r * 0.62], [0, y + r * 0.7]], { segments: hs, crease: 0.9 });
+      b.lathe([[0, y], [r * 1.62, y]], { segments: hs });
     } else if (look.hat === 'cap') {
-      tilt(0.16, () => b.lathe(arc(hr * 1.06, cy, 0, 1.25, 4), { segments: segs }));
       b.box([-r * 0.62, cy + r * 0.34, r * 0.5], [r * 0.62, cy + r * 0.46, r * 1.5]);
     } else if (look.hat === 'helmet') {
       // L36: a soldier's kettle hat: a round iron crown with a wide brim, and a little spike on top.
       const y = cy + r * 0.18;
-      b.lathe([[r * 1.45, y], [r * 1.45, y + 0.01], [r * 1.08, y + 0.014], [r * 1.08, y + r * 0.55], [r * 0.7, top + 0.012], [0, top + 0.02]], { segments: segs, capBottom: true });
+      smoothLathe(b, [[r * 1.45, y], [r * 1.45, y + 0.01], [r * 1.08, y + 0.014], [r * 1.08, y + r * 0.55], [r * 0.7, top + 0.012], [0, top + 0.02]], { segments: hs, crease: 0.9 });
+      b.lathe([[0, y], [r * 1.45, y]], { segments: hs });
       b.lathe([[0.008, top + 0.018], [0, top + 0.05]], { segments: 5 });
-    } else {
-      tilt(0.2, () => b.lathe([[hr * 1.08, cy + r * 0.28], [hr * 1.02, cy + r * 0.6], [hr * 0.6, top + 0.018], [0, top + 0.03]], { segments: segs }));
+    } else if (look.hat === 'bobble') {
       b.setColor(PALETTE.white);
-      b.at(translation(0, top + 0.04, -0.01), () => b.lathe(arc(r * 0.3, 0, 0, Math.PI, 3), { segments: 6 }));
+      smoothBall(b, 0, top + 0.04, -0.01, r * 0.3, r * 0.3, r * 0.3, 7, 4);
     }
   }
 }
+
+/** Round a head: enough sides that its outline reads round close up (fly mode), few enough for a crowd. */
+const HEAD_SEGMENTS = 12;
 
 /**
  * The five pieces of one person. `ink` namespaces the ink groups: pass the

@@ -6,6 +6,7 @@ import { compose, rotationY, translation, type Vec3 } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { SLOT_INSET } from '@/gen/frames';
 import { PATTERN, type MeshBuilder } from '@/gen/mesh';
+import { soft } from '@/gen/soft';
 import { PALETTE } from '@/style/palette';
 import { bush, dab, flowerColors, localTone, lump, mixColor, rngOf, roundedRect, tube, vary, TONE } from './kit';
 import type { Dir4 } from '@/core/grid';
@@ -242,9 +243,11 @@ export const grazer = definePart({
       } else {
         // A sheep is a cloud of wool on short dark legs: a few puffs in one outline, sitting low, so
         // it reads as an animal and not a stool. Its black face pokes out in front.
-        b.with({ color: coat, pattern: PATTERN.none, ink: 'body' }, () => {
+        // One soft body (src/gen/soft.ts): no creases where the puffs meet, one outline round the fleece.
+        soft(b, { ink: 'body' }, (s) => {
+          s.b.setColor(coat).setPattern(PATTERN.none);
           const puffs: [number, number, number, number][] = [[0, 0.15, 0, 0.1], [-0.07, 0.135, 0.02, 0.075], [0.06, 0.14, -0.02, 0.075], [0.01, 0.13, 0.055, 0.07], [-0.01, 0.135, -0.055, 0.07]];
-          for (const [x, y, z, rr] of puffs) lump(b, x, y, z, rr, rr * 0.85, rr, { seg: 7, rings: 3, twist: r('tw', x) });
+          for (const [x, y, z, rr] of puffs) s.ball(x, y, z, rr, rr * 0.85, rr, 6, 4);
         });
         const graze = r('graze') < 0.6;
         b.with({ color: dark, pattern: PATTERN.none, ink: 'head' }, () => {

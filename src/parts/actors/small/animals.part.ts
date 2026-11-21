@@ -7,6 +7,7 @@
 import { compose, rotationY } from '@/core/mat4';
 import { definePart } from '@/gen/api';
 import { PATTERN } from '@/gen/mesh';
+import { soft } from '@/gen/soft';
 import { grazer } from '@/parts/props/park.part';
 import type { PropOf } from '@/resolve/plan';
 import { PALETTE } from '@/style/palette';
@@ -31,9 +32,11 @@ export default definePart({
   build(item, ctx) {
     const b = ctx.mesh().setPattern(PATTERN.none);
     const look = Math.abs(Math.round(item.params?.look ?? 0));
-    b.setColor(HENS[look % HENS.length]!).setInk('body');
-    ball(b, 0, 0.065, -0.01, 0.042, 0.04, 0.055, 7, 4);
-    ball(b, 0, 0.105, 0.04, 0.024, 0.026, 0.024, 6, 3);
+    soft(b, { ink: 'body' }, (s) => {
+      s.b.setColor(HENS[look % HENS.length]!);
+      s.ball(0, 0.065, -0.01, 0.042, 0.04, 0.055, 9, 5);
+      s.ball(0, 0.105, 0.04, 0.024, 0.026, 0.024, 8, 4);
+    });
     b.setColor(PALETTE.red).setInk('comb');
     ball(b, 0, 0.133, 0.042, 0.008, 0.011, 0.014, 4, 2);
     b.setColor(PALETTE.yellow).setInk('beak');
