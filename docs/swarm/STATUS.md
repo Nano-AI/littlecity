@@ -1415,3 +1415,15 @@ hilltop mill, a quay mill, a row by the fields, a market or bakery mill
 that the bread chain uses, a town mill on a tower stack, more
 watermills), placed by fit with fall-backs.
 Running: grow-town (windmills).
+
+**New town scenes (Derek, 2026-11-21).** "I love the wedding, I love
+when they play sports, these little cute things I can watch are great,
+so think of some more and add them"; his example: a beach day in summer
+(chairs, parasols, people lounging). → new agent `acfb086248bffb0ff` on
+`swarm/town-scenes` (Opus), owning life scenes: the beach day first and
+complete, then six to ten more chosen from a wide list across seasons
+(picnics, fishing, kites, snowmen and sledging, a maypole, a street
+performer, a school outing…), each obvious from the normal view, a
+small story with props carried and put away, a town-wide cadence, held
+sliders handled, findable like the wedding.
+Running: grow-town (windmills), town-scenes.
