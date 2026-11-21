@@ -126,7 +126,7 @@ export function createDoves(stage: LifeStage | null): Doves {
       const t = Math.floor(now * 15);
       if (t === tick) return;
       tick = t;
-      const k = farScale(2.4);
+      const k = farScale(3);
       for (const d of doves) {
         if (!d.up || !d.down) continue;
         const flap = Math.floor(Math.max(0, d.age) * d.beat) % 2 === 0;

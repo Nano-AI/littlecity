@@ -320,11 +320,24 @@ export function weddingChain(): WeddingChain {
     nav.nodes.forEach((n, i) => {
       if (i % 5 === 0 && (n.surface === 'path' || n.surface === 'plaza') && !n.clutter) by.add(i);
     });
-    const da = keyX(door.cell), dz = keyZ(door.cell);
-    for (const x of by) {
-      const n = nav.nodes[x]!;
-      const far = Math.abs(keyX(n.cell) - da) + Math.abs(keyZ(n.cell) - dz);
-      if (far < 3 || far > WEDDING.route * 0.6 || nav.part[x] !== nav.part[a]) continue;
+    const da = keyX(door.cell), dz = keyZ(door.cell), sa = keyX(square.cell), sz = keyZ(square.cell);
+    // Ranked first by a guess (as the crow walks, door to it to the square, nearest the longest way allowed;
+    // fountains and squares first), and only the best few are routed: a search each is not free.
+    const guess = (x: number): number => {
+      const c = nav.nodes[x]!.cell;
+      const len = Math.abs(keyX(c) - da) + Math.abs(keyZ(c) - dz) + Math.abs(keyX(c) - sa) + Math.abs(keyZ(c) - sz);
+      const fountain = board.crowd.haunts.some((h) => h.node === x && (h.type === 'haunt-fountain' || h.type === 'haunt-square'));
+      return Math.abs(len - WEDDING.route * 0.75) - (fountain ? 6 : 0);
+    };
+    const ranked = [...by]
+      .filter((x) => {
+        const c = nav.nodes[x]!.cell;
+        const far = Math.abs(keyX(c) - da) + Math.abs(keyZ(c) - dz);
+        return far >= 3 && far <= WEDDING.route * 0.6 && nav.part[x] === nav.part[a];
+      })
+      .sort((p, q) => guess(p) - guess(q) || p - q)
+      .slice(0, 24);
+    for (const x of ranked) {
       const r1 = router.find(a, x), r2 = r1 && router.find(x, b);
       if (!r1 || !r2) continue;
       const len = r1.nodes.length + r2.nodes.length - 1;
@@ -693,50 +706,80 @@ export function weddingChain(): WeddingChain {
     }
   };
 
+  /** The arc length of the track's sample nearest a point, looked for only between `lo` and `hi`. */
+  const nearestBetween = (x: number, z: number, lo: number, hi: number): number => {
+    const t = track!;
+    // The first sample at or past `lo`.
+    let i = 0, j = t.s.length - 1;
+    while (i < j) {
+      const mid = (i + j) >> 1;
+      if (t.s[mid]! < lo) i = mid + 1;
+      else j = mid;
+    }
+    let best = t.s[i]!, bestD = Infinity;
+    for (let k = i; k < t.s.length && t.s[k]! <= hi; k++) {
+      const d = (t.x[k]! - x) ** 2 + (t.z[k]! - z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = t.s[k]!;
+      }
+    }
+    return best;
+  };
+  /** Bystanders standing in the column's way, being moved aside (looked for every AUDIENCE seconds). */
+  const inWay = new Set<Person>();
+  let audienceAt = 0;
+
   /** People not in it stop to watch it go by (wave, clap); anybody standing in its way steps aside. */
   const audience = (board: Board): void => {
     if (!track) return;
-    const cr = coupleRow();
-    const tail = head - (Math.max(...active().map((m) => m.row), cr) + 1) * WEDDING.spacing;
+    let rows = coupleRow();
+    for (const m of members) if (!m.lost && m.row > rows) rows = m.row;
+    const tail = head - (rows + 1) * WEDDING.spacing;
     const lo = Math.max(0, tail - 0.4), hi = head + 2.2;
-    for (const p of board.crowd.people) {
-      if (p.party || !p.visible || p.mode === 'gone' || p.mode === 'hop' || p.scuffle || p.seat >= 0) continue;
-      if (p.mode !== 'walk' && p.mode !== 'linger') continue;
-      if (p.mode === 'walk' && p.walk![p.at]!.kind !== 'move') continue;
-      // (Cheap: nobody far from the column is looked at closely.)
+    if (board.now >= audienceAt) {
+      audienceAt = board.now + 0.2;
+      inWay.clear();
       trackAt(track, Math.max(0, head - 1), pt);
-      if (Math.abs(p.x - pt.x) > 6 || Math.abs(p.z - pt.z) > 6) continue;
-      const s = nearestOnTrack(track, p.x, p.z);
-      trackAt(track, s, pt);
-      const off = Math.hypot(p.x - pt.x, p.z - pt.z);
-      if (off > 2.4 || Math.abs(p.y - pt.y) > 0.6) continue;
-      if (s < lo - 2 || s > hi + 1) continue;
-      // Stop and watch: turned to the couple, a wave or a clap.
-      const c = couple[0] ?? p;
-      p.startled = Math.max(p.startled, 1.2);
-      p.startledFace = Math.atan2(c.x - p.x, c.z - p.z);
-      p.admire ??= p.child ? 'cheer' : rand(p.seed, 'admire', held) < 0.5 ? 'wave' : 'clap';
-      // In the way (on the line, ahead of or beside the column): a step aside, within their cell.
-      if (off < 0.36 && s >= lo && s <= hi) {
-        const rx = -pt.dz, rz = pt.dx;
-        let sideX = p.x - pt.x, sideZ = p.z - pt.z;
-        const lat = sideX * rx + sideZ * rz;
-        const sign = Math.abs(lat) > 1e-3 ? Math.sign(lat) : rand(p.seed, 'aside', held) < 0.5 ? -1 : 1;
-        const want = 0.38 * sign - lat;
-        const step = Math.max(-0.02, Math.min(0.02, want));
-        sideX = rx * step;
-        sideZ = rz * step;
-        const cell = p.cell, cx = keyX(cell), cz = keyZ(cell);
-        const nx = Math.max(cx + 0.05, Math.min(cx + 0.95, p.x + sideX)), nz = Math.max(cz + 0.05, Math.min(cz + 0.95, p.z + sideZ));
-        if (p.mode === 'walk') {
-          p.offX += nx - p.x;
-          p.offZ += nz - p.z;
-        }
-        // Turned into the step aside (nobody sidles or backs away).
-        if (Math.hypot(nx - p.x, nz - p.z) > 1e-4) p.heading = Math.atan2(nx - p.x, nz - p.z);
-        p.x = nx;
-        p.z = nz;
+      const hx = pt.x, hz = pt.z;
+      for (const p of board.crowd.people) {
+        if (p.party || !p.visible || p.mode === 'gone' || p.mode === 'hop' || p.scuffle || p.seat >= 0) continue;
+        if (p.mode !== 'walk' && p.mode !== 'linger') continue;
+        if (p.mode === 'walk' && p.walk![p.at]!.kind !== 'move') continue;
+        // (Cheap: nobody far from the column is looked at closely.)
+        if (Math.abs(p.x - hx) > 6 || Math.abs(p.z - hz) > 6) continue;
+        const s = nearestBetween(p.x, p.z, lo - 2, hi + 1);
+        trackAt(track, s, pt);
+        const off = Math.hypot(p.x - pt.x, p.z - pt.z);
+        if (off > 2.4 || Math.abs(p.y - pt.y) > 0.6) continue;
+        // Stop and watch: turned to the couple, a wave or a clap.
+        const c = couple[0] ?? p;
+        p.startled = Math.max(p.startled, 1.2);
+        p.startledFace = Math.atan2(c.x - p.x, c.z - p.z);
+        p.admire ??= p.child ? 'cheer' : rand(p.seed, 'admire', held) < 0.5 ? 'wave' : 'clap';
+        if (off < 0.36 && s >= lo && s <= hi) inWay.add(p);
       }
+    }
+    // In the way (on the line, ahead of or beside the column): a step aside, within their cell.
+    for (const p of inWay) {
+      if (!p.visible || (p.mode !== 'walk' && p.mode !== 'linger')) continue;
+      const s = nearestBetween(p.x, p.z, lo - 0.5, hi + 0.5);
+      trackAt(track, s, pt);
+      const rx = -pt.dz, rz = pt.dx;
+      const lat = (p.x - pt.x) * rx + (p.z - pt.z) * rz;
+      if (Math.abs(lat) >= 0.37) continue;
+      const sign = Math.abs(lat) > 1e-3 ? Math.sign(lat) : rand(p.seed, 'aside', held) < 0.5 ? -1 : 1;
+      const step = Math.max(-0.02, Math.min(0.02, 0.38 * sign - lat));
+      const cell = p.cell, cx = keyX(cell), cz = keyZ(cell);
+      const nx = Math.max(cx + 0.05, Math.min(cx + 0.95, p.x + rx * step)), nz = Math.max(cz + 0.05, Math.min(cz + 0.95, p.z + rz * step));
+      if (p.mode === 'walk') {
+        p.offX += nx - p.x;
+        p.offZ += nz - p.z;
+      }
+      // Turned into the step aside (nobody sidles or backs away).
+      if (Math.hypot(nx - p.x, nz - p.z) > 1e-4) p.heading = Math.atan2(nx - p.x, nz - p.z);
+      p.x = nx;
+      p.z = nz;
     }
   };
 

@@ -237,6 +237,8 @@ export const FINERY = {
   yellow: '#ffd96e',
   /** Petals: pinks first (they show on the cream of a path), a few white and red. */
   petals: ['#f17ea2', '#f4a3bf', '#e2557c', '#fbf8f2', '#f9c3d4', '#d9435f'] as readonly string[],
+  /** In the air (each is drawn round with ink, so lighter). */
+  petalsAir: ['#f7a8c4', '#fbd3e0', '#f4a3bf', '#fffdf8', '#f9c3d4', '#f490b2'] as readonly string[],
   /** Bunting and ribbons on the chapel on the day. */
   ribbons: ['#fbf8f2', '#f4a3bf', '#fbf8f2', '#e2557c'] as readonly string[],
 };

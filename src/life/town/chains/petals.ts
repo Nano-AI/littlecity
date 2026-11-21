@@ -106,7 +106,8 @@ function flyMesh(colour: number): MeshData {
   let m = flyMeshes[colour];
   if (!m) {
     const b = new MeshBuilder({ ink: `petal:${colour}` }).setPattern(airborne(PATTERN.none)).setInk('petal');
-    b.setColor(FINERY.petals[colour % FINERY.petals.length]!);
+    // In the air the pen draws round each one: the lighter pinks, so the ring of ink does not darken them.
+    b.setColor(FINERY.petalsAir[colour % FINERY.petalsAir.length]!);
     blade(b, 0, 0, 0, 0, SIZE);
     flyMeshes[colour] = m = b.build();
   }
@@ -294,7 +295,7 @@ export function createPetals(stage: LifeStage | null, inkOf?: (cell: CellKey) =>
       const t = Math.floor(now * 15);
       if (t !== tick) {
         tick = t;
-        const k = farScale(2.6);
+        const k = farScale(3);
         for (const f of flying) {
           if (!f.h) continue;
           const a = Math.max(0, f.age);
