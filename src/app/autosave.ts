@@ -20,6 +20,8 @@ export interface Autosave {
 export interface AutosaveOptions {
   storage: TownStorage | null;
   world(): World;
+  /** Writes the town; returns whether it was saved. Defaults to saveTown() into `storage`. */
+  write?(w: World): boolean;
   /** Called the first time saving fails, and never again. */
   onFail(): void;
   delay?: number;
@@ -37,7 +39,7 @@ export function createAutosave(opts: AutosaveOptions): Autosave {
   const save = (): void => {
     timer = null;
     if (!api.enabled) return;
-    if (saveTown(opts.storage, opts.world()) || failed) return;
+    if ((opts.write ? opts.write(opts.world()) : saveTown(opts.storage, opts.world())) || failed) return;
     failed = true;
     opts.onFail();
   };
