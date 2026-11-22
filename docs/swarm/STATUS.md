@@ -1727,3 +1727,22 @@ prow and curled stern, a shield rail, a stout rigged mast and a striped
 sail that furls, real oars through ports that ship when beached, deck
 gear; a grander ship for the boats raid; small clinker boats).
 Running: raids (the longship redraw).
+
+**Longship redrawn, merged** (`570a76c`, Opus). Clinker hull (seven
+strakes a side, each its own ink group; tarred below, two oaks, an
+ochre band, a red top strake), ribs, floorboards, sea chests for the
+rowers, barrels, rope, an anchor; a taller dragon head (jaw, teeth,
+gilt horns, a red and gilt mane) and a spiral tail; shields on a rail;
+a stouter mast with stays and shrouds, a vane and pennant; the sail
+with seams, reef points and a raven, furled in bundles when beached;
+oars through ports, raised upright when beached; a steering oar. The
+boats raid's ship is its own mesh (nine oars a side, a striped awning
+aft); clinker rowing boats; wake and oar splashes. 6,485 triangles
+whole (galleon hull 2,561); mesh test `src/parts/raid/longship.test.ts`;
+sheet tool `src/life/testing/longship-sheet.mjs`. Gate: 2,331 passed,
+12 skipped, clean. Orchestrator's eye: a clear step up, a real longship
+under sail; the hull is still mostly brown seen from above and the
+galleon's bold bands read better from afar; raised oars on the beached
+ship look like a fence of sticks. Agent's own: the mast is part of the
+hull mesh, so a scorched longship loses its sail but not its mast.
+Running: nothing of mine.
