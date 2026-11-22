@@ -1746,3 +1746,14 @@ galleon's bold bands read better from afar; raised oars on the beached
 ship look like a fence of sticks. Agent's own: the mast is part of the
 hull mesh, so a scorched longship loses its sail but not its mast.
 Running: nothing of mine.
+
+**Derek, 2026-11-22 afternoon.** (1) A sunk longship kept going down
+and hangs in view under the map's slab (screenshot `/tmp/lc-sunk.png`;
+round 3 made it sink deeper to take its sail under): nothing sunk may
+be drawn below the sea, and it stays under. (2) The boats raid should
+be just the small boats on their own, no big longship standing off.
+Both → raid agent (`af67b2b62016bdcfb`), resumed: one mechanism for all
+vessels and wrecks (a clip at the water plane beside the map-edge cut
+if workable), checked from his camera angle; the big ship removed from
+the boats raid, boats come in from the map's edge.
+Running: raids (sunk vessels, boats raid).
