@@ -13,6 +13,7 @@ import { crowdOf } from '@/life/doors/table';
 import type { Person } from '@/life/people/crowd';
 import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { throwerOf } from './thrown.system';
+import { THROWN } from './thrown';
 import { crittersOf } from './critters';
 import { boatWrecksOf } from './boatwreck';
 import { harbourOf } from '../ships/visit';
@@ -231,5 +232,45 @@ describe('people blown about', () => {
     for (let i = 0; i < 400 && p!.mode === 'thrown'; i++) t.run(0.1);
     expect(p!.mode).not.toBe('thrown');
     expect(p!.load).toBe(load);
+  }, 120_000);
+
+  test('the physics of a flight: one constant gravity from launch to first contact, launch speeds that vary person to person, and nobody drawn bigger or smaller', () => {
+    const { t, h } = town();
+    const crowd = crowdOf(t.stage)!;
+    const th = throwerOf(t.stage)!;
+    const last = new Map<Person, { vy: number; phase: string }>();
+    const launched = new Map<Person, number>();
+    const accel: number[] = [];
+    const problems: string[] = [];
+    const DT = 1 / 30;
+    t.onFrame = () => {
+      for (const [p, tt] of th.thrown) {
+        const b = tt.body;
+        const was = last.get(p);
+        if (b.phase === 'fly' && !launched.has(p)) launched.set(p, Math.hypot(b.vx, b.vy, b.vz));
+        // Flying this frame and the one before, with nothing touched between: vy fell by g·dt exactly.
+        if (was && was.phase === 'fly' && b.phase === 'fly' && tt.events.length === 0 && b.bounces === 0 && b.splat <= 0) accel.push((b.vy - was.vy) / DT);
+        last.set(p, { vy: b.vy, phase: b.phase });
+        const grow = p.tumble?.grow ?? 1;
+        if (grow !== 1) problems.push(`${p.id} drawn at ${grow}`);
+      }
+      for (const c of crittersOf(t.stage).values()) {
+        if (!c.body) continue;
+        const sc = Math.hypot(c.m[0]!, c.m[1]!, c.m[2]!);
+        if (Math.abs(sc - c.scale) > 1e-6) problems.push(`${c.id} drawn at ${sc} not ${c.scale}`);
+      }
+    };
+    t.mischief.dropNuke([24.5, h(24.5, 24.5), 24.5]);
+    t.run(6);
+    expect(problems.slice(0, 5)).toEqual([]);
+    expect(accel.length).toBeGreaterThan(200);
+    for (const a of accel) expect(a).toBeCloseTo(-THROWN.gravity, 6);
+    const v = [...launched.values()];
+    const mean = v.reduce((a, b) => a + b, 0) / v.length;
+    const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length);
+    expect(v.length).toBeGreaterThan(20);
+    // An explosion, not a carpet: speeds vary a good deal from person to person.
+    expect(sd / mean).toBeGreaterThan(0.25);
+    void crowd;
   }, 120_000);
 });
