@@ -1682,3 +1682,24 @@ an event"). Dizzy stars: three, radius 0.1, size 1 at every zoom (were
 four at 1.8 and up to 2.9× from afar). Gate: 2,328 passed, 12 skipped,
 clean. The stars were not seen in a picture after the change (the
 orchestrator's close sequence caught nobody dizzy).
+
+**Raids round 3 merged** (`b2f2e83`, Opus). The clump: plans were fine;
+the crowd's last rule (never step closer than a body to anyone ahead)
+still made raiders give way to each other, so a band on a one-cell
+strip packed into a block; walkers waiting for the garrison's column
+never counted as stuck; and damaged or scaffolded buildings were not
+targets (Derek's wrecked town offered 5 things to burn and 5 to loot;
+now 35 and 42). Now raiders ignore each other in that rule, take their
+own line across a street, raid building sites, leave after 14 s if
+there is nothing, and no raid comes on its own to a town over 40 %
+ruins. The judder at sea: 6,224 frames of rowers sliding against their
+hull (up to 0.88 units): boats were yanked onto their path when cast
+off, and rowers were placed from the hull's previous frame every other
+frame. Now vessels are drawn first and everyone aboard is placed on
+them every frame. Also: one war-cry balloon per knot, smaller brand
+smoke, a sunk longship takes its yard under, boarding from close by
+(the ship waits 25 s at most), an errand's spot kept inside its cell (a
+1.6-unit villager snap from the bucket chain). Gate: 2,330 passed, 12
+skipped, clean. Not seen on film: a brawl; the boats casting off after
+the fix (measured only).
+Running: nothing of mine.
