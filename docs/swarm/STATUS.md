@@ -1673,3 +1673,12 @@ sequence: debris and dust dominate; people hard to pick out); bomb
 throws are short and low. Not judged by eye by anyone: the trailing
 limbs and the Hand's swing close up.
 Running: raids round 3.
+
+**Notes and stars (orchestrator, Derek 2026-11-21 evening).** A note
+with Watch now appears only for a raid and a wedding (`NOTED` in
+`src/app/scene-note.ts`); the beach day, snow day, supper, picnics,
+carols and the ship welcome raise none ("a beach day does not warrant
+an event"). Dizzy stars: three, radius 0.1, size 1 at every zoom (were
+four at 1.8 and up to 2.9× from afar). Gate: 2,328 passed, 12 skipped,
+clean. The stars were not seen in a picture after the change (the
+orchestrator's close sequence caught nobody dizzy).
