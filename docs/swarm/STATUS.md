@@ -1703,3 +1703,15 @@ smoke, a sunk longship takes its yard under, boarding from close by
 skipped, clean. Not seen on film: a brawl; the boats casting off after
 the fix (measured only).
 Running: nothing of mine.
+
+**Scorch and keys hint (orchestrator, Derek 2026-11-21 evening).** The
+nuke's scorch was square quads laid a little above each column, hanging
+over every rounded cliff edge ("looks like a square placed on top").
+It is now built from the terrain's own top triangles (`terraceTops()`
+in `src/gen/terrain/terrain.gen.ts`: each column's terrace top with its
+rounded corners, plus that level's fillets), coloured per quarter cell
+as before. Checked on a hillside in the app. Its inner edge on flat
+ground is still stepped by quarter cells (the "ragged edge"). A keys
+hint in the bottom-left corner (`.lc-keys`: F fly, Esc whole island,
+⌘Z undo): tiny, half-opaque, no clicks, hidden on touch, under 980 px
+wide and while flying. Gate: 2,330 passed, 12 skipped, clean.
