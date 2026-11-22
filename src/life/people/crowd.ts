@@ -746,7 +746,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       door = nav.doors.find((d) => d.feature === e.door!.feature && d.structure === e.door!.structure && d.node === node) ?? null;
       if (!door) return null;
     }
-    const spot = door ? null : e.spot ? freeSpot(p, node, e.spot) : null;
+    // A spot is in its own cell (a chain that falls back to another cell may keep its first one's spot: the walk
+    // would end in a snap across to it).
+    const c = nodeCentre(nav, node);
+    const inCell = e.spot ? { x: Math.max(c.x - 0.45, Math.min(c.x + 0.45, e.spot.x)), z: Math.max(c.z - 0.45, Math.min(c.z + 0.45, e.spot.z)) } : null;
+    const spot = door ? null : inCell ? freeSpot(p, node, inCell) : null;
     return { kind: 'errand', node, haunt: null, door, spot, face: e.face, pose: e.pose, linger: e.linger, seat: -1, errand: e };
   };
   const leaveGoal = (p: Person): Goal | null => {
