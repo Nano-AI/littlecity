@@ -32,7 +32,17 @@ describe('raid sites', () => {
         }
         if (kind === 'boats') {
           expect(s!.landings.length).toBeGreaterThanOrEqual(2);
+          expect(s!.landings.length).toBeLessThanOrEqual(4);
           expect(s!.boatPaths.length).toBe(s!.landings.length);
+          // Each boat its own way, from beyond the edge to its landing and out over the edge again (no ship to put them off).
+          expect(s!.boatWays.length).toBe(s!.landings.length);
+          s!.boatWays.forEach((w, i) => {
+            const a = pathAt(w.arrive, 0), end = pathAt(w.arrive, w.arrive.length), out = pathAt(w.leave, w.leave.length);
+            expect(mapEdge(a.x, a.z), `boat ${i} comes in from beyond the edge`).toBeGreaterThan(0);
+            expect(mapEdge(out.x, out.z), `boat ${i} leaves over the edge`).toBeGreaterThan(0);
+            const l = s!.landings[i]!;
+            expect(Math.hypot(end.x - l.x, end.z - l.z), `boat ${i} comes to its landing`).toBeLessThan(1.6);
+          });
           // Hit from more than one side: the landings are apart.
           const [a, b] = s!.landings;
           expect(Math.hypot(a!.x - b!.x, a!.z - b!.z)).toBeGreaterThanOrEqual(4);

@@ -16,6 +16,7 @@ import { KINDS } from '@/core/kinds';
 import { throwerOf } from '../mischief/thrown.system';
 import { crittersOf } from '../mischief/critters';
 import type { Raid } from './raid';
+import { mapEdge } from '@/rules/life/ship-routes';
 
 const LONG = FULL ? 400_000 : 200_000;
 
@@ -81,7 +82,7 @@ describe('the raid', () => {
     console.log('brawls', raid.brawls, 'beaten', raid.beatenCount, 'burnt', raid.burnt, 'quarters', raid.quarters.length);
     expect(raid.brawls).toBeGreaterThan(0);
     expect(pile).toBeGreaterThan(0);
-    expect(raid.ship.heap).toBeGreaterThan(0);
+    expect(raid.ship!.heap).toBeGreaterThan(0);
     expect(offGraph).toEqual([]);
     putAway(t);
     // Its damage is ordinary damage, and nothing was added to the saved town: one undo, and it is as before.
@@ -163,22 +164,119 @@ describe('the raid', () => {
     t.mischief.cancel();
   }, LONG);
 
-  test('a boats raid: the big ship stands off, its boats row to two or more landings and carry the band back', () => {
+  test('a boats raid: no ship, only rowing boats in from beyond the edge, each to its own landing, and away over the edge with the band and the loot', () => {
     const t = town('grown-market');
     const raids = raidsOf(t.stage);
     expect(raids.summon({ at: null, kind: 'boats' })).toBeNull();
     const raid = raids.current!;
     expect(raid.kind).toBe('boats');
+    expect(raid.ship, 'no longship in a boats raid').toBeNull();
     expect(raid.boats.length).toBeGreaterThanOrEqual(2);
+    expect(raid.boats.length).toBeLessThanOrEqual(4);
     expect(new Set(raid.site.landings.map((l) => l.cell)).size).toBe(raid.boats.length);
-    let ashore = 0;
+    // Every boat starts beyond the edge of the map, out of sight.
+    for (const b of raid.boats) expect(mapEdge(b.x, b.z), 'starts beyond the edge').toBeGreaterThan(0);
+    const beats: string[] = [];
+    const states = raid.boats.map(() => new Set<string>());
+    let ashore = 0, heap = 0;
+    const waited = raid.boats.map(() => ({ x: NaN, z: NaN }));
     t.onFrame = () => {
-      if (raids.current) ashore = Math.max(ashore, raid.raiders.filter((x) => x.person !== null).length);
+      if (!raids.current) return;
+      if (beats[beats.length - 1] !== raid.beat) beats.push(raid.beat);
+      ashore = Math.max(ashore, raid.raiders.filter((x) => x.person !== null).length);
+      heap = Math.max(heap, raid.boats.reduce((a, b) => a + b.heap, 0));
+      raid.boats.forEach((b, i) => {
+        states[i]!.add(raid.boatState[i]!);
+        if (raid.boatState[i] === 'wait') waited[i] = { x: b.x, z: b.z };
+      });
     };
     until(t, () => raids.current === null, 420);
     t.onFrame = null;
+    expect(beats).toEqual(['sighted', 'landing', 'ashore', 'recall', 'away', 'done']);
     expect(ashore).toBeGreaterThanOrEqual(6);
+    expect(heap, 'loot carried off in the boats').toBeGreaterThan(0);
+    raid.boats.forEach((b, i) => {
+      // Each in, waiting at its own landing (beside it, in the shallows), out and over the edge.
+      expect([...states[i]!]).toEqual(['row-in', 'wait', 'row-out', 'gone']);
+      const l = raid.site.landings[i]!;
+      expect(Math.hypot(waited[i]!.x - l.x, waited[i]!.z - l.z), `boat ${i} waits at its landing`).toBeLessThan(1.6);
+      expect(mapEdge(b.x, b.z), `boat ${i} left over the edge`).toBeGreaterThan(0);
+    });
     expect(raid.raiders.every((r) => r.where === 'home' || r.where === 'lost')).toBe(true);
+    putAway(t);
+  }, LONG);
+
+  test('a boats raid: a boat sunk while its crew are ashore, they go home in another; the last sunk, the band is stranded and swims for it', () => {
+    const t = town('grown-market');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'boats' });
+    const raid = raids.current!;
+    until(t, () => raid.beat === 'ashore' && raid.t > 12 && raid.boatState.every((s) => s === 'wait'), 150);
+    expect(raid.boatState.every((s) => s === 'wait')).toBe(true);
+    const first = raid.boats[0]!;
+    raid.hit(first.x, first.z, 0.5, 1, 1.5);
+    t.run(1);
+    expect(raid.boatState[0]).toBe('sunk');
+    expect(raid.stranded, 'other boats still there').toBe(false);
+    // Nobody ashore still belongs to the sunk boat: they will go home in another.
+    expect(raid.raiders.filter((r) => r.vessel === 1 && (r.where === 'ashore' || r.where === 'wade-in' || r.where === 'jump')).length).toBe(0);
+    // Now all the rest.
+    raid.boats.forEach((b, i) => {
+      if (i > 0) raid.hit(b.x, b.z, 0.5, 1, 1.5);
+    });
+    t.run(1);
+    expect(raid.boatState.every((s) => s === 'sunk')).toBe(true);
+    expect(raid.stranded).toBe(true);
+    until(t, () => raids.current === null, 300);
+    expect(raids.current).toBeNull();
+    expect(raid.raiders.every((r) => r.where === 'lost')).toBe(true);
+    putAway(t);
+  }, LONG);
+
+  test('a boats raid: every boat sunk before it lands, nobody comes ashore', () => {
+    const t = town('grown-market');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'boats' });
+    const raid = raids.current!;
+    // Each one hit as soon as it is in from beyond the edge.
+    t.onFrame = () => {
+      raid.boats.forEach((b, i) => {
+        if (raid.boatState[i] === 'row-in' && mapEdge(b.x, b.z) < -1) raid.hit(b.x, b.z, 0.5, 1, 1.5);
+      });
+    };
+    until(t, () => raid.stranded, 120);
+    t.onFrame = null;
+    expect(raid.stranded).toBe(true);
+    expect(raid.beat === 'sighted' || raid.beat === 'landing' || raid.beat === 'away').toBe(true);
+    until(t, () => raids.current === null, 200);
+    expect(raid.raiders.every((r) => r.person === null && r.where === 'lost')).toBe(true);
+    putAway(t);
+  }, LONG);
+
+  test('the Hand: a rowing boat lifted with its crew and dropped on the land is out of the raid; its crew sit in it', () => {
+    const t = town('grown-market');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'boats' });
+    const raid = raids.current!;
+    const boat = raid.boats[0]!;
+    until(t, () => raid.boatState[0] === 'row-in' && mapEdge(boat.x, boat.z) < -1.5, 90);
+    const c = crittersOf(t.stage).get(`ship:raid${raid.n}-1`)!;
+    expect(c, 'a rowing boat can be picked up').toBeDefined();
+    const thrower = throwerOf(t.stage)!;
+    expect(thrower.grabCritter(c)).toBe(true);
+    const h = raid.site.heart;
+    const x0 = boat.x, z0 = boat.z;
+    for (let i = 0; i < 30; i++) {
+      thrower.carryCritter(c, x0 + (h.x - x0) * (i / 30), 3, z0 + (h.z - z0) * (i / 30));
+      t.run(1 / 30);
+    }
+    expect(boat.held, 'held up out of the water').not.toBeNull();
+    expect(raid.raiders.filter((r) => r.vessel === 1 && r.where === 'aboard').length, 'the crew hang on').toBeGreaterThan(1);
+    thrower.flingCritter(c, 0, 0, 0);
+    for (let i = 0; i < 20 && boat.aground === null; i++) t.run(1);
+    expect(boat.aground).not.toBeNull();
+    expect(raid.boatState[0]).toBe('sunk');
+    until(t, () => raids.current === null, 400);
     putAway(t);
   }, LONG);
 
@@ -187,9 +285,9 @@ describe('the raid', () => {
     const raids = raidsOf(t.stage);
     raids.summon({ at: null, kind: 'landing' });
     const raid = raids.current!;
-    until(t, () => !raid.ship.edgeCut && raid.shipState === 'arrive', 60);
+    until(t, () => !raid.ship!.edgeCut && raid.shipState === 'arrive', 60);
     t.run(2);
-    t.mischief.dropBomb([raid.ship.x, 0.5, raid.ship.z]);
+    t.mischief.dropBomb([raid.ship!.x, 0.5, raid.ship!.z]);
     until(t, () => raids.current === null, 200);
     expect(raid.raiders.every((r) => r.person === null)).toBe(true);
     expect(raid.raiders.every((r) => r.where === 'lost')).toBe(true);
@@ -202,7 +300,7 @@ describe('the raid', () => {
     raids.summon({ at: null, kind: 'landing' });
     const raid = raids.current!;
     until(t, () => raid.beat === 'ashore' && raid.t > 15, 120);
-    t.mischief.dropBomb([raid.ship.x, 0.5, raid.ship.z]);
+    t.mischief.dropBomb([raid.ship!.x, 0.5, raid.ship!.z]);
     until(t, () => raid.stranded, 10);
     expect(raid.stranded).toBe(true);
     until(t, () => raids.current === null, 300);
@@ -221,14 +319,15 @@ describe('the raid', () => {
     expect(c, 'the longship can be picked up').toBeDefined();
     expect(thrower.grabCritter(c)).toBe(true);
     const h = raid.site.heart;
+    const ship = raid.ship!;
     for (let i = 0; i < 30; i++) {
-      thrower.carryCritter(c, raid.ship.x + (h.x - raid.ship.x) * (i / 30), 3, raid.ship.z + (h.z - raid.ship.z) * (i / 30));
+      thrower.carryCritter(c, ship.x + (h.x - ship.x) * (i / 30), 3, ship.z + (h.z - ship.z) * (i / 30));
       t.run(1 / 30);
     }
-    expect(raid.ship.held, 'held up out of the water').not.toBeNull();
+    expect(ship.held, 'held up out of the water').not.toBeNull();
     expect(raid.raiders.filter((r) => r.where === 'aboard').length, 'the crew hang on').toBeGreaterThan(4);
     thrower.flingCritter(c, 0, 0, 0);
-    for (let i = 0; i < 20 && raid.ship.aground === null; i++) {
+    for (let i = 0; i < 20 && ship.aground === null; i++) {
       t.run(1);
     }
     expect(raid.stranded).toBe(true);

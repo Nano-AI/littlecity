@@ -144,7 +144,7 @@ export default defineSystem<State>({
     }
     const raid = raids.current;
     if (raid) {
-      const w = signals.wind(raid.ship.x, raid.ship.z);
+      const w = signals.wind(raid.lead.x, raid.lead.z);
       raid.stepSea(dt, signals.time.seconds, w.strength);
       st.d.threats = raid.threats();
       drawCries(st, raid, signals.time.seconds);
@@ -197,8 +197,8 @@ function start(st: State, s: Summon): string | null {
   raids.count++;
   raids.lastAt = st.now;
   st.d.hold('raid', true);
-  // The horn from the ship as its sail comes over the edge.
-  raids.emit({ type: 'horn', x: raid.ship.x, z: raid.ship.z, long: false });
+  // The horn from the ship (or the first boat) as it comes over the edge.
+  raids.emit({ type: 'horn', x: raid.lead.x, z: raid.lead.z, long: false });
   return null;
 }
 
@@ -298,7 +298,7 @@ function drawFlames(st: State, raid: Raid, dt: number, seconds: number): void {
     const z = m[2]! * lx + m[6]! * ly + m[10]! * lz + m[14]!;
     const flick = 0.85 + 0.25 * (Math.floor(seconds * 7 + i) % 3) / 2;
     h.setVisible(y > SEA_Y - 0.1);
-    h.setMatrix(place(x, y, z, raid.ship.yaw + i, 0.9 * v.size, 1.1 * flick * v.size, 0.9 * v.size));
+    h.setMatrix(place(x, y, z, v.yaw + i, 0.9 * v.size, 1.1 * flick * v.size, 0.9 * v.size));
   });
   if (fires.length === 0) return;
   st.smokeAcc += dt;

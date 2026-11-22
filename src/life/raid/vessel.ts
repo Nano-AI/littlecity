@@ -104,6 +104,8 @@ export class Vessel {
       this.seats.unshift({ x: 0, y: 0.12 * k, z: 1.75 * k, face: 0, sit: false });
       this.seats.push({ x: 0.18 * k, y: 0.12 * k, z: -1.95 * k, face: 0, sit: false });
     } else {
+      // One standing in the bow (the chief with his standard, or a brand held up), the steersman in the stern.
+      this.seats.unshift({ x: 0, y: 0.07, z: 0.78, face: 0, sit: false });
       this.seats.push({ x: 0, y: 0.06, z: -0.72, face: 0, sit: true });
     }
   }
@@ -201,7 +203,8 @@ export class Vessel {
       t.fill(0);
       t[0] = 1; t[5] = 1; t[10] = 1; t[15] = 1;
       t[13] = (ship ? 0.07 : 0.05) * (ship ? this.size : 1);
-      t[14] = ship ? -0.75 * this.size : 0.25;
+      // (A boat's: the chest in the stern sheets, before the steersman, the rest forward of it.)
+      t[14] = ship ? -0.75 * this.size : -0.2;
       this.heapH.setMatrix(mulInto(this.tmp2, this.m, t));
     }
     this.setCut(mapEdge(this.x, this.z) > -this.length * 0.6);

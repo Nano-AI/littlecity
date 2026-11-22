@@ -44,7 +44,7 @@ import { rand } from '@/core/rand';
 import type { Barbarian } from '@/parts/people/barbarian';
 import { restingMesh, type Load } from '@/parts/people/loads';
 import type { StructureId } from '@/resolve/plan';
-import { pathAt, pathOf, type Path } from '@/rules/life/ship-routes';
+import { pathAt } from '@/rules/life/ship-routes';
 import { RAID } from '@/style/raid';
 import { PEOPLE, PERSON } from '@/style/people';
 import type { LifeStage, TimeSignal } from '../api';
@@ -174,14 +174,15 @@ export class Raid {
   /** Seconds in this beat, and since the raid began. */
   t = 0;
   age = 0;
-  readonly ship: Vessel;
+  /** The longship (a landing raid); a boats raid has none, only its rowing boats. */
+  readonly ship: Vessel | null;
   readonly boats: Vessel[] = [];
   readonly raiders: Raider[] = [];
-  /** The ship's place on its way: 'arrive' along the way in, 'spin' about, 'in' to the beach, 'beached', 'out' astern, 'spin-out', 'leave', 'gone'; a boats raid's ship 'hove' to. */
-  shipState: 'arrive' | 'spin' | 'in' | 'beached' | 'hove' | 'out' | 'spin-out' | 'leave' | 'gone' | 'sunk' = 'arrive';
+  /** The ship's place on its way: 'arrive' along the way in, 'spin' about, 'in' to the beach, 'beached', 'out' astern, 'spin-out', 'leave', 'gone' (a boats raid: 'gone' from the start). */
+  shipState: 'arrive' | 'spin' | 'in' | 'beached' | 'out' | 'spin-out' | 'leave' | 'gone' | 'sunk' = 'arrive';
   private s = 0;
-  /** Each boat: 'tow', 'row-in', 'wait' (on the shore), 'row-out', 'towed' (back on its line), 'sunk'. */
-  readonly boatState: ('tow' | 'row-in' | 'wait' | 'row-out' | 'towed' | 'sunk')[] = [];
+  /** Each boat: 'row-in' from beyond the edge of the map, 'wait' (run up on the shore), 'row-out' and off over the edge, 'gone', 'sunk'. */
+  readonly boatState: ('row-in' | 'wait' | 'row-out' | 'gone' | 'sunk')[] = [];
   private boatS: number[] = [];
   /** The ship can no longer carry the band (gone down, or burning). */
   stranded = false;
@@ -189,7 +190,6 @@ export class Raid {
   private heartless = false;
   /** Seconds the town has known (for the bell, the watcher). */
   private rung = false;
-  private crewFigs: Figure[] = [];
   /** The loot pile at each landing (a board store), by key. */
   readonly piles: { key: string; spots: Spot[] }[] = [];
   private burnTargets: Target[] = [];
@@ -215,29 +215,40 @@ export class Raid {
     this.n = ++raidCount;
     this.kind = site.kind;
     const stage = host.own.stage;
-    this.ship = new Vessel(stage, 'ship', site.size, seed % 5, rand(seed, 'raid-phase'));
-    this.ship.fx = host.stage;
-    const start = pathAt(site.voyage.arrive, 0);
-    this.ship.x = start.x;
-    this.ship.z = start.z;
-    this.ship.yaw = start.yaw;
-    this.ship.sail = 1;
-    this.ship.rowing = 0.6;
-    // The band, scaled to the town.
-    const want = Math.round(Math.max(RAID.bandMin, Math.min(RAID.bandMax, RAID.bandMin + buildings / RAID.perBuildings)));
-    if (this.kind === 'boats') {
+    if (this.kind === 'landing') {
+      const ship = new Vessel(stage, 'ship', site.size, seed % 5, rand(seed, 'raid-phase'));
+      ship.fx = host.stage;
+      const start = pathAt(site.voyage.arrive, 0);
+      ship.x = start.x;
+      ship.z = start.z;
+      ship.yaw = start.yaw;
+      ship.sail = 1;
+      ship.rowing = 0.6;
+      this.ship = ship;
+    } else {
+      // No ship: the boats row in on their own from beyond the edge of the map, one behind another.
+      this.ship = null;
+      this.shipState = 'gone';
       const nb = site.landings.length;
       for (let b = 0; b < nb; b++) {
         const v = new Vessel(stage, 'boat', 1, (seed + b) % 5, rand(seed, 'boat-phase', b));
         v.fx = host.stage;
+        const way = site.boatWays[b]!.arrive;
+        const q = pathAt(way, 0);
+        v.x = q.x;
+        v.z = q.z;
+        v.yaw = q.yaw;
+        v.rowing = 1;
         this.boats.push(v);
-        this.boatState.push('tow');
-        this.boatS.push(0);
+        this.boatState.push('row-in');
+        // A boat's length and a half behind the one ahead (out of sight beyond the edge till its turn).
+        this.boatS.push(-b * 2.4);
       }
-      this.towBoats(true);
     }
-    const seatsPer = this.kind === 'boats' ? Math.min(7, this.boats[0]!.seats.length) : this.ship.seats.length;
-    const band = Math.min(want, this.kind === 'boats' ? seatsPer * this.boats.length : this.ship.seats.length);
+    // The band, scaled to the town.
+    const want = Math.round(Math.max(RAID.bandMin, Math.min(RAID.bandMax, RAID.bandMin + buildings / RAID.perBuildings)));
+    const seats = this.kind === 'boats' ? this.boats[0]!.seats.length * this.boats.length : this.ship!.seats.length;
+    const band = Math.min(want, seats);
     for (let i = 0; i < band; i++) {
       const chief = i === 0;
       const v = chief ? 'chief' : (`raider-${(i - 1 + (seed % 8)) % 8}` as Barbarian);
@@ -254,8 +265,6 @@ export class Raid {
     this.parties = Math.max(1, Math.min(5, Math.floor((this.raiders.length - 1) / 3)));
     for (const r of this.raiders) r.party = r.role === 'chief' ? 0 : Math.min(this.parties - 1, Math.floor((r.i - 1) / 3));
     for (const r of this.raiders) r.fig = new Figure(stage, r.look, r.costume, `raid${this.n}-r${r.i}`);
-    // A boats raid's ship keeps two hands aboard: a steersman and a lookout.
-    if (this.kind === 'boats') for (let k = 0; k < 2; k++) this.crewFigs.push(new Figure(stage, Math.floor(rand(seed, 'crew', k) * 1e6), `raider-${(k * 3 + 1) % 8}` as Barbarian, `raid${this.n}-crew${k}`));
     // Piles of loot at each landing, a step up the shore.
     site.landings.forEach((l, i) => this.piles.push({ key: `raid${this.n}:pile${i}`, spots: pileSpots(l) }));
     this.burnWant = Math.round(Math.max(RAID.burnMin, Math.min(RAID.burnMax, buildings * RAID.burnShare)));
@@ -265,7 +274,29 @@ export class Raid {
 
   /** The vessel a raider belongs to. */
   vesselOf(r: Raider): Vessel {
-    return r.vessel === 0 ? this.ship : this.boats[r.vessel - 1]!;
+    return this.vessel(r.vessel)!;
+  }
+
+  /** Vessel `k`: 0 the ship (null in a boats raid), 1.. the boats. */
+  vessel(k: number): Vessel | null {
+    return k === 0 ? this.ship : this.boats[k - 1] ?? null;
+  }
+
+  /** Every vessel there is, the ship first. */
+  get vessels(): Vessel[] {
+    return this.ship ? [this.ship, ...this.boats] : this.boats;
+  }
+
+  /** The one to look at, blow the horn from, hang the flames' wind on: the ship, or the first boat still afloat. */
+  get lead(): Vessel {
+    return this.ship ?? this.boats.find((_, i) => this.boatState[i] !== 'sunk') ?? this.boats[0]!;
+  }
+
+  /** Vessel `k` is out of it: sunk, or gone over the edge. */
+  private over(k: number): boolean {
+    if (k === 0) return this.shipState === 'gone' || this.shipState === 'sunk';
+    const st = this.boatState[k - 1];
+    return st === 'sunk' || st === 'gone';
   }
 
   /** Every frame: the ships, and the raiders at sea. */
@@ -273,13 +304,14 @@ export class Raid {
     if (this.ended || this.beat === 'done') return;
     this.t += dt;
     this.age += dt;
-    if (!this.handled(this.ship, 0)) this.moveShip(dt);
+    if (this.ship && !this.handled(this.ship, 0)) this.moveShip(dt);
     this.moveBoats(dt);
-    this.boats.forEach((b, i) => this.handled(b, i + 1));
-    this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
-    for (const b of this.boats) b.stroke = (b.stroke + dt * 0.75 * (b.rowing > 0.05 ? 1 : 0)) % 1;
+    if (this.ship) this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
+    // The boats pull together: one stroke for all of them (oars in time, boat to boat).
+    this.boatStroke = (this.boatStroke + dt * 0.75) % 1;
+    for (const b of this.boats) b.stroke = this.boatStroke;
     this.settleOffsets(dt);
-    for (const v of [this.ship, ...this.boats]) {
+    for (const v of this.vessels) {
       // Drawn where it is plus what is left of the gap the Hand put it at.
       const bx = v.x, bz = v.z, by = v.yaw;
       v.x += v.off.x;
@@ -301,12 +333,19 @@ export class Raid {
       const h = this.site.landings[0]!;
       this.host.sound({ type: 'bell', x: h.x, z: h.z });
     }
-    if (this.beat === 'away' && this.shipState === 'gone' && this.boats.every((b, i) => this.boatState[i] === 'sunk' || this.boatState[i] === 'towed')) this.finishSoon();
-    // Everybody back aboard or gone: a sunk ship's raid is over; a ship still afloat (its boats sunk, its band swum off) sails away.
-    // (Aboard a ship lying on the land counts as back: they sit in it, dazed, till the town hauls it off.)
-    if (this.raiders.every((r) => r.where === 'lost' || r.where === 'home' || (r.where === 'aboard' && this.vesselOf(r).aground !== null)) && (this.beat !== 'sighted' || this.ship.aground)) {
-      if (this.shipState === 'sunk') this.finishSoon();
-      else if (this.shipState === 'hove' || this.shipState === 'beached') this.shipLeaves();
+    if (this.ship && this.beat === 'away' && this.shipState === 'gone') this.finishSoon();
+    // Everybody back aboard or gone: a sunk ship's raid is over; a ship still afloat (its band swum off) sails away;
+    // boats still on the shore with nobody left to come put off. (Aboard a vessel lying on the land counts as back:
+    // they sit in it, dazed, till the town hauls it off.)
+    if (this.raiders.every((r) => r.where === 'lost' || r.where === 'home' || (r.where === 'aboard' && this.vesselOf(r).aground !== null)) && (this.beat !== 'sighted' || this.vessels.some((v) => v.aground))) {
+      if (this.ship) {
+        if (this.shipState === 'sunk') this.finishSoon();
+        else if (this.shipState === 'beached') this.shipLeaves();
+      } else {
+        for (let k = 1; k <= this.boats.length; k++) this.checkAllAboard(k);
+        if (this.boatState.every((s) => s === 'sunk' || s === 'gone')) this.finishSoon();
+        else if (this.beat !== 'away' && this.boatState.every((s) => s !== 'wait' && s !== 'row-in')) this.setBeat('away');
+      }
     }
     if (this.exitAt > 0 && this.age >= this.exitAt) this.beat = 'done';
   }
@@ -315,8 +354,10 @@ export class Raid {
     if (this.exitAt === 0) this.exitAt = this.age + 0.5;
   }
 
+  private boatStroke = 0;
+
   private moveShip(dt: number): void {
-    const v = this.ship, site = this.site;
+    const v = this.ship!, site = this.site;
     const turn = site.voyage.turn;
     switch (this.shipState) {
       case 'arrive': {
@@ -329,16 +370,9 @@ export class Raid {
         v.x = q.x;
         v.z = q.z;
         v.yaw = q.yaw;
-        v.sail = this.kind === 'boats' ? Math.max(0.6, clamp01((left - 0.8) / 2.5)) : clamp01((left - 0.8) / 2.5);
+        v.sail = clamp01((left - 0.8) / 2.5);
         v.rowing = 0.5 + 0.5 * clamp01(1 - left / 6);
-        if (this.s >= p.length) {
-          if (this.kind === 'landing') this.shipState = 'spin';
-          else {
-            this.shipState = 'hove';
-            this.setBeat('landing');
-            for (let i = 0; i < this.boats.length; i++) if (this.boatState[i] === 'tow') this.castOff(i);
-          }
-        }
+        if (this.s >= p.length) this.shipState = 'spin';
         break;
       }
       case 'spin': {
@@ -378,11 +412,6 @@ export class Raid {
       }
       case 'beached':
         v.rowing = 0;
-        break;
-      case 'hove':
-        // Hove to, its striped sail half-brailed: still the first thing anybody sees out there.
-        v.rowing = 0.15;
-        v.sail += (0.6 - v.sail) * Math.min(1, dt);
         break;
       case 'out': {
         const b = site.beached!;
@@ -438,7 +467,7 @@ export class Raid {
    * vessel is not moving by itself.
    */
   private handled(v: Vessel, k: number): boolean {
-    if (v.hurt >= 3 || (k === 0 && (this.shipState === 'gone' || this.shipState === 'sunk')) || (k > 0 && this.boatState[k - 1] === 'sunk')) return v.aground !== null;
+    if (v.hurt >= 3 || this.over(k)) return v.aground !== null;
     // Named as the harbour's ships are ('ship:…'): blasts leave them to the raid (it sinks them itself), only the Hand throws them.
     if (v.aground) return true;
     const id = `ship:raid${this.n}-${k}`;
@@ -465,7 +494,7 @@ export class Raid {
           this.stranded = true;
           this.shipState = 'sunk';
           if (this.beat === 'sighted' || this.beat === 'landing') this.setBeat('away');
-        } else this.boatState[k - 1] = 'sunk';
+        } else this.boatDown(k - 1);
         return true;
       }
       // Back in the water with a splash: it rows back to where it should be from here.
@@ -477,7 +506,7 @@ export class Raid {
 
   /** A vessel put back in the water away from its place: drawn there, the gap closing as it rows back. */
   private settleOffsets(dt: number): void {
-    for (const v of [this.ship, ...this.boats]) {
+    for (const v of this.vessels) {
       if (v.held || v.aground) continue;
       const o = v.off;
       if (o.x === 0 && o.z === 0 && o.yaw === 0) continue;
@@ -490,85 +519,52 @@ export class Raid {
     }
   }
 
-  /** The boats' lines: each follows the one ahead on a rope (the first the ship's stern). */
-  private towBoats(init = false): void {
-    const v = this.ship;
-    const sx = Math.sin(v.yaw), cz = Math.cos(v.yaw);
-    let lx = v.x + sx * v.hull.stern, lz = v.z + cz * v.hull.stern;
-    let ldx = -sx, ldz = -cz;
-    this.boats.forEach((b, i) => {
-      const st = this.boatState[i];
-      if (st !== 'tow' && st !== 'towed') return;
-      const rope = 0.7 - b.hull.stern;
-      if (init) {
-        b.x = lx + ldx * (rope + b.hull.bow);
-        b.z = lz + ldz * (rope + b.hull.bow);
-      }
-      // The bow follows on its rope.
-      let dx = b.x + Math.sin(b.yaw) * b.hull.bow - lx, dz = b.z + Math.cos(b.yaw) * b.hull.bow - lz;
-      let d = Math.hypot(dx, dz);
-      if (d < 1e-6) {
-        dx = ldx;
-        dz = ldz;
-        d = 1;
-      }
-      const bx = lx + (dx / d) * Math.min(d, rope), bz = lz + (dz / d) * Math.min(d, rope);
-      const yaw = Math.atan2(lx - bx, lz - bz);
-      b.yaw = init ? Math.atan2(-ldx, -ldz) : yaw;
-      b.x = bx - Math.sin(b.yaw) * b.hull.bow;
-      b.z = bz - Math.cos(b.yaw) * b.hull.bow;
-      b.rowing = 0;
-      lx = b.x + Math.sin(b.yaw) * b.hull.stern;
-      lz = b.z + Math.cos(b.yaw) * b.hull.stern;
-      ldx = -Math.sin(b.yaw);
-      ldz = -Math.cos(b.yaw);
-    });
-  }
-
-  private castOff(i: number): void {
-    this.boatState[i] = 'row-in';
-    this.boatS[i] = 0;
-    const b = this.boats[i]!;
-    const way = this.site.boatPaths[i]!;
-    // From where it lies on its tow (beside the ship), round onto its way: no sweep across the water.
-    this.boatWays[i] = pathOf([[b.x, b.z], ...way.points.slice(1)]);
-  }
-  /** Each boat's way in as it is rowed (from where it lay when it cast off). */
-  private boatWays: Path[] = [];
-
+  /**
+   * The rowing boats: each in from beyond the edge of the map on its own way (one behind another), run up in the
+   * shallows at its landing, waiting there while its crew are ashore, then turned about and rowed off over the edge
+   * with whoever came back and what they carry.
+   */
   private moveBoats(dt: number): void {
-    this.towBoats();
     this.boats.forEach((b, i) => {
+      if (this.handled(b, i + 1)) return;
       const st = this.boatState[i];
-      const path = this.boatWays[i] ?? this.site.boatPaths[i]!;
+      const ways = this.site.boatWays[i]!;
       if (st === 'row-in') {
-        // From where it lies to the start of its way, then along it.
+        const path = ways.arrive;
         const left = path.length - this.boatS[i]!;
-        this.boatS[i] = Math.min(path.length, this.boatS[i]! + RAID.boatRow * (0.4 + 0.6 * clamp01(left / 1.5)) * dt);
-        const q = pathAt(path, this.boatS[i]!);
+        // Pulling hard over the open water, easing in over the last few cells.
+        this.boatS[i] = Math.min(path.length, this.boatS[i]! + RAID.boatRow * (0.4 + 0.95 * clamp01(left / 6)) * dt);
+        const q = pathAt(path, Math.max(0, this.boatS[i]!));
         b.x = q.x;
         b.z = q.z;
-        // The head comes round onto the way as it rows (never a snap).
-        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 2.5);
+        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 3);
         b.rowing = 1;
         b.beach = clamp01(1 - left / 0.5) * 0.5;
+        // The first boat near in: the landing begins.
+        if (left < 5 && this.beat === 'sighted') this.setBeat('landing');
         if (this.boatS[i]! >= path.length) {
           this.boatState[i] = 'wait';
           b.rowing = 0;
+          this.host.sound({ type: 'splash', x: b.x, z: b.z });
           this.disembark(i + 1);
         }
+      } else if (st === 'wait') {
+        b.rowing = 0;
       } else if (st === 'row-out') {
-        this.boatS[i] = Math.max(0, this.boatS[i]! - RAID.boatRow * dt);
+        const path = ways.leave;
+        // Backed off the sand, brought round, then away: slow at first, laden.
+        this.boatS[i] = Math.min(path.length, this.boatS[i]! + RAID.boatRow * (0.35 + 0.75 * clamp01(this.boatS[i]! / 2)) * dt);
         const q = pathAt(path, this.boatS[i]!);
         b.x = q.x;
         b.z = q.z;
-        // Going back out bow first: turned about over the first stretch.
-        b.yaw += angleDelta(b.yaw, q.yaw + Math.PI) * Math.min(1, dt * 2.5);
+        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 1.8);
         b.rowing = 1;
         b.beach = 0;
-        if (this.boatS[i]! <= 0) {
-          this.boatState[i] = 'towed';
-          if (this.boatState.every((s) => s === 'towed' || s === 'sunk')) this.shipLeaves();
+        if (this.boatS[i]! >= path.length) {
+          this.boatState[i] = 'gone';
+          b.rowing = 0;
+          b.hideAll();
+          for (const r of this.raiders) if (r.vessel === i + 1 && (r.where === 'home' || r.where === 'aboard')) r.fig?.hideAll();
         }
       }
     });
@@ -579,7 +575,7 @@ export class Raid {
     if (this.shipState === 'beached') {
       this.shipState = 'out';
       this.s = 0;
-    } else if (this.shipState === 'hove') this.shipState = 'spin-out';
+    }
     this.setBeat('away');
   }
 
@@ -624,10 +620,13 @@ export class Raid {
             this.goSwim(r);
             break;
           }
+          if (r.vessel > 0 && this.boatState[r.vessel - 1] === 'gone') break;
           const s = v.seatAt(r.seat);
           const seat = v.seats[r.seat % v.seats.length]!;
           const rower = seat.sit && v.rowing > 0.05;
-          fig.pose(s.x, s.y, s.z, s.heading, seat.sit ? 'sit' : r.role === 'chief' && this.beat === 'sighted' ? 'cheer' : 'stand', seconds, {
+          // Standing in the bow: the chief with his standard, or a brand held up, cheering them in.
+          const bow = !seat.sit && (this.beat === 'sighted' || this.beat === 'landing') && (r.role === 'chief' || v.kind === 'boat');
+          fig.pose(s.x, s.y, s.z, s.heading, seat.sit ? 'sit' : bow ? 'cheer' : 'stand', seconds, {
             grow: false,
             rigid: true,
             seat: seat.sit ? 0.12 : -1,
@@ -736,17 +735,6 @@ export class Raid {
           break;
       }
     }
-    // A boats raid's ship keeps its two hands aboard.
-    this.crewFigs.forEach((f, k) => {
-      const v = this.ship;
-      if (v.hurt >= 3 && v.sink > 0.5) {
-        f.setVisible(false);
-        return;
-      }
-      const s = v.seatAt(k === 0 ? v.seats.length - 1 : 0);
-      f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1, rigid: true });
-      f.setCut(v.edgeCut);
-    });
   }
 
   /** Livestock that jumped ship: a pig or a hen swimming home, then standing on the shore, dripping. */
@@ -844,14 +832,17 @@ export class Raid {
     const mine = this.raiders.filter((r) => r.vessel === vessel);
     if (mine.some((r) => r.where !== 'home' && r.where !== 'lost' && r.where !== 'swim' && !(r.routed && r.where === 'ashore'))) return;
     if (vessel === 0) {
-      if (this.kind === 'landing') this.shipLeaves();
+      if (this.ship) this.shipLeaves();
       return;
     }
     const i = vessel - 1;
     if (this.boatState[i] === 'wait') {
       this.boatState[i] = 'row-out';
-      this.boatS[i] = (this.boatWays[i] ?? this.site.boatPaths[i]!).length;
+      this.boatS[i] = 0;
+      this.host.sound({ type: 'splash', x: this.boats[i]!.x, z: this.boats[i]!.z });
     }
+    // The last boat putting off: they are away.
+    if (this.boatState.every((s) => s !== 'wait' && s !== 'row-in') && (this.beat === 'recall' || this.beat === 'ashore')) this.setBeat('away');
   }
 
   // ─────────────────────────────────────────────────── stopping them ──
@@ -864,20 +855,22 @@ export class Raid {
       const d = Math.hypot(x - (v.x + sx * along), z - (v.z + cz * along)) - v.hull.halfBeam;
       return d < r3 ? 3 : d < r2 ? 2 : d < r1 ? 1 : 0;
     };
-    const vs = [this.ship, ...this.boats];
-    vs.forEach((v, k) => {
-      if (k === 0 && (this.shipState === 'gone' || this.shipState === 'arrive' && v.edgeCut && this.s < 1)) return;
-      if (k > 0 && this.boatState[k - 1] === 'sunk') return;
+    const ks = this.ship ? [0] : [];
+    for (let k = 1; k <= this.boats.length; k++) ks.push(k);
+    for (const k of ks) {
+      const v = this.vessel(k)!;
+      if (this.over(k)) continue;
+      // Not yet in from beyond the edge of the map: out of reach.
+      if (k === 0 ? this.shipState === 'arrive' && v.edgeCut && this.s < 1 : this.boatState[k - 1] === 'row-in' && this.boatS[k - 1]! < 1) continue;
       const stage = hitOne(v);
       if (stage !== 0 && stage > v.hurt) this.hurt(v, stage);
-    });
+    }
   }
 
   /** Lightning on a vessel: its sail catches, it burns and goes down. */
   strike(x: number, z: number): boolean {
-    const vs = [this.ship, ...this.boats];
-    for (const v of vs) {
-      if (v.hurt >= 2) continue;
+    for (const v of this.vessels) {
+      if (v.hurt >= 2 || v.edgeCut) continue;
       const sx = Math.sin(v.yaw), cz = Math.cos(v.yaw);
       const along = Math.max(v.hull.stern, Math.min(v.hull.bow, (x - v.x) * sx + (z - v.z) * cz));
       if (Math.hypot(x - (v.x + sx * along), z - (v.z + cz * along)) - v.hull.halfBeam < 0.9) {
@@ -890,8 +883,8 @@ export class Raid {
 
   /** The vessel the point is on, if any (the Lightning tool asks). */
   vesselAt(x: number, z: number): [number, number] | null {
-    for (const v of [this.ship, ...this.boats]) {
-      if (v.sink > 0.5) continue;
+    for (const v of this.vessels) {
+      if (v.sink > 0.5 || v.edgeCut) continue;
       const sx = Math.sin(v.yaw), cz = Math.cos(v.yaw);
       const along = Math.max(v.hull.stern, Math.min(v.hull.bow, (x - v.x) * sx + (z - v.z) * cz));
       const cx = v.x + sx * along, cz2 = v.z + cz * along;
@@ -911,7 +904,7 @@ export class Raid {
     if (stage === 1) return;
     const i = this.boats.indexOf(v);
     if (i >= 0) {
-      this.boatState[i] = 'sunk';
+      this.boatDown(i);
       return;
     }
     // The ship: it cannot carry the band now.
@@ -923,8 +916,20 @@ export class Raid {
     this.shipState = v.hurt >= 3 ? 'sunk' : this.shipState;
   }
 
+  /**
+   * A boat lost (burnt, sunk, thrown onto the land): its crew still ashore will go home in another; once the last is
+   * lost the band is stranded, and if none had landed yet the raid never happens.
+   */
+  private boatDown(i: number): void {
+    this.boatState[i] = 'sunk';
+    if (this.boatState.every((s) => s === 'sunk' || s === 'gone')) {
+      this.stranded = true;
+      if (this.beat === 'sighted' || this.beat === 'landing') this.setBeat('away');
+    }
+  }
+
   private stepDamage(dt: number): void {
-    for (const v of [this.ship, ...this.boats]) {
+    for (const v of this.vessels) {
       if (v.hurt === 2) {
         v.burnt += dt;
         if (v.burnt > 7) v.hurt = 3;
@@ -943,7 +948,7 @@ export class Raid {
         if (r.vessel !== i + 1) continue;
         if ((r.where === 'aboard' || r.where === 'home') && b.sink > 0.15) this.goSwim(r);
         if (r.where === 'ashore' || r.where === 'wade-in' || r.where === 'jump') {
-          const other = this.boatState.findIndex((s) => s !== 'sunk');
+          const other = this.boatState.findIndex((s) => s === 'wait' || s === 'row-in');
           if (other >= 0) {
             r.vessel = other + 1;
             r.landing = other;
@@ -952,12 +957,12 @@ export class Raid {
         }
       }
     });
-    if (this.boats.length > 0 && this.boatState.every((s) => s === 'sunk')) this.stranded = true;
+    if (this.boats.length > 0 && this.boatState.every((s) => s === 'sunk') || this.ship && this.shipState === 'sunk') this.stranded = true;
   }
 
   /** A free seat in a vessel (somebody moved over from a boat that went down). */
   private freeSeat(vessel: number): number {
-    const v = vessel === 0 ? this.ship : this.boats[vessel - 1]!;
+    const v = this.vessel(vessel)!;
     const taken = new Set(this.raiders.filter((r) => r.vessel === vessel).map((r) => r.seat));
     for (let s = 0; s < v.seats.length * 2; s++) if (!taken.has(s)) return s;
     return 0;
@@ -983,7 +988,7 @@ export class Raid {
       }
       return { x: x / ashore.length, y: y / ashore.length, z: z / ashore.length };
     }
-    if (this.beat === 'sighted') return { x: this.ship.x, y: SEA_Y, z: this.ship.z };
+    if (this.beat === 'sighted') return { x: this.lead.x, y: SEA_Y, z: this.lead.z };
     const l = this.site.landings[0]!;
     return { x: l.x, y: l.y, z: l.z };
   }
@@ -1015,7 +1020,7 @@ export class Raid {
       });
     }
     // Sighted: the townspeople nearest the shore stop and point out to sea (one waving the alarm).
-    if (this.beat === 'sighted' && !this.pointed && this.age > 4 && !this.ship.edgeCut) {
+    if (this.beat === 'sighted' && !this.pointed && this.age > 4 && !this.lead.edgeCut) {
       this.pointed = true;
       const l = this.site.landings[0]!;
       const near = crowd.people
@@ -1024,7 +1029,7 @@ export class Raid {
         .slice(0, 4);
       near.forEach((p, k) => {
         p.startled = 5 + k * 0.5;
-        p.startledFace = Math.atan2(this.ship.x - p.x, this.ship.z - p.z);
+        p.startledFace = Math.atan2(this.lead.x - p.x, this.lead.z - p.z);
         p.admire = k === 0 ? 'wave' : 'look';
       });
     }
@@ -1101,6 +1106,16 @@ export class Raid {
       if (this.stranded && !this.heartless && this.t > 0) this.loseHeart(board);
     }
     if (this.beat === 'recall' && this.stranded && !this.heartless) this.loseHeart(board);
+    // Late ashore after they lost heart (still wading in when it happened): they turn and run with the rest.
+    if (this.heartless) {
+      for (const r of this.raiders) {
+        if (r.where !== 'ashore' || !r.person || r.routed) continue;
+        r.routed = true;
+        r.cry = 0;
+        board.drop(r.person);
+        board.crowd.rethink(r.person);
+      }
+    }
     if (this.beat === 'recall' || this.beat === 'away') this.boardThose(board);
     // Never a stall: whoever is not back by the time the rest have waited long enough is left behind, and runs for the sea.
     if (this.beat === 'recall' && this.t > 25 && !this.heartless) this.leaveBehind(board);
@@ -1711,16 +1726,14 @@ export class Raid {
   /** Over: every drawing hidden (the system lets them go a frame later, so nothing goes while it is drawn). */
   hideAll(): void {
     // A ship left lying on the land goes in a cloud of dust (the town hauls it off), as the harbour's does.
-    for (const v of [this.ship, ...this.boats]) {
+    for (const v of this.vessels) {
       if (!v.aground) continue;
       const x = v.x, y = v.aground.ground, z = v.z, big = v.length * 0.5;
       fxOf(this.host.stage).play({ actor: 'puff', variant: 'dust' }, 1.2, (t, out) => place(x, y + 0.3 + t * 0.6, z, 0, big * (0.6 + t), big * (0.5 + t * 0.6), big * (0.6 + t), out));
     }
     for (const e of this.escapees) e.h.setVisible(false);
     for (const r of this.raiders) r.fig?.hideAll();
-    for (const f of this.crewFigs) f.hideAll();
-    this.ship.hideAll();
-    for (const b of this.boats) b.hideAll();
+    for (const v of this.vessels) v.hideAll();
   }
 
   /** Ends it now, everything put away (undo, a new town, a raid called off). */
@@ -1740,12 +1753,9 @@ export class Raid {
       }
       r.person = null;
     }
-    for (const f of this.crewFigs) f.release();
-    this.crewFigs = [];
     for (const e of this.escapees) e.h.release();
     this.escapees.length = 0;
-    this.ship.release();
-    for (const b of this.boats) b.release();
+    for (const v of this.vessels) v.release();
     if (board) {
       for (const p of this.piles) {
         const s = board.stores.get(p.key);
