@@ -259,9 +259,15 @@ function drawCries(st: State, raid: Raid, seconds: number): void {
     // A brand trails a little smoke as it is run through the streets.
     if (r.role === 'brand' && p.visible && Math.floor(seconds * 2.5 + r.i * 0.37) !== Math.floor((seconds - 1 / 60) * 2.5 + r.i * 0.37)) {
       const tx = p.x + Math.sin(p.heading) * 0.1, ty = p.y + 0.62 * raiderScale(), tz = p.z + Math.cos(p.heading) * 0.1;
-      fxOf(st.stage).play({ actor: 'puff', variant: 'smoke' }, 1.3, (t, out) => place(tx, ty + t * 0.5, tz, 0, 0.08 + t * 0.22, 0.08 + t * 0.22, 0.08 + t * 0.22, out));
+      fxOf(st.stage).play({ actor: 'puff', variant: 'smoke' }, 1.3, (t, out) => place(tx, ty + t * 0.45, tz, 0, 0.05 + t * 0.12, 0.05 + t * 0.12, 0.05 + t * 0.12, out));
     }
     if (r.cry <= 0) continue;
+    // One balloon to a knot of them: none within 1.3 cells of one already shown (a band landing all shouts,
+    // and a heap of balloons reads as nothing).
+    if ([...live].some((j) => {
+      const q = raid.raiders[j]?.person;
+      return q && Math.hypot(q.x - p.x, q.z - p.z) < 1.3;
+    })) continue;
     live.add(r.i);
     let h = st.cries.get(r.i);
     if (!h) st.cries.set(r.i, (h = st.own.stage.spawnMesh(st.cryMeshes[r.i % 3]!, HIDDEN)));

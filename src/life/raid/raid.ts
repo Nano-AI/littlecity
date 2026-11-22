@@ -1101,7 +1101,7 @@ export class Raid {
     if (this.beat === 'recall' && this.stranded && !this.heartless) this.loseHeart(board);
     if (this.beat === 'recall' || this.beat === 'away') this.boardThose(board);
     // Never a stall: whoever is not back by the time the rest have waited long enough is left behind, and runs for the sea.
-    if (this.beat === 'recall' && this.t > 40 && !this.heartless) this.leaveBehind(board);
+    if (this.beat === 'recall' && this.t > 25 && !this.heartless) this.leaveBehind(board);
     // Routed raiders at the water's edge go into the sea and swim off.
     for (const r of this.raiders) {
       if (!r.routed || r.where !== 'ashore' || !r.person) continue;
@@ -1398,7 +1398,10 @@ export class Raid {
     for (const r of this.raiders) {
       if (r.where !== 'ashore' || !r.person || r.routed) continue;
       const p = r.person;
-      if (!(p.mode === 'linger' && p.goal?.errand?.tag === 'raid:board')) continue;
+      // At his spot by the water, or near it and getting no nearer (the last of a lane by the shore): he goes.
+      if (p.goal?.errand?.tag !== 'raid:board') continue;
+      const sp = this.shorePoint(r);
+      if (p.mode !== 'linger' && !(p.mode === 'walk' && Math.hypot(p.x - sp.x, p.z - sp.z) < 1.3 && (r.stepFor > 2.5 || p.stuck > 1))) continue;
       const v = this.vesselOf(r);
       const i = r.vessel - 1;
       // The vessel is still there to go to.

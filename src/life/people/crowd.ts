@@ -828,7 +828,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const pieces = buildWalk(nav, route, {
       ...(inside ? { startDoor: inside } : { from: { x: p.x, z: p.z } }),
       ...(goal.door ? { endDoor: goal.door } : goal.spot ? { to: goal.spot } : {}),
-      lane: PEOPLE.lane * (0.75 + rand(p.seed, 'lane') * 0.5),
+      // A raider runs his own line across the width of the way (a mob spread over the street, not a file).
+      lane: p.raider ? (rand(p.seed, 'lane', p.trips) - 0.5) * 0.56 : PEOPLE.lane * (0.75 + rand(p.seed, 'lane') * 0.5),
       ...(opts.doorAt ? { doorAt: opts.doorAt } : {}),
     });
     if (p.mode === 'home') setHome(p.home, -1);
@@ -874,6 +875,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   };
   /** May this walker go on into the single-file stretch at the end of their piece? Takes it if so. */
   const mayEnter = (p: Person, piece: Piece): boolean => {
+    // Raiders shove through a narrow way, never waiting their turn at it (and never holding it from others).
+    if (p.raider) return true;
     if (piece.link < 0) return true;
     const run = nav!.runOf[piece.link]!;
     if (run < 0 || p.held === run) return true;
