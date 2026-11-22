@@ -152,7 +152,7 @@ export class Vessel {
     const beach = easeInOut(clamp01(this.beach));
     // Down by the stern and over to one side as it sinks: under the water, never shrunk.
     const s = clamp01(this.sink);
-    const y = SEA_Y + sw.heave * (1 - beach) + beach * 0.08 * this.size - s * s * (0.9 + this.length * 0.2);
+    const y = SEA_Y + sw.heave * (1 - beach) + beach * 0.08 * this.size - s * s * (0.9 + this.length * 0.2 + (this.kind === 'ship' ? LONGSHIP.yardY * this.size : 0));
     const pitch = sw.pitch * (1 - beach) + beach * 0.07 - s * 0.35;
     const roll = sw.roll * (1 - beach) + s * this.list * 0.5;
     fly(this.x, y, this.z, this.yaw, pitch, roll, 1, this.m);

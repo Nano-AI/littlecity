@@ -78,6 +78,22 @@ the ship and the town chases them into the sea.
 - Guide picture: `node src/life/testing/raid-picture.mjs` writes
   `public/guide/raid.webp`.
 
+## Round 3 (Derek: too big, glitching at sea, standing in a line doing nothing)
+- Size: raiders are the townspeople's size at every zoom (`raiderScale()` is 1; the orchestrator's change).
+- The clump: `crowd.ts` `follow`'s last rule (no step closer than a body to anyone ahead) still made
+  raiders yield to each other, and walkers waited on the garrison's column (`bodies`) with `stuck` held
+  at 0, so they never thought again. Both are skipped for raiders; raiders take their own lanes across the
+  way (`startWalk`), skip single-file queueing (`mayEnter`). Building sites are targets (`Target.site`:
+  kicked a stage worse, a ladder or hod carried off); an early horn when the town offers nothing; no raid
+  on its own at a town over 40 % in ruins. Test: `raid.test.ts` "a town already wrecked and mending".
+- The sea: a boat casting off was lerped from its tow onto its way at up to 0.75 a frame (now its way
+  starts where it lies, `castOff`); figures aboard were placed on the hull's previous frame and only every
+  other frame (now vessels are drawn first and figures aboard are `rigid`, every frame). Test: "whoever is
+  aboard moves rigidly with the vessel every frame".
+- Also: one war-cry balloon to a knot of raiders; finer brand smoke; boarding from near the spot (the ship
+  waited 40 s for one who could not reach it; now 25 s at most); a sunk ship takes its yard under.
+- Sequence verb `knockall@0,0,0` (a town like his).
+
 ## For the Hand / thrown bodies
 Raiders ashore are ordinary crowd people: thrown and carried with no special
 case. A thrown raider's plan fails and the raid gives him the next one; one

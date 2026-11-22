@@ -746,7 +746,11 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       door = nav.doors.find((d) => d.feature === e.door!.feature && d.structure === e.door!.structure && d.node === node) ?? null;
       if (!door) return null;
     }
-    const spot = door ? null : e.spot ? freeSpot(p, node, e.spot) : null;
+    // A spot is in its own cell (a chain that falls back to another cell may keep its first one's spot: the walk
+    // would end in a snap across to it).
+    const c = nodeCentre(nav, node);
+    const inCell = e.spot ? { x: Math.max(c.x - 0.45, Math.min(c.x + 0.45, e.spot.x)), z: Math.max(c.z - 0.45, Math.min(c.z + 0.45, e.spot.z)) } : null;
+    const spot = door ? null : inCell ? freeSpot(p, node, inCell) : null;
     return { kind: 'errand', node, haunt: null, door, spot, face: e.face, pose: e.pose, linger: e.linger, seat: -1, errand: e };
   };
   const leaveGoal = (p: Person): Goal | null => {
@@ -828,7 +832,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
     const pieces = buildWalk(nav, route, {
       ...(inside ? { startDoor: inside } : { from: { x: p.x, z: p.z } }),
       ...(goal.door ? { endDoor: goal.door } : goal.spot ? { to: goal.spot } : {}),
-      lane: PEOPLE.lane * (0.75 + rand(p.seed, 'lane') * 0.5),
+      // A raider runs his own line across the width of the way (a mob spread over the street, not a file).
+      lane: p.raider ? (rand(p.seed, 'lane', p.trips) - 0.5) * 0.56 : PEOPLE.lane * (0.75 + rand(p.seed, 'lane') * 0.5),
       ...(opts.doorAt ? { doorAt: opts.doorAt } : {}),
     });
     if (p.mode === 'home') setHome(p.home, -1);
@@ -874,6 +879,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   };
   /** May this walker go on into the single-file stretch at the end of their piece? Takes it if so. */
   const mayEnter = (p: Person, piece: Piece): boolean => {
+    // Raiders shove through a narrow way, never waiting their turn at it (and never holding it from others).
+    if (p.raider) return true;
     if (piece.link < 0) return true;
     const run = nav!.runOf[piece.link]!;
     if (run < 0 || p.held === run) return true;
@@ -1372,6 +1379,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (reach > 0) {
           for (const q of people) {
             if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown' || q.mode === 'home' || q.mode === 'visit') continue;
+            // A raiding band jostles through itself here too (else a band landing on a narrow strip packs solid).
+            if (p.raider && q.raider) continue;
             if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
             const dx = q.x - p.x, dz = q.z - p.z;
             if (dx > 0.5 || dx < -0.5 || dz > 0.5 || dz < -0.5 || Math.abs(q.y - p.y) > 0.3) continue;
@@ -1386,7 +1395,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       // L36, L37: they wait for the garrison's column or the rider's horse to pass, without counting it as
       // being held up (nobody steps round a soldier).
-      if (bodies) {
+      // (Raiders barge past soldiers: they are not held up by the garrison's column.)
+      if (bodies && !p.raider) {
         for (const o of bodies) {
           const dx = o.x - p.x, dz = o.z - p.z;
           if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(o.y - p.y) > 0.3) continue;
