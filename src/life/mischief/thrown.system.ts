@@ -33,7 +33,9 @@ import type { NavGraph, ShapePlan } from '@/resolve/plan';
 const HIDE: Mat4Like = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -50, 0, 1];
 const DUST = { actor: 'puff', variant: 'dust' } as const;
 /** Stars round a dizzy head: how many, how far out, how fast round (radians a second). */
-const STARS = { n: 4, r: 0.13, speed: 4.5, rate: 12, size: 1.8 };
+// Small and restrained (Derek, 2026-11-21: "the stars are too big… a little smaller"): three, close round the
+// head, their own size at every zoom (they used to be 1.8 and grow up to 2.9 times from afar).
+const STARS = { n: 3, r: 0.1, speed: 4.5, rate: 12, size: 1 };
 
 const throwers = new WeakMap<LifeStage, Thrower>();
 /** The thrower of a stage (the Hand, tests, sequences), once the people are there. */
@@ -217,7 +219,7 @@ function drawArt(st: State, stage: LifeStage, t: Thrown, a: Art): void {
     const hz = b.z + Math.cos(b.heading) * along;
     const hy = b.y + (sitting ? 0.42 : 0.14);
     const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-    const sc = Math.max(1.2, farScale()) * STARS.size;
+    const sc = STARS.size;
     const spin = tick * STARS.speed + (b.seed % 7);
     a.stars.forEach((h, i) => {
       const ang = spin + (i / STARS.n) * Math.PI * 2;
@@ -461,7 +463,7 @@ export default defineSystem<State>({
       }
       if (hs) {
         const tick = Math.floor(st.time * STARS.rate) / STARS.rate;
-        const sc = Math.max(1.2, farScale()) * STARS.size * 0.8;
+        const sc = STARS.size * 0.8;
         const hx = b.x + Math.sin(b.heading) * c.height * 0.4, hz = b.z + Math.cos(b.heading) * c.height * 0.4, hy = b.y + c.height * 0.9;
         hs.forEach((h, i) => {
           const ang = tick * STARS.speed + (i / 3) * Math.PI * 2;
