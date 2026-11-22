@@ -23,7 +23,7 @@
 //   drops a bomb on the floor of that cell (y = the level it lands on), 'knock@10,1,10' knocks its
 //   the raid: 'raid@10,0,10' summons raiders near that cell (the kind as the island and chance choose),
 //   'raidland@…' a landing raid, 'raidboats@…' a boats raid; 'shipsink@0,0,0' drops a bomb on the raid's ship
-//   (x: cells off its side). --follow-raid keeps the camera on the raid (its ship, then the band).
+//   (x: cells off its side); 'knockall@0,0,0' knocks every building a stage worse. --follow-raid keeps the camera on the raid (its ship, then the band).
 //   building a stage worse, 'mend@10,1,10' / 'mendall@10,1,10' mends it, 'undo@0,0,0' presses undo,
 //   'crowdbomb@d,0,0' / 'crowdnuke@d,0,0' drops one d cells off the busiest knot of people out and aims the camera there
 //   --hand person|dog|cat|hen|sheep|soldier|grazer|horse|rider|pigeon|<boat or ship kind>|building,<dx>,<dz>,<ms>[,drop]   the Mischief drawer's Hand, with real
@@ -244,6 +244,13 @@ try {
         }
         if (e.verb === 'bomb') { m.dropBomb([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('bomb'); continue; }
         if (e.verb === 'nuke') { m.dropNuke([e.x + 0.5, e.y * 0.8, e.z + 0.5]); done.push('nuke'); continue; }
+        if (e.verb === 'knockall') {
+          // Every building a stage worse (a town like the owner's: wrecked and mending when the raiders come).
+          let n = 0;
+          for (const st of lc.shape().structures.values()) if (['house', 'tower', 'marble', 'windmill', 'lighthouse'].includes(st.kind) && m.knock(st.cells[0])) n++;
+          done.push(`knocked ${n}`);
+          continue;
+        }
         if (e.verb === 'knock') { done.push(m.knock(cell) ? 'knocked' : 'no'); continue; }
         if (e.verb === 'mend' || e.verb === 'mendall') { done.push(m.mend(cell, e.verb === 'mendall') ? 'mended' : 'no'); continue; }
         if (e.verb === 'undo') { if (!(m.active && (m.cancel(), true))) lc.game.undo(); done.push('undone'); continue; }

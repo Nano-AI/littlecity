@@ -30,6 +30,8 @@ export class Figure {
   /** The drawing now (set by the raid each frame): figures are drawn on twos, PERSON.drawRate a second, as the crowd is. */
   static tick = 0;
   private drawnAt = -1;
+  /** Where its feet were last drawn. */
+  readonly at: [number, number, number] = [0, 0, 0];
   readonly look: Look;
   readonly rig: Rig;
   private pieces: InstanceHandle[];
@@ -76,10 +78,11 @@ export class Figure {
    * `tweak` adjusts the pose before it is drawn (a rower's arms, a swimmer's reach). `gear` shows the
    * raider's own tool; `load` what they carry.
    */
-  pose(x: number, y: number, z: number, heading: number, name: PoseName, phase: number, opts: { seat?: number; tweak?: (p: Pose) => void; gear?: boolean; load?: Load | null; tilt?: number; grow?: boolean } = {}): void {
+  pose(x: number, y: number, z: number, heading: number, name: PoseName, phase: number, opts: { seat?: number; tweak?: (p: Pose) => void; gear?: boolean; load?: Load | null; tilt?: number; grow?: boolean; rigid?: boolean } = {}): void {
     if (this.released) return;
     this.setVisible(true);
-    if (this.drawnAt === Figure.tick) return;
+    // Off the vessel, drawn on twos as the crowd is; aboard (`rigid`), every frame, so it never lags its hull.
+    if (this.drawnAt === Figure.tick && !opts.rigid) return;
     this.drawnAt = Figure.tick;
     const look = this.look, rig = this.rig;
     const pose = poseOf(name, phase, 0.3);
@@ -108,6 +111,10 @@ export class Figure {
       }
     }
     for (let i = 0; i < 5; i++) this.pieces[i]!.setMatrix(world.subarray(i * 16, i * 16 + 16));
+    // Where it was drawn last (its feet), for tests that it moves with its vessel.
+    this.at[0] = x;
+    this.at[1] = y;
+    this.at[2] = z;
     this.extra.setMatrix(world.subarray(0, 16));
     if (gear) {
       if (!this.tool) {

@@ -44,7 +44,7 @@ import { rand } from '@/core/rand';
 import type { Barbarian } from '@/parts/people/barbarian';
 import { restingMesh, type Load } from '@/parts/people/loads';
 import type { StructureId } from '@/resolve/plan';
-import { pathAt } from '@/rules/life/ship-routes';
+import { pathAt, pathOf, type Path } from '@/rules/life/ship-routes';
 import { RAID } from '@/style/raid';
 import { PEOPLE, PERSON } from '@/style/people';
 import type { LifeStage, TimeSignal } from '../api';
@@ -134,6 +134,8 @@ interface Target {
   done: boolean;
   /** The quarter of the town it is in (a party's). */
   quarter: number;
+  /** Damaged or being mended (scaffolding): kicked about, its builders' things carried off, not gone into. */
+  site?: boolean;
 }
 
 const LOOT_BY_ROLE: Record<string, readonly Load[]> = {
@@ -272,9 +274,6 @@ export class Raid {
     if (!this.handled(this.ship, 0)) this.moveShip(dt);
     this.moveBoats(dt);
     this.boats.forEach((b, i) => this.handled(b, i + 1));
-    Figure.tick = Math.floor(seconds * PERSON.drawRate);
-    this.stepFigures(dt, seconds);
-    this.stepEscapees(dt, seconds);
     this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
     for (const b of this.boats) b.stroke = (b.stroke + dt * 0.75 * (b.rowing > 0.05 ? 1 : 0)) % 1;
     this.settleOffsets(dt);
@@ -289,6 +288,10 @@ export class Raid {
       v.z = bz;
       v.yaw = by;
     }
+    // Whoever is aboard is placed on the vessel as it is drawn this frame (so they move with it rigidly).
+    Figure.tick = Math.floor(seconds * PERSON.drawRate);
+    this.stepFigures(dt, seconds);
+    this.stepEscapees(dt, seconds);
     this.stepDamage(dt);
     // The beats that turn at sea.
     if (this.beat === 'sighted' && !this.rung && this.age > 6) {
@@ -523,23 +526,28 @@ export class Raid {
   private castOff(i: number): void {
     this.boatState[i] = 'row-in';
     this.boatS[i] = 0;
+    const b = this.boats[i]!;
+    const way = this.site.boatPaths[i]!;
+    // From where it lies on its tow (beside the ship), round onto its way: no sweep across the water.
+    this.boatWays[i] = pathOf([[b.x, b.z], ...way.points.slice(1)]);
   }
+  /** Each boat's way in as it is rowed (from where it lay when it cast off). */
+  private boatWays: Path[] = [];
 
   private moveBoats(dt: number): void {
     this.towBoats();
     this.boats.forEach((b, i) => {
       const st = this.boatState[i];
-      const path = this.site.boatPaths[i]!;
+      const path = this.boatWays[i] ?? this.site.boatPaths[i]!;
       if (st === 'row-in') {
         // From where it lies to the start of its way, then along it.
         const left = path.length - this.boatS[i]!;
         this.boatS[i] = Math.min(path.length, this.boatS[i]! + RAID.boatRow * (0.4 + 0.6 * clamp01(left / 1.5)) * dt);
         const q = pathAt(path, this.boatS[i]!);
-        // Ease from the tow onto the way over its first stretch.
-        const k = clamp01(this.boatS[i]! / 2);
-        b.x += (q.x - b.x) * Math.min(1, dt * 3 + k);
-        b.z += (q.z - b.z) * Math.min(1, dt * 3 + k);
-        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 4);
+        b.x = q.x;
+        b.z = q.z;
+        // The head comes round onto the way as it rows (never a snap).
+        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 2.5);
         b.rowing = 1;
         b.beach = clamp01(1 - left / 0.5) * 0.5;
         if (this.boatS[i]! >= path.length) {
@@ -619,6 +627,7 @@ export class Raid {
           const rower = seat.sit && v.rowing > 0.05;
           fig.pose(s.x, s.y, s.z, s.heading, seat.sit ? 'sit' : r.role === 'chief' && this.beat === 'sighted' ? 'cheer' : 'stand', seconds, {
             grow: false,
+            rigid: true,
             seat: seat.sit ? 0.12 : -1,
             gear: !rower,
             ...(rower ? { tweak: rowing(v.astern ? 1 - v.stroke : v.stroke) } : {}),
@@ -630,7 +639,7 @@ export class Raid {
           r.t += dt;
           if (r.t < 0) {
             const s = v.seatAt(r.seat);
-            fig.pose(s.x, s.y, s.z, s.heading, 'stand', seconds);
+            fig.pose(s.x, s.y, s.z, s.heading, 'stand', seconds, { grow: false, rigid: true });
             break;
           }
           if (r.dur === 0) {
@@ -733,7 +742,7 @@ export class Raid {
         return;
       }
       const s = v.seatAt(k === 0 ? v.seats.length - 1 : 0);
-      f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1 });
+      f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1, rigid: true });
       f.setCut(v.edgeCut);
     });
   }
@@ -839,7 +848,7 @@ export class Raid {
     const i = vessel - 1;
     if (this.boatState[i] === 'wait') {
       this.boatState[i] = 'row-out';
-      this.boatS[i] = this.site.boatPaths[i]!.length;
+      this.boatS[i] = (this.boatWays[i] ?? this.site.boatPaths[i]!).length;
     }
   }
 
@@ -1086,13 +1095,13 @@ export class Raid {
       if (this.lootTargets.length === 0 && this.burnTargets.length === 0) this.chooseTargets(board);
       const busy = this.raiders.some((r) => r.where === 'jump' || r.where === 'wade-in' || r.where === 'aboard' && this.boatState.includes('row-in'));
       const work = this.burnTargets.some((t) => !t.done) || this.lootTargets.some((t) => !t.done && this.raiders.some((r) => (r.role === 'axe' || r.role === 'club') && r.trips < RAID.trips));
-      if (!busy && (this.t >= RAID.ashore || (this.t >= 35 && !work))) this.recall(board);
+      if (!busy && (this.t >= RAID.ashore || (this.t >= 35 && !work) || (this.t >= 14 && this.nothing))) this.recall(board);
       if (this.stranded && !this.heartless && this.t > 0) this.loseHeart(board);
     }
     if (this.beat === 'recall' && this.stranded && !this.heartless) this.loseHeart(board);
     if (this.beat === 'recall' || this.beat === 'away') this.boardThose(board);
     // Never a stall: whoever is not back by the time the rest have waited long enough is left behind, and runs for the sea.
-    if (this.beat === 'recall' && this.t > 40 && !this.heartless) this.leaveBehind(board);
+    if (this.beat === 'recall' && this.t > 25 && !this.heartless) this.leaveBehind(board);
     // Routed raiders at the water's edge go into the sea and swim off.
     for (const r of this.raiders) {
       if (!r.routed || r.where !== 'ashore' || !r.person) continue;
@@ -1255,15 +1264,15 @@ export class Raid {
       const low = st.cells.reduce((a, b) => (keyY(b) < keyY(a) ? b : a));
       const dd = dist(low);
       if (dd > 26) continue;
-      if (shape.world.blocks.get(low)?.ruin) continue;
+      const site = st.cells.some((c) => shape.world.blocks.get(c)?.ruin);
       const stands = standsOf(board, sid);
       if (!stands.some((s2) => nav.part[nav.nodeAt.get(s2.cell) ?? -1] === part)) continue;
       const role = shape.roles.get(sid)?.role ?? kind;
       const doors = nav.doorsOf.get(sid) ?? [];
-      const loots = doors.some((i) => nav.doors[i]!.node >= 0 && !nav.doors[i]!.hatch) || kind === 'stall';
+      const loots = site || doors.some((i) => nav.doors[i]!.node >= 0 && !nav.doors[i]!.hatch) || kind === 'stall';
       const burns = d.engine.canLight(low) && role !== 'chapel';
       const heat = kind === 'stall' ? 3 : kind === 'windmill' ? 2.2 : role === 'barn' || role === 'cottage' || role === 'mill-house' ? 1.8 : 1;
-      all.push({ structure: sid, cell: low, role, by: null, done: false, quarter: 0, d: dd, heat, burns, loots, x: keyX(low) + 0.5, z: keyZ(low) + 0.5 });
+      all.push({ structure: sid, cell: low, role, by: null, done: false, quarter: 0, d: dd, heat, burns, loots, x: keyX(low) + 0.5, z: keyZ(low) + 0.5, ...(site ? { site: true } : {}) });
     }
     if (all.length === 0) return;
     // The quarters: from the landing, each as far from the others as it can be (and not too far in), the
@@ -1275,7 +1284,7 @@ export class Raid {
       let best: (typeof all)[number] | null = null, score = -Infinity;
       for (const t of all) {
         const near = Math.min(...points.map((q) => Math.hypot(q.x - t.x, q.z - t.z)));
-        const sc = Math.min(near, 12) + (rich.has(t.role) ? 4 : 0) + (t.burns ? 1 : 0) - Math.max(0, t.d - 18) * 2 + rand(this.seed, 'quarter', t.structure) * 0.5;
+        const sc = Math.min(near, 12) + (rich.has(t.role) ? 4 : 0) + (t.burns ? 1 : 0) + (t.site ? -2 : 0) - Math.max(0, t.d - 18) * 2 + rand(this.seed, 'quarter', t.structure) * 0.5;
         if (sc > score) {
           score = sc;
           best = t;
@@ -1300,6 +1309,7 @@ export class Raid {
     // In each quarter, what burns best and nearest its middle first.
     const inQ = (t: (typeof all)[number]): number => Math.hypot(qs[t.quarter]!.x - t.x, qs[t.quarter]!.z - t.z);
     this.burnTargets = all.filter((t) => t.burns && inQ(t) < 7).sort((a, b) => inQ(a) / a.heat - inQ(b) / b.heat || a.structure - b.structure);
+    this.nothing = all.length === 0;
     this.lootTargets = all.filter((t) => t.loots && inQ(t) < 8).sort((a, b) => (rich.has(a.role) ? -4 : 0) + inQ(a) - ((rich.has(b.role) ? -4 : 0) + inQ(b)) || a.structure - b.structure);
   }
 
@@ -1388,7 +1398,10 @@ export class Raid {
     for (const r of this.raiders) {
       if (r.where !== 'ashore' || !r.person || r.routed) continue;
       const p = r.person;
-      if (!(p.mode === 'linger' && p.goal?.errand?.tag === 'raid:board')) continue;
+      // At his spot by the water, or near it and getting no nearer (the last of a lane by the shore): he goes.
+      if (p.goal?.errand?.tag !== 'raid:board') continue;
+      const sp = this.shorePoint(r);
+      if (p.mode !== 'linger' && !(p.mode === 'walk' && Math.hypot(p.x - sp.x, p.z - sp.z) < 1.3 && (r.stepFor > 2.5 || p.stuck > 1))) continue;
       const v = this.vesselOf(r);
       const i = r.vessel - 1;
       // The vessel is still there to go to.
@@ -1504,6 +1517,24 @@ export class Raid {
     } else {
       const t = r.trips < RAID.trips ? this.takeTarget(this.lootTargets, r, board, () => true, mine) : null;
       if (t) {
+        // A building site: the scaffolding kicked about (it is a stage worse), a ladder or a hod carried off.
+        if (t.site) {
+          const s2 = this.standFor(board, p, t.structure);
+          if (s2) {
+            const at = board.centre(s2.cell);
+            steps.push(board.stepAt(s2.cell, { spot: this.spread(at, r, t.structure), face: s2.face, pose: 'kick', linger: 1.4, brisk: true, tag: 'raid:wreck', done: () => {
+              this.host.director.knock(t.cell);
+            } }));
+            steps.push(this.pileStep(board, r, rand(this.seed, 'site', t.structure, r.i) < 0.5 ? 'ladder' : 'hod', () => {
+              t.done = true;
+              t.by = null;
+              r.target = null;
+              r.there = false;
+            }));
+            return plan(steps);
+          }
+          t.done = true;
+        }
         const loot = this.lootFor(t, r);
         const door = (nav.doorsOf.get(t.structure) ?? []).map((i) => nav.doors[i]!).find((dr) => dr.node >= 0 && !dr.hatch && reaches(board, p, nav.nodes[dr.node]!.cell));
         const toPile = this.pileStep(board, r, loot, () => {
@@ -1555,6 +1586,8 @@ export class Raid {
 
   /** Stalls their goods were taken from, and the market's baskets taken off their counters (put back at the end). */
   readonly emptied = new Set<StructureId>();
+  /** The town offered nothing at all to burn or take: the horn goes early. */
+  private nothing = false;
   private taken: { key: string; load: Load }[] = [];
 
   /** The quarter nearest the town's heart: where the chief stands with his standard. */

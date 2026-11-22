@@ -5,7 +5,7 @@
 // up on the beach and the band is charging, frames it, and writes public/guide/raid.webp (360 × 270, as the
 // guide's own pictures are drawn at twice their size).
 //
-//   node src/life/testing/raid-picture.mjs [--wait 5500] [--zoom 6] [--yaw 45]
+//   node src/life/testing/raid-picture.mjs [--wait 4500] [--zoom 9] [--yaw 45]
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,14 +29,14 @@ try {
     await page.clock.runFor(FRAME);
     if (await page.evaluate(() => window.__lc.raids.current?.shipState === 'beached')) break;
   }
-  for (let i = 0; i < Number(flags.wait ?? 5500) / FRAME; i++) await page.clock.runFor(FRAME);
+  for (let i = 0; i < Number(flags.wait ?? 4500) / FRAME; i++) await page.clock.runFor(FRAME);
   await page.evaluate(([zoom, yaw]) => {
     const r = window.__lc.raids.current;
     const s = r.ship, l = r.site.landings[0];
     // Between the ship's middle and a few cells up the shore: the ship and the charge both in the frame.
     const x = (s.x + l.x - l.ox * 2) / 2, z = (s.z + l.z - l.oz * 2) / 2;
     window.__lc.view.setCamera({ target: [x, 0.7, z], zoom, yaw, pitch: 34 });
-  }, [Number(flags.zoom ?? 6), Number(flags.yaw ?? 45)]);
+  }, [Number(flags.zoom ?? 9), Number(flags.yaw ?? 45)]);
   await page.clock.runFor(FRAME * 2);
   const data = await page.evaluate(async () => {
     const src = document.getElementById('town');

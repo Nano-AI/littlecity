@@ -224,6 +224,13 @@ function autoRaid(st: State, night: boolean): void {
     seen.add(sid);
     buildings++;
   }
+  // A town mostly in ruins or under scaffolding is not worth a raid of its own (the tool still brings one).
+  let wrecked = 0;
+  for (const sid of seen) if (shape.structures.get(sid)?.cells.some((c) => shape.world.blocks.get(c)?.ruin)) wrecked++;
+  if (wrecked > buildings * 0.4) {
+    st.nextAuto = st.played + 90;
+    return;
+  }
   if (buildings < RAID.worth) {
     st.nextAuto = st.played + 60;
     return;
@@ -252,9 +259,15 @@ function drawCries(st: State, raid: Raid, seconds: number): void {
     // A brand trails a little smoke as it is run through the streets.
     if (r.role === 'brand' && p.visible && Math.floor(seconds * 2.5 + r.i * 0.37) !== Math.floor((seconds - 1 / 60) * 2.5 + r.i * 0.37)) {
       const tx = p.x + Math.sin(p.heading) * 0.1, ty = p.y + 0.62 * raiderScale(), tz = p.z + Math.cos(p.heading) * 0.1;
-      fxOf(st.stage).play({ actor: 'puff', variant: 'smoke' }, 1.3, (t, out) => place(tx, ty + t * 0.5, tz, 0, 0.08 + t * 0.22, 0.08 + t * 0.22, 0.08 + t * 0.22, out));
+      fxOf(st.stage).play({ actor: 'puff', variant: 'smoke' }, 1.3, (t, out) => place(tx, ty + t * 0.45, tz, 0, 0.05 + t * 0.12, 0.05 + t * 0.12, 0.05 + t * 0.12, out));
     }
     if (r.cry <= 0) continue;
+    // One balloon to a knot of them: none within 1.3 cells of one already shown (a band landing all shouts,
+    // and a heap of balloons reads as nothing).
+    if ([...live].some((j) => {
+      const q = raid.raiders[j]?.person;
+      return q && Math.hypot(q.x - p.x, q.z - p.z) < 1.3;
+    })) continue;
     live.add(r.i);
     let h = st.cries.get(r.i);
     if (!h) st.cries.set(r.i, (h = st.own.stage.spawnMesh(st.cryMeshes[r.i % 3]!, HIDDEN)));

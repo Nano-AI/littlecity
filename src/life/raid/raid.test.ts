@@ -12,6 +12,7 @@ import { createTurmoil, type Turmoil } from '../../../tests/helpers/turmoil';
 import { FULL } from '../../../tests/helpers/tier';
 import { crowdOf } from '../doors/table';
 import { raidsOf } from './raids';
+import { KINDS } from '@/core/kinds';
 import { throwerOf } from '../mischief/thrown.system';
 import { crittersOf } from '../mischief/critters';
 import type { Raid } from './raid';
@@ -93,6 +94,73 @@ describe('the raid', () => {
     until(t, () => running() === 0, 120);
     const still = crowdOf(t.stage)!.people.filter((p) => (p.mode === 'walk' || p.mode === 'linger') && (p.goal?.errand?.tag ?? '').startsWith('flee:'));
     expect(still.length).toBe(0);
+  }, LONG);
+
+  test('a raid on a town already wrecked and mending (the owner\'s town): the band keeps moving, never a clump, and the raid ends', () => {
+    const t = town('grown-harbour');
+    for (const s of t.game.shape.structures.values()) if (KINDS[s.kind as keyof typeof KINDS]?.building) t.mischief.knock(s.cells[0]!);
+    until(t, () => !t.mischief.active, 60);
+    t.run(15);
+    expect([...t.game.world.blocks.values()].filter((b) => b.ruin).length, 'the town is in scaffolding').toBeGreaterThan(20);
+    const raids = raidsOf(t.stage);
+    expect(raids.summon({ at: null, kind: 'landing' })).toBeNull();
+    const raid = raids.current!;
+    // Each raider ashore: where he was and since when he has not moved.
+    const still = new Map<number, { x: number; z: number; since: number }>();
+    let worst = 0, worstAt = '';
+    t.onFrame = () => {
+      if (!raids.current || raid.beat !== 'ashore') return;
+      let n = 0;
+      for (const r of raid.raiders) {
+        const p = r.person;
+        if (!p || r.role === 'chief' || p.scuffle || (p.mode as string) === 'thrown' || p.mode === 'visit' || (p.goal?.errand?.tag ?? '') === 'raid:board') {
+          still.delete(r.i);
+          continue;
+        }
+        const s = still.get(r.i);
+        if (!s || Math.hypot(s.x - p.x, s.z - p.z) > 0.08) still.set(r.i, { x: p.x, z: p.z, since: t.t });
+        else if (t.t - s.since > 4) n++;
+      }
+      if (n > worst) {
+        worst = n;
+        worstAt = `${Math.round(raid.age)} s`;
+      }
+    };
+    until(t, () => raids.current === null, 400);
+    t.onFrame = null;
+    expect(raids.current, 'the raid ended').toBeNull();
+    expect(worst, `raiders standing still more than 4 s at once (worst at ${worstAt})`).toBeLessThanOrEqual(3);
+    expect(raid.burnt + raid.raiders.reduce((a, r) => a + r.trips, 0), 'they found things to burn and carry off').toBeGreaterThan(5);
+    putAway(t);
+  }, LONG);
+
+  test('at sea, whoever is aboard moves rigidly with the vessel every frame (no judder against the hull)', () => {
+    const t = town('grown-harbour');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'boats' });
+    const raid = raids.current!;
+    // In each vessel's own frame, how far each seated raider's feet move from one frame to the next.
+    const last = new Map<number, [number, number, number]>();
+    let worst = 0, frames = 0;
+    t.onFrame = () => {
+      for (const r of raid.raiders) {
+        if (r.where !== 'aboard' || !r.fig) continue;
+        const v = raid.vesselOf(r), m = v.m;
+        const dx = r.fig.at[0] - m[12]!, dy = r.fig.at[1] - m[13]!, dz = r.fig.at[2] - m[14]!;
+        // Into the hull's frame (its axes are orthonormal: the transpose undoes them).
+        const local: [number, number, number] = [m[0]! * dx + m[1]! * dy + m[2]! * dz, m[4]! * dx + m[5]! * dy + m[6]! * dz, m[8]! * dx + m[9]! * dy + m[10]! * dz];
+        const was = last.get(r.i);
+        // (The first frame of all has no drawing before it.)
+        if (was && frames > 1) worst = Math.max(worst, Math.hypot(local[0] - was[0], local[1] - was[1], local[2] - was[2]));
+        last.set(r.i, local);
+      }
+      frames++;
+    };
+    until(t, () => raid.beat !== 'sighted', 60);
+    t.onFrame = null;
+    expect(frames).toBeGreaterThan(100);
+    expect(worst, 'a rower slid against the hull in one frame (world units)').toBeLessThan(0.005);
+    t.mischief.cancel();
   }, LONG);
 
   test('a boats raid: the big ship stands off, its boats row to two or more landings and carry the band back', () => {
