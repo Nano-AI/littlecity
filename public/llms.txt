@@ -1,17 +1,16 @@
 # Little City
 
-> A peaceful, hand-drawn city builder sandbox you play free in your browser (https://littlecity.io). No money, no goals, no tycoon: place a few blocks and watch a little town come alive.
+> A tiny, hand-drawn town diorama, made by Derek Yao. Place a few blocks, watch them turn into a town, then watch it come to life. Free in your browser at https://littlecity.io.
 
-Little City is a cozy town-building game drawn in ink and pencil, made by Derek Yao. It runs in any web browser on a computer, iPhone, iPad or Android phone, with no download, no account and no ads.
+Little City is a small town-building game drawn in ink and pencil, something like a snow globe you build yourself. It runs in any web browser, on a computer, iPhone, iPad or Android phone.
 
-- It is not a tycoon or management game. There is no money, budget, zoning, traffic or score, and nothing can go wrong. Unlike Cities: Skylines, there is nothing to manage: it is closer to building a model town.
-- You place simple pieces (house, tower, lighthouse, arch, dock, marble, pillar, mill, path, plaza, garden, fence, wall, and the Auto block), and the town works out what they become from where they are: a house beside a tall tower becomes a chapel, a house opening onto a square becomes a shop, four blocks stacked by the sea become a lighthouse. There are over 80 special buildings and events to discover.
-- The town is alive: residents walk to work and you can follow the work from start to finish (flour from the windmill to the bakery, bread to the market stall and home), fishing boats, ships at the quay, washing on the lines, market days, weddings with a procession, beach days, picnics, snow days, harvest suppers, seasons, weather, and day and night.
-- "Grow a town" grows a whole town on a new island by itself, in one of eight characters: harbour town, marble city, castle town, market town, river town, farming village, hill town or garden town.
-- Towns save themselves in the browser and can be shared as a link or a picture postcard.
+- What each block becomes depends on where you put it: a house beside a tall tower becomes a chapel, a house opening onto a square becomes a shop, four blocks stacked by the sea become a lighthouse, a path becomes a street with lamps and benches. There are over 80 special buildings and events to find.
+- The town lives: the miller carries flour to the bakery and the baker takes bread to the stall, boats go out for fish, ships come in to the quay, washing goes up on the lines. Some days there's a market day, a wedding with a procession, a beach day, picnics, a snow day or a harvest supper. The seasons turn, and day turns to dusk and night.
+- "Grow a town" grows a whole town on a new island by itself: a harbour town, marble city, castle town, market town, river town, farming village, hill town or garden town.
+- Towns save themselves in the browser and can be shared as a link or a postcard.
 
 ## Pages
 
 - [Play Little City](https://littlecity.io/): the game
-- [About Little City](https://littlecity.io/about/): what it is and how it plays, with common questions
-- [The building guide](https://littlecity.io/guide/): every special building and event, and how to get it
+- [About Little City](https://littlecity.io/about/): what it is, with the trailer
+- [The guide](https://littlecity.io/guide/): every special building and event, and how to get it

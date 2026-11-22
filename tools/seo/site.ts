@@ -19,12 +19,11 @@ import { ENTRIES, GROUPS, type GuideEntry, type GuideGroup } from '@/guide/entri
 
 export const ORIGIN = 'https://littlecity.io';
 export const NAME = 'Little City';
-export const TAGLINE = 'a peaceful, hand-drawn city builder';
+export const TAGLINE = 'a tiny, hand-drawn town diorama';
 /** The one-sentence pitch: the page description and the start of every page about the game. */
 /** Who made the game: named as its author on every page and in the structured data. */
 export const CREATOR = 'Derek Yao';
-export const PITCH =
-  'A peaceful, hand-drawn city builder sandbox. No money, no goals, no tycoon: place a few blocks and watch a little town come alive. Free, in your browser.';
+export const PITCH = 'A tiny, hand-drawn town diorama. Place a few blocks, watch them turn into a town, then watch it come to life. Free in your browser.';
 
 export interface SitePage {
   /** Path from the site root, without a leading slash: 'about/index.html'. */
@@ -142,7 +141,7 @@ ${s.data.map((d) => `<script type="application/ld+json">${ld(d)}</script>`).join
 ${s.body.trim()}
 </main>
 <footer>
-<p><strong>${NAME}</strong> is ${TAGLINE} you play in your browser, on a computer or a phone. Free, no download, no account. Made by ${CREATOR}. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
+<p><strong>${NAME}</strong> is ${TAGLINE} by ${CREATOR}. Free in your browser, on a computer or a phone. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
 </footer>
 </body>
 </html>
@@ -159,8 +158,8 @@ export function gameData(): Record<string, unknown> {
     url: `${ORIGIN}/`,
     description: PITCH,
     image: `${ORIGIN}/og.jpg`,
-    genre: ['City builder', 'Sandbox', 'Simulation', 'Casual', 'Relaxing'],
-    keywords: 'city builder, town builder, sandbox, cozy game, relaxing game, hand-drawn, browser game, free online game, no download',
+    genre: ['City builder', 'Town builder', 'Diorama', 'Sandbox', 'Relaxing'],
+    keywords: 'diorama builder, town builder, city builder, hand-drawn, cozy game, relaxing game, sandbox, browser game, free online game',
     gamePlatform: ['Web browser', 'PC', 'Mac', 'iPhone', 'iPad', 'Android'],
     applicationCategory: 'GameApplication',
     operatingSystem: 'Any (runs in a web browser)',
@@ -185,7 +184,7 @@ export function trailer(): Record<string, unknown> {
     '@type': 'VideoObject',
     '@id': `${ORIGIN}/about/#trailer`,
     name: `${NAME} trailer: ${TAGLINE}`,
-    description: `A drone flies in from the sea over a hand-drawn island town in ${NAME}: under the washing lines, through the square where a wedding is on, and out over the quay. ${NAME} is a free, peaceful city builder made by ${CREATOR}.`,
+    description: `A drone flies in from the sea over a hand-drawn island town in ${NAME}: under the washing lines, through the square where a wedding is on, and out over the quay. ${NAME} is ${TAGLINE} by ${CREATOR}.`,
     thumbnailUrl: [`${ORIGIN}/og.jpg`],
     contentUrl: `${ORIGIN}/preview.mp4`,
     embedUrl: `${ORIGIN}/about/`,
@@ -227,20 +226,10 @@ function tile(e: GuideEntry): string {
 
 /** The questions on the about page, answered from what the game really does. */
 export const FAQ: readonly [q: string, a: string][] = [
-  ['Who made Little City?', `Little City is made by ${CREATOR}.`],
-  ['Is Little City free?', 'Yes. It is free to play in your browser, with no download, no sign-up and no ads.'],
-  ['Is it a tycoon game?', 'No. There is no money, no budget, no zoning and no score. Nothing can go wrong. You build what you like and the town works out the rest.'],
-  [
-    'How is it different from Cities: Skylines?',
-    'Cities: Skylines is a full city simulation with traffic, taxes and services to manage. Little City has none of that. It is a calm sandbox: closer to building a model town than running one.',
-  ],
-  ['Does it work on a phone?', 'Yes. It runs in the browser on iPhone, iPad and Android as well as on a computer.'],
-  ['Is my town saved?', 'Yes. Your town saves itself in your browser as you build, and you can share any town as a link or save it as a picture postcard.'],
-  [
-    'What are the special buildings?',
-    'Put pieces together in the right places and they turn into something: a house beside a tall tower becomes a chapel, a house opening onto a square becomes a shop, a tall stack by the sea becomes a lighthouse. The guide lists every one.',
-  ],
-  ['Can I play without building anything?', 'Yes. Open the menu, choose Grow a town, and watch a whole town grow on a new island by itself. Then fly over it.'],
+  ['Who made Little City?', `${CREATOR}.`],
+  ['Is it free?', 'Yes. It runs in your browser: nothing to download, no account.'],
+  ['Does it work on a phone?', 'Yes, on iPhone, iPad and Android as well as on a computer.'],
+  ['Does my town save?', 'Yes, by itself, in your browser. You can also share a town as a link, or save it as a postcard.'],
 ];
 
 export function aboutPage(): SitePage {
@@ -248,39 +237,26 @@ export function aboutPage(): SitePage {
     .map((id) => ENTRIES.find((e) => e.id === id))
     .filter((e): e is GuideEntry => e !== undefined);
   const body = `
-<h1>${NAME}: ${TAGLINE}</h1>
-<p class="lede">${esc(PITCH)}</p>
-<a class="play big" href="/">Play ${NAME} free</a>
+<h1>${NAME}</h1>
+<p class="lede">A tiny, hand-drawn town diorama. Something like a snow globe you build yourself.</p>
+<a class="play big" href="/">Play</a>
 <video class="hero" controls muted playsinline preload="metadata" poster="/og.jpg" width="1280" height="720" title="${NAME} trailer">
 <source src="/preview.mp4" type="video/mp4">
 <img src="/og.jpg" alt="A hand-drawn island town in ${NAME}, with a castle, a harbour, a chapel and a lighthouse." width="1200" height="630">
 </video>
-<p class="caption">The ${NAME} trailer: a drone flight over a town grown in the game.</p>
+<p class="caption">A drone flight over a town grown in the game.</p>
 
-<h2>A city builder with nothing to manage</h2>
-<p>${NAME} is a cozy sandbox for building towns. There is no money to run out of, no traffic to fix, no taxes, no goals and no way to lose. You place a few pieces (a house, a tower, a path, a dock) and the town quietly works out what they should be. It is the calm part of a city builder and nothing else: put on the music, build a harbour, watch the lamps come on at dusk.</p>
-<p>If you love the look of a town in games like Cities: Skylines but not the spreadsheets, or you want something as gentle as building a model village, this is that.</p>
-
-<h2>The town figures itself out</h2>
-<p>Every piece looks at what is around it. A house beside a tall tower becomes a chapel. A house that opens onto a square becomes a shop, and a big one where travellers arrive becomes the inn. Three blocks stacked make a tower; four stacked by the sea make a lighthouse. Blocks across a gap become an arch, blocks on the water become a dock, and a run of path becomes a street with lamps, benches and flower boxes. Over 80 special buildings and events are waiting to be found; <a href="/guide/">the guide</a> shows how to get every one.</p>
-
-<h2>A town that is alive</h2>
-<p>The best part is watching. People leave their houses in the morning and go to work, and you can follow the work from start to finish: the miller carries flour from the windmill to the bakery, the baker carries the loaves to the market stall, and the neighbours walk home with a loaf under their arm. Fishermen row out and bring in the catch. Washing goes up on the lines. Ships come in to the quay.</p>
-<p>A town earns its days, too: a market day on the square, a wedding at the chapel with a procession through the streets, a beach day, picnics in the park, a snow day with snowball fights, a harvest supper. The seasons turn, day turns to dusk and night, and the windows light up one by one.</p>
-
-<h2>Every island is different</h2>
-<p>Each new island has its own coast, hills and rivers. Choose <em>Grow a town</em> from the menu and a whole town grows on it by itself, in one of eight characters: a harbour town, a marble city, a castle town, a market town, a river town, a farming village, a hill town or a garden town. Then build on it, change it, or just fly over it.</p>
-
-<h2>Things to find</h2>
+<p>Place a few blocks and they turn into a town. What each one becomes depends on where you put it. A house beside a tall tower becomes a chapel. Four blocks stacked by the sea become a lighthouse. A path becomes a street, with lamps and benches along it.</p>
+<p>Then people move in. The miller carries flour down to the bakery, and the baker takes the bread to the stall on the square. Boats go out in the morning and come back with fish. Washing goes up on the lines. Some days there's a market. Sometimes there's a wedding.</p>
+<p>The seasons turn. It snows. The lamps come on at dusk.</p>
+<p>You can also skip the building: grow a whole town on a new island (a harbour town, a castle town, a farming village) and just watch it.</p>
+<p>There are over 80 things to find. <a href="/guide/">The guide</a> has all of them.</p>
 <ul class="grid">${examples.map(tile).join('')}</ul>
 
-<h2>Who made it</h2>
-<p>${NAME} is designed and made by ${CREATOR}. It is free to play at <a href="/">littlecity.io</a>.</p>
-
-<h2>Questions</h2>
+<h2>A few questions</h2>
 <dl>${FAQ.map(([q, a]) => `<dt>${esc(q)}</dt><dd>${esc(a)}</dd>`).join('')}</dl>
 
-<p><a class="play big" href="/">Start building</a></p>
+<p><a class="play big" href="/">Play ${NAME}</a></p>
 `;
   const faqData = {
     '@context': 'https://schema.org',
@@ -293,8 +269,8 @@ export function aboutPage(): SitePage {
     priority: 0.9,
     images: [{ url: `${ORIGIN}/og.jpg`, title: `${NAME}: ${TAGLINE}` }],
     html: page({
-      title: `About ${NAME}: a peaceful, hand-drawn city builder by ${CREATOR}`,
-      description: clip(`${PITCH} A cozy town-building sandbox with no tycoon: the town builds and lives by itself.`, 160),
+      title: `About ${NAME}: a tiny, hand-drawn town diorama by ${CREATOR}`,
+      description: PITCH,
       path: '/about/',
       body,
       video: true,
@@ -313,8 +289,8 @@ export function guideIndexPage(): SitePage {
   }).join('\n');
   const body = `
 <p class="crumbs"><a href="/">${NAME}</a> › Guide</p>
-<h1>The ${NAME} guide: every special building and how to get it</h1>
-<p class="lede">In ${NAME} you never pick a building from a menu. You put simple pieces down and the town decides what they become. These are the ${ENTRIES.length} special buildings and events, and how to make each one.</p>
+<h1>The ${NAME} guide</h1>
+<p class="lede">You never pick a building from a menu in ${NAME}. You put blocks down and the town decides what they become. Here are all ${ENTRIES.length} special buildings and events, and how to get each one.</p>
 <a class="play big" href="/">Play ${NAME} free</a>
 ${sections}
 `;
@@ -330,8 +306,8 @@ ${sections}
     priority: 0.8,
     images: ENTRIES.map((e) => ({ url: pictureOf(e), title: `${e.name} in ${NAME}` })),
     html: page({
-      title: `${NAME} guide: all ${ENTRIES.length} special buildings and how to build them`,
-      description: clip(`How to build every special building in ${NAME}: chapel, lighthouse, castle keep, watermill, market day, a wedding and more. ${PITCH}`, 160),
+      title: `${NAME} guide: all ${ENTRIES.length} special buildings and how to get them`,
+      description: `How to get every special building in ${NAME}: the chapel, the lighthouse, the keep, the watermill, market day, a wedding and the rest.`,
       path: '/guide/',
       body,
       data: [list, crumbs([[NAME, `${ORIGIN}/`], ['Guide', `${ORIGIN}/guide/`]]), gameData()],
@@ -347,14 +323,14 @@ export function entryPage(e: GuideEntry): SitePage {
   const howTo = event ? 'how to make it happen' : 'how to build it';
   const intro = event
     ? `${e.name} is one of the days a town earns in ${NAME}, ${TAGLINE}. Nobody schedules it: build the right places and the town holds it by itself.`
-    : `In ${NAME}, ${TAGLINE}, you never choose a building from a menu. Put the pieces down like this and the town does the rest.`;
+    : `In ${NAME} you never choose a building from a menu. Put the blocks down like this and the town does the rest.`;
   const body = `
 <p class="crumbs"><a href="/">${NAME}</a> › <a href="/guide/">Guide</a> › <a href="/guide/#${e.group}">${esc(group)}</a></p>
 <h1>${esc(heading)}</h1>
 <img class="shot" src="/guide/${e.id}.webp" alt="${esc(e.name)} in ${NAME}, drawn in ink and pencil" width="360" height="270">
 <p class="how"><strong>How to get it:</strong> ${esc(e.how)}</p>
 <p>${esc(intro)}</p>
-<a class="play big" href="/">Try it now, free in your browser</a>
+<a class="play big" href="/">Try it, free in your browser</a>
 ${others.length ? `<h2>More in ${esc(group)}</h2><ul class="grid">${others.map(tile).join('')}</ul>` : ''}
 <p><a href="/guide/">All ${ENTRIES.length} buildings and events</a> · <a href="/about/">About ${NAME}</a></p>
 `;
