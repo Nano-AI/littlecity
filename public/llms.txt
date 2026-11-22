@@ -1,6 +1,6 @@
 # Little City
 
-> A tiny, hand-drawn town diorama, made by Derek Yao. Place a few blocks, watch them turn into a town, then watch it come to life. Free in your browser at https://littlecity.io.
+> A hand-drawn city builder in your browser, made by Derek Yao: a town diorama builder. Place a few blocks, watch them turn into a town, then watch it come to life. Free at https://littlecity.io.
 
 Little City is a small town-building game drawn in ink and pencil, something like a snow globe you build yourself. It runs in any web browser, on a computer, iPhone, iPad or Android phone.
 

@@ -19,11 +19,11 @@ import { ENTRIES, GROUPS, type GuideEntry, type GuideGroup } from '@/guide/entri
 
 export const ORIGIN = 'https://littlecity.io';
 export const NAME = 'Little City';
-export const TAGLINE = 'a tiny, hand-drawn town diorama';
+export const TAGLINE = 'a hand-drawn town diorama builder';
 /** The one-sentence pitch: the page description and the start of every page about the game. */
 /** Who made the game: named as its author on every page and in the structured data. */
 export const CREATOR = 'Derek Yao';
-export const PITCH = 'A tiny, hand-drawn town diorama. Place a few blocks, watch them turn into a town, then watch it come to life. Free in your browser.';
+export const PITCH = 'A hand-drawn town diorama builder, free in your browser. Place a few blocks, watch them turn into a town, then watch it come to life.';
 
 export interface SitePage {
   /** Path from the site root, without a leading slash: 'about/index.html'. */
@@ -141,7 +141,7 @@ ${s.data.map((d) => `<script type="application/ld+json">${ld(d)}</script>`).join
 ${s.body.trim()}
 </main>
 <footer>
-<p><strong>${NAME}</strong> is ${TAGLINE} by ${CREATOR}. Free in your browser, on a computer or a phone. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
+<p><strong>${NAME}</strong> is ${TAGLINE} by ${CREATOR}. Free, in your browser, on a computer or a phone. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
 </footer>
 </body>
 </html>

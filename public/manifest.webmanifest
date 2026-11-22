@@ -1,7 +1,7 @@
 {
   "name": "Little City",
   "short_name": "Little City",
-  "description": "A tiny, hand-drawn town diorama. Place a few blocks, watch them turn into a town, then watch it come to life.",
+  "description": "A hand-drawn town diorama builder. Place a few blocks, watch them turn into a town, then watch it come to life.",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
