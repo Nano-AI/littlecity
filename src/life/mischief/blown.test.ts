@@ -273,4 +273,32 @@ describe('people blown about', () => {
     expect(sd / mean).toBeGreaterThan(0.25);
     void crowd;
   }, 120_000);
+
+  test('the Hand: what it holds hangs below the grip and swings behind as the grip moves, then settles under it; a throw leaves with the given velocity', () => {
+    const { t } = town();
+    const crowd = crowdOf(t.stage)!;
+    const th = throwerOf(t.stage)!;
+    const p = crowd.people.find((q) => q.visible && (q.mode === 'walk' || q.mode === 'linger'))!;
+    expect(th.grab(p)).toBe(true);
+    const b = th.thrown.get(p)!.body;
+    let x = p.x, lag = 0;
+    const y = p.y + 2;
+    th.carry(p, x, y, p.z);
+    t.run(0.5);
+    // Moving the grip along +x: the body trails behind it (on the -x side) and hangs below.
+    for (let i = 0; i < 15; i++) {
+      x += 0.12;
+      th.carry(p, x, y, p.z);
+      t.frame();
+      lag = Math.max(lag, x - b.x);
+      expect(b.y).toBeLessThan(y);
+    }
+    expect(lag).toBeGreaterThan(0.05);
+    // Held still: it swings back and comes to rest under the grip.
+    t.run(4);
+    expect(Math.abs(b.x - x)).toBeLessThan(0.02);
+    th.fling(p, 4, 2, 0);
+    expect(b.vx).toBe(4);
+    expect(b.vy).toBe(2);
+  }, 120_000);
 });
