@@ -1372,6 +1372,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
         if (reach > 0) {
           for (const q of people) {
             if (q === p || !q.visible || q.mode === 'gone' || q.mode === 'hop' || q.mode === 'thrown' || q.mode === 'home' || q.mode === 'visit') continue;
+            // A raiding band jostles through itself here too (else a band landing on a narrow strip packs solid).
+            if (p.raider && q.raider) continue;
             if (q.mode === 'walk' && q.walk![q.at]!.kind !== 'move') continue;
             const dx = q.x - p.x, dz = q.z - p.z;
             if (dx > 0.5 || dx < -0.5 || dz > 0.5 || dz < -0.5 || Math.abs(q.y - p.y) > 0.3) continue;
@@ -1386,7 +1388,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
       // L36, L37: they wait for the garrison's column or the rider's horse to pass, without counting it as
       // being held up (nobody steps round a soldier).
-      if (bodies) {
+      // (Raiders barge past soldiers: they are not held up by the garrison's column.)
+      if (bodies && !p.raider) {
         for (const o of bodies) {
           const dx = o.x - p.x, dz = o.z - p.z;
           if (dx > 0.6 || dx < -0.6 || dz > 0.6 || dz < -0.6 || Math.abs(o.y - p.y) > 0.3) continue;

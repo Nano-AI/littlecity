@@ -224,6 +224,13 @@ function autoRaid(st: State, night: boolean): void {
     seen.add(sid);
     buildings++;
   }
+  // A town mostly in ruins or under scaffolding is not worth a raid of its own (the tool still brings one).
+  let wrecked = 0;
+  for (const sid of seen) if (shape.structures.get(sid)?.cells.some((c) => shape.world.blocks.get(c)?.ruin)) wrecked++;
+  if (wrecked > buildings * 0.4) {
+    st.nextAuto = st.played + 90;
+    return;
+  }
   if (buildings < RAID.worth) {
     st.nextAuto = st.played + 60;
     return;
