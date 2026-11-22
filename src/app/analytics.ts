@@ -17,7 +17,8 @@
 //   town_shared       {via: link | link_box | file}
 //   postcard_saved, town_downloaded, town_file_opened, shared_town_kept, shared_town_left,
 //   town_grown {new_island}, new_island, guide_opened, fly_started
-// PostHog adds its own: $pageview, $pageleave, clicks on the interface (autocapture), session replays.
+// PostHog adds its own: $pageview, $pageleave, clicks on the interface (autocapture), session replays
+// (with the town in them, on phones too).
 //
 // A share link carries the whole town in the URL fragment (#t=...): it is cut from every URL sent.
 
@@ -90,8 +91,15 @@ export function startAnalytics(opts: { scenario: boolean }): void {
   const load = (): void => {
     import('posthog-js')
       .then(({ default: posthog }) => {
-        // A fine pointer is a desktop: the town (a WebGL canvas) goes into replays there, a couple of frames a
-        // second. Phones get the interface only, to spare them the work.
+        // Replays carry the town (a WebGL canvas) as pictures: two a second on a desktop (a fine pointer), one
+        // a second and a little smaller on a phone, to spare its data plan (about 0.7 MB a minute).
+        //
+        // This works because the renderer made its WebGL context before PostHog loaded: the recorder forces
+        // preserveDrawingBuffer only on contexts made after it, and for a context it saw being made without
+        // it, it clears the canvas before each picture (a blank frame, and a flicker in the game). So nothing
+        // may call canvas.getContext('webgl2') on the town's canvas while the game runs; the renderer's own
+        // renderer.getContext() is fine. Each picture is taken in a frame callback after the game's own,
+        // while the frame just drawn is still in the canvas.
         const desktop = window.matchMedia('(pointer: fine)').matches;
         posthog.init(KEY, {
           api_host: HOST,
@@ -104,7 +112,8 @@ export function startAnalytics(opts: { scenario: boolean }): void {
           opt_out_useragent_filter: asked === 'on',
           session_recording: {
             maskAllInputs: true,
-            ...(desktop ? { captureCanvas: { recordCanvas: true, canvasFps: 2, canvasQuality: '0.4' } } : {}),
+            captureCanvas: { recordCanvas: true, canvasFps: desktop ? 2 : 1, canvasQuality: '0.4' },
+            canvasCapture: { resolutionScale: desktop ? 1 : 0.75 },
           },
         });
         posthog.register({ build: BUILD, touch: !desktop });
