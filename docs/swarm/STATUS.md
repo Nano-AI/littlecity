@@ -1715,3 +1715,15 @@ ground is still stepped by quarter cells (the "ragged edge"). A keys
 hint in the bottom-left corner (`.lc-keys`: F fly, Esc whole island,
 ⌘Z undo): tiny, half-opaque, no clicks, hidden on touch, under 980 px
 wide and while flying. Gate: 2,330 passed, 12 skipped, clean.
+
+**Shields and the longship (Derek, 2026-11-22).** Shields are red and
+white only (`SHIELD_PAIRS`, `SHIELD_RED` in
+`src/parts/raid/longship.ts`, used by the ships and by `barbarian.ts`);
+gate 2,330 passed, 12 skipped; published. "The boat asset doesn't look
+very good compared to the other boat assets" → raid agent
+(`af67b2b62016bdcfb`), resumed: redraw the longship to the galleon's
+standard (clinker hull with planking and a sheer, a tall carved dragon
+prow and curled stern, a shield rail, a stout rigged mast and a striped
+sail that furls, real oars through ports that ship when beached, deck
+gear; a grander ship for the boats raid; small clinker boats).
+Running: raids (the longship redraw).
