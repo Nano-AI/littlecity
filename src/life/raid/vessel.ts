@@ -9,7 +9,8 @@
 
 import { SEA_Y } from '@/core/grid';
 import type { Mat4, Mat4Like } from '@/core/mat4';
-import { BOAT, LONGSHIP, longshipMesh, longshipSailMesh, longshipYardMesh, lootHeapMesh, oarBankMesh, raidBoatMesh } from '@/parts/raid/longship';
+import { BOAT, LONGSHIP, longshipMesh, longshipSailMesh, longshipYardMesh, lootHeapMesh, oarBankMesh, raidBoatMesh, shipOars, type OarKit } from '@/parts/raid/longship';
+import { hullRing, wakeRing } from '../boats/afloat';
 import type { HullSize } from '@/rules/life/ship-routes';
 import { mapEdge } from '@/rules/life/ship-routes';
 import type { InstanceHandle, LifeStage } from '../api';
@@ -71,6 +72,14 @@ export class Vessel {
   private tmp: Mat4 = new Array<number>(16).fill(0);
   private tmp2: Mat4 = new Array<number>(16).fill(0);
 
+  /** The oars it has, and the real stage its wake is drawn on (the effects service runs on that one). */
+  private oarKit: OarKit;
+  fx: LifeStage | null = null;
+  private lastX = NaN;
+  private lastZ = NaN;
+  private wakeIn = 0;
+  private lastStroke = 0;
+
   constructor(private stage: LifeStage, readonly kind: 'ship' | 'boat', readonly size: number, readonly look: number, private phase: number) {
     const ship = kind === 'ship';
     this.hull = ship
@@ -83,12 +92,13 @@ export class Vessel {
       this.sailH = stage.spawnMesh(longshipSailMesh(size), HIDDEN);
     }
     this.oarsH = ([1, -1] as const).map((side) => stage.spawnMesh(oarBankMesh(side, ship ? size : 1, !ship), HIDDEN));
-    // Seats: a rower each side of every bench, facing aft; the chief at the prow and a steersman aft.
-    const o = ship ? LONGSHIP : BOAT;
+    // Seats: a rower on a sea chest each side of every oar, facing aft; the chief at the prow and a steersman aft.
+    this.oarKit = ship ? shipOars(size) : BOAT;
+    const o = this.oarKit;
     const k = ship ? size : 1;
     for (let i = 0; i < o.oars; i++) {
       const z = (o.oarZ0 + ((o.oarZ1 - o.oarZ0) * i) / Math.max(1, o.oars - 1)) * k + (ship ? 0.05 : 0.04);
-      for (const side of [1, -1]) this.seats.push({ x: side * (ship ? 0.27 : 0.17) * k, y: (ship ? 0.07 : 0.05) * k, z, face: Math.PI, sit: true });
+      for (const side of [1, -1]) this.seats.push({ x: side * (ship ? 0.29 : 0.17) * k, y: (ship ? 0.07 : 0.05) * k, z, face: Math.PI, sit: true });
     }
     if (ship) {
       this.seats.unshift({ x: 0, y: 0.12 * k, z: 1.75 * k, face: 0, sit: false });
@@ -176,6 +186,7 @@ export class Vessel {
       }
     }
     this.poseOars();
+    this.wake(seconds);
     // The loot heap amidships.
     const want = Math.min(3, this.heap);
     if (want !== this.heapShown) {
@@ -198,13 +209,15 @@ export class Vessel {
 
   private poseOars(): void {
     const ship = this.kind === 'ship';
-    const o = ship ? LONGSHIP : BOAT;
+    const o = this.oarKit;
     const k = ship ? this.size : 1;
-    // At rest the oars lie level with their blades on the water (rowing 0 here is "resting", not tossed).
+    // At rest the oars lie level with their blades on the water (rowing 0 here is "resting"); beached, they
+    // are tossed up nearly upright out of the way (not lying out over the sand).
     const phase = this.astern ? 1 - this.stroke : this.stroke;
     const [dipRow, sweep] = oarStroke(phase, 1);
     const r = clamp01(this.rowing);
-    const dip = 0.15 + (dipRow - 0.15) * r;
+    const tossed = easeInOut(clamp01(this.beach * 1.4 - 0.4));
+    const dip = (0.15 + (dipRow - 0.15) * r) * (1 - tossed) - 1.3 * tossed;
     const sw = sweep * r * 0.8;
     this.oarsH.forEach((h, i) => {
       const side = i === 0 ? 1 : -1;
@@ -224,6 +237,34 @@ export class Vessel {
       // Broken and going down: the oars go with it, unmanned.
       h.setVisible(this.hurt < 3 || this.sink < 0.6);
     });
+  }
+
+  /** A ring off the hull as it goes, and a splash at the blades as they bite. */
+  private wake(seconds: number): void {
+    const fx = this.fx;
+    if (!fx || this.sink > 0.2) return;
+    const moved = Number.isNaN(this.lastX) ? 0 : Math.hypot(this.x - this.lastX, this.z - this.lastZ);
+    this.lastX = this.x;
+    this.lastZ = this.z;
+    this.wakeIn -= 1 / 60;
+    if (moved > 0.004 && this.wakeIn <= 0 && !this.cut && this.beach < 0.5) {
+      this.wakeIn = this.kind === 'ship' ? 0.55 : 0.45;
+      hullRing(fx, this.x, this.z, this.yaw, this.hull.halfBeam * 2, this.length, 1.5);
+    }
+    // The catch: as the stroke comes round, a splash at the first and last oars each side.
+    const caught = this.stroke < this.lastStroke;
+    this.lastStroke = this.stroke;
+    if (caught && this.rowing > 0.5 && this.beach < 0.3 && !this.cut) {
+      const o = this.oarKit, k = this.kind === 'ship' ? this.size : 1;
+      for (const side of [1, -1]) {
+        for (const z of [o.oarZ0, o.oarZ1]) {
+          const lx = side * (o.oarX + o.oarLength * 0.82) * k, lz = z * k;
+          const m = this.m;
+          wakeRing(fx, m[0]! * lx + m[8]! * lz + m[12]!, m[2]! * lx + m[10]! * lz + m[14]!, 0.09 * k, 2.2, 0.7);
+        }
+      }
+    }
+    void seconds;
   }
 
   private setCut(on: boolean): void {

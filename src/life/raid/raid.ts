@@ -216,6 +216,7 @@ export class Raid {
     this.kind = site.kind;
     const stage = host.own.stage;
     this.ship = new Vessel(stage, 'ship', site.size, seed % 5, rand(seed, 'raid-phase'));
+    this.ship.fx = host.stage;
     const start = pathAt(site.voyage.arrive, 0);
     this.ship.x = start.x;
     this.ship.z = start.z;
@@ -228,6 +229,7 @@ export class Raid {
       const nb = site.landings.length;
       for (let b = 0; b < nb; b++) {
         const v = new Vessel(stage, 'boat', 1, (seed + b) % 5, rand(seed, 'boat-phase', b));
+        v.fx = host.stage;
         this.boats.push(v);
         this.boatState.push('tow');
         this.boatS.push(0);
