@@ -25,7 +25,7 @@ import { compose, rotationY, scaling, translation } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { soft } from '@/gen/soft';
 import { tube } from '@/parts/ground/kit';
-import { drawShield } from '@/parts/raid/longship';
+import { drawShield, SHIELD_PAIRS } from '@/parts/raid/longship';
 import { PALETTE } from '@/style/palette';
 import { DESIGN_HEIGHT, type Look, type Rig } from './person';
 import { PERSON } from '@/style/people';
@@ -174,9 +174,10 @@ export function barbarianMesh(look: Look, rig: Rig, c: Barbarian, ink: string): 
   beard(b, look, rig, c);
   cape(b, look, rig, c);
   // The round shield slung on the back, over the cape.
-  const shields: readonly (readonly [string, string])[] = [[PALETTE.red, PALETTE.yellow], [PALETTE.yellow, PALETTE.red], [PALETTE.red, PALETTE.white], ['#2f5fc0', PALETTE.yellow], [PALETTE.yellow, '#2b2b2b']];
+  // Red and white, as the ship's (SHIELD_PAIRS).
+  const shields = SHIELD_PAIRS;
   const pair = shields[Math.floor(r(c, 'shield') * shields.length) % shields.length]!;
-  // Held up on the left arm, out to the side and forward: red and yellow, seen from the front and the side alike.
+  // Held up on the left arm, out to the side and forward, seen from the front and the side alike.
   b.at(compose(translation(-0.1 * look.girth, 0.19, 0.035), rotationY(-Math.PI / 2 + 0.55)), () => drawShield(b, c === 'chief' ? 0.11 : 0.1, pair, 'shield'));
   if (c === 'chief') {
     // His horn, hanging at his hip on its strap.

@@ -28,13 +28,15 @@ import { tube } from '@/parts/ground/kit';
 import { drawHull, stick, type Hull, type HullSpec } from '@/parts/actors/boats/hull';
 import { PALETTE } from '@/style/palette';
 
-/** The shields' colours: each shield is two halves (split down the middle) and a rim. */
-const SHIELD_PAIRS: readonly (readonly [string, string])[] = [
-  [PALETTE.red, PALETTE.yellow],
-  ['#2f5fc0', PALETTE.white],
-  [PALETTE.yellow, '#2b2b2b'],
-  [PALETTE.white, PALETTE.red],
-  ['#3f8f4a', PALETTE.yellow],
+/**
+ * The shields' colours: each shield is two halves (split down the middle) and a rim. Red and white only,
+ * the sail's own red (Derek, 2026-11-22: "can they not be multicolored? just red and white"): the two
+ * halves either way round, so a row of them alternates without being a rainbow.
+ */
+export const SHIELD_RED = '#c8362f';
+export const SHIELD_PAIRS: readonly (readonly [string, string])[] = [
+  [SHIELD_RED, PALETTE.white],
+  [PALETTE.white, SHIELD_RED],
 ];
 /** The sail's stripes: red and white. */
 const SAIL_RED = '#c8362f';
