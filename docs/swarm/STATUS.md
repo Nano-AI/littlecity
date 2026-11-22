@@ -1633,3 +1633,23 @@ not; the eastern half of the big harbour town stays untouched. Not
 built: the castle's troop sallying out, dogs chasing, sheep scattering,
 stalls' baked-in goods emptied, raiders swimming being liftable.
 Running: nothing of mine.
+
+**Derek on the live build, 2026-11-21 evening (orchestrator's quick
+fixes, `1dcfe…` see git log).** (1) Sound: off now silences the music
+too: one reading of the switch for everyone (`soundOn()` in
+`src/life/sound/volume.ts`: on unless the player turned it off; it used
+to be off until turned on, with the music playing regardless), the
+music obeys `lc:sound`, both sliders grey when off and moving either up
+turns sound on. NOTE the default changed: game sounds are now on for
+players who never chose. (2) Thrown people "expand in size too greatly…
+does not follow physics": `flightGrow()` returns 1 (bodies keep their
+size; the growing was the orchestrator's instruction, a mistake); the
+black speed lines ("look like a ladder") are off. (3) Raiders "bigger
+than the villagers": `raiderScale()` returns 1 and `barbarian.ts` uses
+the townspeople's heights. Gate: 2,326 passed, 12 skipped, clean.
+Still to fix, with the agents: the flight's motion itself (ragdoll
+agent, round 3: debug with per-frame numbers, real scatter, one
+gravity, no size change); raiders glitching in their boat and standing
+in a clump doing nothing in a town already wrecked and mending (raid
+agent, round 3; screenshot `/tmp/lc-raiders.png`).
+Running: ragdoll round 3, raids round 3.
