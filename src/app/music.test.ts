@@ -174,4 +174,25 @@ describe('the player', () => {
     expect(audio.src).toBe(playing);
     music.dispose();
   });
+
+  test('the Sound switch: off stops the music too, on brings it back at the slider\'s level', () => {
+    const music = createMusic(URLS, seeded(1));
+    page.dispatchEvent(new Event('pointerdown'));
+    const audio = FakeAudio.made[0]!;
+    const playing = audio.src;
+    const level = music.volume;
+    expect(level).toBeGreaterThan(0);
+    page.dispatchEvent(new CustomEvent('lc:sound', { detail: false }));
+    expect(music.volume).toBe(0);
+    expect(audio.paused).toBe(true);
+    // The slider moved while it is off: kept, not heard.
+    page.dispatchEvent(new CustomEvent('lc:music-volume', { detail: 0.6 }));
+    expect(music.volume).toBe(0);
+    expect(audio.paused).toBe(true);
+    page.dispatchEvent(new CustomEvent('lc:sound', { detail: true }));
+    expect(music.volume).toBe(0.6);
+    expect(audio.paused).toBe(false);
+    expect(audio.src).toBe(playing);
+    music.dispose();
+  });
 });

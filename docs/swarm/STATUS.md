@@ -1633,3 +1633,52 @@ not; the eastern half of the big harbour town stays untouched. Not
 built: the castle's troop sallying out, dogs chasing, sheep scattering,
 stalls' baked-in goods emptied, raiders swimming being liftable.
 Running: nothing of mine.
+
+**Derek on the live build, 2026-11-21 evening (orchestrator's quick
+fixes, `1dcfe…` see git log).** (1) Sound: off now silences the music
+too: one reading of the switch for everyone (`soundOn()` in
+`src/life/sound/volume.ts`: on unless the player turned it off; it used
+to be off until turned on, with the music playing regardless), the
+music obeys `lc:sound`, both sliders grey when off and moving either up
+turns sound on. NOTE the default changed: game sounds are now on for
+players who never chose. (2) Thrown people "expand in size too greatly…
+does not follow physics": `flightGrow()` returns 1 (bodies keep their
+size; the growing was the orchestrator's instruction, a mistake); the
+black speed lines ("look like a ladder") are off. (3) Raiders "bigger
+than the villagers": `raiderScale()` returns 1 and `barbarian.ts` uses
+the townspeople's heights. Gate: 2,326 passed, 12 skipped, clean.
+Still to fix, with the agents: the flight's motion itself (ragdoll
+agent, round 3: debug with per-frame numbers, real scatter, one
+gravity, no size change); raiders glitching in their boat and standing
+in a clump doing nothing in a town already wrecked and mending (raid
+agent, round 3; screenshot `/tmp/lc-raiders.png`).
+Running: ragdoll round 3, raids round 3.
+
+**Ragdoll round 3 merged** (`cf85d41`, Opus). What was wrong with the
+flight, measured over 60 people in one nuke: launch speeds almost
+identical (sd/mean 0.15) and every angle 58–68°, so the crowd rose as
+one sheet; gravity 13 units/s² where a person is 0.46 units tall (about
+five times real for the scale: a 1.2 s snap); limbs random drawings at
+10 a second, strobing against a body moved 30 times a second. Now: each
+body its own share of the blast (0.4–1.65, skewed), angle 22–80°,
+bearing up to 35° off; measured spread 0.38; gravity 7, constant, no
+easing; spin from the launch speed; limbs flung back along the
+velocity; flyers drawn every frame, place and pose together; a pale
+puff at take-off; no size change anywhere. The Hand's catch hangs and
+swings as a damped pendulum; a throw leaves at the pointer's velocity.
+Speed lines stay off. Tests pin g, the spread, and constant drawn size.
+Gate: 2,328 passed, 12 skipped, clean. Cost of honesty: from the normal
+view a nuke's flyers are specks again (orchestrator's own mid-zoom
+sequence: debris and dust dominate; people hard to pick out); bomb
+throws are short and low. Not judged by eye by anyone: the trailing
+limbs and the Hand's swing close up.
+Running: raids round 3.
+
+**Notes and stars (orchestrator, Derek 2026-11-21 evening).** A note
+with Watch now appears only for a raid and a wedding (`NOTED` in
+`src/app/scene-note.ts`); the beach day, snow day, supper, picnics,
+carols and the ship welcome raise none ("a beach day does not warrant
+an event"). Dizzy stars: three, radius 0.1, size 1 at every zoom (were
+four at 1.8 and up to 2.9× from afar). Gate: 2,328 passed, 12 skipped,
+clean. The stars were not seen in a picture after the change (the
+orchestrator's close sequence caught nobody dizzy).

@@ -211,7 +211,8 @@ export function createHand(view: TownView, building: (x: number, y: number) => n
       const at = carryPoint(x, y);
       if (!at) return;
       // Hanging from the pointer, a little below it (something big hangs by its top, its keel clear of the roofs).
-      const hang = { x: at.x, y: at.y - 0.05 + (held.kind === 'critter' && held.c.height > 0.6 ? held.c.height * 0.5 : 0), z: at.z };
+      // The grip: what is held hangs below it on a short arm and swings as the pointer moves (thrower.ts).
+      const hang = { x: at.x, y: at.y + 0.2 + (held.kind === 'critter' && held.c.height > 0.6 ? held.c.height * 0.5 : 0), z: at.z };
       if (held.kind === 'person') t.carry(held.p, hang.x, hang.y, hang.z);
       else t.carryCritter(held.c, hang.x, hang.y, hang.z);
       const ms = now();

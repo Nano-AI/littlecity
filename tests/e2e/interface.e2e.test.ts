@@ -451,14 +451,17 @@ describe('desktop: mouse and keys', () => {
     await page.click('[data-ui="menu-button"]');
     expect(await js(page, `[...document.querySelectorAll('[data-menu]')].map((b) => b.dataset.menu)`)).toEqual(['grow', 'towns', 'new', 'share', 'postcard', 'download', 'open', 'sound', 'rebuild', 'raiders']);
 
-    // Sound is off until the player turns it on.
+    // Sound is on until the player turns it off, and the switch governs the music as well.
+    expect(await debug(page, 'sound')).toBe(true);
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.4);
+    await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0);
+    expect(await js(page, `localStorage.getItem('little-city.sound')`)).toBe('off');
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(true);
-    await page.click('[data-menu="sound"]');
-    expect(await debug(page, 'sound')).toBe(false);
-    // How loud: the music's slider (0 is off) and the sounds' (moving it up turns sound on).
     expect(await js(page, `window.__lc.music.volume`)).toBe(0.4);
+    // How loud: the music's slider (0 is off) and the sounds'.
     await page.locator('[data-ui="volume-music"]').fill('75');
     expect(await js(page, `window.__lc.music.volume`)).toBe(0.75);
     expect(await js(page, `localStorage.getItem('little-city.music-volume')`)).toBe('0.75');
@@ -466,7 +469,14 @@ describe('desktop: mouse and keys', () => {
     expect(await js(page, `window.__lc.music.volume`)).toBe(0);
     await page.locator('[data-ui="volume-sound"]').fill('50');
     expect(await js(page, `localStorage.getItem('little-city.sound-volume')`)).toBe('0.5');
+    // With sound off, the slider's level is kept but nothing plays; moving a slider up turns sound on again.
+    await page.locator('[data-ui="volume-music"]').fill('60');
+    await page.click('[data-menu="sound"]');
+    expect(await debug(page, 'sound')).toBe(false);
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0);
+    await page.locator('[data-ui="volume-music"]').fill('30');
     expect(await debug(page, 'sound')).toBe(true);
+    expect(await js(page, `window.__lc.music.volume`)).toBe(0.3);
     await page.click('[data-menu="sound"]');
     expect(await debug(page, 'sound')).toBe(false);
     await page.click('[data-ui="menu-button"]');

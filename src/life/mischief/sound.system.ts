@@ -8,10 +8,9 @@
 import { hash, rand } from '@/core/rand';
 import { defineSystem } from '../api';
 import { noiseBuffer, pop, strike } from '../sound/synth';
-import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from '../sound/volume';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn } from '../sound/volume';
 import { mischiefOf, type Director } from './director';
 
-const SOUND_KEY = 'little-city.sound';
 /** The master level with the player's volume for sounds on it (the menu's slider). */
 const level = (): number => 0.5 * readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT);
 
@@ -250,11 +249,7 @@ export default defineSystem<State>({
   create(ctx) {
     const st: State = { d: mischiefOf(ctx.stage), wanted: false, audio: null, off: [], crackleIn: 0, bellUntil: 0, bellAt: 0, n: 0 };
     if (!hasAudio()) return st;
-    try {
-      st.wanted = window.localStorage.getItem(SOUND_KEY) === 'on';
-    } catch {
-      st.wanted = false;
-    }
+    st.wanted = soundOn();
     const gesture = (): void => {
       if (st.wanted && !st.audio) start(st);
     };

@@ -11,7 +11,7 @@
 // whether an edit is legal: it asks (game.edit → canApply) and shows the
 // refusal. The view is used only through TownView.
 
-import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, writeVolume } from '@/life/sound/volume';
+import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, SOUND_KEY, SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn, writeVolume } from '@/life/sound/volume';
 import { maybeWelcome } from './welcome';
 import { columnIndex, edgeOf, key, keyX, keyY, keyZ, NO_CELL, type CellKey } from '@/core/grid';
 import type { Edit, Terrain, World } from '@/core/world';
@@ -213,7 +213,6 @@ function inSlices<T>(search: Generator<void, T>, signal: AbortSignal, sliceMs = 
     work();
   });
 }
-const SOUND_KEY = 'little-city.sound';
 const REBUILD_KEY = 'little-city.rebuild';
 const RAIDERS_KEY = 'little-city.raiders';
 const LAND_HINT_KEY = 'little-city.land-hint';
@@ -232,12 +231,8 @@ export function lengthHint(growth: 'up' | 'ground' | 'brush', touch: boolean): s
 export const LAND_HINT = 'Drag the land to shape it. Drag the sea to turn the view.';
 
 function readSound(): boolean {
-  try {
-    // Off until the player turns it on.
-    return localStorage.getItem(SOUND_KEY) === 'on';
-  } catch {
-    return false;
-  }
+  // On until the player turns it off (src/life/sound/volume.ts): it governs the music as well.
+  return soundOn();
 }
 
 export function createInterface(host: InterfaceHost): Interface {

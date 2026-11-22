@@ -11,6 +11,9 @@ import { scenesOnStage, type Scene } from '@/life/town/scenes';
 import { SCENES } from '@/style/scenes';
 import type { Interface } from '@/ui/interface';
 
+/** The kinds of scene that raise a note with Watch. Add to it sparingly: only what a player would be sorry to miss. */
+export const NOTED: ReadonlySet<string> = new Set(['raid', 'wedding']);
+
 export interface SceneNote {
   /** Once a frame. */
   update(stage: object): void;
@@ -34,7 +37,7 @@ export function sceneNote(ui: Interface, now: () => number = () => performance.n
         showing = null;
       }
       // An urgent scene (the raid) takes the place of a note showing for another.
-      const urgent = on.find((s) => s.urgent && !seen.has(s.n) && s.title && s.noteworthy());
+      const urgent = on.find((s) => s.urgent && NOTED.has(s.kind) && !seen.has(s.n) && s.title && s.noteworthy());
       if (urgent && showing && !showing.urgent) {
         close?.();
         close = null;
@@ -42,6 +45,9 @@ export function sceneNote(ui: Interface, now: () => number = () => performance.n
       }
       if (showing || !scenes) return;
       for (const s of urgent ? [urgent] : on) {
+        // Only the really big events get a note: a raid and a wedding (NOTED). A beach day, a picnic, a
+        // snowball fight are there to be come upon, not announced (Derek, 2026-11-21).
+        if (!NOTED.has(s.kind)) continue;
         if (seen.has(s.n) || !s.title || !s.noteworthy()) continue;
         seen.add(s.n);
         if (!s.urgent && now() - last < SCENES.noteGap) continue;
