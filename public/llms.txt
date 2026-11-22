@@ -2,7 +2,7 @@
 
 > A peaceful, hand-drawn city builder sandbox you play free in your browser (https://littlecity.io). No money, no goals, no tycoon: place a few blocks and watch a little town come alive.
 
-Little City is a cozy town-building game drawn in ink and pencil. It runs in any web browser on a computer, iPhone, iPad or Android phone, with no download, no account and no ads.
+Little City is a cozy town-building game drawn in ink and pencil, made by Derek Yao. It runs in any web browser on a computer, iPhone, iPad or Android phone, with no download, no account and no ads.
 
 - It is not a tycoon or management game. There is no money, budget, zoning, traffic or score, and nothing can go wrong. Unlike Cities: Skylines, there is nothing to manage: it is closer to building a model town.
 - You place simple pieces (house, tower, lighthouse, arch, dock, marble, pillar, mill, path, plaza, garden, fence, wall, and the Auto block), and the town works out what they become from where they are: a house beside a tall tower becomes a chapel, a house opening onto a square becomes a shop, four blocks stacked by the sea become a lighthouse. There are over 80 special buildings and events to discover.

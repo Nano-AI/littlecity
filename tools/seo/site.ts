@@ -21,6 +21,8 @@ export const ORIGIN = 'https://littlecity.io';
 export const NAME = 'Little City';
 export const TAGLINE = 'a peaceful, hand-drawn city builder';
 /** The one-sentence pitch: the page description and the start of every page about the game. */
+/** Who made the game: named as its author on every page and in the structured data. */
+export const CREATOR = 'Derek Yao';
 export const PITCH =
   'A peaceful, hand-drawn city builder sandbox. No money, no goals, no tycoon: place a few blocks and watch a little town come alive. Free, in your browser.';
 
@@ -71,6 +73,7 @@ h3{font-size:18px;margin:22px 0 4px}
 p,li{color:var(--ink)}
 .lede{font-size:20px;color:var(--soft)}
 .hero{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);margin:18px 0 6px;display:block}
+.caption{font-size:14px;color:var(--soft);margin:0 0 8px}
 .crumbs{font-size:14px;color:var(--soft);margin-top:20px}
 .crumbs a{color:var(--soft)}
 .shot{display:block;margin:12px auto 4px;width:360px;max-width:100%;height:auto}
@@ -95,6 +98,8 @@ interface Shell {
   body: string;
   data: unknown[];
   type?: 'website' | 'article';
+  /** The trailer is this page's main content (og:video). */
+  video?: boolean;
 }
 
 function page(s: Shell): string {
@@ -108,6 +113,7 @@ function page(s: Shell): string {
 <title>${esc(s.title)}</title>
 <meta name="description" content="${esc(s.description)}">
 <link rel="canonical" href="${url}">
+<meta name="author" content="${CREATOR}">
 <meta name="theme-color" content="#f2ede3">
 <meta property="og:type" content="${s.type ?? 'website'}">
 <meta property="og:site_name" content="${NAME}">
@@ -116,7 +122,7 @@ function page(s: Shell): string {
 <meta property="og:url" content="${url}">
 <meta property="og:image" content="${image}">
 <meta property="og:image:alt" content="${esc(s.imageAlt ?? 'A hand-drawn island town with a castle, a harbour, a chapel and a lighthouse.')}">
-<meta name="twitter:card" content="summary_large_image">
+${s.video ? `<meta property="og:video" content="${ORIGIN}/preview.mp4">\n<meta property="og:video:secure_url" content="${ORIGIN}/preview.mp4">\n<meta property="og:video:type" content="video/mp4">\n<meta property="og:video:width" content="1280">\n<meta property="og:video:height" content="720">\n` : ''}<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(s.title)}">
 <meta name="twitter:description" content="${esc(s.description)}">
 <meta name="twitter:image" content="${image}">
@@ -136,7 +142,7 @@ ${s.data.map((d) => `<script type="application/ld+json">${ld(d)}</script>`).join
 ${s.body.trim()}
 </main>
 <footer>
-<p><strong>${NAME}</strong> is ${TAGLINE} you play in your browser, on a computer or a phone. Free, no download, no account. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
+<p><strong>${NAME}</strong> is ${TAGLINE} you play in your browser, on a computer or a phone. Free, no download, no account. Made by ${CREATOR}. <a href="/">Play now</a> · <a href="/about/">About the game</a> · <a href="/guide/">The building guide</a></p>
 </footer>
 </body>
 </html>
@@ -162,14 +168,33 @@ export function gameData(): Record<string, unknown> {
     isAccessibleForFree: true,
     inLanguage: 'en',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock' },
-    trailer: {
-      '@type': 'VideoObject',
-      name: `${NAME}: ${TAGLINE}`,
-      description: 'A drone flies in from the sea over a hand-drawn island town: washing lines, a wedding on the square, boats at the quay.',
-      thumbnailUrl: `${ORIGIN}/og.jpg`,
-      contentUrl: `${ORIGIN}/preview.mp4`,
-      uploadDate: '2026-11-21',
-    },
+    author: creator(),
+    creator: creator(),
+    publisher: creator(),
+    trailer: trailer(),
+  };
+}
+
+function creator(): Record<string, unknown> {
+  return { '@type': 'Person', '@id': `${ORIGIN}/#creator`, name: CREATOR };
+}
+
+/** The trailer (public/preview.mp4, 58 s). Shown as the main thing at the top of /about/, so Google can index it there. */
+export function trailer(): Record<string, unknown> {
+  return {
+    '@type': 'VideoObject',
+    '@id': `${ORIGIN}/about/#trailer`,
+    name: `${NAME} trailer: ${TAGLINE}`,
+    description: `A drone flies in from the sea over a hand-drawn island town in ${NAME}: under the washing lines, through the square where a wedding is on, and out over the quay. ${NAME} is a free, peaceful city builder made by ${CREATOR}.`,
+    thumbnailUrl: [`${ORIGIN}/og.jpg`],
+    contentUrl: `${ORIGIN}/preview.mp4`,
+    embedUrl: `${ORIGIN}/about/`,
+    uploadDate: '2026-11-21T00:00:00-08:00',
+    duration: 'PT58S',
+    width: 1280,
+    height: 720,
+    author: creator(),
+    publisher: creator(),
   };
 }
 
@@ -182,6 +207,7 @@ export function siteData(): Record<string, unknown> {
     name: NAME,
     alternateName: ['littlecity.io', 'Little City game', 'Little City city builder'],
     url: `${ORIGIN}/`,
+    creator: creator(),
   };
 }
 
@@ -201,6 +227,7 @@ function tile(e: GuideEntry): string {
 
 /** The questions on the about page, answered from what the game really does. */
 export const FAQ: readonly [q: string, a: string][] = [
+  ['Who made Little City?', `Little City is made by ${CREATOR}.`],
   ['Is Little City free?', 'Yes. It is free to play in your browser, with no download, no sign-up and no ads.'],
   ['Is it a tycoon game?', 'No. There is no money, no budget, no zoning and no score. Nothing can go wrong. You build what you like and the town works out the rest.'],
   [
@@ -224,7 +251,11 @@ export function aboutPage(): SitePage {
 <h1>${NAME}: ${TAGLINE}</h1>
 <p class="lede">${esc(PITCH)}</p>
 <a class="play big" href="/">Play ${NAME} free</a>
-<img class="hero" src="/og.jpg" alt="A hand-drawn island town in Little City, with a castle, a harbour, a chapel and a lighthouse." width="1200" height="630">
+<video class="hero" controls muted playsinline preload="metadata" poster="/og.jpg" width="1280" height="720" title="${NAME} trailer">
+<source src="/preview.mp4" type="video/mp4">
+<img src="/og.jpg" alt="A hand-drawn island town in ${NAME}, with a castle, a harbour, a chapel and a lighthouse." width="1200" height="630">
+</video>
+<p class="caption">The ${NAME} trailer: a drone flight over a town grown in the game.</p>
 
 <h2>A city builder with nothing to manage</h2>
 <p>${NAME} is a cozy sandbox for building towns. There is no money to run out of, no traffic to fix, no taxes, no goals and no way to lose. You place a few pieces (a house, a tower, a path, a dock) and the town quietly works out what they should be. It is the calm part of a city builder and nothing else: put on the music, build a harbour, watch the lamps come on at dusk.</p>
@@ -243,6 +274,9 @@ export function aboutPage(): SitePage {
 <h2>Things to find</h2>
 <ul class="grid">${examples.map(tile).join('')}</ul>
 
+<h2>Who made it</h2>
+<p>${NAME} is designed and made by ${CREATOR}. It is free to play at <a href="/">littlecity.io</a>.</p>
+
 <h2>Questions</h2>
 <dl>${FAQ.map(([q, a]) => `<dt>${esc(q)}</dt><dd>${esc(a)}</dd>`).join('')}</dl>
 
@@ -259,11 +293,12 @@ export function aboutPage(): SitePage {
     priority: 0.9,
     images: [{ url: `${ORIGIN}/og.jpg`, title: `${NAME}: ${TAGLINE}` }],
     html: page({
-      title: `About ${NAME}: a peaceful, hand-drawn city builder you play free in your browser`,
+      title: `About ${NAME}: a peaceful, hand-drawn city builder by ${CREATOR}`,
       description: clip(`${PITCH} A cozy town-building sandbox with no tycoon: the town builds and lives by itself.`, 160),
       path: '/about/',
       body,
-      data: [gameData(), siteData(), faqData, crumbs([[NAME, `${ORIGIN}/`], ['About', `${ORIGIN}/about/`]])],
+      video: true,
+      data: [gameData(), siteData(), { '@context': 'https://schema.org', ...trailer() }, faqData, crumbs([[NAME, `${ORIGIN}/`], ['About', `${ORIGIN}/about/`]])],
     }),
   };
 }
