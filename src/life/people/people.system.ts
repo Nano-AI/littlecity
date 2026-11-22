@@ -218,8 +218,12 @@ interface Drawn {
   stroke: number;
 }
 
-/** Mischief: people in the air are moved this many times a second (the rest of the crowd PERSON.drawRate). */
-const FLY_RATE = 30;
+/**
+ * Mischief: people in the air are drawn this many times a second, place and pose together (the rest of the crowd
+ * PERSON.drawRate). Every frame: a body on a fast arc stepped at a lower rate, or its limbs held while it moved,
+ * read as a strobe (Derek: "very obviously wrong").
+ */
+const FLY_RATE = 60;
 let flyTick = -1;
 
 /** Seasons: what the sky is doing, read once a frame in update (draw() has no signals). */

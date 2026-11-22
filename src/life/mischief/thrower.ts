@@ -36,22 +36,31 @@ import { hashString } from '@/core/rand';
 
 /** The numbers of being blown about. */
 export const BLOWN = {
-  /** A nuke: how far its ring throws people (cells), and the throw at the middle and at the rim (units a second). */
+  /**
+   * A nuke: how far its ring throws people (cells), and the launch speed (units a second) at the rim and at the
+   * middle before each person's own share (`share`). Each is thrown at their own angle and their own speed: an
+   * explosion throwing people, each on their own arc, not a carpet lifting.
+   */
   nukeReach: NUKE_TIME.waveReach,
-  nukeAlong: [2.4, 6.6],
-  nukeUp: [6.2, 12.6],
+  nukeSpeed: [3.2, 9],
+  /** Nobody is thrown faster than this (the few at the very middle with a big share). */
+  fastest: 12.5,
   /** Nobody leaves the ground before this (seconds after the bang): the first white frames show nothing. */
   nukeHold: 0.3,
-  /** A bomb: its reach, and its throw at the middle and the edge. */
+  /** A bomb: its reach and launch speeds; lightning: its reach and speed. */
   bombReach: 3.6,
-  bombAlong: [1.1, 5.2],
-  bombUp: [2.2, 6.4],
-  /** Lightning: right beside the bolt only. */
+  bombSpeed: [2.2, 4.8],
   boltReach: 1.3,
-  boltAlong: 1.3,
-  boltUp: 3.0,
-  /** Spin (radians a second) at the rim and at the middle. */
-  spin: [4, 13],
+  boltSpeed: 3.2,
+  /** Each person's share of the blast's speed: from `share[0]` (barely lifted) to `share[1]` (sent far). */
+  share: [0.4, 1.65],
+  /** Each person's angle of flight above the ground (degrees): from low and skidding to steep. */
+  elevation: [22, 80],
+  /** How far off the line away from the blast each is thrown (radians either way). */
+  scatter: 0.6,
+  /** Spin (radians a second) for each unit a second of launch speed, and its limits. */
+  spinPerSpeed: 1.05,
+  spin: [1.5, 13],
   /** Seconds dizzy: at least, plus up to `dizzySpread` (by the person), plus up to `dizzyNear` for those thrown hardest. */
   dizzy: 2.4,
   dizzySpread: 3,
@@ -128,30 +137,29 @@ export interface Thrower {
   readonly ground: Ground | null;
 }
 
-/** How a blast at (x, y, z) throws something standing at (px, py, pz): velocity and spin, or null if out of its reach. */
+/**
+ * How a blast at (x, y, z) throws something standing at (px, py, pz): velocity and spin, or null if out of its
+ * reach. The speed falls with the distance; each body takes its own share of it, its own angle above the ground
+ * and its own bearing about the line away from the blast (by its seed), so a crowd scatters on many arcs.
+ */
 export function blastVelocity(x: number, y: number, z: number, px: number, py: number, pz: number, seed: number, kind: 'nuke' | 'bomb' | 'bolt'): [number, number, number, number] | null {
   const dx = px - x, dz = pz - z, dy = (py - y) * 1.5;
   const d = Math.hypot(dx, dz, kind === 'nuke' ? 0 : dy);
   const reach = kind === 'nuke' ? BLOWN.nukeReach : kind === 'bomb' ? BLOWN.bombReach : BLOWN.boltReach;
   if (d > reach) return null;
   const k = Math.max(0, 1 - d / reach);
-  const s = kind === 'nuke' ? k ** 1.25 : k;
   const r = (what: string): number => rand(seed, 'blast', what, Math.round(x * 7 + z * 13));
-  let along: number, up: number;
-  if (kind === 'nuke') {
-    along = BLOWN.nukeAlong[0] + (BLOWN.nukeAlong[1] - BLOWN.nukeAlong[0]) * s;
-    up = BLOWN.nukeUp[0] + (BLOWN.nukeUp[1] - BLOWN.nukeUp[0]) * s;
-  } else if (kind === 'bomb') {
-    along = BLOWN.bombAlong[0] + (BLOWN.bombAlong[1] - BLOWN.bombAlong[0]) * s;
-    up = BLOWN.bombUp[0] + (BLOWN.bombUp[1] - BLOWN.bombUp[0]) * s;
-  } else {
-    along = BLOWN.boltAlong;
-    up = BLOWN.boltUp;
-  }
-  along *= 0.85 + r('along') * 0.3;
-  up *= 0.85 + r('up') * 0.3;
-  const a = (d > 0.05 ? Math.atan2(dx, dz) : r('dir') * Math.PI * 2) + (r('veer') - 0.5) * 0.5;
-  return [Math.sin(a) * along, up, Math.cos(a) * along, BLOWN.spin[0] + (BLOWN.spin[1] - BLOWN.spin[0]) * s * (0.8 + r('spin') * 0.4)];
+  const [lo, hi] = kind === 'nuke' ? BLOWN.nukeSpeed : kind === 'bomb' ? BLOWN.bombSpeed : [BLOWN.boltSpeed, BLOWN.boltSpeed];
+  const base = lo + (hi - lo) * k;
+  // Their share: skewed low (most are thrown middling, a few are sent far, a few barely leave the ground).
+  const u = r('share');
+  const share = BLOWN.share[0] + (BLOWN.share[1] - BLOWN.share[0]) * (u < 0.5 ? 0.9 * u : 0.45 + 1.1 * (u - 0.5));
+  const speed = Math.min(BLOWN.fastest, base * share);
+  const elev = ((BLOWN.elevation[0] + (BLOWN.elevation[1] - BLOWN.elevation[0]) * r('elevation')) * Math.PI) / 180;
+  const a = (d > 0.05 ? Math.atan2(dx, dz) : r('dir') * Math.PI * 2) + (r('veer') * 2 - 1) * BLOWN.scatter;
+  const along = speed * Math.cos(elev), up = speed * Math.sin(elev);
+  const spin = Math.max(BLOWN.spin[0], Math.min(BLOWN.spin[1], speed * BLOWN.spinPerSpeed * (0.7 + 0.6 * r('spin'))));
+  return [Math.sin(a) * along, up, Math.cos(a) * along, spin];
 }
 
 /** How big to draw things in the air from how far off the camera is: 1 close in (zoom 6 and more), up to FLIGHT.far from the whole island. */
@@ -222,6 +230,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     launch(b, vx, vy, vz, opts.spin ?? Math.min(BLOWN.spin[1], BLOWN.spin[0] + sp * 1.4));
     b.dizzy = opts.dizzy ?? 1.6 + rand(b.seed, 'dizzy', b.age) * 2;
     b.rise = 0.9;
+    // Its drawing is ready this frame (never an empty matrix in between).
+    poseCritter(c);
     return true;
   };
   const blastCritter = (x: number, y: number, z: number, c: Critter, kind: 'nuke' | 'bomb' | 'bolt'): void => {
@@ -268,6 +278,74 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     m[8] = cm[6]! * sc; m[9] = cm[7]! * sc; m[10] = cm[8]! * sc; m[11] = 0;
     m[12] = px + ox; m[13] = py + oy; m[14] = pz + oz; m[15] = 1;
   };
+  // ── the Hand's grip: what it holds hangs below the pointer on a short arm and swings ─────────────
+  /** Per held body: where the hand is (and was), how far below it hangs, and its swing (two angles and their rates). */
+  const grips = new Map<Body, { hx: number; hy: number; hz: number; lx: number; lz: number; vx: number; vz: number; len: number; ax: number; az: number; wx: number; wz: number; fresh: boolean }>();
+  const grip = (b: Body, x: number, y: number, z: number, len: number): void => {
+    const g = grips.get(b);
+    if (!g) {
+      grips.set(b, { hx: x, hy: y, hz: z, lx: x, lz: z, vx: 0, vz: 0, len, ax: 0, az: 0, wx: 0, wz: 0, fresh: true });
+      // Hanging straight down from the first grip.
+      b.x = x;
+      b.y = y - len;
+      b.z = z;
+      return;
+    }
+    g.hx = x;
+    g.hy = y;
+    g.hz = z;
+    g.len = len;
+  };
+  const swingQ = new Float64Array(4);
+  /** One step of a pendulum for every held body: swung by the hand's movement, damped, hanging under gravity. */
+  const stepGrips = (dt: number): void => {
+    for (const [b, g] of grips) {
+      if (b.phase !== 'held') {
+        grips.delete(b);
+        continue;
+      }
+      if (dt <= 0) continue;
+      // The hand's velocity and acceleration (from where it was last step).
+      const nvx = g.fresh ? 0 : (g.hx - g.lx) / dt;
+      const nvz = g.fresh ? 0 : (g.hz - g.lz) / dt;
+      const accx = (nvx - g.vx) / dt, accz = (nvz - g.vz) / dt;
+      g.lx = g.hx;
+      g.lz = g.hz;
+      g.vx = nvx;
+      g.vz = nvz;
+      g.fresh = false;
+      // θ'' = −(g/L) sin θ − (a_hand / L) cos θ − c θ' (az swings it along x, ax along z).
+      const G = THROWN.gravity, L = g.len, c = 2.2;
+      g.wz += (-(G / L) * Math.sin(g.az) - (Math.max(-60, Math.min(60, accx)) / L) * Math.cos(g.az) - c * g.wz) * dt;
+      g.wx += (-(G / L) * Math.sin(g.ax) - (Math.max(-60, Math.min(60, accz)) / L) * Math.cos(g.ax) - c * g.wx) * dt;
+      g.az = Math.max(-1.3, Math.min(1.3, g.az + g.wz * dt));
+      g.ax = Math.max(-1.3, Math.min(1.3, g.ax + g.wx * dt));
+      const nx = g.hx + L * Math.sin(g.az), nz = g.hz + L * Math.sin(g.ax), ny = g.hy - L * Math.cos(g.az) * Math.cos(g.ax);
+      b.vx = (nx - b.x) / dt;
+      b.vy = (ny - b.y) / dt;
+      b.vz = (nz - b.z) / dt;
+      b.x = nx;
+      b.y = ny;
+      b.z = nz;
+      // Its head toward the hand: the body's up along the arm, turned to the way it faced.
+      const ux = g.hx - nx, uy = g.hy - ny, uz = g.hz - nz, ul = Math.hypot(ux, uy, uz) || 1;
+      // The turn taking +y to u: about (y × u), by the angle between.
+      const ax = uz / ul, az = -ux / ul, cosA = uy / ul;
+      const al = Math.hypot(ax, az);
+      const half = Math.acos(Math.max(-1, Math.min(1, cosA))) / 2;
+      const sh = al > 1e-6 ? Math.sin(half) / al : 0;
+      // swing (axis-angle) ⊗ yaw(heading)
+      const yh = b.heading / 2, cy = Math.cos(yh), sy = Math.sin(yh);
+      const qx = ax * sh, qz = az * sh, qw = Math.cos(half);
+      // (x, 0, z, w) ⊗ (0, sy, 0, cy) written out:
+      swingQ[0] = qx * cy - qz * sy;
+      swingQ[1] = qw * sy;
+      swingQ[2] = qz * cy + qx * sy;
+      swingQ[3] = qw * cy;
+      b.q.set(swingQ);
+    }
+  };
+
   /** A body flying fast knocks over whoever and whatever it hits (a thrown sheep into a wedding party): how many. */
   const bowl = (b: Body, self: Person | Critter, most: number): number => {
     if (Math.hypot(b.vx, b.vy, b.vz) < BLOWN.bowlAt) return 0;
@@ -281,7 +359,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     }
     for (const c of critters.values()) {
       if (n >= most) return n;
-      if (c === self || c.body) continue;
+      if (c === self || c.body || c.id.startsWith('boat:') || c.id.startsWith('ship:')) continue;
       if (Math.abs(c.x - b.x) > BLOWN.bowlReach || Math.abs(c.z - b.z) > BLOWN.bowlReach || Math.abs(c.y + c.height * 0.5 - b.y) > 0.3) continue;
       if (flingCritter(c, vx * 1.1, vy, vz * 1.1)) n++;
     }
@@ -371,6 +449,8 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     const b = t.body;
     const sp = Math.hypot(vx, vy, vz);
     launch(b, vx, vy, vz, opts.spin ?? Math.min(BLOWN.spin[1], BLOWN.spin[0] + sp * 1.2));
+    // A small pale puff where they leave the ground (thrown off their feet, not dropped from the Hand).
+    if (sp > 2 && b.y - b.radius < p.y + 0.3) t.events.push('bounce');
     b.dizzy = opts.dizzy ?? BLOWN.dizzy + rand(p.seed, 'dizzy', b.age) * BLOWN.dizzySpread + Math.min(1, sp / 9) * BLOWN.dizzyNear;
     b.rise = BLOWN.rise;
     // Not the whole town on its back in one pose: some face down, some sit up dazed.
@@ -492,32 +572,41 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
   };
 
   // ── the drawing each body asks for ─────────────────────────────────────────
-  const flail = (b: Body, out: Pose): void => {
-    // Held drawings, ten a second: the arms and legs flung about, lagging the tumble.
-    const k = Math.floor(b.age * 10);
-    const s = (b.seed % 97) / 15;
-    out.armL = 2.3 + 0.8 * Math.sin(k * 2.1 + s);
-    out.armR = 2.1 + 0.8 * Math.sin(k * 1.7 + s + 1);
-    out.outL = 1.0 + 0.35 * Math.sin(k * 1.3 + s);
-    out.outR = 1.0 + 0.35 * Math.cos(k * 1.1 + s);
-    out.legL = 0.75 * Math.sin(k * 1.9 + s);
-    out.legR = -0.65 * Math.sin(k * 1.5 + s + 2);
-    out.lean = 0.3 * Math.sin(k * 0.9 + s);
+  const m3 = new Float32Array(9);
+  /**
+   * Arms and legs trailing the way the body goes (flung back along its velocity, in the body's own frame), with
+   * a flutter that grows with speed: drawn afresh every frame, so nothing strobes.
+   */
+  const trail = (b: Body, out: Pose, kick: number): void => {
+    quatToMat3(b.q, m3);
+    // The velocity in the body's frame (R transposed times v); the limbs go the other way.
+    const vx = b.vx, vy = b.vy, vz = b.vz;
+    const lx = m3[0]! * vx + m3[1]! * vy + m3[2]! * vz;
+    const ly = m3[3]! * vx + m3[4]! * vy + m3[5]! * vz;
+    const lz = m3[6]! * vx + m3[7]! * vy + m3[8]! * vz;
+    const sp = Math.hypot(lx, ly, lz);
+    const k = Math.min(1, sp / 5);
+    // A limb hanging down (−y) swings forward toward +z by its angle: point it along −v.
+    const swing = sp > 0.2 ? Math.atan2(-lz, ly) : 0.4;
+    const f = b.age * 13 + (b.seed % 31);
+    const flutter = (0.15 + 0.3 * k) * kick;
+    out.armL = swing * k + 0.6 * (1 - k) + Math.sin(f) * flutter;
+    out.armR = swing * k + 0.6 * (1 - k) + Math.sin(f + 2.1) * flutter;
+    out.outL = 0.45 + 0.7 * k + Math.abs(lx / (sp || 1)) * 0.5 + Math.sin(f * 0.7) * 0.15;
+    out.outR = 0.45 + 0.7 * k + Math.abs(lx / (sp || 1)) * 0.5 + Math.cos(f * 0.8) * 0.15;
+    const leg = Math.max(-1.3, Math.min(1.3, swing * k));
+    out.legL = leg + 0.3 + Math.sin(f * 1.3) * flutter;
+    out.legR = leg - 0.3 + Math.sin(f * 1.3 + 3) * flutter;
+    out.lean = Math.max(-0.4, Math.min(0.4, -lz * 0.04));
     out.lift = 0;
-    out.twist = 0.3 * Math.sin(k * 1.4);
+    out.twist = 0;
   };
+  const flail = (b: Body, out: Pose): void => trail(b, out, 1);
   const wriggle = (b: Body, out: Pose): void => {
-    // Hanging from the Hand: legs kicking, arms waving, on twos.
-    const k = Math.floor(b.age * 8);
-    out.armL = 2.5 + (k % 2) * 0.35;
-    out.armR = 2.5 + ((k + 1) % 2) * 0.35;
-    out.outL = 0.5;
-    out.outR = 0.5;
-    out.legL = k % 2 ? 0.55 : -0.25;
-    out.legR = k % 2 ? -0.25 : 0.55;
-    out.lean = 0;
-    out.lift = 0;
-    out.twist = ((k % 4) - 1.5) * 0.15;
+    // Hanging from the Hand: the legs trail the swing and kick, the arms flap.
+    trail(b, out, 1.6);
+    out.legL += Math.sin(b.age * 11) * 0.35;
+    out.legR -= Math.sin(b.age * 11) * 0.35;
   };
   /** The steps of getting up, by the seconds since they began. */
   const rising = (t: Thrown, u: number): { pose: Pose; drop: number } => {
@@ -633,9 +722,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     carry(p, x, y, z) {
       const b = thrown.get(p)?.body;
       if (!b || b.phase !== 'held') return;
-      b.x = x;
-      b.y = y;
-      b.z = z;
+      grip(b, x, y, z, 0.3);
     },
     step(dt) {
       // The nuke's ring: everyone it has reached since the last frame.
@@ -659,6 +746,7 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
       }
       const g = groundNow();
       if (!g) return;
+      stepGrips(dt);
       stepCritters(dt, g);
       // Somebody (or something) carried overhead by the Hand: those near stop, look up and point.
       lookUp += dt;
@@ -735,14 +823,13 @@ export function createThrower(crowd: Crowd, critters: Map<string, Critter> = new
     flingCritter,
     grabCritter(c) {
       hold(takeCritter(c));
+      poseCritter(c);
       return true;
     },
     carryCritter(c, x, y, z) {
       const b = c.body;
       if (!b || b.phase !== 'held') return;
-      b.x = x;
-      b.y = y;
-      b.z = z;
+      grip(b, x, y, z, Math.max(0.2, c.height * 0.55));
     },
     critterEvents,
     hover: null,

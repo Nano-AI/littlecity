@@ -31,8 +31,12 @@ import { rand } from '@/core/rand';
 import type { Ground, Surface } from './ground';
 
 export const THROWN = {
-  /** Gravity, world units a second squared (a cartoon's: a little heavier than the town's scale would say). */
-  gravity: 13,
+  /**
+   * Gravity, world units a second squared. A person is about 0.46 tall, so one unit is about 3.7 m and real
+   * gravity would be about 2.6; at that a body hangs in the air like a balloon. 7 (a bit under three times the
+   * real thing, a cartoon's) gives a steep throw two seconds aloft and a peak several storeys up.
+   */
+  gravity: 7,
   /** A landing faster than this (downward, units a second) bounces; at most this many times. */
   bounceAt: 2.2,
   bounces: 2,
