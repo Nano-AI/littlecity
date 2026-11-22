@@ -1233,14 +1233,18 @@ back.
   piece of the pile and wades out; the loot heaps up amidships. The ship
   backs off, spins, sets sail and goes over an edge. A raider not back 40 s
   after the horn is left behind (L71). About two minutes in all.
-- **L70 · 2 · A boats raid** (`raid.ts`, `site.ts`) — as L69, but a big
-  longship (1.5 times) hove to in open water as near the town as there is a
-  clear circle, its striped sail half set, towing two to four rowing boats
-  (two shields a side) that cast off and row to landings spread round the
-  town (at least 4 cells apart: hit from more than one side), wait on the
-  shore and carry the band back; the ship leaves when its boats are all back
-  on their lines. Two hands stay aboard. Chosen when the shore by the town is
-  no beach, and by chance (72 % landing when a beach is within 12 cells).
+- **L70 · 2 · A boats raid** (`raid.ts`, `site.ts`) — as L69, but no ship
+  (Derek, 2026-11-22: "don't use the big longboat"): two to four clinker
+  rowing boats (two shields a side) row in from beyond the edge of the map,
+  one behind another over the same water, oars in time, a raider standing in
+  each bow (the chief with his standard, the rest with a brand or an axe held
+  up), each by its own way to its own landing (at least 4 cells apart: hit
+  from more than one side). They run up in the shallows and wait there while
+  the band is ashore; each crew comes back with the loot (a chest in the stern
+  sheets, sacks and a barrel forward), and each boat turns about and rows off
+  over the edge as soon as its own crew are in. Chosen when the shore by the
+  town is no beach, and by chance (72 % landing when a beach is within 12
+  cells).
 - **L71 · 2 · Stopping them** — the Bomb, the Nuke and Lightning hit the
   ships as they hit any ship, by distance (a bomb: broken within about 1.3
   of the hull, burning within 1.9, scorched within 2.7; lightning: burning):
@@ -1253,7 +1257,11 @@ back.
   (LM02) lifts the longship and the boats, the crew clinging on in their
   seats: put back in the water they row back to their place; dropped on the
   land they lie over on their side there (the band stranded, as if sunk). A boat sunk
-  takes its crew swimming; its raiders ashore go home by another boat. Blown
+  takes its crew swimming; its raiders ashore crowd into another boat still
+  there; the last boat sunk, the band is stranded as above (all sunk before
+  any lands: the raid never happens). Anything gone down stays under: nothing
+  that moves on the water is drawn below the sea's surface (one clip in the
+  movers' shader), so no hull, mast or swimmer ever shows under the slab. Blown
   away or carried off by the Hand (LM01, LM02), a raider gets up and carries
   on, or is left behind.
 - **L72 · 3 · Raids on their own** (`raid.system.ts`) — the menu's

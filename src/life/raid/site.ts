@@ -16,11 +16,12 @@
 // way backwards: rows astern to the turning point, spins, and sails off to
 // an edge.
 //
-// THE BOATS RAID. A bigger longship stands off in deep water (a point with a
-// clear circle round it, as near the town as there is one), towing two to
-// four rowing boats that cast off and row to different landings round the
-// town (spread out, so it is hit from more than one side), wait on the
-// shore, and carry the band back.
+// THE BOATS RAID. No ship: two to four rowing boats, each with its own way in
+// from beyond the edge of the map (all over the same water, the first one's)
+// to a different landing round the town (spread out, so it is hit from more
+// than one side), where it waits in the shallows, and its own way out over an
+// edge. No clear circle is needed: a boat comes in bow first and turns about
+// as it rows off.
 //
 // Which: a beach close to the town favours the landing; a rocky or built-up
 // shore the boats; and chance.
@@ -64,7 +65,7 @@ export interface Pose {
 export interface Voyage {
   /** From beyond the edge of the map to the turning point. */
   arrive: Path;
-  /** Where it turns about (and, for the boats raid, stands off). */
+  /** Where it turns about (the boats raid: the first boat's landing, for the camera). */
   turn: Pose;
   /** From the turning point back out beyond an edge. */
   leave: Path;

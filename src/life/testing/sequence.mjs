@@ -220,10 +220,10 @@ try {
           continue;
         }
         if (e.verb === 'shipsink' && lc.raids.current) {
-          // Bombs the raid's ship where it is now (d cells off its side).
-          const s = lc.raids.current.ship;
+          // Bombs the raid's ship (a boats raid: its first boat) where it is now (d cells off its side).
+          const s = lc.raids.current.lead;
           m.dropBomb([s.x + Math.cos(s.yaw) * e.x, 0.6, s.z - Math.sin(s.yaw) * e.x]);
-          done.push('bombed the longship');
+          done.push(`bombed the ${s.kind === 'ship' ? 'longship' : 'first boat'}`);
           continue;
         }
         if (e.verb === 'crowdbomb' || e.verb === 'crowdnuke') {

@@ -1077,9 +1077,10 @@ come back. Nothing destructive ever happens unless the player starts it.
   and by chance: **the landing** (a longship with a striped red-and-white
   square sail, a dragon prow, a row of round shields a side and oars comes
   in over the edge of the map, spins about off a beach and rows up onto the
-  sand; the band jumps over the sides and wades in) and **the boats** (a
-  bigger longship hove to offshore under a half-set sail sends two to four
-  rowing boats to landings spread round the town). The band, 8 to 16 by
+  sand; the band jumps over the sides and wades in) and **the boats** (no ship: two to four clinker rowing boats
+  row in from beyond the edge of the map one behind another, oars in time,
+  a raider standing in each bow, each to its own landing spread round the
+  town, and row off over the edge again with their crews and the loot). The band, 8 to 16 by
   the town's size, is drawn over the ordinary little person
   (`src/parts/people/barbarian.ts`: horned or winged iron helmets, big
   beards, fur capes, round shields on their backs; a chief bigger, in red,
