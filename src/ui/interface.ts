@@ -567,6 +567,20 @@ export function createInterface(host: InterfaceHost): Interface {
     fly.el,
     ...(towns ? [towns.el] : []),
   );
+
+  // The keys, very small in the bottom corner (Derek, 2026-11-21: "a small hint in the corner of controls…
+  // F to enter flying mode, escape to return to main"). Only with a keyboard and room for it (ui.css hides
+  // it on touch and in a narrow window); it takes no clicks, and is not shown while flying (the fly layer
+  // has its own "Esc to land").
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform ?? '');
+  const keyHint = (k: string, what: string): HTMLElement => el('span', { class: 'lc-key' }, [el('kbd', { text: k }), el('span', { text: what })]);
+  root.append(
+    el('div', { class: 'lc-keys', attrs: { 'data-ui': 'keys', 'aria-hidden': 'true' } }, [
+      ...(fly.available ? [keyHint('F', 'fly')] : []),
+      keyHint('Esc', 'whole island'),
+      keyHint(mac ? '\u2318Z' : 'Ctrl Z', 'undo'),
+    ]),
+  );
   const slots = Math.max(...DRAWER_IDS.map((d) => drawerItems(d).length));
   tray.el.style.setProperty('--lc-slots', String(slots));
   (host.parent ?? document.body).append(root);

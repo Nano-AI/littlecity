@@ -1157,6 +1157,39 @@
   .lc-btn { transition: none; }
 }
 
+/* ── the keys, very small in the bottom corner (keyboards only) ─────────── */
+
+.lc-keys {
+  position: absolute;
+  left: calc(12px + env(safe-area-inset-left));
+  bottom: calc(9px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--lc-ink);
+  opacity: 0.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.lc-key {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.lc-key kbd {
+  font: inherit;
+  font-weight: 700;
+  padding: 0 4px;
+  border: 1.2px solid var(--lc-ink);
+  border-radius: 5px 4px 5px 4px;
+  background: var(--lc-card);
+}
+/* No keyboard, or no room beside the tray: none. */
+@media (pointer: coarse), (max-width: 980px) {
+  .lc-keys { display: none; }
+}
+
 /* ── first-visit welcome note: a closable card beside the menu button ──── */
 
 .lc-welcome {

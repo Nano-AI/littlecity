@@ -28,6 +28,7 @@ import { hash, rand } from '@/core/rand';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import type { ShapePlan, StructureId } from '@/resolve/plan';
 import { bandRecovery, groundColour, recovering } from '@/gen/damage/extras';
+import { terraceTops } from '@/gen/terrain/terrain.gen';
 import { DAMAGE_COLORS, rgb } from '@/style/damage';
 import { defineSystem, type InstanceHandle, type LifeStage, type Signals } from '../api';
 import { scaresOf } from '../birds/scare';
@@ -278,6 +279,7 @@ function scorchMesh(n: Nuke, shape: ShapePlan, fade: number): MeshData {
   const R = NUKE.crater + 1.4;
   const char = rgb(DAMAGE_COLORS.charDeep);
   const scorch = rgb(DAMAGE_COLORS.scorch);
+  const cols: number[] = [];
   for (let z = Math.floor(n.z - R); z <= Math.ceil(n.z + R); z++) {
     for (let x = Math.floor(n.x - R); x <= Math.ceil(n.x + R); x++) {
       if (!inColumnBounds(x, z)) continue;
@@ -285,22 +287,28 @@ function scorchMesh(n: Nuke, shape: ShapePlan, fade: number): MeshData {
       if (h === 0) continue;
       // Built on: the scorch shows only on open ground and floors (a block stands in the way).
       if (shape.kinds.has(key(x, h, z))) continue;
-      const y = h * CELL_H + 0.05;
-      // In quarters, so its edge is ragged rather than square.
-      for (let q = 0; q < 4; q++) {
-        const qx = x + (q & 1) * 0.5, qz = z + (q >> 1) * 0.5;
-        const d = Math.hypot(qx + 0.25 - n.x, qz + 0.25 - n.z) * (0.85 + 0.3 * rand(n.id, x, z, q));
-        if (d > R) continue;
-        const rim = d > NUKE.crater - 0.45 && d < NUKE.crater + 0.35;
-        const t = Math.min(1, d / R);
-        const base: [number, number, number] = rim ? GLASS : [char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t];
-        const c = recovering(base, groundColour(shape.terrain.material[columnIndex(x, z)]!), bandRecovery(fade, 1 - t));
-        if (!c) continue;
-        if (rim && fade < 0.5) b.setColor(c).setPattern(PATTERN.metal).setInk('rim');
-        else b.setColor(c).setPattern(PATTERN.dirt).setInk('scorch');
-        b.quad([qx, y, qz], [qx, y, qz + 0.5], [qx + 0.5, y, qz + 0.5], [qx + 0.5, y, qz]);
-      }
+      cols.push(columnIndex(x, z));
     }
+  }
+  // Laid on the ground's own top (its rounded corners and wandering edges: terraceTops), not as squares
+  // on it, which hung over every rounded cliff edge. Each piece takes the colour of the quarter cell it
+  // lies in, so the mark's edge is ragged as before.
+  for (const { col, tri } of terraceTops(cols, shape)) {
+    const cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3, cz = (tri[0][2] + tri[1][2] + tri[2][2]) / 3;
+    const x = Math.floor(cx), z = Math.floor(cz);
+    const q = (cx - x >= 0.5 ? 1 : 0) + (cz - z >= 0.5 ? 2 : 0);
+    const qx = x + (q & 1) * 0.5, qz = z + (q >> 1) * 0.5;
+    const d = Math.hypot(qx + 0.25 - n.x, qz + 0.25 - n.z) * (0.85 + 0.3 * rand(n.id, x, z, q));
+    if (d > R) continue;
+    const rim = d > NUKE.crater - 0.45 && d < NUKE.crater + 0.35;
+    const t = Math.min(1, d / R);
+    const base: [number, number, number] = rim ? GLASS : [char[0] + (scorch[0] - char[0]) * t, char[1] + (scorch[1] - char[1]) * t, char[2] + (scorch[2] - char[2]) * t];
+    const c = recovering(base, groundColour(shape.terrain.material[col]!), bandRecovery(fade, 1 - t));
+    if (!c) continue;
+    if (rim && fade < 0.5) b.setColor(c).setPattern(PATTERN.metal).setInk('rim');
+    else b.setColor(c).setPattern(PATTERN.dirt).setInk('scorch');
+    const y = tri[0][1] + 0.05;
+    b.tri([tri[0][0], y, tri[0][2]], [tri[1][0], y, tri[1][2]], [tri[2][0], y, tri[2][2]]);
   }
   return b.build();
 }

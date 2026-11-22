@@ -904,6 +904,50 @@ export function buildTerrainColumns(cols: Iterable<number>, plan: ShapePlan, ink
   return b;
 }
 
+/**
+ * The top of the ground under some columns, as the island draws it: each column's own terrace top (its
+ * rounded corners and wandering outline) and the fillets that level grows into the lower cells beside
+ * it. For things laid on the ground that must follow its shape (a scorch), not sit on it as squares.
+ * Triangles, wound facing up; `col` is the column the piece belongs to (column index, x + z * 48).
+ */
+export function terraceTops(cols: Iterable<number>, plan: ShapePlan): { col: number; tri: [Vec3, Vec3, Vec3] }[] {
+  const g = groundOf(plan);
+  const out: { col: number; tri: [Vec3, Vec3, Vec3] }[] = [];
+  const done = new Set<string>();
+  const take = (col: number, x: number, z: number, level: number): void => {
+    const id = `${x},${z},${level}`;
+    if (done.has(id)) return;
+    done.add(id);
+    const b = new MeshBuilder({ ink: 'top' });
+    emitQuarter(b, g, x, z, -1, -1, level);
+    emitQuarter(b, g, x, z, 1, -1, level);
+    emitQuarter(b, g, x, z, -1, 1, level);
+    emitQuarter(b, g, x, z, 1, 1, level);
+    const m = b.build();
+    const yt = level * CELL_H;
+    const P = m.position, N = m.normal;
+    for (let i = 0; i + 8 < P.length; i += 9) {
+      // The top's triangles only: flat at the terrace's height and facing up (the banks are neither).
+      if (Math.abs(P[i + 1]! - yt) > 1e-4 || Math.abs(P[i + 4]! - yt) > 1e-4 || Math.abs(P[i + 7]! - yt) > 1e-4) continue;
+      if (N[i + 1]! < 0.9) continue;
+      out.push({ col, tri: [[P[i]!, yt, P[i + 2]!], [P[i + 3]!, yt, P[i + 5]!], [P[i + 6]!, yt, P[i + 8]!]] });
+    }
+  };
+  for (const i of cols) {
+    const x = i % SIZE_X, z = (i / SIZE_X) | 0;
+    const level = Math.min(g.h(x, z), MAX_LEVEL);
+    if (level < 1) continue;
+    take(i, x, z, level);
+    // The fillets of this level in the lower cells round it.
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((dx || dz) && g.h(x + dx, z + dz) < level) take(i, x + dx, z + dz, level);
+      }
+    }
+  }
+  return out;
+}
+
 export const terrainLayer = defineLayer({
   layer: 'terrain',
 
