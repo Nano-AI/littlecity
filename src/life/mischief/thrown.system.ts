@@ -57,6 +57,7 @@ function strawHatMesh(colour: string): MeshData {
   return m;
 }
 
+const SPEED_LINES = false;
 /** Speed lines: three ink strokes a unit long down -Z, behind whatever flies. */
 let streakMesh: MeshData | null = null;
 function speedLinesMesh(): MeshData {
@@ -167,7 +168,9 @@ function onEvent(st: State, e: MischiefEvent): void {
 /** Ink strokes behind a body flying fast, along the way it goes, longer the faster (and drawn bigger as it is). */
 function speedLines(stage: LifeStage, a: { lines?: InstanceHandle | null }, b: { x: number; y: number; z: number; vx: number; vy: number; vz: number; upright: boolean; radius: number } | null): void {
   const sp = b ? Math.hypot(b.vx, b.vy, b.vz) : 0;
-  if (!b || sp < 2.2) {
+  // Off for now (Derek, 2026-11-21: three black strokes behind a thrown person "look really bad… like a
+  // ladder"). To come back, if at all, as something pale and soft with no ink line round it.
+  if (!SPEED_LINES || !b || sp < 2.2) {
     a.lines?.release();
     a.lines = null;
     return;

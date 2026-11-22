@@ -163,9 +163,11 @@ export function farScale(): number {
   return 1 + (FLIGHT.far - 1) * Math.max(0, Math.min(1, (6 - z) / (6 - 1.6)));
 }
 /** The drawing's scale for a body this far up (0 on the ground, 1 well up): grows with height, back to 1 as it lands. */
-export function flightGrow(air: number): number {
-  const u = Math.max(0, Math.min(1, air));
-  return 1 + (farScale() - 1) * u * u * (3 - 2 * u);
+export function flightGrow(_air: number): number {
+  // A body keeps its own size in the air, at every zoom (Derek, 2026-11-21: "they just expand in size too
+  // greatly, everyone uniformly becomes large… clearly does not follow physics"). It used to grow up to
+  // FLIGHT.far with height from afar; do not bring that back. Stars and puffs may still use farScale.
+  return 1;
 }
 /** 0 on the ground, 1 a good way up (FLIGHT.air), for a body flying or held. */
 let airGround: Ground | null = null;

@@ -1,10 +1,26 @@
 // How loud: the player's two volumes, kept in the browser (not in the town).
 //
-//   sounds   the game's own sound (placing notes, the sea, bells…), a level on top of Sound: on/off
+//   sounds   the game's own sound (placing notes, the sea, bells…)
 //   music    the background piano (src/app/music.ts); 0 is off
+//
+// Over both stands the menu's Sound: on/off ('little-city.sound', event 'lc:sound', detail true or
+// false): off silences everything, the music too (Derek, 2026-11-21: "Sound on and off should toggle
+// the music as well"). It is on until the player turns it off, as the music always was; a player who
+// had turned it off stays off.
 //
 // The menu writes them (src/ui/interface.ts) and says so with an event; whoever makes the sound
 // listens: 'lc:sound-volume' and 'lc:music-volume', detail the new level 0–1.
+
+export const SOUND_KEY = 'little-city.sound';
+export const SOUND_EVENT = 'lc:sound';
+/** The menu's Sound switch: on unless the player turned it off. */
+export function soundOn(): boolean {
+  try {
+    return window.localStorage.getItem(SOUND_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
 
 export const SOUND_VOLUME_KEY = 'little-city.sound-volume';
 export const MUSIC_VOLUME_KEY = 'little-city.music-volume';

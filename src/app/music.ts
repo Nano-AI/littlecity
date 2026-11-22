@@ -8,13 +8,14 @@
 //
 // It belongs to the page, not to a town: a new island does not start it over. It starts on the
 // player's first click or key (browsers allow sound only from a gesture), fades in, stops while the
-// page is hidden, and follows the menu's Music slider ('lc:music-volume'; 0 is off).
+// page is hidden, and follows the menu's Music slider ('lc:music-volume'; 0 is off) and its Sound
+// switch ('lc:sound': off silences the music too; Derek, 2026-11-21).
 //
 // The level is a gain node where there is Web Audio (an iPhone ignores an audio element's own
 // volume), and the element's volume otherwise. All the pieces play through the one audio element
 // (the one the first gesture allowed to sound), so the gain node is made once.
 
-import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, readVolume } from '@/life/sound/volume';
+import { MUSIC_VOLUME_DEFAULT, MUSIC_VOLUME_EVENT, MUSIC_VOLUME_KEY, SOUND_EVENT, readVolume, soundOn } from '@/life/sound/volume';
 
 /** The pieces' files in public/music, the first the one the game began with. */
 const PIECES = ['little-city-piano', 'little-city-piano-2', 'little-city-piano-3'];
@@ -54,7 +55,10 @@ export interface Music {
 }
 
 export function createMusic(urls: readonly string[] = PIECES.map((name) => `${import.meta.env.BASE_URL}music/${name}.mp3`), random: () => number = Math.random): Music {
-  let volume = readVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_DEFAULT);
+  /** The slider's level, and the level in use: nothing while the menu's Sound switch is off. */
+  let level = readVolume(MUSIC_VOLUME_KEY, MUSIC_VOLUME_DEFAULT);
+  let muted = !soundOn();
+  let volume = muted ? 0 : level;
   let element: HTMLAudioElement | null = null;
   let gain: GainNode | null = null;
   let context: AudioContext | null = null;
@@ -129,9 +133,10 @@ export function createMusic(urls: readonly string[] = PIECES.map((name) => `${im
     if (!element) start();
     else if (element.paused) play();
   };
-  const changed = (e: Event): void => {
+  /** The slider moved, or the Sound switch was flipped: the level in use follows. */
+  const apply = (): void => {
     const was = volume;
-    volume = Math.min(1, Math.max(0, (e as CustomEvent<number>).detail));
+    volume = muted ? 0 : level;
     if (volume <= 0) {
       setLevel(0.2);
       element?.pause();
@@ -144,6 +149,14 @@ export function createMusic(urls: readonly string[] = PIECES.map((name) => `${im
     setLevel(was <= 0 ? FADE : 0.1);
     if (element.paused) play();
   };
+  const changed = (e: Event): void => {
+    level = Math.min(1, Math.max(0, (e as CustomEvent<number>).detail));
+    apply();
+  };
+  const switched = (e: Event): void => {
+    muted = (e as CustomEvent<boolean>).detail === false;
+    apply();
+  };
   const visibility = (): void => {
     if (document.hidden) element?.pause();
     else play();
@@ -151,6 +164,7 @@ export function createMusic(urls: readonly string[] = PIECES.map((name) => `${im
   window.addEventListener('pointerdown', gesture);
   window.addEventListener('keydown', gesture);
   window.addEventListener(MUSIC_VOLUME_EVENT, changed);
+  window.addEventListener(SOUND_EVENT, switched);
   document.addEventListener('visibilitychange', visibility);
 
   return {
@@ -167,6 +181,7 @@ export function createMusic(urls: readonly string[] = PIECES.map((name) => `${im
       window.removeEventListener('pointerdown', gesture);
       window.removeEventListener('keydown', gesture);
       window.removeEventListener(MUSIC_VOLUME_EVENT, changed);
+      window.removeEventListener(SOUND_EVENT, switched);
       document.removeEventListener('visibilitychange', visibility);
       if (again !== null) clearTimeout(again);
       element?.pause();

@@ -68,8 +68,10 @@ export function barbarianLook(base: Look, c: Barbarian): Look {
     hairStyle: r(c, 'hair') < 0.6 ? 'long' : 'short',
     hat: 'none',
     dress: false,
-    girth: chief ? 1.32 : 1.1 + r(c, 'girth') * 0.16,
-    scale: (PERSON.height / DESIGN_HEIGHT) * (chief ? 1.32 : 1.06 + r(c, 'size') * 0.08),
+    // The townspeople's own heights (person.ts: 0.95 to 1.05), a little stockier; the chief at the top of that
+    // range, told by his cape, horn and standard, not by size (Derek, 2026-11-21: the same size as the villagers).
+    girth: chief ? 1.16 : 1.02 + r(c, 'girth') * 0.12,
+    scale: (PERSON.height / DESIGN_HEIGHT) * (chief ? 1.05 : 0.95 + r(c, 'size') * 0.1),
   };
 }
 

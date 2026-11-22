@@ -24,11 +24,10 @@ import type { ShapePlan } from '@/resolve/plan';
 import { defineSystem, type TimeSignal } from '../api';
 import { eveningSeconds } from '../dusk/evening';
 import { shipSoundsOf } from '../ships/news';
-import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from './volume';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn } from './volume';
 import { pealAt } from '../mechanisms/peal';
 import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
 
-const SOUND_KEY = 'little-city.sound';
 /** Master level: everything is a background to building. */
 const MASTER = 0.5;
 /** The master level with the player's volume for sounds on it (the menu's slider). */
@@ -78,12 +77,8 @@ export function pealStrokes(rounds = 4): { at: number; freq: number }[] {
 const hasAudio = (): boolean => typeof window !== 'undefined' && typeof window.AudioContext === 'function';
 
 function readWanted(): boolean {
-  try {
-    // Off until the player turns it on.
-    return window.localStorage.getItem(SOUND_KEY) === 'on';
-  } catch {
-    return false;
-  }
+  // On until the player turns it off (./volume.ts).
+  return soundOn();
 }
 
 function start(state: State, seed: number): void {

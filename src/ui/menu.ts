@@ -182,6 +182,7 @@ export function createMenu(actions: MenuActions): Menu {
       sound.querySelector('.lc-btn-label')!.textContent = on ? 'Sound: on' : 'Sound: off';
       sound.setAttribute('aria-label', on ? 'Sound: on' : 'Sound: off');
       sounds?.classList.toggle('lc-menu-volume-off', !on);
+      music?.classList.toggle('lc-menu-volume-off', !on);
     };
     const soundOn = actions.sound();
     const sound = item(
@@ -195,8 +196,17 @@ export function createMenu(actions: MenuActions): Menu {
       },
       true,
     );
-    const music = actions.musicVolume && actions.setMusicVolume ? volume('music', 'music', 'Music', actions.musicVolume(), (v) => actions.setMusicVolume!(v)) : null;
-    // Moving the sounds' slider up turns sound on: nobody sets a level for something that is off.
+    // Moving either slider up turns sound on: nobody sets a level for something that is off.
+    const music =
+      actions.musicVolume && actions.setMusicVolume
+        ? volume('music', 'music', 'Music', actions.musicVolume(), (v) => {
+            actions.setMusicVolume!(v);
+            if (v > 0 && !actions.sound()) {
+              actions.setSound(true);
+              showSound(true);
+            }
+          })
+        : null;
     const sounds =
       actions.soundVolume && actions.setSoundVolume
         ? volume('sound', 'volume', 'Sounds', actions.soundVolume(), (v) => {
@@ -208,6 +218,7 @@ export function createMenu(actions: MenuActions): Menu {
           })
         : null;
     sounds?.classList.toggle('lc-menu-volume-off', !soundOn);
+    music?.classList.toggle('lc-menu-volume-off', !soundOn);
     const label = (on: boolean): string => (on ? 'Rebuild: on' : 'Rebuild: off');
     const rebuild =
       actions.rebuild && actions.setRebuild

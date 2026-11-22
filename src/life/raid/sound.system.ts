@@ -7,11 +7,10 @@
 
 import { defineSystem } from '../api';
 import { noiseBuffer, strike } from '../sound/synth';
-import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume } from '../sound/volume';
+import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn } from '../sound/volume';
 import { raidsOf } from './raids';
 import type { RaidSound } from './raid';
 
-const SOUND_KEY = 'little-city.sound';
 const level = (): number => 0.5 * readVolume(SOUND_VOLUME_KEY, SOUND_VOLUME_DEFAULT);
 
 interface Audio {
@@ -141,11 +140,7 @@ export default defineSystem<State>({
   create(ctx) {
     const st: State = { wanted: false, audio: null, off: [], bellUntil: 0, bellAt: 0, n: 0 };
     if (!hasAudio()) return st;
-    try {
-      st.wanted = window.localStorage.getItem(SOUND_KEY) === 'on';
-    } catch {
-      st.wanted = false;
-    }
+    st.wanted = soundOn();
     const gesture = (): void => {
       if (st.wanted && !st.audio) start(st);
     };
