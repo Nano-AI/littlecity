@@ -134,6 +134,35 @@ describe('the raid', () => {
     putAway(t);
   }, LONG);
 
+  test('at sea, whoever is aboard moves rigidly with the vessel every frame (no judder against the hull)', () => {
+    const t = town('grown-harbour');
+    const raids = raidsOf(t.stage);
+    raids.summon({ at: null, kind: 'boats' });
+    const raid = raids.current!;
+    // In each vessel's own frame, how far each seated raider's feet move from one frame to the next.
+    const last = new Map<number, [number, number, number]>();
+    let worst = 0, frames = 0;
+    t.onFrame = () => {
+      for (const r of raid.raiders) {
+        if (r.where !== 'aboard' || !r.fig) continue;
+        const v = raid.vesselOf(r), m = v.m;
+        const dx = r.fig.at[0] - m[12]!, dy = r.fig.at[1] - m[13]!, dz = r.fig.at[2] - m[14]!;
+        // Into the hull's frame (its axes are orthonormal: the transpose undoes them).
+        const local: [number, number, number] = [m[0]! * dx + m[1]! * dy + m[2]! * dz, m[4]! * dx + m[5]! * dy + m[6]! * dz, m[8]! * dx + m[9]! * dy + m[10]! * dz];
+        const was = last.get(r.i);
+        // (The first frame of all has no drawing before it.)
+        if (was && frames > 1) worst = Math.max(worst, Math.hypot(local[0] - was[0], local[1] - was[1], local[2] - was[2]));
+        last.set(r.i, local);
+      }
+      frames++;
+    };
+    until(t, () => raid.beat !== 'sighted', 60);
+    t.onFrame = null;
+    expect(frames).toBeGreaterThan(100);
+    expect(worst, 'a rower slid against the hull in one frame (world units)').toBeLessThan(0.005);
+    t.mischief.cancel();
+  }, LONG);
+
   test('a boats raid: the big ship stands off, its boats row to two or more landings and carry the band back', () => {
     const t = town('grown-market');
     const raids = raidsOf(t.stage);

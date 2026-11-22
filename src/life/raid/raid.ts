@@ -44,7 +44,7 @@ import { rand } from '@/core/rand';
 import type { Barbarian } from '@/parts/people/barbarian';
 import { restingMesh, type Load } from '@/parts/people/loads';
 import type { StructureId } from '@/resolve/plan';
-import { pathAt } from '@/rules/life/ship-routes';
+import { pathAt, pathOf, type Path } from '@/rules/life/ship-routes';
 import { RAID } from '@/style/raid';
 import { PEOPLE, PERSON } from '@/style/people';
 import type { LifeStage, TimeSignal } from '../api';
@@ -274,9 +274,6 @@ export class Raid {
     if (!this.handled(this.ship, 0)) this.moveShip(dt);
     this.moveBoats(dt);
     this.boats.forEach((b, i) => this.handled(b, i + 1));
-    Figure.tick = Math.floor(seconds * PERSON.drawRate);
-    this.stepFigures(dt, seconds);
-    this.stepEscapees(dt, seconds);
     this.ship.stroke = (this.ship.stroke + dt * 0.55 * (this.ship.rowing > 0.05 ? 1 : 0)) % 1;
     for (const b of this.boats) b.stroke = (b.stroke + dt * 0.75 * (b.rowing > 0.05 ? 1 : 0)) % 1;
     this.settleOffsets(dt);
@@ -291,6 +288,10 @@ export class Raid {
       v.z = bz;
       v.yaw = by;
     }
+    // Whoever is aboard is placed on the vessel as it is drawn this frame (so they move with it rigidly).
+    Figure.tick = Math.floor(seconds * PERSON.drawRate);
+    this.stepFigures(dt, seconds);
+    this.stepEscapees(dt, seconds);
     this.stepDamage(dt);
     // The beats that turn at sea.
     if (this.beat === 'sighted' && !this.rung && this.age > 6) {
@@ -525,23 +526,28 @@ export class Raid {
   private castOff(i: number): void {
     this.boatState[i] = 'row-in';
     this.boatS[i] = 0;
+    const b = this.boats[i]!;
+    const way = this.site.boatPaths[i]!;
+    // From where it lies on its tow (beside the ship), round onto its way: no sweep across the water.
+    this.boatWays[i] = pathOf([[b.x, b.z], ...way.points.slice(1)]);
   }
+  /** Each boat's way in as it is rowed (from where it lay when it cast off). */
+  private boatWays: Path[] = [];
 
   private moveBoats(dt: number): void {
     this.towBoats();
     this.boats.forEach((b, i) => {
       const st = this.boatState[i];
-      const path = this.site.boatPaths[i]!;
+      const path = this.boatWays[i] ?? this.site.boatPaths[i]!;
       if (st === 'row-in') {
         // From where it lies to the start of its way, then along it.
         const left = path.length - this.boatS[i]!;
         this.boatS[i] = Math.min(path.length, this.boatS[i]! + RAID.boatRow * (0.4 + 0.6 * clamp01(left / 1.5)) * dt);
         const q = pathAt(path, this.boatS[i]!);
-        // Ease from the tow onto the way over its first stretch.
-        const k = clamp01(this.boatS[i]! / 2);
-        b.x += (q.x - b.x) * Math.min(1, dt * 3 + k);
-        b.z += (q.z - b.z) * Math.min(1, dt * 3 + k);
-        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 4);
+        b.x = q.x;
+        b.z = q.z;
+        // The head comes round onto the way as it rows (never a snap).
+        b.yaw += angleDelta(b.yaw, q.yaw) * Math.min(1, dt * 2.5);
         b.rowing = 1;
         b.beach = clamp01(1 - left / 0.5) * 0.5;
         if (this.boatS[i]! >= path.length) {
@@ -621,6 +627,7 @@ export class Raid {
           const rower = seat.sit && v.rowing > 0.05;
           fig.pose(s.x, s.y, s.z, s.heading, seat.sit ? 'sit' : r.role === 'chief' && this.beat === 'sighted' ? 'cheer' : 'stand', seconds, {
             grow: false,
+            rigid: true,
             seat: seat.sit ? 0.12 : -1,
             gear: !rower,
             ...(rower ? { tweak: rowing(v.astern ? 1 - v.stroke : v.stroke) } : {}),
@@ -632,7 +639,7 @@ export class Raid {
           r.t += dt;
           if (r.t < 0) {
             const s = v.seatAt(r.seat);
-            fig.pose(s.x, s.y, s.z, s.heading, 'stand', seconds);
+            fig.pose(s.x, s.y, s.z, s.heading, 'stand', seconds, { grow: false, rigid: true });
             break;
           }
           if (r.dur === 0) {
@@ -735,7 +742,7 @@ export class Raid {
         return;
       }
       const s = v.seatAt(k === 0 ? v.seats.length - 1 : 0);
-      f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1 });
+      f.pose(s.x, s.y, s.z, s.heading, k === 1 && this.beat !== 'away' ? 'wave' : 'stand', seconds, { gear: k === 1, rigid: true });
       f.setCut(v.edgeCut);
     });
   }
@@ -841,7 +848,7 @@ export class Raid {
     const i = vessel - 1;
     if (this.boatState[i] === 'wait') {
       this.boatState[i] = 'row-out';
-      this.boatS[i] = this.site.boatPaths[i]!.length;
+      this.boatS[i] = (this.boatWays[i] ?? this.site.boatPaths[i]!).length;
     }
   }
 
