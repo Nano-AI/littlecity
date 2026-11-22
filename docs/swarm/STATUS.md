@@ -1653,3 +1653,23 @@ gravity, no size change); raiders glitching in their boat and standing
 in a clump doing nothing in a town already wrecked and mending (raid
 agent, round 3; screenshot `/tmp/lc-raiders.png`).
 Running: ragdoll round 3, raids round 3.
+
+**Ragdoll round 3 merged** (`cf85d41`, Opus). What was wrong with the
+flight, measured over 60 people in one nuke: launch speeds almost
+identical (sd/mean 0.15) and every angle 58–68°, so the crowd rose as
+one sheet; gravity 13 units/s² where a person is 0.46 units tall (about
+five times real for the scale: a 1.2 s snap); limbs random drawings at
+10 a second, strobing against a body moved 30 times a second. Now: each
+body its own share of the blast (0.4–1.65, skewed), angle 22–80°,
+bearing up to 35° off; measured spread 0.38; gravity 7, constant, no
+easing; spin from the launch speed; limbs flung back along the
+velocity; flyers drawn every frame, place and pose together; a pale
+puff at take-off; no size change anywhere. The Hand's catch hangs and
+swings as a damped pendulum; a throw leaves at the pointer's velocity.
+Speed lines stay off. Tests pin g, the spread, and constant drawn size.
+Gate: 2,328 passed, 12 skipped, clean. Cost of honesty: from the normal
+view a nuke's flyers are specks again (orchestrator's own mid-zoom
+sequence: debris and dust dominate; people hard to pick out); bomb
+throws are short and low. Not judged by eye by anyone: the trailing
+limbs and the Hand's swing close up.
+Running: raids round 3.
