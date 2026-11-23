@@ -878,7 +878,7 @@ function meshFloats(m: MeshData): number {
 }
 
 /** Wraps a generator registry so every structure is drawn with its damage. */
-export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry } {
+export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry; peek: (sid: number) => { hash: number; out: GenOutput } | null } {
   // A damaged structure's sound drawing, kept while only its ruin changes (a char or mend step).
   const cache = new Map<number, { key: number; style: number; parts: unknown; intact: GenOutput; floats: number; hash: number; out: GenOutput }>();
   let floats = 0;
@@ -912,5 +912,10 @@ export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact
       return e.out;
     },
     intact: reg,
+    // The latest damaged drawing, without building one (null for a sound or never-drawn structure).
+    peek: (sid) => {
+      const e = cache.get(sid);
+      return e ? { hash: e.hash, out: e.out } : null;
+    },
   };
 }
