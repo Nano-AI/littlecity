@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildWithin, oldestFirst } from './rebuild-budget';
+import { buildWithin, oldestFirst, sameAnchors, sameKeys } from './rebuild-budget';
 
 /** A clock that moves on by `cost` milliseconds each time something is built. */
 function setup(cost: number) {
@@ -50,5 +50,23 @@ describe('the queue of waiting rebuilds', () => {
     let waiting: number[] = [];
     for (let frame = 0; frame < 4; frame++) waiting = buildWithin(oldestFirst(waiting, ids), build, 6, clock);
     expect([...built].sort()).toEqual(ids);
+  });
+});
+
+describe('what may wait', () => {
+  test('the same cells in the same order, and nothing else', () => {
+    expect(sameKeys([4, 9, 12], [4, 9, 12])).toBe(true);
+    expect(sameKeys([], [])).toBe(true);
+    expect(sameKeys([4, 9, 12], [4, 9, 8])).toBe(false); // a column dug down: a cell a level lower
+    expect(sameKeys([4, 9], [4, 9, 12])).toBe(false);
+  });
+
+  test('anchor frames match frame for frame, or the props must follow', () => {
+    const door = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3, 0.8, 5, 1];
+    expect(sameAnchors({ door, sign: door }, { sign: [...door], door: [...door] })).toBe(true);
+    expect(sameAnchors({}, {})).toBe(true);
+    expect(sameAnchors({ door }, { door: door.map((v, i) => (i === 13 ? 0 : v)) })).toBe(false); // sunk a level
+    expect(sameAnchors({ door }, { door, sign: door })).toBe(false);
+    expect(sameAnchors({ door }, { sign: door })).toBe(false);
   });
 });

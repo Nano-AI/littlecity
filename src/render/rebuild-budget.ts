@@ -15,6 +15,21 @@ export function oldestFirst<T>(waiting: Iterable<T>, changed: readonly T[]): T[]
   return [...new Set([...waiting, ...changed])].filter((id) => live.has(id));
 }
 
+/** The same keys in the same order: a structure's cells or edges, so only one that stayed put may wait. */
+export const sameKeys = (a: readonly number[], b: readonly number[]): boolean => a === b || (a.length === b.length && a.every((v, i) => v === b[i]));
+
+/** The same anchor frames, number for number: a rebuild that moves one moves the props on it too. */
+export function sameAnchors(a: Readonly<Record<string, ArrayLike<number>>>, b: Readonly<Record<string, ArrayLike<number>>>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const k of keys) {
+    const m = a[k]!, n = b[k];
+    if (!n || n.length !== m.length) return false;
+    for (let i = 0; i < m.length; i++) if (m[i] !== n[i]) return false;
+  }
+  return true;
+}
+
 /** Builds `ids` in order until `budgetMs` is spent (the first always goes); returns the ones left, in order. */
 export function buildWithin<T>(ids: readonly T[], build: (id: T) => void, budgetMs: number, clock: () => number = () => performance.now()): T[] {
   const start = clock();

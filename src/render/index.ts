@@ -24,7 +24,7 @@
 // (light beams, the ghost preview).
 
 import * as THREE from 'three';
-import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
+import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z, type CellKey, type EdgeKey } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { allStyles, styleVersion } from '@/core/style';
 import { isAirMesh } from '@/gen/airborne';
@@ -55,7 +55,7 @@ import {
 } from './camera';
 import { gradeAt } from './grade';
 import { qualityLevels, type Quality } from './quality';
-import { buildWithin, oldestFirst, REBUILD_BUDGET_MS } from './rebuild-budget';
+import { buildWithin, oldestFirst, REBUILD_BUDGET_MS, sameAnchors, sameKeys } from './rebuild-budget';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
@@ -129,6 +129,9 @@ interface DrawnStructure {
   hash: number;
   chunk: string;
   anchors: Record<string, Mat4Like>;
+  /** The cells and edges it was drawn with: only a structure that kept them may wait for its rebuild. */
+  cells: readonly CellKey[];
+  edges: readonly EdgeKey[];
   /** 0 while baked; a slot while lifted. */
   slot: number;
   lifts: number;
@@ -855,7 +858,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return chunkKeyOf(keyX(c), keyZ(c));
   };
 
-  const buildStructure = (s: Structure, next: ShapePlan): void => {
+  /** Draws a structure; true if any of its anchor frames moved (or it is new). */
+  const buildStructure = (s: Structure, next: ShapePlan): boolean => {
     const { generators, parts } = registries!;
     const old = structures.get(s.id);
     const t = performance.now();
@@ -866,14 +870,18 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     const chunk = structureChunk(s);
     if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
     chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
+    const moved = !old || !sameAnchors(old.anchors, out.anchors);
     setAnchors(old?.anchors, out.anchors);
     if (old) {
       old.hash = s.hash;
       old.chunk = chunk;
       old.anchors = out.anchors;
+      old.cells = s.cells;
+      old.edges = s.edges;
     } else {
-      structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, slot: 0, lifts: 0, alive: true });
+      structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, cells: s.cells, edges: s.edges, slot: 0, lifts: 0, alive: true });
     }
+    return moved;
   };
 
   const syncShape = (next: ShapePlan, spread = false): void => {
@@ -902,7 +910,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     for (const s of next.structures.values()) {
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
-      if (spread && old) changed.set(s.id, s);
+      // Only what stayed put may wait: a building the land carried down must not float over the crater.
+      if (spread && old && sameKeys(old.cells, s.cells) && sameKeys(old.edges, s.edges)) changed.set(s.id, s);
       else buildStructure(s, next);
     }
     // Spread (mischief): oldest first, and what does not fit in the budget keeps its old drawing;
@@ -1374,9 +1383,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         endRebuild(t0);
       }
       // Mischief's waiting rebuilds, a few a frame, and never in a frame that already rebuilt. A ruin
-      // change keeps the generator's anchors, so the dressing is left as it is.
+      // change keeps the generator's anchors, so the dressing is left as it is unless one moved.
       if (!busy && pending.size > 0 && shape) {
         const plan = shape;
+        let moved = false;
         pending = new Set(
           buildWithin(
             [...pending],
@@ -1384,12 +1394,14 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
               const s = plan.structures.get(id);
               const d = structures.get(id);
               // Gone, or already drawn as it is now: dropped.
-              if (s && d && d.hash !== s.hash) buildStructure(s, plan);
+              if (s && d && d.hash !== s.hash) moved = buildStructure(s, plan) || moved;
             },
             REBUILD_BUDGET_MS,
           ),
         );
         rebuildLayout();
+        // Output that leans on its neighbours can move an anchor with the cells unchanged: the props follow.
+        if (moved && dressing) syncDressing(dressing);
       }
       busy = false;
       // Camera damping runs on life time, which is already clamped to 100 ms a step.

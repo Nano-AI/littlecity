@@ -37,6 +37,7 @@ const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum
 /** Two packed ruins (src/world/damage.ts): a burnt-out shell, and cracked by a blast. */
 const BURNT = packRuin({ stage: 3, cause: 'fire' });
 const CRACKED = packRuin({ stage: 1, cause: 'blast' });
+type Crater = { pending: number; moved: number; stayed: number };
 /** Draws frames until no rebuild is waiting; returns how many it took. */
 const drain = `(() => { let n = 0; while (window.__look.pending() > 0 && n < 1000) { window.__look.frameOnly(); n++; } return n; })()`;
 
@@ -218,6 +219,28 @@ describe('the view', () => {
     const spread = await settled();
     await look(`window.__look.open('everything', { ink: 'full' })`);
     await look(`window.__look.ruinHouses(20, ${CRACKED}, false)`);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('a building the land carries down is redrawn in the edit, never left floating over the crater', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    // Burnt houses waiting at the front of the queue, so houses carried down after them would wait too.
+    expect(await look<number>(`window.__look.ruinHouses(10, ${BURNT}, true)`)).toBeGreaterThan(0);
+    const dug = await look<Crater>(`window.__look.crater(10, ${BURNT}, 20, true)`);
+    // Only what changed in place is left waiting: everything the land carried down was drawn at once.
+    expect(dug.moved).toBeGreaterThanOrEqual(10);
+    expect(dug.pending).toBeLessThanOrEqual(dug.stayed);
+    expect(errors).toEqual([]);
+  });
+
+  test('a crater dressed before its rebuilds land ends on the same picture, props and all', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Crater>(`window.__look.crater(19, ${BURNT}, 1, true)`)).pending).toBeGreaterThan(0);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Crater>(`window.__look.crater(19, ${BURNT}, 1, false)`)).pending).toBe(0);
     expect(spread.thumb).toEqual((await settled()).thumb);
     expect(errors).toEqual([]);
   });
