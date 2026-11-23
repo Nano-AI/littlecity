@@ -395,7 +395,7 @@ function frame(now: number): void {
   const dt = signals.advance((now - last) / 1000);
   last = now;
   // While a town grows, its dressing follows a few times a second, not after every piece.
-  const ready = dressDue(now, lastDressed, ui?.growth.active ?? false) ? game.poll() : null;
+  const ready = dressDue(now, lastDressed, (ui?.growth.active ?? false) || mischief.busy) ? game.poll() : null;
   if (ready) {
     lastDressed = now;
     busyFrames = BUSY_FRAMES;
@@ -418,8 +418,11 @@ function frame(now: number): void {
   const eye = view.getEyeCamera();
   const cam = view.getCamera();
   mischief.camera = eye ? { yaw: eye.yaw, pitch: -eye.pitch } : { yaw: cam.yaw, pitch: cam.pitch };
+  // A frame that dressed the town makes no mischief edit (the two heavy jobs do not share a frame).
+  mischief.holdEdits = ready !== null;
   life.update(dt);
   mischief.flush();
+  mischief.holdEdits = false;
   ui?.beforeRender();
   render();
   ui?.frame();

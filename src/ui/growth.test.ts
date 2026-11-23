@@ -89,3 +89,12 @@ describe('growth frame budget', () => {
     expect(dressDue(1100, 800, true)).toBe(true);
   });
 });
+
+describe('dressings while mischief is busy', () => {
+  test('are paced like growth: every 300 ms, not every frame', () => {
+    // main passes growing || mischief.busy as `growing`
+    expect(dressDue(1000, 900, true)).toBe(false);
+    expect(dressDue(1200, 900, true)).toBe(true);
+    expect(dressDue(1000, 990, false)).toBe(true);
+  });
+});

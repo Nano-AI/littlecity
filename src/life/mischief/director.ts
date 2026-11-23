@@ -391,7 +391,7 @@ export class Director {
     }
     this.engine.step(dt, env);
     this.mendClock += dt;
-    if (this.mendClock >= 0.5) {
+    if (this.mendClock >= 0.5 && !this.holdEdits) {
       this.mendTick(this.mendClock);
       this.mendClock = 0;
     }
@@ -480,8 +480,15 @@ export class Director {
     else this.host?.amend(edits);
   }
 
+  /**
+   * The app sets this in a frame that dressed the town (a ~20 ms job): the mischief edits wait for the next
+   * frame (flush does nothing and the mend clock keeps counting, so the mending is owed, not lost).
+   */
+  holdEdits = false;
+
   /** The app, once a frame: hands the engine's edits to the game, and closes the act when all is quiet. */
   flush(): void {
+    if (this.holdEdits) return;
     const edits = [...this.engine.takeEdits(), ...this.extra];
     this.extra = [];
     if (edits.length > 0) {
