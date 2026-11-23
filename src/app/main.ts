@@ -38,7 +38,7 @@ import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario }
 import { findScenario } from '@/scenario/discover';
 import { generateTerrain, initialWorld, NEW_ISLAND_GEN, terrainOf, type TerrainGen } from '@/terrain/terrain';
 import { download, townFromHash, townPicture } from '@/ui/files';
-import { onlyStartingTrees } from '@/ui/growth';
+import { dressDue, onlyStartingTrees } from '@/ui/growth';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
 import { startAnalytics, track, townShown } from './analytics';
@@ -135,6 +135,7 @@ autosave.enabled = !scn && !visiting;
  * resolved or rebuilt (an edit, its dressing). The quality governor leaves them out.
  */
 let busyFrames = 0;
+let lastDressed = -Infinity;
 const BUSY_FRAMES = 3;
 
 const game = createGame(tiered(start), {
@@ -379,8 +380,10 @@ function frame(now: number): void {
   if (busyFrames > 0) busyFrames--;
   const dt = signals.advance((now - last) / 1000);
   last = now;
-  const ready = game.poll();
+  // While a town grows, its dressing follows a few times a second, not after every piece.
+  const ready = dressDue(now, lastDressed, ui?.growth.active ?? false) ? game.poll() : null;
   if (ready) {
+    lastDressed = now;
     busyFrames = BUSY_FRAMES;
     view.setDressing(ready.dressing);
     life.sync(ready);

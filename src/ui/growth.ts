@@ -30,6 +30,10 @@ export interface GrowthOptions {
   rate?: number;
   /** At most this many edits in one frame, so a slow frame never stalls the view. Default 3. */
   perFrame?: number;
+  /** Milliseconds of edits to put down in one frame: the first due edit always goes, the rest wait once this is spent. Default 8. */
+  budgetMs?: number;
+  /** Milliseconds, for the budget. Default performance.now. */
+  clock?(): number;
   /** The growth finished (played out, skipped or stopped). */
   onDone?(): void;
 }
@@ -52,9 +56,19 @@ export function clearingEdits(world: World): Edit[] {
   return out;
 }
 
+/** How often the town is dressed while it grows: a whole-town dressing after every piece would swamp the frames. */
+export const DRESS_WHILE_GROWING_MS = 300;
+
+/** True if the town should be dressed this frame: always when it is not growing, else a few times a second. */
+export function dressDue(now: number, lastDressed: number, growing: boolean): boolean {
+  return !growing || now - lastDressed >= DRESS_WHILE_GROWING_MS;
+}
+
 export function createGrowth(game: Game, opts: GrowthOptions = {}): Growth {
   const rate = opts.rate ?? 25;
   const perFrame = opts.perFrame ?? 3;
+  const budgetMs = opts.budgetMs ?? 8;
+  const clock = opts.clock ?? (() => performance.now());
   let queue: Edit[] = [];
   let next = 0;
   let active = false;
@@ -96,7 +110,12 @@ export function createGrowth(game: Game, opts: GrowthOptions = {}): Growth {
       last = now;
       let n = Math.min(Math.floor(due), perFrame);
       due -= Math.floor(due);
-      while (n-- > 0 && next < queue.length) game.edit(queue[next++]!);
+      // A slow frame drops its backlog rather than catching up, so growth never holds a frame for long.
+      const began = clock();
+      while (n-- > 0 && next < queue.length) {
+        game.edit(queue[next++]!);
+        if (clock() - began >= budgetMs) break;
+      }
       if (next >= queue.length) finish();
     },
     skip() {
