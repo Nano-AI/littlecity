@@ -179,6 +179,19 @@ const api = {
     }
     return out;
   },
+  /**
+   * Mischief: gives every cell of the first `n` houses this packed ruin (packRuin) and shows the town,
+   * spread over frames or not. Each call starts from the town as opened. Returns ViewStats.pending.
+   */
+  ruinHouses(n: number, ruin: number, spread: boolean): number {
+    let world = shape!.world;
+    const houses = [...shape!.structures.values()].filter((s) => s.kind === 'house').slice(0, n);
+    for (const s of houses) for (const cell of s.cells) world = applyEdit(world, shape!.terrain, { type: 'setRuin', cell, ruin });
+    view!.setTown(resolveShape(world, shape!.terrain, options ?? {}), null, { spread });
+    return view!.stats().pending;
+  },
+  /** Structures whose new drawing is still waiting (ViewStats.pending). */
+  pending: (): number => view!.stats().pending,
   /** Spawns `n` small boxes over the town, as life spawns walkers and puffs. */
   spawn(n: number): number {
     const b = new MeshBuilder({ ink: 'probe' }).setColor('#e56b58');

@@ -32,7 +32,7 @@ import type { PartOutput } from '@/gen/api';
 import { createLayout, type Layout } from '@/gen/layout';
 import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
 import type { InstanceHandle, LifeStage, Signals, SpawnSpec } from '@/life/api';
-import type { Actor, DressingPlan, Prop, ShapePlan, StructureId } from '@/resolve/plan';
+import type { Actor, DressingPlan, Prop, ShapePlan, Structure, StructureId } from '@/resolve/plan';
 import { seasonOf, weatherOf } from '@/life/season';
 import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
@@ -55,6 +55,7 @@ import {
 } from './camera';
 import { gradeAt } from './grade';
 import { qualityLevels, type Quality } from './quality';
+import { buildWithin, REBUILD_BUDGET_MS } from './rebuild-budget';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
@@ -707,6 +708,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     spent.view = Math.max(0, rebuildMs - spent.generators - spent.layers - spent.parts);
     lastSpent = { ...spent };
   };
+  /** Structures drawn at an old hash, rebuilt a few a frame by render() (setTown's `spread`). */
+  let pending = new Set<StructureId>();
+  /** A setTown or setDressing ran since the last frame: that frame does no deferred rebuilding. */
+  let busy = false;
   let spawnCounter = 0;
   let ghostKeys: string[] = [];
   let ghostSlots: number[] = [];
@@ -850,15 +855,40 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return chunkKeyOf(keyX(c), keyZ(c));
   };
 
-  const syncShape = (next: ShapePlan): void => {
+  const buildStructure = (s: Structure, next: ShapePlan): void => {
+    const { generators, parts } = registries!;
+    const old = structures.get(s.id);
+    const t = performance.now();
+    const out = generators.build(s, next, parts);
+    spent.generators += performance.now() - t;
+    spent.structures++;
+    spent.vertices += out.mesh.position.length / 3;
+    const chunk = structureChunk(s);
+    if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
+    chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
+    setAnchors(old?.anchors, out.anchors);
+    if (old) {
+      old.hash = s.hash;
+      old.chunk = chunk;
+      old.anchors = out.anchors;
+    } else {
+      structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, slot: 0, lifts: 0, alive: true });
+    }
+  };
+
+  const syncShape = (next: ShapePlan, spread = false): void => {
     const reg = registriesFor(next);
     if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts) {
       // Other generators draw this town: nothing cached applies.
       dropAll();
       registries = reg;
     }
-    // styleVersion() is part of every cache key (CONTRACTS section 14): a changed style value redraws.
-    if (styleChanged()) invalidate();
+    // styleVersion() is part of every cache key (CONTRACTS section 14): a changed style value redraws,
+    // all of it at once.
+    if (styleChanged()) {
+      invalidate();
+      spread = false;
+    }
     const { generators, parts } = reg;
     for (const [id, d] of structures) {
       if (next.structures.has(id)) continue;
@@ -868,26 +898,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       setAnchors(d.anchors, {});
       structures.delete(id);
     }
+    const changed: Structure[] = [];
     for (const s of next.structures.values()) {
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
-      const t = performance.now();
-      const out = generators.build(s, next, parts);
-      spent.generators += performance.now() - t;
-      spent.structures++;
-      spent.vertices += out.mesh.position.length / 3;
-      const chunk = structureChunk(s);
-      if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
-      chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
-      setAnchors(old?.anchors, out.anchors);
-      if (old) {
-        old.hash = s.hash;
-        old.chunk = chunk;
-        old.anchors = out.anchors;
-      } else {
-        structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, slot: 0, lifts: 0, alive: true });
-      }
+      if (spread && old) changed.push(s);
+      else buildStructure(s, next);
     }
+    // Spread (mischief): what does not fit in the budget keeps its old drawing; render() gets to it.
+    pending = new Set(buildWithin(changed, (s) => buildStructure(s, next), REBUILD_BUDGET_MS).map((s) => s.id));
     for (const layer of generators.layers()) {
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;
@@ -1168,11 +1187,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     canvas,
     stage,
 
-    setTown(nextShape, nextDressing) {
+    setTown(nextShape, nextDressing, opts) {
+      busy = true;
       const t0 = beginRebuild();
       groundMotion.changed(shape, nextShape, lastSeconds ?? 0);
       shape = nextShape;
-      syncShape(nextShape);
+      syncShape(nextShape, opts?.spread);
       if (nextDressing) dressing = nextDressing;
       rebuildLayout();
       if (nextDressing) syncDressing(nextDressing);
@@ -1180,6 +1200,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
     setDressing(nextDressing) {
       if (!shape) throw new Error('setDressing before setTown');
+      busy = true;
       const t0 = beginRebuild();
       dressing = nextDressing;
       rebuildLayout();
@@ -1350,6 +1371,25 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         if (dressing) syncDressing(dressing);
         endRebuild(t0);
       }
+      // Mischief's waiting rebuilds, a few a frame, and never in a frame that already rebuilt. A ruin
+      // change keeps the generator's anchors, so the dressing is left as it is.
+      if (!busy && pending.size > 0 && shape) {
+        const plan = shape;
+        pending = new Set(
+          buildWithin(
+            [...pending],
+            (id) => {
+              const s = plan.structures.get(id);
+              const d = structures.get(id);
+              // Gone, or already drawn as it is now: dropped.
+              if (s && d && d.hash !== s.hash) buildStructure(s, plan);
+            },
+            REBUILD_BUDGET_MS,
+          ),
+        );
+        rebuildLayout();
+      }
+      busy = false;
       // Camera damping runs on life time, which is already clamped to 100 ms a step.
       const seconds = signals.time.seconds;
       const dt = lastSeconds === null ? 0 : seconds - lastSeconds;
@@ -1622,7 +1662,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
 
     stats(): ViewStats {
-      return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent } };
+      return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent }, pending: pending.size };
     },
 
     dispose() {

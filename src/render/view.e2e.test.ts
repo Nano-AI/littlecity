@@ -5,6 +5,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Page } from 'playwright';
+import { packRuin } from '@/world/damage';
 import { startApp, type App } from '../../tests/helpers/browser';
 import type { SweepResult } from './testing/flicker';
 import type { FrameSummary } from './testing/probe';
@@ -33,6 +34,11 @@ const settled = async (): Promise<FrameSummary> => {
 const lum = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 /** Mean absolute difference between two frames' thumbnails, 0–255. */
 const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum, v, i) => sum + Math.abs(v - b.thumb[i]!), 0) / a.thumb.length;
+/** Two packed ruins (src/world/damage.ts): a burnt-out shell, and cracked by a blast. */
+const BURNT = packRuin({ stage: 3, cause: 'fire' });
+const CRACKED = packRuin({ stage: 1, cause: 'blast' });
+/** Draws frames until no rebuild is waiting; returns how many it took. */
+const drain = `(() => { let n = 0; while (window.__look.pending() > 0 && n < 1000) { window.__look.frameOnly(); n++; } return n; })()`;
 
 describe('the view', () => {
   test('draws ink on paper, in a dozen draw calls', async () => {
@@ -184,6 +190,42 @@ describe('the view', () => {
     expect(thick.dark).toBeGreaterThan(before.dark * 1.2);
     await look(`window.__look.style()`);
     expect((await settled()).thumb).toEqual(before.thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("a spread rebuild lands on the same picture as an immediate one, never in the edit's frame", async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    const before = await settled();
+    const pending = await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`);
+    expect(pending).toBeGreaterThan(0);
+    // The edit's frame only draws: the old drawing of what is waiting stays.
+    await look(`window.__look.frameOnly()`);
+    expect(await look<number>(`window.__look.pending()`)).toBe(pending);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    expect(spread.thumb).not.toEqual(before.thumb); // the houses are in view
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, false)`)).toBe(0);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('two spread changes in a row land on the final picture', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    await look(`window.__look.ruinHouses(20, ${CRACKED}, true)`);
+    await look(drain);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.ruinHouses(20, ${CRACKED}, false)`);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('an ordinary setTown after a spread one leaves nothing pending', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, false)`)).toBe(0);
     expect(errors).toEqual([]);
   });
 

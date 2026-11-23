@@ -69,6 +69,8 @@ export interface ViewStats {
    * and `vertices` count what was rebuilt.
    */
   rebuild?: { generators: number; layers: number; parts: number; view: number; structures: number; vertices: number };
+  /** Added for mischief. Structures whose new drawing is still waiting (setTown's `spread`); their old one shows meanwhile. */
+  pending: number;
 }
 
 export interface ViewOptions {
@@ -94,8 +96,13 @@ export interface TownView {
    * Shows a town. Rebuilds only what changed (by structure, layer-chunk and
    * prop hash). Pass `dressing: null` right after an edit; the previous
    * props stay until setDressing delivers the new ones.
+   *
+   * Added for mischief: with `spread`, changed structures already drawn are rebuilt a few a frame
+   * (within REBUILD_BUDGET_MS, in frames that run no setTown or setDressing) and keep their old
+   * drawing until then. New and removed structures and the layers still change at once. Without
+   * it, anything still waiting is rebuilt now.
    */
-  setTown(shape: ShapePlan, dressing: DressingPlan | null): void;
+  setTown(shape: ShapePlan, dressing: DressingPlan | null, opts?: { spread?: boolean }): void;
   /** Delivers the dressing for the shape last passed to setTown. */
   setDressing(dressing: DressingPlan): void;
   setGhost(ghost: Ghost | null): void;

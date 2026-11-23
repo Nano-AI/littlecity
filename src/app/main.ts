@@ -136,6 +136,8 @@ autosave.enabled = !scn && !visiting;
  */
 let busyFrames = 0;
 let lastDressed = -Infinity;
+/** Mischief's edit is being shown: its changed buildings are redrawn a few a frame, not all in this one. */
+let fromMischief = false;
 let ghostQueued = false;
 const BUSY_FRAMES = 3;
 
@@ -143,7 +145,7 @@ const game = createGame(tiered(start), {
   // CONTRACTS section 12: setTown before life.sync, so the instances exist.
   show(shape: ShapePlan, landed: Edit | null) {
     busyFrames = BUSY_FRAMES;
-    view.setTown(shape, null);
+    view.setTown(shape, null, { spread: fromMischief });
     life.sync({ shape, dressing: null });
     townShown(shape, landed !== null);
     if (landed?.type === 'placeBlock') signals.emit('blockLanded', landed.cell);
@@ -162,13 +164,22 @@ gameNow = game;
 const music = createMusic();
 
 const mischief = mischiefOf(view.stage);
+/** Runs one of mischief's edits with its rebuilds spread over frames. */
+const spreading = (run: () => void): void => {
+  fromMischief = true;
+  try {
+    run();
+  } finally {
+    fromMischief = false;
+  }
+};
 mischief.connect({
   begin: () => game.begin(),
-  apply: (edits) => void game.editAll(edits),
+  apply: (edits) => spreading(() => game.editAll(edits)),
   end: () => game.end(),
   abort: () => void game.abort(),
-  edit: (edits) => void game.editAll(edits),
-  amend: (edits) => void game.amend(edits),
+  edit: (edits) => spreading(() => game.editAll(edits)),
+  amend: (edits) => spreading(() => game.amend(edits)),
 });
 
 /** A different town: life and the signals start over with its seed; the held time of day carries across. */
