@@ -307,11 +307,18 @@ describe('the board counts what it is given', () => {
     const spot = (x: number) => ({ x, y: 0, z: 0, yaw: 0 });
     const store = t.board.store('test:loaves', [spot(0), spot(1)]);
     const store2 = t.board.store('test:fish', [spot(2)]);
-    expect(t.board.put(store, 'loaf')).toBe(true);
-    expect(t.board.put(store, 'loaf')).toBe(true);
-    expect(t.board.put(store, 'loaf')).toBe(false);
-    expect(t.board.put(store2, 'fish')).toBe(true);
+    expect(t.board.put(store, 'loaf', true)).toBe(true);
+    expect(t.board.put(store, 'loaf', true)).toBe(true);
+    expect(t.board.put(store, 'loaf', true)).toBe(false);
+    expect(t.board.put(store2, 'fish', true)).toBe(true);
     expect(t.board.delivered.get('loaf')).toBe(2);
     expect(t.board.delivered.get('fish')).toBe(1);
+  });
+
+  test('a plain put (raid loot, stocking) is not a delivery', () => {
+    const t = createLivingTown({ seed: 1, chains: [] });
+    const store = t.board.store('test:loot', [{ x: 0, y: 0, z: 0, yaw: 0 }]);
+    expect(t.board.put(store, 'loaf')).toBe(true);
+    expect(t.board.delivered.get('loaf') ?? 0).toBe(0);
   });
 });

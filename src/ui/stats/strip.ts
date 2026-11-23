@@ -1,4 +1,4 @@
-// The strip along the top: how many live here, a face for how they feel, and one silly count.
+// The strip at the top right: how many live here, a face for how they feel, and one silly count.
 // Plain DOM, three chips in one card; it never takes a tap. (The numbers come from watch.ts.)
 
 import { el } from '@/ui/dom';
@@ -32,9 +32,10 @@ export function createStatsStrip(root: HTMLElement) {
   const label = el('span', { class: 'lc-stat-label' });
   const count = el('span', { class: 'lc-stat-n' });
   const silly = el('span', { class: 'lc-stat lc-stat-silly', attrs: { hidden: '' } }, [label, count]);
-  const strip = el('div', { class: 'lc-stats lc-card', attrs: { role: 'status' } }, [
-    el('span', { class: 'lc-stat', attrs: { 'aria-label': 'Residents' } }, [el('span', { class: 'lc-stat-glyph', html: PEOPLE }), people]),
-    el('span', { class: 'lc-stat' }, [moodIcon, mood]),
+  const sr = (text: string) => el('span', { class: 'lc-stat-sr', text });
+  const strip = el('div', { class: 'lc-stats lc-card' }, [
+    el('span', { class: 'lc-stat' }, [el('span', { class: 'lc-stat-glyph', html: PEOPLE }), sr('Residents '), people]),
+    el('span', { class: 'lc-stat' }, [moodIcon, sr('Happiness '), mood, sr(' of 100')]),
     silly,
   ]);
   root.append(strip);
@@ -42,6 +43,7 @@ export function createStatsStrip(root: HTMLElement) {
   let band = -1;
   let shown: string | null = null;
   let fade = 0;
+  let latest = '';
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   return {
@@ -53,18 +55,21 @@ export function createStatsStrip(root: HTMLElement) {
         moodIcon.innerHTML = FACES[b]!;
       }
       mood.textContent = String(v.mood);
-      mood.parentElement!.setAttribute('aria-label', `Happiness ${v.mood} of 100`);
-      mood.parentElement!.title = `Happiness ${v.mood} of 100`;
 
       if (!v.silly) {
         silly.hidden = true;
         shown = null;
         return;
       }
-      count.textContent = v.silly.n.toLocaleString();
-      if (v.silly.label === shown) return;
+      latest = v.silly.n.toLocaleString();
+      if (v.silly.label === shown) {
+        // Same label: the number is live, unless the label is mid-fade (the swap then sets it).
+        if (!silly.classList.contains('lc-stat-out')) count.textContent = latest;
+        return;
+      }
       const swap = () => {
         label.textContent = v.silly!.label;
+        count.textContent = latest;
         silly.classList.remove('lc-stat-out');
       };
       shown = v.silly.label;

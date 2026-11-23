@@ -4,6 +4,7 @@ import { mischiefOf } from '@/life/mischief/director';
 import { raidsOf } from '@/life/raid/raids';
 import type { Board } from '@/life/town/board';
 import { scenesOf } from '@/life/town/scenes';
+import { setCrowd } from '@/life/doors/table';
 import { createStatsWatch } from './watch';
 
 describe('the stats watch', () => {
@@ -38,14 +39,16 @@ describe('what the watch counts', () => {
 
   test('a nuke and a bomb are different tallies and moods; a blast counts what it hit', () => {
     const stage = asStage();
-    const w = createStatsWatch();
+    // Cells 1 and 2 are one building, 3 another, 4 is bare ground: three blocks and a bare cell are two buildings.
+    const shape = town([[1, 2], [2, 2]], { 1: 1, 2: 1, 3: 2 });
+    const w = createStatsWatch({ shape: () => shape });
     w.update(stage, 0);
     emit(stage, { type: 'drop', bomb: { nuke: true } });
     expect(w.update(stage, 300)).toMatchObject({ mood: 66, silly: { label: 'Times nuked', n: 1 } });
     emit(stage, { type: 'drop', bomb: {} });
     const v = w.update(stage, 600)!;
     expect(v.mood).toBeLessThan(66);
-    emit(stage, { type: 'blast', bomb: 1, blast: { hit: [1, 2, 3] } });
+    emit(stage, { type: 'blast', bomb: 1, blast: { hit: [{ cell: 1 }, { cell: 2 }, { cell: 3 }, { cell: 4 }] } });
     // Walk the rotation to the buildings count.
     const seen = new Map<string, number>();
     for (let t = 900; t < 900 + 8 * 4000; t += 4000) {
@@ -53,7 +56,7 @@ describe('what the watch counts', () => {
       if (s) seen.set(s.label, s.n);
     }
     expect(seen.get('Bombs dropped')).toBe(1);
-    expect(seen.get('Buildings ruined')).toBe(3);
+    expect(seen.get('Buildings ruined')).toBe(2);
   });
 
   test('loaves and fish are counted from the board, and a new town counts from its own first delivery', () => {
@@ -141,5 +144,53 @@ describe('happiness follows the share of the town touched', () => {
   test("population counts every house, past the walkers' cap", () => {
     const shape = town(Array.from({ length: 80 }, (_, i) => [i, 2] as [number, number]));
     expect(createStatsWatch({ shape: () => shape }).update(asStage(), 0)!.population).toBe(160);
+  });
+});
+
+describe('the rest of what the watch follows', () => {
+  const lit = (stage: LifeStage, open: boolean) =>
+    (raidsOf(stage).board = { stage, now: 0, delivered: new Map(), chains: [{ id: 'market', open }], season: { festival: 0 } } as unknown as Board);
+
+  test('a town with no houses shows 0, not a dash', () => {
+    expect(createStatsWatch({ shape: () => town([]) }).update(asStage(), 0)!.population).toBe(0);
+  });
+
+  test('a raid hurts the mood and is counted once', () => {
+    const stage = asStage();
+    const w = createStatsWatch();
+    raidsOf(stage).count = 2;
+    expect(w.update(stage, 0)).toMatchObject({ mood: 62, silly: { label: 'Raids survived', n: 2 } });
+    expect(w.update(stage, 300)!.silly!.n).toBe(2);
+  });
+
+  test('a scuffle dents the mood and is counted once', () => {
+    const stage = asStage();
+    setCrowd(stage, { scuffles: { now: { n: 1 } } } as never);
+    const w = createStatsWatch();
+    expect(w.update(stage, 0)).toMatchObject({ mood: 69, silly: { label: 'Scuffles', n: 1 } });
+    expect(w.update(stage, 300)!.silly!.n).toBe(1);
+  });
+
+  test('a market opening lifts the mood, but a town that arrives with it open is not news', () => {
+    const stage = asStage();
+    const w = createStatsWatch();
+    lit(stage, true);
+    expect(w.update(stage, 0)!.mood).toBe(70);
+    lit(stage, false);
+    w.update(stage, 300);
+    const board = raidsOf(stage).board as unknown as { chains: { open: boolean }[] };
+    board.chains[0]!.open = true;
+    expect(w.update(stage, 600)!.mood).toBeGreaterThan(70);
+  });
+
+  test('a new town opens at rest, with what weighed on the last one forgotten', () => {
+    const stage = asStage();
+    const w = createStatsWatch();
+    lit(stage, false);
+    w.update(stage, 0);
+    emit(stage, { type: 'drop', bomb: { nuke: true } });
+    expect(w.update(stage, 300)!.mood).toBe(66);
+    lit(stage, false);
+    expect(w.update(stage, 600)!.mood).toBe(70);
   });
 });

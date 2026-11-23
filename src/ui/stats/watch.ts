@@ -53,6 +53,7 @@ export function createStatsWatch(opts: StatsWatchOptions = {}) {
   let goodsBoard: object | null = null;
   const gave = new Map<string, number>();
   let daysBoard: object | null = null;
+  let moodBoard: object | null = null;
   let marketOpen = false;
   let festival = false;
 
@@ -110,7 +111,7 @@ export function createStatsWatch(opts: StatsWatchOptions = {}) {
       mood.hit('mallet', ofCells([e.cell]));
     } else if (e.type === 'blast') {
       mood.hit('ruin', ofCells(e.blast.hit.map((h) => h.cell)));
-      tally.add('ruined', e.blast.hit.length);
+      tally.add('ruined', new Set(e.blast.hit.map((h) => opts.shape?.()?.structureAt.get(h.cell)).filter((id) => id !== undefined)).size);
     } else if (e.type === 'mend') {
       mood.hit('mend');
     }
@@ -123,7 +124,7 @@ export function createStatsWatch(opts: StatsWatchOptions = {}) {
 
   function people(): void {
     const total = counted().total;
-    population = total > 0 ? total : null;
+    population = opts.shape?.() ? total : null;
   }
 
   function scenes(stage: object): void {
@@ -192,6 +193,9 @@ export function createStatsWatch(opts: StatsWatchOptions = {}) {
   function days(stage: object): void {
     const board = raidsOf(stage).board;
     if (!board) return;
+    // A new town opens at rest, not on the last one's frown. (The silly counts are for the session and stay.)
+    if (moodBoard && board !== moodBoard) mood.reset();
+    moodBoard = board;
     const open = (board.chains.find((c) => c.id === 'market') as Chain | undefined)?.open === true;
     const lit = board.season.festival >= 0.5;
     // A town just arrived at is not "news": take its market and lights as they are.

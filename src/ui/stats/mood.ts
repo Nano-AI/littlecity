@@ -6,13 +6,14 @@ import {
   SILLY,
   type MoodCause,
   type SillyKey,
-} from "@/style/stats";
+} from '@/style/stats';
 
 export type { MoodCause, SillyKey };
 
 /** Mood from 0 to 100: things happen to it, and it drifts back to `rest`. */
-export function createMood(rest: number = MOOD.rest) {
-  let value = rest;
+export function createMood(fixedRest?: number) {
+  const rest = () => fixedRest ?? MOOD.rest; // read live, so the tuning panel works
+  let value = rest();
   let drag = 0;
   return {
     get value() {
@@ -25,8 +26,13 @@ export function createMood(rest: number = MOOD.rest) {
     drag(d: number) {
       drag = d;
     },
+    /** Back to rest with nothing weighing on it (a new town). */
+    reset() {
+      value = rest();
+      drag = 0;
+    },
     step(dt: number) {
-      const to = Math.min(100, Math.max(0, rest - drag));
+      const to = Math.min(100, Math.max(0, rest() - drag));
       if (dt > 0)
         value = to + (value - to) * Math.exp(-dt / MOOD.recoverySeconds);
     },

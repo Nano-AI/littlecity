@@ -403,7 +403,7 @@ function frame(now: number): void {
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
   if (ui) (note ??= sceneNote(ui)).update(view.stage);
-  // The strip along the top: how many live here, how happy they are, something silly.
+  // The strip at the top right: how many live here, how happy they are, something silly.
   if (ui) {
     const v = statsWatch.update(view.stage, performance.now());
     if (v) (statsStrip ??= createStatsStrip(ui.el)).show(v);

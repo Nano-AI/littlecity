@@ -1,7 +1,6 @@
 /* The stats strip (src/ui/stats/strip.ts): top right, under the clock and weather group (.lc-corner-right), right-aligned with it. */
 .lc-stats {
   position: fixed;
-  z-index: 5;
   top: calc(60px + env(safe-area-inset-top));
   right: calc(10px + env(safe-area-inset-right));
   left: auto;
@@ -23,8 +22,19 @@
 .lc-stat[hidden] {
   display: none;
 }
+.lc-stat-silly {
+  order: -1; /* the variable-width chip goes first, so the steady ones stay put against the right edge */
+}
 .lc-stat-out {
   opacity: 0;
+}
+.lc-stat-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .lc-stat-glyph {
   display: inline-flex;
@@ -49,9 +59,6 @@
 @media (pointer: coarse), (max-width: 640px) {
   .lc-stats {
     top: calc(64px + env(safe-area-inset-top));
-    right: 10px;
-    left: auto;
-    transform: none;
   }
   .lc-stat-silly {
     display: none;

@@ -64,7 +64,7 @@ export function deliverStep(board: Board, to: Outlet, load: Load, item: Load, n:
     tag,
     done: (q: Person) => {
       let k = 0;
-      for (let i = 0; i < n; i++) if (board.put(to.store, item)) k++;
+      for (let i = 0; i < n; i++) if (board.put(to.store, item, true)) k++;
       if (k === 0) return false;
       q.load = null;
     },

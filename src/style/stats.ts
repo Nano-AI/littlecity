@@ -1,36 +1,35 @@
 // The stats strip: how the town's mood moves, and what the silly counts are called.
 
-import { defineStyle } from "@/core/style";
+import { defineStyle } from '@/core/style';
 
 export type MoodCause =
-  | "scene"
-  | "market"
-  | "festival"
-  | "mend"
-  | "bomb"
-  | "nuke"
-  | "lightning"
-  | "mallet"
-  | "ruin"
-  | "scuffle"
-  | "raid"
-  | "sunk";
+  | 'scene'
+  | 'market'
+  | 'festival'
+  | 'mend'
+  | 'bomb'
+  | 'nuke'
+  | 'lightning'
+  | 'mallet'
+  | 'ruin'
+  | 'scuffle'
+  | 'raid';
 
 export type SillyKey =
-  | "loaves"
-  | "fish"
-  | "weddings"
-  | "nukes"
-  | "bombs"
-  | "lightning"
-  | "fires"
-  | "ruined"
-  | "scuffles"
-  | "raids"
-  | "burning";
+  | 'loaves'
+  | 'fish'
+  | 'weddings'
+  | 'nukes'
+  | 'bombs'
+  | 'lightning'
+  | 'fires'
+  | 'ruined'
+  | 'scuffles'
+  | 'raids'
+  | 'burning';
 
 export const MOOD = defineStyle(
-  "stats-mood",
+  'stats-mood',
   {
     /** Where the mood settles when left alone (0 to 100), and the seconds it takes to close 63% of the gap. */
     rest: 70,
@@ -57,20 +56,19 @@ export const MOOD_WEIGHTS: Record<MoodCause, number> = {
   ruin: -60,
   scuffle: -1,
   raid: -8,
-  sunk: -2,
 };
 
 /** The silly counts and their labels. The order here is the order they rotate in. */
 export const SILLY: Record<SillyKey, string> = {
-  loaves: "Loaves delivered",
-  fish: "Fish landed",
-  weddings: "Weddings",
-  nukes: "Times nuked",
-  bombs: "Bombs dropped",
-  lightning: "Lightning strikes",
-  fires: "Fires started",
-  ruined: "Buildings ruined",
-  scuffles: "Scuffles",
-  raids: "Raids survived",
-  burning: "On fire right now",
+  loaves: 'Loaves delivered',
+  fish: 'Fish landed',
+  weddings: 'Weddings',
+  nukes: 'Times nuked',
+  bombs: 'Bombs dropped',
+  lightning: 'Lightning strikes',
+  fires: 'Fires started',
+  ruined: 'Buildings ruined',
+  scuffles: 'Scuffles',
+  raids: 'Raids survived',
+  burning: 'On fire right now',
 };
