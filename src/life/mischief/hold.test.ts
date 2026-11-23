@@ -61,7 +61,9 @@ describe('holding the mischief edits', () => {
     for (let i = 0; i < 300; i++) held.frame(false);
     expect(held.edits()).toBeGreaterThan(0);
     const alt = run((i) => i % 2 === 0);
-    expect(alt.game.world.blocks.size).toBe(plain.game.world.blocks.size);
+    const blocks = (t: ReturnType<typeof town>) => [...t.game.world.blocks].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    expect(blocks(held)).toEqual(blocks(plain));
+    expect(blocks(alt)).toEqual(blocks(plain));
   });
 });
 

@@ -59,8 +59,7 @@ describe('the same ruin, the same break', () => {
     const { shape, s } = damaged('house', packRuin({ stage: 3, cause: 'blast' }));
     const a = allGenerators().build(s, shape, allParts()).mesh;
     const b = damageOutput((allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry }).intact.build(s, shape, allParts()), s, shape).mesh;
-    expect(Array.from(a.position)).toEqual(Array.from(b.position));
-    expect(Array.from(a.color)).toEqual(Array.from(b.color));
+    for (const k of Object.keys(a) as (keyof typeof a)[]) expect(Array.from(a[k] as ArrayLike<number>), String(k)).toEqual(Array.from(b[k] as ArrayLike<number>));
   });
 
   test('the flying chunks come to rest exactly where the heap is baked', () => {

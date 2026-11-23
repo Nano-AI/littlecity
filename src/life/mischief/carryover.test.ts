@@ -178,12 +178,18 @@ describe('the town mends in bounded batches', () => {
   function mend(houses: number, w = 1, big = false) {
     const terrain = flatTerrain(3);
     const b = new TownBuilder(emptyWorld(3), terrain);
+    const owner = new Map<number, number>();
+    const mark = (n: number) => { for (const c of b.world.blocks.keys()) if (!owner.has(c)) owner.set(c, n); };
+    for (let i = 0; i < houses; i++) { b.house(8 + (i % 6) * 5, 8 + Math.floor(i / 6) * 5, { floors: 2, w, d: w, color: i % 6 }); mark(i); }
+    // The big one goes up last, so it has the highest id and only a skipped turn lets it lead.
+    const small = new Set(b.world.blocks.keys());
     if (big) b.house(8, 40, { floors: 2, w: 2, d: 2, color: 0 });
-    const bigCells = new Set(b.world.blocks.keys());
-    for (let i = 0; i < houses; i++) b.house(8 + (i % 6) * 5, 8 + Math.floor(i / 6) * 5, { floors: 2, w, d: w, color: i % 6 });
+    mark(houses);
+    const bigCells = new Set([...b.world.blocks.keys()].filter((c) => !small.has(c)));
     const d = new Director(5);
     const game = createGame({ world: b.world, terrain }, { show: (shape) => d.sync(shape) });
     const batches: number[] = [];
+    const served: number[][] = [];
     d.connect({
       begin: () => game.begin(),
       apply: (edits) => void game.editAll(edits),
@@ -192,6 +198,7 @@ describe('the town mends in bounded batches', () => {
       edit: (edits) => void game.editAll(edits),
       amend: (edits) => {
         batches.push(edits.length);
+        served.push([...new Set(edits.flatMap((e) => ('cell' in e ? [owner.get(e.cell)!] : [])))]);
         void game.amend(edits);
       },
     });
@@ -201,8 +208,9 @@ describe('the town mends in bounded batches', () => {
     for (let t = 0; t < 600 * 30; t++) {
       d.update(1 / 30, ENV);
       if (bigFirst < 0 && [...bigCells].some((c) => game.world.blocks.get(c)?.ruin !== ruin)) bigFirst = t / 30;
+      if (![...game.world.blocks.values()].some((x) => x.ruin)) break;
     }
-    return { bigFirst, batches, ruins: [...game.world.blocks.values()].filter((x) => x.ruin).length, cells: game.world.blocks.size };
+    return { bigFirst, batches, served, ruins: [...game.world.blocks.values()].filter((x) => x.ruin).length, cells: game.world.blocks.size };
   }
 
   test('a big aftermath mends in batches no bigger than MEND.cellsPerTick, and every building is mended', () => {
@@ -232,14 +240,22 @@ describe('the town mends in bounded batches', () => {
 
   test('a building bigger than the cap is not passed over by smaller ones when many are due', () => {
     const was = MEND.cellsPerTick;
+    const step = MEND.step;
     MEND.cellsPerTick = 6;
     try {
+      // A step due every tick for every building, so each tick is a turn of the round and a skipped building shows.
+      MEND.step = 0.5;
       const r = mend(8, 1, true);
       // Everything is due by quiet + stagger; the big one leads within one lap of the due buildings (0.5 s a tick).
       expect(r.bigFirst).toBeLessThanOrEqual(MEND.quiet + MEND.stagger + 9 * 0.5);
       expect(r.ruins).toBe(0);
+      // Strictly in turn: the tick after one that reached the big house's turn and passed it over leads with the big house (8).
+      const asked = r.served.flatMap((tick, i) => (tick.includes(7) && !tick.includes(8) && i + 1 < r.served.length ? [i] : []));
+      expect(asked.length).toBeGreaterThan(3);
+      for (const i of asked) expect(r.served[i + 1]).toContain(8);
     } finally {
       MEND.cellsPerTick = was;
+      MEND.step = step;
     }
   });
 });
