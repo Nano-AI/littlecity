@@ -1397,6 +1397,15 @@ town is meant to show off every building combination the rules know.
   hand stays in My towns as its own entry (a grown town grown over again
   does not); on the new-island kind screen the same line as for New island
   ("stays in My towns") stands under the question.
+- **The first visit** (Derek, 2026-11-22: "when a new user joins the game it
+  should just automatically start building… so they can be impressed
+  immediately"). The very first time the game is opened in a browser, on
+  an empty island, a town grows by itself about a second after the island
+  appears: the island's own roll, as Surprise me. A small closable note
+  beside the menu button says so and offers "Empty island instead" (the
+  growth undone). Never twice, never over anything built, a saved town, a
+  shared link or a scenario; a player who places something in that first
+  second is left alone (`src/ui/welcome.ts`).
 - **A greyed kind says why** (Derek, 2026-11-20: "if you hover over it it
   should be like, this island has no river"). A kind this island cannot
   grow is greyed but not dead: hovering shows the reason as its title, and

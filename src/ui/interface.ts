@@ -1279,8 +1279,24 @@ export function createInterface(host: InterfaceHost): Interface {
   });
   showStepper();
 
-  // First visit to an empty island: point at Grow a town (see welcome.ts).
-  const welcome = maybeWelcome(root, { hasTown: () => !onlyStartingTrees(game.world, game.terrain), growTown: () => grow() });
+  // The very first visit, on an empty island: a town grows by itself (see welcome.ts). Not on a shared link,
+  // a scenario or ?mischief (which grows its own).
+  const firstVisit = ((): boolean => {
+    const q = new URLSearchParams(location.search);
+    return !q.has('scenario') && !q.has('mischief') && !location.hash.startsWith('#t=');
+  })();
+  const welcome = firstVisit
+    ? maybeWelcome(root, {
+        hasTown: () => !onlyStartingTrees(game.world, game.terrain),
+        growTown: () => grow(),
+        growing: () => growth.active,
+        emptyIsland() {
+          // The whole growth is one undo step: finish it, then take it back.
+          growth.skip();
+          game.undo();
+        },
+      })
+    : { townChanged() {}, dispose() {} };
 
   // ?mischief: straight to a grown town with the Mischief drawer open, to try it.
   const openMischief = (): void => {
