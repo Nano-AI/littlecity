@@ -1843,3 +1843,28 @@ screen's lowest level is still a pixel ratio of 1.5; the first click
 makes four audio contexts (about 350 ms in the test browser); a hover
 with a piece resolves the whole town for each new cell.
 Running: nothing of mine.
+
+**Turning the camera: judder a governor could not see, merged**
+(`c51d4e9`, Fable; Derek: "pretty strong jitter" rotating, on a
+2560 × 1440 screen at 1x). A 1x screen was drawn at twice its size each
+way: 14.7 million pixels a frame there, 11 to 15 ms of drawing on this
+M5 with the graphics card to itself and over a refresh with anything
+else on it. The quality governor judged "two frames on time, one a
+refresh late" as fine (median 16.7 ms, nothing over 34 ms). Now: a
+frame well over the usual one (1.6 × the median) is long and one in ten
+is slow; a level it came back up to and that proves slow again waits
+longer each time; frames after an edit are left out. A new 1x level,
+super-sampling 1.5 (levels 2, 1.5, 1, 1 with half ink), and a
+super-sampled view over 10 million pixels starts there (`startLevel`);
+the governor tries 2 when frames have been fast for a while. Gate:
+2,360 passed, 3 timed out with the machine at a load of 21 (another
+session's trailer capture): `kinds.test.ts`, `raid.test.ts`, the My
+towns test of `grow-town.e2e`; all three pass alone. Not the cause
+(measured): the session recorder, a change of level, the script.
+**For whoever runs browsers on this Mac:** headless Chromium here uses
+the real graphics card, so captures, benches and e2e runs slow the game
+in Derek's own browser while they run; `tools/perf.mjs` with the cap
+off is the worst for it. Still open: the first press of a session
+makes four audio contexts in one go (180 ms to 2 s in the test browser
+under load): one shared context would do.
+Running: nothing of mine.
