@@ -884,7 +884,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return moved;
   };
 
-  const syncShape = (next: ShapePlan, spread = false): void => {
+  const syncShape = (next: ShapePlan, spread: boolean | 'waiting' = false): void => {
     const reg = registriesFor(next);
     if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts) {
       // Other generators draw this town: nothing cached applies.
@@ -911,13 +911,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
       // Only what stayed put may wait: a building the land carried down must not float over the crater.
-      if (spread && old && sameKeys(old.cells, s.cells) && sameKeys(old.edges, s.edges)) changed.set(s.id, s);
+      // The player's own edit ('waiting') leaves waiting only what was already.
+      const may = spread === true || (spread === 'waiting' && pending.has(s.id));
+      if (may && old && sameKeys(old.cells, s.cells) && sameKeys(old.edges, s.edges)) changed.set(s.id, s);
       else buildStructure(s, next);
     }
     // Spread (mischief): oldest first, and what does not fit in the budget keeps its old drawing;
     // render() gets to it.
     const queue = oldestFirst(pending, [...changed.keys()]);
-    pending = new Set(buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS));
+    pending = new Set(spread === true ? buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS) : queue);
     for (const layer of generators.layers()) {
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;

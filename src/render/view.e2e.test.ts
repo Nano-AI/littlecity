@@ -43,6 +43,7 @@ const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum
 const BURNT = packRuin({ stage: 3, cause: 'fire' });
 const CRACKED = packRuin({ stage: 1, cause: 'blast' });
 type Crater = { pending: number; moved: number; stayed: number };
+type Placed = { pending: number; built: number; changed: number; touched: number };
 /** Draws frames until no rebuild is waiting; returns how many it took. */
 const drain = `(() => { let n = 0; while (window.__look.pending() > 0 && n < 1000) { window.__look.frameOnly(); n++; } return n; })()`;
 
@@ -273,6 +274,23 @@ describe('the view', () => {
     await look(`window.__look.props(true)`);
     await look(`window.__look.actors(true)`);
     expect(spread.thumb).toEqual((await shaded()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("the player's own edit draws what it changed now and leaves mischief's waiting rebuilds waiting", async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    const waiting = await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`);
+    expect(waiting).toBeGreaterThan(0);
+    const edit = await look<Placed>(`window.__look.place(20, ${BURNT}, 'waiting')`);
+    // The block's building is drawn in its frame, and nothing more than the block changed.
+    expect(edit.built).toBeGreaterThan(0);
+    expect(edit.built).toBeLessThanOrEqual(edit.changed);
+    expect(edit.pending).toBeGreaterThanOrEqual(waiting - edit.touched);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Placed>(`window.__look.place(20, ${BURNT}, false)`)).pending).toBe(0);
+    expect(spread.thumb).toEqual((await settled()).thumb);
     expect(errors).toEqual([]);
   });
 

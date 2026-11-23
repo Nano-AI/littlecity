@@ -100,9 +100,10 @@ export interface TownView {
    * Added for mischief: with `spread`, changed structures already drawn are rebuilt a few a frame
    * (within REBUILD_BUDGET_MS, in frames that run no setTown or setDressing) and keep their old
    * drawing until then. New and removed structures and the layers still change at once. Without
-   * it, anything still waiting is rebuilt now.
+   * it, anything still waiting is rebuilt now. `'waiting'` (the player's own edit) builds everything
+   * it changed now but leaves what was already waiting, and kept its cells and edges, waiting.
    */
-  setTown(shape: ShapePlan, dressing: DressingPlan | null, opts?: { spread?: boolean }): void;
+  setTown(shape: ShapePlan, dressing: DressingPlan | null, opts?: { spread?: boolean | 'waiting' }): void;
   /** Delivers the dressing for the shape last passed to setTown. */
   setDressing(dressing: DressingPlan): void;
   setGhost(ghost: Ghost | null): void;

@@ -145,7 +145,9 @@ const game = createGame(tiered(start), {
   // CONTRACTS section 12: setTown before life.sync, so the instances exist.
   show(shape: ShapePlan, landed: Edit | null) {
     busyFrames = BUSY_FRAMES;
-    view.setTown(shape, null, { spread: fromMischief });
+    // Mischief's edits are spread over frames. The player's own (a click, a growth piece) draws what it
+    // changed and leaves mischief's waiting rebuilds waiting. Undo, redo, abort and a new town draw all now.
+    view.setTown(shape, null, { spread: fromMischief || (landed !== null ? 'waiting' : false) });
     life.sync({ shape, dressing: null });
     townShown(shape, landed !== null);
     if (landed?.type === 'placeBlock') signals.emit('blockLanded', landed.cell);

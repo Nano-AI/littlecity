@@ -7,7 +7,7 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
-import { columnIndex, keyX, keyZ } from '@/core/grid';
+import { columnIndex, key, keyX, keyZ } from '@/core/grid';
 import { translation } from '@/core/mat4';
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import { MeshBuilder } from '@/gen/mesh';
@@ -226,6 +226,37 @@ const api = {
       else moved++;
     }
     return { pending, moved, stayed };
+  },
+  /**
+   * The player's own edit in a burning town: as ruinHouses, and a house block placed on a free column
+   * at least three cells from those houses, in one setTown with `spread`. Returns ViewStats.pending,
+   * what the setTown built (ViewStats.rebuild.structures), `changed` (structures the block made or
+   * changed) and `touched` (structures it took cells or edges from).
+   */
+  place(n: number, ruin: number, spread: boolean | 'waiting'): { pending: number; built: number; changed: number; touched: number } {
+    const t = shape!.terrain;
+    const ruined = damaged(n, ruin, 0);
+    const near = [...shape!.structures.values()].filter((s) => s.kind === 'house').slice(0, n).flatMap((s) => s.cells);
+    let world: World | null = null;
+    for (let i = 0; !world && i < 400; i++) {
+      const x = 5 + ((i * 7) % 38), z = 5 + ((i * 11) % 38);
+      if (near.some((c) => Math.abs(keyX(c) - x) < 3 && Math.abs(keyZ(c) - z) < 3)) continue;
+      let y = t.height[columnIndex(x, z)]!;
+      while (ruined.blocks.has(key(x, y, z))) y++;
+      const edit: Edit = { type: 'placeBlock', cell: key(x, y, z), kind: 'house', color: 'auto', from: ruined.blocks.has(key(x, y - 1, z)) ? key(x, y - 1, z) : null };
+      if (y >= 1 && canApply(ruined, t, edit).ok) world = applyEdit(ruined, t, edit);
+    }
+    const before = resolveShape(ruined, t, options ?? {});
+    const next = resolveShape(world!, t, options ?? {});
+    view!.setTown(next, null, { spread });
+    const stats = view!.stats();
+    let changed = 0, touched = 0;
+    for (const s of next.structures.values()) if (before.structures.get(s.id)?.hash !== s.hash) changed++;
+    for (const s of before.structures.values()) {
+      const now = next.structures.get(s.id);
+      if (!now || !sameKeys(now.cells, s.cells) || !sameKeys(now.edges, s.edges)) touched++;
+    }
+    return { pending: stats.pending, built: stats.rebuild!.structures, changed, touched };
   },
   /**
    * Life's part: hides every prop and actor, as a behaviour may hide its own (the view must leave that
