@@ -1823,3 +1823,23 @@ picking a person up a second time (the person had walked on between
 reading their place and the press); passes alone four times running;
 a flaky test to fix, not this merge.
 Running: nothing of mine.
+
+**Memory: old plans are let go of, merged** (`148dc08`, Fable; Derek:
+"performance of the site is decreasing"). The page kept every edit's
+whole plan for good: about 1.3 MB a block placed (a seeded first visit,
+374 blocks after 40 s: 777 MB held, now 138 MB). Three holders: a
+behaviour's `rand` made inside the life runtime's sync, an item's
+handle made inside the view's syncDressing, and a frightened sparrow's
+town. Tests: a unit test in `src/life/runtime.test.ts` and
+`tests/e2e/memory.e2e.test.ts`. New tools: `tools/perf.mjs` (the real
+game page: frame times, the worst frames and what ran in them, memory
+held, draw passes; `--vsync` when looking for stutter) and
+`tools/heap-paths.mjs` (what holds old plans). Gate: 2,355 passed, 0
+failed. Still slow, not done here, biggest first: each block placed is
+a 45 to 67 ms frame in a 440-block town (a whole 16 × 16 terrain chunk
+rebuilt when a block lands by a step in the ground; the sea and boat
+rules in the dressing); at rest the graphics card is the limit and a 2×
+screen's lowest level is still a pixel ratio of 1.5; the first click
+makes four audio contexts (about 350 ms in the test browser); a hover
+with a piece resolves the whole town for each new cell.
+Running: nothing of mine.
