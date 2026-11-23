@@ -318,11 +318,12 @@ ${sections}
 export function entryPage(e: GuideEntry): SitePage {
   const group = groupTitle(e.group);
   const others = ENTRIES.filter((x) => x.group === e.group && x.id !== e.id);
-  const event = e.group === 'events';
+  // A happening (the guide's event groups) carries a `when`.
+  const event = e.when !== undefined;
   const heading = `${e.name} in ${NAME}`;
   const howTo = event ? 'how to make it happen' : 'how to build it';
   const intro = event
-    ? `${e.name} is one of the days a town earns in ${NAME}, ${TAGLINE}. Nobody schedules it: build the right places and the town holds it by itself.`
+    ? `${e.name} is one of the things a town does by itself in ${NAME}, ${TAGLINE}. Nobody schedules it: build the right places and it happens on its own.`
     : `In ${NAME} you never choose a building from a menu. Put the blocks down like this and the town does the rest.`;
   const body = `
 <p class="crumbs"><a href="/">${NAME}</a> › <a href="/guide/">Guide</a> › <a href="/guide/#${e.group}">${esc(group)}</a></p>

@@ -14,6 +14,9 @@ import type { LifeRuntime } from '@/life/api';
 import { createLife } from '@/life/runtime';
 import { createSignals, type TownSignals } from '@/life/signals';
 import { applyCalendar } from '@/life/season';
+import { raidsOf } from '@/life/raid/raids';
+import { mischiefOf } from '@/life/mischief/director';
+import { key } from '@/core/grid';
 import type { CameraPose, TownView } from '@/render/api';
 import { frameOf, panPose, project, zoomPose } from '@/render/camera';
 import { createTownView } from '@/render/index';
@@ -172,7 +175,18 @@ const api = {
     view.setCamera(fitted.pose);
 
     const steps = Math.round((opts.settle ?? entry.life?.settle ?? 2) * 30);
-    for (let i = 0; i < steps; i++) life.update(signals.advance(1 / 30));
+    // A happening the player sets off (a raid, a fire) or that comes by chance (a scuffle): started on cue.
+    const cue = entry.life?.start;
+    const cueAt = Math.round((cue?.at ?? 0) * 30);
+    for (let i = 0; i < steps; i++) {
+      if (cue && i === cueAt) {
+        const [x, y, z] = cue.where ?? [0, 0, 0];
+        if (cue.what === 'raid') raidsOf(view.stage).summon({ at: { x, z } });
+        else if (cue.what === 'fire') mischiefOf(view.stage).ignite(key(Math.floor(x), y, Math.floor(z)));
+        else if (cue.what === 'scuffle') (globalThis as { __lcTown?: { crowd: { scuffles: { provoke(): unknown } } } }).__lcTown?.crowd.scuffles.provoke();
+      }
+      life.update(signals.advance(1 / 30));
+    }
     for (let i = 0; i < 6; i++) {
       view.render(signals);
       await nextFrame();

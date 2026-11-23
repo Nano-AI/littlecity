@@ -101,7 +101,7 @@ describe('the pictures', () => {
     }
     // Pictures load lazily as the guide scrolls, so the whole set's size is not paid on opening the
     // game. The cap was 1.5 MB at 47 entries; raised as the discovery rounds added buildings.
-    expect(total).toBeLessThan(3_000_000);
+    expect(total).toBeLessThan(4_000_000);
   });
 
   test('no picture is left over from an entry that is gone', () => {

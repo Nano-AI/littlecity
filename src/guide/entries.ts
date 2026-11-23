@@ -15,6 +15,28 @@
 import type { Kind } from '@/core/kinds';
 import type { ActorType, PropType, Role } from '@/core/vocab';
 import { scenario, type Scenario, type TerrainBuilder, type TownBuilder } from '@/scenario';
+import beachScn from '../../scenarios/life/L63.beach.scenario';
+import supperScn from '../../scenarios/life/L65.supper.scenario';
+import carolScn from '../../scenarios/life/L67.carols.scenario';
+import harvestScn from '../../scenarios/life/L59.harvest.scenario';
+import tradeScn from '../../scenarios/life/L58.trade.scenario';
+import fishScn from '../../scenarios/life/L53.fish.scenario';
+import breadScn from '../../scenarios/life/L51.bread.scenario';
+import waterScn from '../../scenarios/life/L52.water.scenario';
+import laundryScn from '../../scenarios/life/L60.laundry.scenario';
+import schoolScn from '../../scenarios/life/L62.school.scenario';
+import bandScn from '../../scenarios/life/L62.bandstand.scenario';
+import dogsScn from '../../scenarios/life/L61.dogs.scenario';
+import scuffleScn from '../../scenarios/life/L50.scuffle.scenario';
+import watchScn from '../../scenarios/life/L55.watchman.scenario';
+import harbourScn from '../../scenarios/life/ships-harbour.scenario';
+import jobsScn from '../../scenarios/rules/L23.jobs.scenario';
+import smithyScn from '../../scenarios/rules/R-H19.smithy.scenario';
+import courtScn from '../../scenarios/field/field-basketball.scenario';
+
+/** A happening's picture town: one of the living town's own fixtures (scenarios/life), as its tests run it. */
+const town = (s: Scenario): { seed: number; ground?: (t: TerrainBuilder) => void; build(b: TownBuilder): void } => ({ seed: s.seed + 7000, ...(typeof s.terrain === 'function' ? { ground: s.terrain } : {}), build: s.build });
+
 
 /** Seconds of life before the wedding's picture is taken: the couple on the doorstep in a shower of petals, the guard of honour either side, the doves going up (timed in a test run of its recipe). */
 const WEDDING_GUIDE_AT = 96;
@@ -27,7 +49,7 @@ const SNOW_GUIDE_AT = 105;
 /** Seconds of life before the supper's picture: tables up, lanterns lit, everybody at table. */
 const SUPPER_GUIDE_AT = 85;
 
-export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'events';
+export type GuideGroup = 'auto' | 'houses' | 'towers' | 'stone' | 'bridges' | 'waterfront' | 'green' | 'town' | 'play' | 'big-days' | 'seasons' | 'by-water' | 'every-day' | 'evening' | 'after-mischief';
 
 export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'auto', title: 'The Auto block' },
@@ -39,7 +61,12 @@ export const GROUPS: readonly { id: GuideGroup; title: string }[] = [
   { id: 'green', title: 'Green' },
   { id: 'town', title: 'Town' },
   { id: 'play', title: 'Playing fields' },
-  { id: 'events', title: 'Days the town earns' },
+  { id: 'big-days', title: 'Big days' },
+  { id: 'seasons', title: 'Through the seasons' },
+  { id: 'by-water', title: 'By the water' },
+  { id: 'every-day', title: 'Every day' },
+  { id: 'evening', title: 'Evening and night' },
+  { id: 'after-mischief', title: 'After mischief' },
 ];
 
 /** What shows the rules really made the building. */
@@ -67,6 +94,8 @@ export interface GuideEntry {
   name: string;
   /** How to get it, in one plain sentence (two at most). */
   how: string;
+  /** For something that happens by itself: when, in a few words ("Summer, fair weather, by day"; "At dusk"). Shown over `how`. */
+  when?: string;
   proof: Proof;
   /** Seed of the recipe town. */
   seed: number;
@@ -94,7 +123,9 @@ export interface GuideEntry {
     /** The season, weather and time of day held for the picture (default summer, a clear sky, day): the scenes of one season (L64, L65). */
     season?: string;
     weather?: string;
-    time?: 'day' | 'dusk';
+    time?: 'day' | 'dusk' | 'night';
+    /** Something set off for the picture `at` seconds in: a raid summoned off `where` (x, _, z), a fire lit in the block at `where` (x, level, z), a scuffle provoked. */
+    start?: { what: 'raid' | 'fire' | 'scuffle'; at?: number; where?: readonly [number, number, number] };
   };
   /** Frame only these columns (inclusive), `top` levels high, instead of the whole recipe. */
   frame?: readonly [x0: number, z0: number, x1: number, z1: number, top: number];
@@ -138,7 +169,7 @@ function keepGateAndPlaza(b: TownBuilder): void {
   b.path(23, 22, 23, 23).plaza(22, 24, 24, 25);
 }
 
-export const ENTRIES: readonly GuideEntry[] = [
+const LISTED: readonly GuideEntry[] = [
   // ── the Auto block ────────────────────────────────────────────────────
   {
     id: 'auto',
@@ -1302,7 +1333,8 @@ export const ENTRIES: readonly GuideEntry[] = [
   // ── days the town earns (L56, L57, L63) ────────────────────────────────────
   {
     id: 'market-day',
-    group: 'events',
+    group: 'big-days',
+    when: 'Market days, from dawn to early afternoon',
     name: 'Market day',
     how: 'Lay a plaza at least three by three with two stalls on it, and houses round it. On market mornings traders set up stalls there, a busker juggles and the town comes to buy.',
     proof: { socket: { rule: 'L56.market-day' } },
@@ -1321,7 +1353,8 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   {
     id: 'wedding',
-    group: 'events',
+    group: 'big-days',
+    when: 'By day, every five to seven minutes',
     name: 'A wedding',
     how: 'Put a chapel (a house beside a tower) with its door on a path that runs to a plaza no more than 20 steps away, and houses round about. Every few minutes by day the bells ring for a wedding: the party, dressed in black and white, lines the way from the door, and the couple lead a procession through the streets to the plaza in a shower of petals.',
     proof: { socket: { rule: 'L57.wedding' } },
@@ -1345,9 +1378,10 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   {
     id: 'beach-day',
-    group: 'events',
+    group: 'seasons',
+    when: 'Summer, fair weather, by day',
     name: 'A beach day',
-    how: 'Build a town of eight houses or more near sand by the sea (sand is the strip where flat land meets the water). On fair summer days families walk down with parasols, deckchairs and pails, set up along the shore, paddle, swim and build sandcastles, then pack up and go home; rain sends them running.',
+    how: 'Build a town of eight houses or more within 40 steps of sand by the sea (the strip where flat land meets the water). Families carry parasols, deckchairs and pails down to it, swim, paddle and build sandcastles, an ice-cream cart comes with a queue, and rain sends them running home.',
     proof: { socket: { rule: 'L63.beach' } },
     seed: 7803,
     ground: seaSouth,
@@ -1365,7 +1399,8 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   {
     id: 'picnic',
-    group: 'events',
+    group: 'seasons',
+    when: 'Spring (summer too, with no beach), fair weather, by day',
     name: 'Picnics',
     how: 'Leave open grass with a few trees beside your houses. On fair spring days (and in summer, if the town has no beach) families carry out checked blankets and baskets, spread them on the grass and sit round them while the children chase about.',
     proof: { socket: { rule: 'L66.picnic' } },
@@ -1383,7 +1418,8 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   {
     id: 'snow-day',
-    group: 'events',
+    group: 'seasons',
+    when: 'When snow lies deep, by day',
     name: 'A snow day',
     how: 'Lay a plaza with houses round it. When snow lies deep, the children come running out, roll a snowman in the middle of the square, give it a hat and a scarf, then build snow forts either side and have a snowball fight.',
     proof: { socket: { rule: 'L64.snow-day' } },
@@ -1402,7 +1438,8 @@ export const ENTRIES: readonly GuideEntry[] = [
   },
   {
     id: 'harvest-supper',
-    group: 'events',
+    group: 'seasons',
+    when: 'Autumn, from late afternoon into dusk',
     name: 'A harvest supper',
     how: 'Lay a plaza at least three by three with houses round it. In autumn, late in the day, the neighbours set a long table down the middle of the square under a string of lanterns and sit down to supper together.',
     proof: { socket: { rule: 'L65.supper' } },
@@ -1419,7 +1456,257 @@ export const ENTRIES: readonly GuideEntry[] = [
     life: { settle: SUPPER_GUIDE_AT, residents: true, season: 'autumn', weather: 'clear', time: 'dusk' },
     frame: [17, 18, 23, 21, 1],
   },
+
+  // ── happenings: everything the town does by itself (L23–L72) ──────────
+  {
+    id: 'raid',
+    group: 'big-days',
+    name: 'A raid',
+    when: 'After 8 minutes of play, then every 12 to 20; or the Raid tool',
+    how: 'A town of 14 buildings or more with a shore a ship can reach is raided now and then by day: a longship runs up the beach (rowing boats where there is none), the band loots and sets fires, and the townsfolk fight back with brooms. Sink the ship with a bomb or lightning before it lands and they never come ashore; the Raiders switch in the menu stops them coming.',
+    proof: { socket: { rule: 'L27.displaced' } },
+    ...town(beachScn),
+    view: { yaw: 20, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 60, residents: true, start: { what: 'raid', at: 1, where: [21, 0, 27] } },
+    frame: [16, 17, 25, 22, 2],
+  },
+  {
+    id: 'festival',
+    group: 'big-days',
+    name: 'The midwinter festival',
+    when: 'The last third of winter, lit from dusk',
+    how: 'Every town dresses up for the festival: strings of lights along the streets and round the squares, wreaths on the doors and a tree on the main square. It goes up house by house and lights up at dusk.',
+    proof: { prop: { rule: 'D35.festival-lights' } },
+    ...town(supperScn),
+    view: { yaw: 25, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 20, residents: true, season: 'festival', weather: 'clear', time: 'dusk' },
+    frame: [16, 15, 26, 24, 2],
+  },
+  {
+    id: 'carols',
+    group: 'seasons',
+    name: 'Carol singers',
+    when: 'Winter or the festival, at dusk',
+    how: 'Build six houses or more round the middle of town. At dusk a band of singers with lanterns goes from door to door singing, and whoever is at home comes out onto the step to listen.',
+    proof: { socket: { rule: 'L67.carols' } },
+    ...town(carolScn),
+    view: { yaw: 25, pitch: 42 },
+    pad: 0.2,
+    life: { settle: 45, residents: true, season: 'winter', weather: 'clear', time: 'dusk' },
+    frame: [16, 16, 24, 21, 2],
+  },
+  {
+    id: 'harvest',
+    group: 'seasons',
+    name: 'The harvest',
+    when: 'Late summer and autumn, by day, when it is dry',
+    how: 'Grow a wheat field with a windmill that can be walked to. Farmhands mow it with scythes a square at a time, stooks stand on the stubble and the sheaves are carried to the mill for flour.',
+    proof: { socket: { rule: 'L59.harvest' } },
+    ...town(harvestScn),
+    view: { yaw: 40, pitch: 36 },
+    pad: 0.2,
+    life: { settle: 40, residents: true, season: 'autumn', weather: 'clear' },
+    frame: [19, 15, 25, 20, 3],
+  },
+  {
+    id: 'unloading',
+    group: 'by-water',
+    name: 'Ships unloading',
+    when: 'Whenever a ship is in, by day',
+    how: 'Build a quay with shops, an inn or stalls within 24 steps of it. Ships come in and land crates, barrels and sacks, and carters wheel the goods up to the shops by handcart.',
+    proof: { socket: { rule: 'L58.trade' } },
+    ...town(tradeScn),
+    view: { yaw: 40, pitch: 32 },
+    pad: 0.2,
+    life: { settle: 80, residents: true },
+    frame: [19, 22, 27, 28, 2],
+  },
+  {
+    id: 'waving-ships-in',
+    group: 'by-water',
+    name: 'Waving a ship in',
+    when: 'When a big ship comes in, by day',
+    how: 'Build a pier or a quay where ships call. When a big ship comes in, the children run to the end of the pier nearest it and wave, jump and cheer it in to its berth.',
+    proof: { socket: { rule: 'L27.displaced' } },
+    ...town(harbourScn),
+    view: { yaw: 40, pitch: 34 },
+    pad: 0.2,
+    life: { settle: 30, residents: true },
+  },
+  {
+    id: 'the-catch',
+    group: 'by-water',
+    name: 'The catch comes in',
+    when: 'Dawn and by day',
+    how: 'Put a pier with a fish stall or a fish shop within 20 steps of it. The fisher fishes off its end and carries a basket of the catch up to the stall, and people come down to buy a fish.',
+    proof: { socket: { rule: 'L53.fish' } },
+    ...town(fishScn),
+    view: { yaw: 30, pitch: 34 },
+    pad: 0.2,
+    life: { settle: 30, residents: true },
+    frame: [16, 24, 23, 30, 2],
+  },
+  {
+    id: 'bread',
+    group: 'every-day',
+    name: 'Bread from the mill',
+    when: 'Dawn and by day',
+    how: 'Have a windmill and a bakery (a shop, else the inn) the miller can walk between. The miller carries sacks of flour to the bakery, the baker carries trays of loaves to the stalls and cafés, and people come for bread in the morning.',
+    proof: { socket: { rule: 'L51.bread' } },
+    ...town(breadScn),
+    view: { yaw: 45, pitch: 34 },
+    pad: 0.2,
+    life: { settle: 40, residents: true },
+    frame: [16, 17, 24, 22, 2],
+  },
+  {
+    id: 'fetching-water',
+    group: 'every-day',
+    name: 'Fetching water',
+    when: 'By day',
+    how: 'Put a well or a fountain near houses. Now and then somebody comes with a pail, fills it and carries the water home on a yoke.',
+    proof: { socket: { rule: 'L52.water' } },
+    ...town(waterScn),
+    view: { yaw: 45, pitch: 34 },
+    pad: 0.2,
+    life: { settle: 40, residents: true },
+    frame: [15, 19, 22, 24, 2],
+  },
+  {
+    id: 'washing-day',
+    group: 'every-day',
+    name: 'Washing day',
+    when: 'Mornings; taken in at dusk or in the rain',
+    how: 'Hang a laundry line between two houses. The washing is carried out in a basket and hung up in the morning, and taken in again at dusk or when it rains.',
+    proof: { socket: { rule: 'L60.laundry' } },
+    ...town(laundryScn),
+    view: { yaw: 60, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 25, residents: true },
+    frame: [16, 16, 23, 21, 3],
+  },
+  {
+    id: 'school-lesson',
+    group: 'every-day',
+    name: 'School and hopscotch',
+    when: 'By day, a lesson every two and a half minutes',
+    how: 'Build a schoolhouse with families living near it. The teacher calls the children in for their lesson, and afterwards they burst out to hop the hopscotch in the yard.',
+    proof: { socket: { rule: 'L62.places' } },
+    ...town(schoolScn),
+    view: { yaw: 30, pitch: 32 },
+    pad: 0.2,
+    life: { settle: 85, residents: true },
+    frame: [26, 10, 33, 15, 2],
+  },
+  {
+    id: 'smith-at-work',
+    group: 'every-day',
+    name: 'The smith at work',
+    when: 'By day',
+    how: 'Build a smithy. The smith hammers at the anvil with sparks flying, then works the forge inside, and the forge chimney smokes while it is hot.',
+    proof: { role: 'smithy' },
+    ...town(smithyScn),
+    view: { yaw: 30, pitch: 28 },
+    pad: 0.2,
+    life: { settle: 12, residents: true },
+    frame: [7, 8, 13, 13, 2],
+  },
+  {
+    id: 'a-show',
+    group: 'every-day',
+    name: 'A show',
+    when: 'By day and at dusk, every three and a half minutes',
+    how: 'Build a bandstand or a theatre with houses round about. A band or players perform for a minute while people come to sit or stand round and clap.',
+    proof: { socket: { rule: 'L62.places' } },
+    ...town(bandScn),
+    view: { yaw: 35, pitch: 32 },
+    pad: 0.2,
+    life: { settle: 30, residents: true },
+    frame: [9, 8, 16, 13, 3],
+  },
+  {
+    id: 'games',
+    group: 'every-day',
+    name: 'Games on the field',
+    when: 'By day and into dusk, a game every minute or so',
+    how: 'Lay a playing field near houses: its shape decides the game (basketball, tennis, football, bowls, boules, croquet or races). People come out to play and others stop at the edge to watch and clap.',
+    proof: { role: 'basketball-court' },
+    ...town(courtScn),
+    view: PLAY_VIEW,
+    pad: 0.2,
+    life: { settle: 45, residents: true },
+  },
+  {
+    id: 'dogs',
+    group: 'every-day',
+    name: 'Dogs',
+    when: 'All day',
+    how: 'Build six houses or more: every sixth house keeps a dog. It trots at its people’s heels, says hello to passers-by and chases the cats.',
+    proof: { socket: { rule: 'L61.dogs' } },
+    ...town(dogsScn),
+    view: { yaw: 45, pitch: 36 },
+    pad: 0.2,
+    life: { settle: 30, residents: true },
+    frame: [16, 18, 24, 23, 2],
+  },
+  {
+    id: 'scuffle',
+    group: 'every-day',
+    name: 'A scuffle',
+    when: 'Now and then, when two walkers bump into each other',
+    how: 'Any town with people out in its streets: now and then two who bump into each other vanish into a dust cloud of fists and stars while a crowd gathers. They sit up dazed and dust themselves off, and the watchman or a guard breaks it up if one is near.',
+    proof: { actor: { rule: 'L21.population' } },
+    ...town(scuffleScn),
+    view: { yaw: 30, pitch: 30 },
+    pad: 0.2,
+    life: { settle: 12, residents: true, start: { what: 'scuffle', at: 8 } },
+    frame: [16, 18, 24, 23, 2],
+  },
+  {
+    id: 'lamplighter',
+    group: 'evening',
+    name: 'The lamplighter',
+    when: 'At dusk',
+    how: 'Put street lamps along your paths. At dusk the lamplighter walks the round with a pole and lights them one by one, while the windows light up as people come home.',
+    proof: { socket: { rule: 'L23.jobs' } },
+    ...town(jobsScn),
+    view: { yaw: 30, pitch: 30 },
+    pad: 0.2,
+    life: { settle: 25, residents: true, time: 'dusk' },
+    frame: [11, 17, 19, 22, 2],
+  },
+  {
+    id: 'night-watch',
+    group: 'evening',
+    name: 'The night watch',
+    when: 'At night',
+    how: 'Build a town of 12 houses or more with no castle. At night the watchman walks a round of its streets and squares with a lantern on a pole, stopping to look about at each.',
+    proof: { socket: { rule: 'L55.watchman' } },
+    ...town(watchScn),
+    view: { yaw: 45, pitch: 40 },
+    pad: 0.2,
+    life: { settle: 30, residents: true, time: 'night' },
+    frame: [17, 18, 26, 25, 2],
+  },
+  {
+    id: 'fire-brigade',
+    group: 'after-mischief',
+    name: 'The fire brigade',
+    when: 'As soon as something catches fire',
+    how: 'Set a building alight with Lightning or a bomb in a town with a well or a fountain. The brigade wheels the pump cart from it and hoses the fire while neighbours pass buckets, and afterwards crews put the burnt buildings back up under scaffolding.',
+    proof: { actor: { rule: 'L21.population' } },
+    ...town(waterScn),
+    view: { yaw: 45, pitch: 34 },
+    pad: 0.2,
+    life: { settle: 16, residents: true, start: { what: 'fire', at: 2, where: [18.5, 1, 17.5] } },
+    frame: [15, 15, 22, 21, 3],
+  },
 ];
+
+/** Every entry, in the order the guide shows them: group by group (GROUPS), each group as listed. */
+export const ENTRIES: readonly GuideEntry[] = GROUPS.flatMap((g) => LISTED.filter((e) => e.group === g.id));
 
 /**
  * The roles the guide leaves out, and why. Every role in the game is either

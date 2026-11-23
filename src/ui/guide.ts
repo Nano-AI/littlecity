@@ -66,7 +66,7 @@ export function createGuide(host: GuideHost): Guide {
       el('header', { class: 'lc-guide-head' }, [
         el('div', { class: 'lc-guide-titles' }, [
           el('h2', { text: 'Field guide', attrs: { id: 'lc-guide-title' } }),
-          el('p', { text: 'Special buildings, and how to get them' }),
+          el('p', { text: 'Special buildings and the things your town does, and how to get them' }),
         ]),
         close,
       ]),
@@ -93,6 +93,7 @@ export function createGuide(host: GuideHost): Guide {
             el('span', { text: entry.name }),
             entry.group === 'auto' ? null : el('span', { class: 'lc-guide-tick', html: tick, title: 'In your town', attrs: { 'aria-label': 'in your town' } }),
           ]),
+          entry.when ? el('p', { class: 'lc-guide-when', text: entry.when }) : null,
           el('p', { text: entry.how }),
         ]),
       ]);
