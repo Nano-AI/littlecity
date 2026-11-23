@@ -1630,7 +1630,7 @@ export const ENTRIES: readonly GuideEntry[] = [
     id: 'games',
     group: 'every-day',
     name: 'Games on the field',
-    when: 'By day and into dusk, every few minutes',
+    when: 'By day and into dusk, a game every minute or so',
     how: 'Lay a playing field near houses: its shape decides the game (basketball, tennis, football, bowls, boules, croquet or races). People come out to play and others stop at the edge to watch and clap.',
     proof: { role: 'basketball-court' },
     ...town(courtScn),
