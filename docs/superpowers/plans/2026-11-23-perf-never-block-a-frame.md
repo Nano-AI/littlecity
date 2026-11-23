@@ -178,3 +178,38 @@ test('a want during a heavy frame is kept, not lost', () => {
 - [ ] **Step 1:** `npm run build`; point the CDP harness at `dist/` (`LC_ROOT=…/littlecity/dist`) and run: growth sweep with fresh profiles (seeds 1 2 3 4, `r r`), `suite.mjs place`, `suite.mjs panzoom`, `links.mjs`, `hover.mjs`.
 - [ ] **Step 2:** Compare with the baseline (F1–F4). Target: growth p95 ≤ 33 ms with no 0.5 s window averaging above 25 ms; placement p99 ≤ 50 ms; first hover ≤ 17 ms; no `AudioContext` above 100 ms of self time in the pan/zoom profile.
 - [ ] **Step 3:** Full gate: `npm run check` (typecheck, lint, unit + e2e as configured). Report the numbers in a table.
+
+## Added 2026-11-23 from the per-frame audit (run before Task 5's measurement)
+
+Two shared functions rebuild the same result over and over; both are memoized at the function itself, so every caller benefits and outputs stay bit-identical.
+
+### Task 6: The sea's distance field is worked out once per mask
+
+**Files:**
+- Modify: `src/rules/life/ship-routes.ts:58` (`seaField`)
+- Test: `src/rules/life/ship-routes.test.ts` (create if absent; else add to it)
+
+**Interfaces:**
+- Unchanged signature `seaField(blocked: Uint8Array): SeaField`. Callers (L42 passing sails, berths.fact, barge.ts ×2, raid/site.ts, L41 river barge) are untouched.
+
+Evidence: `seaField` is the top self-time function in first-visit growth profiles (1.55 s of a 25 s run; the sea-lanes `distanceField` another 0.97 s): it runs on every resolve with a mask that rarely changes.
+
+- [ ] **Step 1: Write the failing tests:** `gives the same field for the same mask without working it out again` — two calls with equal-content (different) `Uint8Array`s return the identical `SeaField` object (`toBe`); `a different mask gets its own field` — flipping one byte returns a different object whose `dist` equals a fresh uncached computation (export the uncached function as `seaFieldUncached` for the test, or compare against a snapshot of the first call made before the cache existed); `the cache holds a few masks` — after 4 distinct masks, the first is still cached.
+- [ ] **Step 2: Run** `npx vitest run --project unit src/rules/life/ship-routes.test.ts` — FAIL.
+- [ ] **Step 3: Implement:** keep the last 4 results keyed by an FNV-1a hash of the mask bytes, confirmed by a byte-for-byte compare (no false hits); store a private copy of the mask as the key. Before relying on sharing, check every caller and `SeaField` consumer for writes to `blocked` or `dist`; if any writes, the cache returns that caller a copy (say which in the report).
+- [ ] **Step 4: Run** `npx vitest run --project unit src/rules/life src/life/ships src/life/raid src/resolve` — PASS (resolve hashes unchanged). typecheck + lint PASS.
+- [ ] **Step 5: Commit** `git commit -m "The sea's distance field is worked out once for a shape of shore, not on every resolve"`.
+
+### Task 7: A dog's mesh is made once per pose and coat
+
+**Files:**
+- Modify: `src/parts/people/dog.ts:28` (`dogMesh`)
+- Test: `src/parts/people/dog.test.ts` (create if absent)
+
+Evidence: `src/life/town/chains/dogs.ts:258-262` calls `dogMesh(p, d.coat)` for all `DOG_POSES` of every dog; each build smooths normals over vertices × lumps (146 ms in the frame loop during growth). There are only poses × coats distinct results.
+
+- [ ] **Step 1: Write the failing test:** `the same pose and coat give the same mesh` — `dogMesh(p, c)` twice → `toBe` the same object; a different coat → a different object.
+- [ ] **Step 2: Run** the test — FAIL.
+- [ ] **Step 3: Implement** a `Map` keyed by `` `${pose}|${coat}` ``. Before sharing, check that `stage.spawnMesh` (and anything else given a `MeshData`) copies rather than keeps and mutates it; if anything mutates, cache and hand out a copy instead, and say so in the report.
+- [ ] **Step 4: Run** `npx vitest run --project unit src/parts src/life/town` — PASS. typecheck + lint PASS.
+- [ ] **Step 5: Commit** `git commit -m "A dog is drawn from a mesh made once per pose and coat"`.
