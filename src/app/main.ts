@@ -23,6 +23,8 @@
 // window.__lc is the debug handle browser tests and the console use.
 
 import { sceneNote, type SceneNote } from './scene-note';
+import { createStatsStrip } from '@/ui/stats/strip';
+import { createStatsWatch } from '@/ui/stats/watch';
 import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
 import type { LifeRuntime } from '@/life/api';
@@ -121,6 +123,8 @@ applyCalendar(signals, params.get('season') ?? scn?.season, params.get('weather'
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
 let note: SceneNote | null = null;
+const statsWatch = createStatsWatch();
+let statsStrip: ReturnType<typeof createStatsStrip> | null = null;
 
 const autosave = createAutosave({
   storage: storage(),
@@ -399,6 +403,11 @@ function frame(now: number): void {
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
   if (ui) (note ??= sceneNote(ui)).update(view.stage);
+  // The strip along the top: how many live here, how happy they are, something silly.
+  if (ui) {
+    const v = statsWatch.update(view.stage, performance.now());
+    if (v) (statsStrip ??= createStatsStrip(ui.el)).show(v);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

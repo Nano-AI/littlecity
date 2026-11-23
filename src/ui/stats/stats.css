@@ -1,0 +1,58 @@
+/* The stats strip (src/ui/stats/strip.ts): top centre, under no hand, out of the way of the menu and the clock. */
+.lc-stats {
+  position: fixed;
+  z-index: 5;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.lc-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s ease;
+}
+.lc-stat[hidden] {
+  display: none;
+}
+.lc-stat-out {
+  opacity: 0;
+}
+.lc-stat-glyph {
+  display: inline-flex;
+}
+.lc-stat-icon {
+  width: 24px;
+  height: 24px;
+}
+.lc-stat-n {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.lc-stat-label {
+  opacity: 0.8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-stat {
+    transition: none;
+  }
+}
+/* Phones: under the top-right group, and only the first two chips. */
+@media (pointer: coarse), (max-width: 640px) {
+  .lc-stats {
+    top: calc(64px + env(safe-area-inset-top));
+    right: 10px;
+    left: auto;
+    transform: none;
+  }
+  .lc-stat-silly {
+    display: none;
+  }
+}
