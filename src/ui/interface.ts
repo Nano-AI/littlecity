@@ -35,7 +35,7 @@ import { findIsland } from '@/terrain/kinds';
 import { hash } from '@/core/rand';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
-import { ghostFor, ghostForLand, ghostForRun } from './ghost';
+import { createGhostPace, ghostFor, ghostForLand, ghostForRun } from './ghost';
 import { createGuide, type Guide } from './guide';
 import { clampLength, createScrollSteps, growthOf, maxLengthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
@@ -693,6 +693,7 @@ export function createInterface(host: InterfaceHost): Interface {
     count.style.transform = `translate(${Math.round(hoverAt.x + r.left + 16)}px, ${Math.round(hoverAt.y + r.top + 14)}px)`;
   };
 
+  const ghostPace = createGhostPace();
   const updateGhost = (): void => {
     if (placingRun) return;
     if (growth.active) return setGhost(null, '');
@@ -1036,13 +1037,13 @@ export function createInterface(host: InterfaceHost): Interface {
     zoom(factor, x, y) {
       recentre = null;
       view.zoomBy(factor, x, y);
-      if (hoverAt) updateGhost();
+      if (hoverAt) ghostPace.want();
     },
     scroll: scrollLength,
     hover(x, y) {
       hoverAt = { x, y };
       if (handHeld()) canvas.style.cursor = hand.hover(x, y) ? 'grab' : '';
-      updateGhost();
+      ghostPace.want();
     },
     hoverEnd() {
       hand.hoverEnd();
@@ -1319,6 +1320,7 @@ export function createInterface(host: InterfaceHost): Interface {
     dressed(dressing) {
       guide.dressed(dressing);
       fly.dressed(dressing);
+      ghostPace.heavy();
     },
     glideTo(target, zoom) {
       const now = view.getCamera();
@@ -1329,6 +1331,7 @@ export function createInterface(host: InterfaceHost): Interface {
       for (const s of sliders) s.refresh();
       flushStroke();
       growth.tick(performance.now());
+      ghostPace.frame(updateGhost);
       markers.update(tray.state.item === 'change' && !tray.state.idle, game.world, game.terrain);
     },
     sync() {
@@ -1339,7 +1342,7 @@ export function createInterface(host: InterfaceHost): Interface {
       showSeasons();
       guide.townChanged();
       welcome.townChanged();
-      if (hoverAt) updateGhost();
+      if (hoverAt) ghostPace.want();
     },
     debug: () => ({
       item: tray.state.item,
