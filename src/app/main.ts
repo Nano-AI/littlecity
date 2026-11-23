@@ -397,16 +397,12 @@ function frame(now: number): void {
   life.update(dt);
   mischief.flush();
   render();
-  if (ready && !loaderGone) {
-    loaderGone = true;
-    dismissLoader();
-  }
+  if (ready) dismissLoader();
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
   if (ui) (note ??= sceneNote(ui)).update(view.stage);
   requestAnimationFrame(frame);
 }
-let loaderGone = false;
 requestAnimationFrame(frame);
 
 declare global {

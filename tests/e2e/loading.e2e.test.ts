@@ -96,10 +96,28 @@ describe('the loading drawing', () => {
       new MutationObserver(() => {
         if (document.querySelector('.lc-loading[data-state="failed"]')) (window as unknown as { __failed: boolean }).__failed = true;
       }).observe(document, { subtree: true, attributes: true, childList: true });
-      void Promise.reject(new Error('stray'));
+      document.addEventListener('readystatechange', () => void Promise.reject(new Error('stray')), { once: true });
     });
     await page.reload();
     await page.waitForFunction('window.__lc && window.__lc.ui');
     expect(await page.evaluate('window.__failed')).toBe(false);
+  });
+
+  test('a script that never arrives says so', async () => {
+    const { page } = await app.open('/?seed=1');
+    await page.route('**/src/app/main.ts*', (r) => r.abort());
+    await page.reload();
+    await page.waitForFunction('document.querySelector(".lc-loading")?.dataset.state === "failed"');
+  });
+
+  test('the failure line fits a phone', async () => {
+    const { page } = await app.open('/?seed=1', { javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+    await page.setContent((await page.content()).replace('Drawing your town…', "This browser couldn't draw the town. Try reloading, or another browser."));
+    // The text itself, not the padded box.
+    const b = (await page.evaluate(
+      `(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('.lc-loading-line')); const b = r.getBoundingClientRect(); return { x: b.x, width: b.width }; })()`,
+    )) as { x: number; width: number };
+    expect(b.x).toBeGreaterThanOrEqual(16);
+    expect(b.x + b.width).toBeLessThanOrEqual(374);
   });
 });

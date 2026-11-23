@@ -53,7 +53,7 @@
       .lc-loading[data-state="done"] { opacity: 0; }
       .lc-loading svg { width: min(200px, 60vw); height: auto; overflow: visible; fill: none; stroke: #3a2f2a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .lc-loading path { stroke-dasharray: 1 2; stroke-dashoffset: 0; animation: lc-draw 0.45s ease-out backwards; animation-delay: calc(var(--i) * 0.2s); }
-      .lc-loading-line { margin: 0; font: 600 14px/1.2 ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Nunito', 'Varela Round', system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 0.02em; opacity: 0.75; }
+      .lc-loading-line { margin: 0; font: 600 14px/1.2 ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Nunito', 'Varela Round', system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 0.02em; opacity: 0.75; padding: 0 16px; text-align: center; }
       @keyframes lc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
       .lc-loading[data-state="failed"] path { animation: none; }
       @media (prefers-reduced-motion: reduce) { .lc-loading path { animation: none; } .lc-loading { transition: none; } }
@@ -88,13 +88,16 @@
     <script>
       // A start that fails says so. Only while the loader is still waiting; a later error leaves the town alone.
       function lcFailed(e) {
-        if (e && e.filename && e.filename.indexOf(location.origin) !== 0) return;
+        // A script that never arrived fires on its element; a runtime error fires on window and must be ours.
+        var t = e.target;
+        if (t !== window && !(t && t.tagName === 'SCRIPT')) return;
+        if (t === window && (!e.filename || e.filename.indexOf(location.origin + '/') !== 0)) return;
         var l = document.querySelector('.lc-loading');
         if (!l || l.getAttribute('data-state') !== 'loading') return;
         l.setAttribute('data-state', 'failed');
         l.querySelector('.lc-loading-line').textContent = "This browser couldn't draw the town. Try reloading, or another browser.";
       }
-      window.addEventListener('error', lcFailed);
+      window.addEventListener('error', lcFailed, true);
     </script>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
