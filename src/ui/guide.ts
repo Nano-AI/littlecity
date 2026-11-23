@@ -66,7 +66,7 @@ export function createGuide(host: GuideHost): Guide {
       el('header', { class: 'lc-guide-head' }, [
         el('div', { class: 'lc-guide-titles' }, [
           el('h2', { text: 'Field guide', attrs: { id: 'lc-guide-title' } }),
-          el('p', { text: 'Special buildings, and how to get them' }),
+          el('p', { text: 'Special buildings and the things your town does, and how to get them' }),
         ]),
         close,
       ]),
