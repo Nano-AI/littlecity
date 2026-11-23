@@ -1,8 +1,9 @@
 // While the app dresses the town it holds the mischief edits for that frame (main.ts): nothing is lost.
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { columnIndex, key } from '@/core/grid';
 import { identity } from '@/core/mat4';
+import { allGenerators } from '@/gen/discover';
 import { createGame } from '@/app/game';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { emptyWorld } from '@/world/world';
@@ -61,5 +62,37 @@ describe('holding the mischief edits', () => {
     expect(held.edits()).toBeGreaterThan(0);
     const alt = run((i) => i % 2 === 0);
     expect(alt.game.world.blocks.size).toBe(plain.game.world.blocks.size);
+  });
+});
+
+describe('flames and a late roof', () => {
+  test('flames re-seat once a late sampler arrives', () => {
+    // Every house lit at once: one roof is built a frame, the rest of the flames stand roofless and move when theirs comes.
+    // A window's glow is set once, with the flames' placement: count those placements.
+    let placed = 0;
+    const handle = (): InstanceHandle => ({
+      base: identity(),
+      setMatrix: (m) => void (Math.abs(Math.hypot(m[0]!, m[1]!, m[2]!) - 0.17) < 1e-6 && placed++),
+      setVisible() {},
+      setParams() {},
+      release() {},
+    });
+    const stage: LifeStage = { instance: () => null, spawn: handle, spawnMesh: handle, liftStructure: handle, socket: () => identity() };
+    const terrain = flatTerrain(3);
+    const b = new TownBuilder(emptyWorld(3), terrain);
+    for (let i = 0; i < 5; i++) b.house(14 + i * 3, 20, { floors: 2, color: i });
+    const signals = createSignals(3);
+    const life = createLife(stage, signals, { behaviours: [], systems: [mischiefSystem] });
+    const d = mischiefOf(stage);
+    const game = createGame({ world: b.world, terrain }, { show: (shape) => life.sync({ shape, dressing: null }) });
+    d.connect({ begin: () => game.begin(), apply: (e) => game.editAll(e), end: () => game.end(), abort: () => game.abort(), edit: (e) => game.editAll(e), amend: (e) => game.amend(e) });
+    const build = vi.spyOn(allGenerators(), 'build');
+    for (let i = 0; i < 5; i++) d.ignite(key(14 + i * 3, 1, 20));
+    life.update(signals.advance(0.05));
+    expect(build.mock.calls.length).toBeLessThanOrEqual(1);
+    const first = placed;
+    for (let i = 0; i < 6; i++) life.update(signals.advance(0.05));
+    expect(placed).toBeGreaterThan(first);
+    expect(build.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
 });

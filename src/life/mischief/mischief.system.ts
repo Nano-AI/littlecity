@@ -169,6 +169,8 @@ interface State {
   /** Firelight round each burning building. */
   lights: Map<StructureId, InstanceHandle>;
   sparkAcc: number;
+  /** Roofs built outright this frame (a blast lights many buildings at once: one a frame, the rest wait). */
+  built: number;
   time: number;
   off: () => void;
 }
@@ -437,9 +439,11 @@ export function samplerOf(st: State, shape: ShapePlan, sid: StructureId | undefi
   // Drawing the building again to find its top is dear: at most every second and a half per building.
   if (had && (had.hash === s.hash || st.time - had.at < 1.5)) return had.sample;
   // Never draw it here: read the town's own drawing (the renderer's, kept by withDamage).
-  const seen = (allGenerators() as ReturnType<typeof withDamage>).peek(sid);
+  const seen = (allGenerators() as Partial<ReturnType<typeof withDamage>>).peek?.(sid) ?? null;
   // A sampler already held stays until the town has drawn the current hash.
   if (had && seen?.hash !== s.hash) return had.sample;
+  // Nothing drawn yet: build it, but one roof a frame; the others have no top until their turn (flames take no roof, then move).
+  if (!seen && st.built++ > 0) return null;
   const out = seen?.out ?? allGenerators().build(s, shape, allParts());
   const sample = roofSampler(polysOf(out.mesh), 0.22);
   st.samplers.set(sid, { hash: seen?.hash ?? s.hash, sample, at: st.time });
@@ -473,6 +477,7 @@ export default defineSystem<State>({
       scareIn: 0,
       lights: new Map(),
       sparkAcc: 0,
+      built: 0,
       time: 0,
       off: () => {},
     };
@@ -545,6 +550,7 @@ export default defineSystem<State>({
   update(st, dt, signals, ctx) {
     const stage = ctx.stage;
     st.time += dt;
+    st.built = 0;
     const rain = (signals as unknown as { rain?: () => number }).rain?.() ?? 0;
     st.d.update(dt, { wind: (x, z) => signals.wind(x, z), rain });
     const shape = st.shape;
@@ -570,7 +576,7 @@ export default defineSystem<State>({
       let f = st.flames.get(b.cell);
       // The building's top as last sampled (refreshed now and then while it changes under the fire).
       const sample = samplerOf(st, shape, sid);
-      const topHash = sid === undefined ? sHash : (st.samplers.get(sid)?.hash ?? sHash);
+      const topHash = sid === undefined ? sHash : (st.samplers.get(sid)?.hash ?? -1);
       if (!f || f.shapeHash !== topHash) {
         // New, or its building changed under it (the roof fell in): find where the flames stand now.
         if (f) release(f);

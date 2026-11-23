@@ -18,7 +18,7 @@ function setup() {
   const out = reg.build(s, t.plan, allParts());
   const at = (hash: number): ShapePlan => ({ ...t.plan, structures: new Map([[s.id, { ...s, hash }]]) });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const st: any = { samplers: new Map(), time: 0 };
+  const st: any = { samplers: new Map(), time: 0, built: 0 };
   return { s, reg, out, at, st };
 }
 
@@ -54,5 +54,24 @@ describe('the flames find a roof', () => {
     const build = vi.spyOn(reg, 'build');
     expect(samplerOf(st, at(1), s.id)).not.toBeNull();
     expect(build).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a blast lights many buildings at once', () => {
+  test("a blast's first fires build at most one roof a frame", () => {
+    const t = town((b) => { for (let i = 0; i < 5; i++) b.house(14 + i * 3, 20, { floors: 2, color: i }); });
+    const reg = allGenerators() as Reg;
+    vi.spyOn(reg, 'peek').mockReturnValue(null);
+    const build = vi.spyOn(reg, 'build');
+    const ids = [...t.plan.structures.keys()];
+    expect(ids.length).toBeGreaterThanOrEqual(4);
+    const st = { samplers: new Map(), time: 0, built: 0 } as never as Parameters<typeof samplerOf>[0] & { built: number };
+    for (let frame = 1; frame <= ids.length; frame++) {
+      st.built = 0;
+      const before = build.mock.calls.length;
+      for (const id of ids) samplerOf(st, t.plan, id);
+      expect(build.mock.calls.length - before).toBe(1);
+      expect(st.samplers.size).toBe(frame);
+    }
   });
 });
