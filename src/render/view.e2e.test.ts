@@ -294,6 +294,16 @@ describe('the view', () => {
     expect(errors).toEqual([]);
   });
 
+  test('two spread changes in one frame spend one budget between them', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.frameOnly()`); // a fresh frame: the first change has its budget
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    // No frame between them (mending inside life.update, then the flush): the second only queues.
+    const second = await look<Crater>(`window.__look.crater(20, ${CRACKED}, 0, true)`);
+    expect(second.pending).toBe(second.stayed);
+    expect(errors).toEqual([]);
+  });
+
   test('an ordinary setTown after a spread one leaves nothing pending', async () => {
     await look(`window.__look.open('everything', { ink: 'full' })`);
     expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);

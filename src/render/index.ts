@@ -884,7 +884,8 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return moved;
   };
 
-  const syncShape = (next: ShapePlan, spread: boolean | 'waiting' = false): void => {
+  /** `budget`: a spread sync may build some of its queue now (false once this frame has rebuilt). */
+  const syncShape = (next: ShapePlan, spread: boolean | 'waiting' = false, budget = true): void => {
     const reg = registriesFor(next);
     if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts) {
       // Other generators draw this town: nothing cached applies.
@@ -919,7 +920,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     // Spread (mischief): oldest first, and what does not fit in the budget keeps its old drawing;
     // render() gets to it.
     const queue = oldestFirst(pending, [...changed.keys()]);
-    pending = new Set(spread === true ? buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS) : queue);
+    pending = new Set(spread === true && budget ? buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS) : queue);
     for (const layer of generators.layers()) {
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;
@@ -1207,11 +1208,13 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     stage,
 
     setTown(nextShape, nextDressing, opts) {
+      // A frame that already rebuilt (mending in life.update, then the flush) spends no second budget.
+      const first = !busy;
       busy = true;
       const t0 = beginRebuild();
       groundMotion.changed(shape, nextShape, lastSeconds ?? 0);
       shape = nextShape;
-      syncShape(nextShape, opts?.spread);
+      syncShape(nextShape, opts?.spread, first);
       if (nextDressing) dressing = nextDressing;
       rebuildLayout();
       if (nextDressing) syncDressing(nextDressing);
