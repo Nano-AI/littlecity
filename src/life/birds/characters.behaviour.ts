@@ -57,7 +57,9 @@ interface State {
   ox: number;
   oy: number;
   oz: number;
-  town: ShapePlan | null;
+  // Held weakly: it is only ever compared with the town now, and a sparrow that kept its town kept
+  // that edit's whole plan in memory for as long as it lived.
+  town: WeakRef<ShapePlan> | null;
   /** Seconds until a sparrow waiting in the air looks again for somewhere to sit. */
   retry: number;
   /** Flying in to its place: seconds left, and the way it comes from. */
@@ -120,7 +122,7 @@ const spot = { x: 0, y: 0, z: 0 };
 /** Sends a frightened sparrow (from ox, oy, oz) to a roof away from the fright, or into the air if there is none. */
 function flitTo(state: State, shape: ShapePlan, scares: ScareTable, now: number, away: number, street: number): void {
   const perch = sparrowPerch(shape, scares, now, state.ox, state.oz, street, away);
-  state.town = shape;
+  state.town = new WeakRef(shape);
   state.sits = perch !== null;
   state.tx = perch?.x ?? state.ox + Math.cos(away) * 2.2;
   state.tz = perch?.z ?? state.oz + Math.sin(away) * 2.2;
@@ -293,7 +295,7 @@ export default defineBehaviour({
       // (there was nowhere to go when it took off): somewhere to sit, once there is.
       const o = outLen(state);
       const waiting = state.modeT > o && state.modeT < o + WAIT;
-      const lost = state.sits ? ctx.shape !== state.town && state.modeT < o + WAIT && wreckedColumn(ctx.shape, Math.floor(state.tx), Math.floor(state.tz)) : waiting && (state.retry -= dt) <= 0;
+      const lost = state.sits ? ctx.shape !== state.town?.deref() && state.modeT < o + WAIT && wreckedColumn(ctx.shape, Math.floor(state.tx), Math.floor(state.tz)) : waiting && (state.retry -= dt) <= 0;
       if (lost) {
         state.retry = 1;
         const fright = scares.latest();

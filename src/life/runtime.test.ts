@@ -12,6 +12,7 @@ import { flatTerrain, TownBuilder } from '@/scenario';
 import { MOTION } from '@/style/animation';
 import { emptyWorld } from '@/world/world';
 import { demoRules } from '../../tests/fixtures/demo';
+import { collect } from '../../tests/helpers/gc';
 import { defineBehaviour, defineSystem, type SpawnSpec } from './api';
 import { fxOf } from './fx/fx';
 import fxSystem from './fx/fx.system';
@@ -63,6 +64,30 @@ describe('the runtime', () => {
     // (10, 10) kept its state; the chimney at (14, 10) is gone, the one at (20, 10) is new.
     expect(log.filter((l) => l.startsWith('create'))).toHaveLength(3);
     expect(log.filter((l) => l.startsWith('dispose'))).toEqual([`dispose L-A.smoke@${key(14, 1, 10)}`]);
+    life.dispose();
+  });
+
+  test('a behaviour that lives on through an edit does not hold on to the town it was made in', async () => {
+    // Every edit resolves a whole new plan. A lamp or a chimney's smoke made twenty edits ago must not
+    // keep that edit's plan alive, or a long session holds every plan there ever was.
+    const smoke = defineBehaviour({ actor: 'smoke', create: () => ({ n: 0 }), update: (state) => void state.n++ });
+    const signals = createSignals(9);
+    const rec = recordingStage();
+    const life = createLife(rec.stage, signals, { behaviours: [smoke], systems: [] });
+    const first = ((): WeakRef<object>[] => {
+      const a = town((b) => b.house(10, 10), 'L-A.smoke');
+      rec.setTown(a.shape, a.dressing);
+      life.sync(a);
+      return [new WeakRef(a.shape), new WeakRef(a.dressing)];
+    })();
+    // The same house again, and a second: the first chimney's smoke lives on.
+    const b = town((t) => t.house(10, 10).house(20, 10), 'L-A.smoke');
+    rec.setTown(b.shape, b.dressing);
+    life.sync(b);
+    step(life, signals, 0.1);
+    expect(life.counts.behaviours).toBe(2);
+    await collect();
+    expect(first.map((ref) => ref.deref() !== undefined)).toEqual([false, false]);
     life.dispose();
   });
 

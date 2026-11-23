@@ -959,6 +959,12 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
   });
 
+  // An item's handle. Made out here and not inside syncDressing: a function made in there keeps what
+  // syncDressing could see alive for as long as the item lives, which is that edit's dressing and its
+  // layout (and through the layout the whole plan): about a megabyte a block placed, never given back.
+  const noRelease = (): void => {};
+  const itemHandle = (id: string, entry: DrawnItem): InstanceHandle => makeHandle(() => (items.get(id) === entry ? entry.slot : 0), () => entry.base, noRelease);
+
   const syncDressing = (next: DressingPlan): void => {
     const seen = new Set<string>();
     const live = new Set<string>();
@@ -974,7 +980,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         const mover = category === 'actor';
         const slot = slots.alloc(mover);
         const entry: DrawnItem = { hash: NaN, mover, slot, base, handle: null as unknown as InstanceHandle };
-        entry.handle = makeHandle(() => (items.get(item.id) === entry ? slot : 0), () => entry.base, () => {});
+        entry.handle = itemHandle(item.id, entry);
         items.set(item.id, (it = entry));
       }
       const hash = item.hash * 31 + Math.round(span * 1000);
@@ -1642,14 +1648,24 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     const gl = renderer.getContext();
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
     const now = performance.now();
-    if (name) profile[name] = (profile[name] ?? 0) + (now - profileAt);
+    if (name) {
+      profile[name] = (profile[name] ?? 0) + (now - profileAt);
+      profile[`${name}#`] = (profile[`${name}#`] ?? 0) + 1;
+    } else profile['frames#'] = (profile['frames#'] ?? 0) + 1;
     profileAt = now;
   }
+  // The same over the game's own frames (tools/perf.mjs): on with true; false returns the milliseconds
+  // summed per pass, with how many times each pass ran (`<pass>#`) and the frames (`frames#`).
+  (view as TownView & { profileLive(on: boolean): Record<string, number> | null }).profileLive = (on) => {
+    const got = profile;
+    profile = on ? {} : null;
+    return got;
+  };
   (view as TownView & { profilePasses(frames: number, signals: Signals): Record<string, number> }).profilePasses = (frames, signals) => {
     profile = {};
     for (let i = 0; i < frames; i++) view.render(signals);
     const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(profile)) out[k] = +(v / frames).toFixed(2);
+    for (const [k, v] of Object.entries(profile)) if (!k.endsWith('#')) out[k] = +(v / frames).toFixed(2);
     profile = null;
     return out;
   };

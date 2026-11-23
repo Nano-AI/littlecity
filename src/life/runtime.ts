@@ -111,6 +111,14 @@ const NO_INSTANCE: InstanceHandle = {
   release() {},
 };
 
+/**
+ * A behaviour's own random numbers. Made here, at the top of the module, and not inside sync: a
+ * function made in there keeps everything sync could see alive for as long as the behaviour lives,
+ * and that is the whole plan of the edit it was made in (a lamp made a hundred edits ago held that
+ * edit's plan, and so on for every edit: about a megabyte a block placed, never given back).
+ */
+const randOf = (seed: number): LifeContext['rand'] => (...p) => rand(seed, ...p);
+
 /** The key a behaviour's state lives under: its socket if it has one, else the item's own id. */
 export function stateKey(category: 'prop' | 'actor', item: Prop | Actor): string {
   const at = item.at;
@@ -180,7 +188,7 @@ export function createLife(stage: LifeStage, signals: Signals, opts: LifeOptions
       const ctx: LifeContext = {
         item,
         seed,
-        rand: (...p) => rand(seed, ...p),
+        rand: randOf(seed),
         shape: next.shape,
         dressing,
         instance: new Posed(real),
