@@ -148,6 +148,14 @@
   line-height: 1.35;
   opacity: 0.86;
 }
+/* When a happening happens (the events): one short line over the how, in the accent's voice. */
+.lc-guide-words p.lc-guide-when {
+  margin: 0 0 2px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  opacity: 0.62;
+}
 .lc-guide-tick {
   display: none;
   width: 18px;

@@ -93,6 +93,7 @@ export function createGuide(host: GuideHost): Guide {
             el('span', { text: entry.name }),
             entry.group === 'auto' ? null : el('span', { class: 'lc-guide-tick', html: tick, title: 'In your town', attrs: { 'aria-label': 'in your town' } }),
           ]),
+          entry.when ? el('p', { class: 'lc-guide-when', text: entry.when }) : null,
           el('p', { text: entry.how }),
         ]),
       ]);
