@@ -31,6 +31,11 @@ const settled = async (): Promise<FrameSummary> => {
   await look(`window.__look.frame()`);
   return look<FrameSummary>(`window.__look.frame()`);
 };
+/** As settled, once the grounding map has caught up with items shown or hidden (it follows them every fourth frame). */
+const shaded = async (): Promise<FrameSummary> => {
+  await look(`(() => { for (let i = 0; i < 4; i++) window.__look.frameOnly(); })()`);
+  return settled();
+};
 const lum = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 /** Mean absolute difference between two frames' thumbnails, 0–255. */
 const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum, v, i) => sum + Math.abs(v - b.thumb[i]!), 0) / a.thumb.length;
@@ -242,6 +247,32 @@ describe('the view', () => {
     await look(`window.__look.open('everything', { ink: 'full' })`);
     expect((await look<Crater>(`window.__look.crater(19, ${BURNT}, 1, false)`)).pending).toBe(0);
     expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("a drain that moves an anchor moves what stands on it and leaves life's other poses alone", async () => {
+    // Burnt houses waiting at the front, so the crater's neighbours whose anchors move are drained later.
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(10, ${BURNT}, true)`)).toBeGreaterThan(0);
+    await look(`window.__look.crater(10, ${BURNT}, 20, true)`);
+    expect(await look<number>(`window.__look.holdItems()`)).toBeGreaterThan(3);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    // Something stood on an anchor the drain moved: it was put in its new place (and hidden again here).
+    expect(await look<number>(`window.__look.movedItems()`)).toBeGreaterThan(0);
+    // Nothing else was shown again or put back.
+    const held = await shaded();
+    await look(`window.__look.props(false)`);
+    await look(`window.__look.actors(false)`);
+    expect(held.thumb).toEqual((await shaded()).thumb);
+    // All shown, it is the town an immediate build gives.
+    await look(`window.__look.props(true)`);
+    await look(`window.__look.actors(true)`);
+    const spread = await shaded();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.crater(10, ${BURNT}, 20, false)`);
+    await look(`window.__look.props(true)`);
+    await look(`window.__look.actors(true)`);
+    expect(spread.thumb).toEqual((await shaded()).thumb);
     expect(errors).toEqual([]);
   });
 

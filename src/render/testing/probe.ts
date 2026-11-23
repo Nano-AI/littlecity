@@ -54,6 +54,8 @@ let options: ResolveOptions | null = null;
 let dressing: DressingPlan | null = null;
 let lifted: InstanceHandle | null = null;
 let spawned: InstanceHandle[] = [];
+/** Where each item held by holdItems was put. */
+const kept = new Map<string, number[]>();
 
 function summary(): FrameSummary {
   const gl = canvas!.getContext('webgl2')!;
@@ -214,7 +216,8 @@ const api = {
     const next = resolveShape(damaged(n, ruin, sunk), shape!.terrain, options ?? {});
     view!.setTown(next, null, { spread });
     const pending = view!.stats().pending;
-    view!.setDressing(resolveDressing(next, options ?? {}));
+    dressing = resolveDressing(next, options ?? {});
+    view!.setDressing(dressing);
     let moved = 0, stayed = 0;
     for (const s of next.structures.values()) {
       const was = shape!.structures.get(s.id);
@@ -223,6 +226,31 @@ const api = {
       else moved++;
     }
     return { pending, moved, stayed };
+  },
+  /**
+   * Life's part: hides every prop and actor, as a behaviour may hide its own (the view must leave that
+   * alone), and keeps where each was put. Returns how many.
+   */
+  holdItems(): number {
+    kept.clear();
+    for (const item of [...dressing!.props, ...dressing!.actors]) {
+      const h = view!.stage.instance(item.id);
+      if (!h) continue;
+      kept.set(item.id, Array.from(h.base));
+      h.setVisible(false);
+    }
+    return kept.size;
+  },
+  /** The held items the view has put somewhere new since holdItems: hidden again. Returns how many. */
+  movedItems(): number {
+    let n = 0;
+    for (const [id, base] of kept) {
+      const h = view!.stage.instance(id);
+      if (!h || sameKeys(Array.from(h.base), base)) continue;
+      h.setVisible(false);
+      n++;
+    }
+    return n;
   },
   /** Structures whose new drawing is still waiting (view.pending(), as the frame loop asks it). */
   pending: (): number => view!.pending(),

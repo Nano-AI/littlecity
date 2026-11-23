@@ -15,17 +15,24 @@ export function oldestFirst<T>(waiting: Iterable<T>, changed: readonly T[]): T[]
   return [...new Set([...waiting, ...changed])].filter((id) => live.has(id));
 }
 
-/** The same keys in the same order: a structure's cells or edges, so only one that stayed put may wait. */
-export const sameKeys = (a: readonly number[], b: readonly number[]): boolean => a === b || (a.length === b.length && a.every((v, i) => v === b[i]));
+/**
+ * The same numbers in the same order: a structure's cells or edges (only one that stayed put may
+ * wait), or a matrix.
+ */
+export function sameKeys(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 
 /** The same anchor frames, number for number: a rebuild that moves one moves the props on it too. */
 export function sameAnchors(a: Readonly<Record<string, ArrayLike<number>>>, b: Readonly<Record<string, ArrayLike<number>>>): boolean {
   const keys = Object.keys(a);
   if (keys.length !== Object.keys(b).length) return false;
   for (const k of keys) {
-    const m = a[k]!, n = b[k];
-    if (!n || n.length !== m.length) return false;
-    for (let i = 0; i < m.length; i++) if (m[i] !== n[i]) return false;
+    const n = b[k];
+    if (!n || !sameKeys(a[k]!, n)) return false;
   }
   return true;
 }

@@ -998,7 +998,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const noRelease = (): void => {};
   const itemHandle = (id: string, entry: DrawnItem): InstanceHandle => makeHandle(() => (items.get(id) === entry ? entry.slot : 0), () => entry.base, noRelease);
 
-  const syncDressing = (next: DressingPlan): void => {
+  /**
+   * `onlyMoved` (a drain's sync, with no life.sync after it): an item whose mesh and place are as they
+   * were keeps whatever pose and visibility life gave it.
+   */
+  const syncDressing = (next: DressingPlan, onlyMoved = false): void => {
     const seen = new Set<string>();
     const live = new Set<string>();
     const where = getLayout()!;
@@ -1017,6 +1021,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         items.set(item.id, (it = entry));
       }
       const hash = item.hash * 31 + Math.round(span * 1000);
+      const same = it.hash === hash && sameKeys(it.base, base);
       if (it.hash !== hash) {
         const mesh = propOutput(item, category, span).mesh;
         (it.mover ? movers : dynamic).pool.put(`i:${item.id}`, hash, mesh, it.slot);
@@ -1024,6 +1029,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         it.hash = hash;
       }
       it.base = base;
+      if (onlyMoved && same) return;
       slots.setMatrix(it.slot, base);
       // An anchored item whose anchor is gone has nowhere to be; free-roaming actors start at the origin
       // and are shown: their behaviour places them.
@@ -1401,7 +1407,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         );
         rebuildLayout();
         // Output that leans on its neighbours can move an anchor with the cells unchanged: the props follow.
-        if (moved && dressing) syncDressing(dressing);
+        if (moved && dressing) syncDressing(dressing, true);
       }
       busy = false;
       // Camera damping runs on life time, which is already clamped to 100 ms a step.
