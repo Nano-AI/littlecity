@@ -63,4 +63,29 @@ describe('the loading drawing', () => {
     expect(await page.evaluate('document.elementFromPoint(640, 400) === window.__lc.view.canvas')).toBe(true);
     expect(errors).toEqual([]);
   });
+
+  test('a start that fails says so', async () => {
+    const { page } = await app.open('/?seed=1');
+    await page.addInitScript(() => {
+      const real = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+        if (type === 'webgl2' || type === 'webgl') return null;
+        return (real as (...a: unknown[]) => unknown).call(this, type, ...rest);
+      } as typeof real;
+    });
+    await page.reload();
+    await page.waitForTimeout(1500);
+    expect(await page.textContent('.lc-loading-line')).toBe(
+      "This browser couldn't draw the town. Try reloading, or another browser.",
+    );
+    expect(await page.getAttribute('.lc-loading', 'data-state')).toBe('failed');
+  });
+
+  test('a later error leaves the town alone', async () => {
+    const { page } = await app.open('/?seed=1');
+    await page.waitForFunction('!document.querySelector(".lc-loading")', undefined, { timeout: 15_000 });
+    await page.evaluate(() => setTimeout(() => { throw new Error('later'); }));
+    await page.waitForTimeout(300);
+    expect(await page.locator('.lc-loading').count()).toBe(0);
+  });
 });
