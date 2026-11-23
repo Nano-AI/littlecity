@@ -103,6 +103,8 @@ export interface Interface {
   dressed(dressing: DressingPlan): void;
   /** L57: glides the camera to look at a place (as Escape glides back to the whole island). */
   glideTo(target: readonly [number, number, number], zoom?: number): void;
+  /** Call once per frame, just before the town is drawn (after dressed(), so the ghost can yield to a dressing). */
+  beforeRender(): void;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -694,6 +696,7 @@ export function createInterface(host: InterfaceHost): Interface {
   };
 
   const ghostPace = createGhostPace();
+  let dressedThisFrame = false;
   const updateGhost = (): void => {
     if (placingRun) return;
     if (growth.active) return setGhost(null, '');
@@ -1321,17 +1324,23 @@ export function createInterface(host: InterfaceHost): Interface {
       guide.dressed(dressing);
       fly.dressed(dressing);
       ghostPace.heavy();
+      dressedThisFrame = true;
     },
     glideTo(target, zoom) {
       const now = view.getCamera();
       startRecentre({ ...now, target: [target[0], target[1], target[2]], zoom: Math.max(now.zoom, zoom ?? 0) });
     },
+    beforeRender() {
+      ghostPace.frame(updateGhost);
+    },
     frame() {
       stepRecentre();
       for (const s of sliders) s.refresh();
       flushStroke();
-      growth.tick(performance.now());
-      ghostPace.frame(updateGhost);
+      // One heavy job per frame: a frame that carried a whole-town dressing leaves growth's edit for the
+      // next one, which picks up the elapsed time, so the growth rate holds.
+      if (!dressedThisFrame) growth.tick(performance.now());
+      dressedThisFrame = false;
       markers.update(tray.state.item === 'change' && !tray.state.idle, game.world, game.terrain);
     },
     sync() {

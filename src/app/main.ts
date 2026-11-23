@@ -177,6 +177,8 @@ function open(next: GameStart): void {
   mischief.detach();
   const { seasonHolding, weatherHolding } = signals;
   life.dispose();
+  // A new island must not wait out the old one's dressing interval and show its props meanwhile.
+  lastDressed = -Infinity;
   signals = createSignals(next.world.seed);
   signals.hold(holding);
   if (seasonHolding !== 'run') signals.holdSeason(seasonHolding);
@@ -407,6 +409,7 @@ function frame(now: number): void {
   mischief.camera = eye ? { yaw: eye.yaw, pitch: -eye.pitch } : { yaw: cam.yaw, pitch: cam.pitch };
   life.update(dt);
   mischief.flush();
+  ui?.beforeRender();
   render();
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).

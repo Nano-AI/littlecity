@@ -8,6 +8,7 @@
 import { multiply, rotationX, translation } from '@/core/mat4';
 import { MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import { smoothBall, soft } from '@/gen/soft';
+import { styleVersion } from '@/core/style';
 import { PALETTE } from '@/style/palette';
 
 export type DogPose = 'stand' | 'trot-a' | 'trot-b' | 'sit' | 'bark';
@@ -24,6 +25,8 @@ export const DOG_COATS: readonly [string, string][] = [
 // mesh is only ever copied into the render pool (never changed), so callers can share one. Keyed by the
 // raw coat, since the ink name carries it; coats are a handful of post refs, so no bound is needed.
 const made = new Map<string, MeshData>();
+// The mesh bakes in live palette values, so a style change drops the cache.
+let madeStyle = styleVersion();
 
 /**
  * A dog in one pose and coat. Drawn as two soft bodies (src/gen/soft.ts): the body with its patch, legs
@@ -31,6 +34,11 @@ const made = new Map<string, MeshData>();
  * sits on the body is drawn on purpose); the ears and the nose keep lines of their own.
  */
 export function dogMesh(pose: DogPose, coat: number): MeshData {
+  const version = styleVersion();
+  if (version !== madeStyle) {
+    made.clear();
+    madeStyle = version;
+  }
   const key = `${pose}|${coat}`;
   let mesh = made.get(key);
   if (!mesh) made.set(key, (mesh = build(pose, coat)));
