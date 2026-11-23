@@ -24,7 +24,7 @@ import {
 } from '@/core/grid';
 import { AUTO_KINDS, EDGE_KINDS, FLOOR_KINDS, KINDS, PALETTE_SIZE, placedInfo, type EdgeKind, type PlacedKind } from '@/core/kinds';
 import { hash } from '@/core/rand';
-import type { Edit, EditResult, Rot, Terrain, World } from '@/core/world';
+import type { Block, Edit, EditResult, Rot, Terrain, World } from '@/core/world';
 import { isHouseStyle } from '@/style/houses';
 import { isRuin } from './damage';
 import { islandOf } from '@/terrain/land';
@@ -352,6 +352,30 @@ export function applyEdit(w: World, t: Terrain, e: Edit): World {
       return typeof r === 'string' ? w : r.world;
     }
   }
+}
+
+/**
+ * Applies edits in order, skipping the ones canApply refuses (against the world so far).
+ * A run of setRuin/repair edits shares one copy of `blocks`, written in place; the input
+ * world is untouched. Any other edit goes through applyEdit. Same result as folding applyEdit.
+ */
+export function applyEdits(w: World, t: Terrain, edits: readonly Edit[]): { world: World; applied: number } {
+  let cur = w;
+  let mine: Map<CellKey, Block> | null = null; // our private copy of blocks, once made
+  let applied = 0;
+  for (const e of edits) {
+    if (!canApply(cur, t, e).ok) continue;
+    if (e.type === 'setRuin' || e.type === 'repair') {
+      if (!mine || cur.blocks !== mine) cur = { ...cur, blocks: (mine = new Map(cur.blocks)) };
+      const { ruin: _old, ...rest } = mine.get(e.cell)!;
+      const ruin = e.type === 'setRuin' ? e.ruin : 0;
+      mine.set(e.cell, ruin ? { ...rest, ruin } : rest);
+    } else {
+      cur = applyEdit(cur, t, e);
+    }
+    applied++;
+  }
+  return { world: applied === 0 ? w : cur, applied };
 }
 
 /**
