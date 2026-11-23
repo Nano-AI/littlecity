@@ -1678,6 +1678,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     stats(): ViewStats {
       return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent }, pending: pending.size };
     },
+    pending: () => pending.size,
 
     dispose() {
       clearGhost();

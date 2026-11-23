@@ -154,6 +154,8 @@ export interface TownView {
   /** Draws one frame. Reads time of day and wind from `signals`; never reads the clock itself. */
   render(signals: Signals): void;
   stats(): ViewStats;
+  /** Added for mischief. ViewStats.pending without making the stats: cheap enough to ask every frame. */
+  pending(): number;
   dispose(): void;
 }
 

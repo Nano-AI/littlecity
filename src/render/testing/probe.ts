@@ -224,8 +224,8 @@ const api = {
     }
     return { pending, moved, stayed };
   },
-  /** Structures whose new drawing is still waiting (ViewStats.pending). */
-  pending: (): number => view!.stats().pending,
+  /** Structures whose new drawing is still waiting (view.pending(), as the frame loop asks it). */
+  pending: (): number => view!.pending(),
   /** Spawns `n` small boxes over the town, as life spawns walkers and puffs. */
   spawn(n: number): number {
     const b = new MeshBuilder({ ink: 'probe' }).setColor('#e56b58');

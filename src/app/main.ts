@@ -424,6 +424,8 @@ function frame(now: number): void {
   mischief.flush();
   mischief.holdEdits = false;
   ui?.beforeRender();
+  // A frame that rebuilds what mischief left waiting says nothing of how fast the page draws either.
+  if (view.pending() > 0) busyFrames = Math.max(busyFrames, 1);
   render();
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
