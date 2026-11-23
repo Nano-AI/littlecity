@@ -7,6 +7,7 @@
 
 import { defineSystem } from '../api';
 import { noiseBuffer, strike } from '../sound/synth';
+import { holdAudio, releaseAudio } from '../sound/context';
 import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn } from '../sound/volume';
 import { raidsOf } from './raids';
 import type { RaidSound } from './raid';
@@ -36,7 +37,7 @@ function start(st: State): void {
     st.audio.master.gain.setTargetAtTime(level(), st.audio.ac.currentTime, 0.15);
     return;
   }
-  const ac = new AudioContext();
+  const ac = holdAudio();
   const master = ac.createGain();
   master.gain.value = level();
   master.connect(ac.destination);
@@ -187,7 +188,7 @@ export default defineSystem<State>({
   },
   dispose(st) {
     for (const off of st.off) off();
-    if (st.audio) void st.audio.ac.close();
+    if (st.audio) releaseAudio();
     st.audio = null;
   },
 });

@@ -27,6 +27,7 @@ import { shipSoundsOf } from '../ships/news';
 import { SOUND_VOLUME_DEFAULT, SOUND_VOLUME_EVENT, SOUND_VOLUME_KEY, readVolume, soundOn } from './volume';
 import { pealAt } from '../mechanisms/peal';
 import { gullCall, noiseBuffer, noteFor, pop, scuffleSound, strike, timbreFor } from './synth';
+import { holdAudio, releaseAudio } from './context';
 
 /** Master level: everything is a background to building. */
 const MASTER = 0.5;
@@ -87,7 +88,7 @@ function start(state: State, seed: number): void {
     state.audio.master.gain.setTargetAtTime(level(), state.audio.ac.currentTime, 0.2);
     return;
   }
-  const ac = new AudioContext();
+  const ac = holdAudio();
   const master = ac.createGain();
   master.gain.value = 0;
   master.gain.setTargetAtTime(level(), ac.currentTime, 0.4);
@@ -231,7 +232,7 @@ export default defineSystem<State>({
   },
   dispose(state) {
     for (const off of state.off) off();
-    if (state.audio) void state.audio.ac.close();
+    if (state.audio) releaseAudio();
     state.audio = null;
   },
 });
