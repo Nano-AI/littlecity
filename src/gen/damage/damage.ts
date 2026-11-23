@@ -26,7 +26,9 @@
 
 import { CELL_H, columnIndex, DIR4, inColumnBounds, keyX, keyY, keyZ, type Dir4 } from '@/core/grid';
 import { hash, rand } from '@/core/rand';
+import { styleVersion } from '@/core/style';
 import type { GenOutput, GeneratorRegistry } from '@/gen/api';
+import { hashStructure } from '@/resolve/engine/hash';
 import { mergeMeshes, MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { DAMAGE_COLORS, RUIN, rgb } from '@/style/damage';
@@ -312,18 +314,20 @@ function debrisPart(removed: readonly Poly[], prof: Profile): Poly[] {
 }
 
 /** Draws the structure's damage over what its generator drew. Undamaged structures come back untouched. */
-export function damageOutput(out: GenOutput, s: Structure, plan: ShapePlan): GenOutput {
+export function damageOutput(out: GenOutput, s: Structure, plan: ShapePlan, polys?: readonly Poly[]): GenOutput {
   const prof = profileOf(s, plan);
   if (!prof.damaged || out.mesh.position.length === 0) return out;
-  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof) : afloat(prof) ? afloatDamage(out.mesh, prof) : buildingDamage(out.mesh, prof);
+  // The damage passes tint and cut the polygons they are given, so a caller's cached ones are copied.
+  const mine = polys?.map(clonePoly);
+  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof, mine) : afloat(prof) ? afloatDamage(out.mesh, prof) : buildingDamage(out.mesh, prof, true, mine);
   return { mesh, anchors: out.anchors };
 }
 
 /** `rubble` false: no heap and no pieces lying about (a wreck that went over into the water instead). */
-function buildingDamage(intact: MeshData, prof: Profile, rubble = true): MeshData {
+function buildingDamage(intact: MeshData, prof: Profile, rubble = true, given?: Poly[]): MeshData {
   const { s, plan } = prof;
   const seed = s.seed;
-  const polys = polysOfMesh(intact);
+  const polys = given ?? polysOfMesh(intact);
   const field = cutField(prof, 'now');
   const broken = breakPolys(polys, field, true);
   const extras = new MeshBuilder({ ink: s.id });
@@ -643,11 +647,11 @@ function treeChunks(intact: MeshData, prof: Profile): Chunk[] {
   return debrisOf(breakPolys(polysOfMesh(intact), snapField(col, prof.s.seed), true).removed, prof);
 }
 
-function treeDamage(intact: MeshData, prof: Profile): MeshData {
+function treeDamage(intact: MeshData, prof: Profile, given?: Poly[]): MeshData {
   const { s } = prof;
   const seed = s.seed;
   const col = [...prof.columns.values()][0]!;
-  const polys = polysOfMesh(intact);
+  const polys = given ?? polysOfMesh(intact);
   const C = {
     char: rgb(DAMAGE_COLORS.char),
     scorched: rgb(DAMAGE_COLORS.scorchedLeaf),
@@ -866,11 +870,35 @@ function afloatDamage(intact: MeshData, prof: Profile): MeshData {
   return moved(prof.s.kind === 'dock' ? buildingDamage(intact, prof) : now, m);
 }
 
+const INTACT_CACHE_MAX = 512;
+
 /** Wraps a generator registry so every structure is drawn with its damage. */
 export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry } {
+  // A damaged structure's sound drawing and polygons, kept while only its ruin changes (a char or mend step).
+  const cache = new Map<number, { key: number; style: number; intact: GenOutput; polys: Poly[]; hash: number; out: GenOutput }>();
   return {
     ...reg,
-    build: (s, plan, parts) => damageOutput(reg.build(s, plan, parts), s, plan),
+    build: (s, plan, parts) => {
+      if (!s.cells.some((c) => plan.world.blocks.get(c)?.ruin)) {
+        cache.delete(s.id);
+        return reg.build(s, plan, parts);
+      }
+      const key = hashStructure(s, plan, true);
+      const style = styleVersion();
+      let e = cache.get(s.id);
+      if (e && e.key === key && e.style === style) {
+        if (e.hash === s.hash) return e.out;
+      } else {
+        // ponytail: blunt bound, cleared whole when full; a per-town sweep is the upgrade if it ever thrashes.
+        if (cache.size >= INTACT_CACHE_MAX) cache.clear();
+        const intact = reg.build(s, plan, parts);
+        e = { key, style, intact, polys: polysOfMesh(intact.mesh), hash: 0, out: intact };
+      }
+      e.out = damageOutput(e.intact, s, plan, e.polys);
+      e.hash = s.hash;
+      cache.set(s.id, e);
+      return e.out;
+    },
     intact: reg,
   };
 }

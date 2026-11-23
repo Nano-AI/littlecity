@@ -110,9 +110,9 @@ function code(_ix: HashIndex, s: string): number {
  * and its four side columns, and any generated support carrying it.
  *
  * Call it once the shape rules have run (the engine does): it indexes the
- * plan's supports and sockets on first use.
+ * plan's supports and sockets on first use. `ignoreRuin` leaves damage out: the hash of its sound self.
  */
-export function hashStructure(s: Structure, plan: ShapePlan): number {
+export function hashStructure(s: Structure, plan: ShapePlan, ignoreRuin = false): number {
   const { world, terrain, kinds, structureAt, floorAt } = plan;
   const ix = indexOf(plan);
   let h = mix(mix(mix(mix(mix(mix(0x2f, code(ix, s.kind)), s.id), s.color), s.seed), s.cells.length), s.edges.length);
@@ -135,7 +135,7 @@ export function hashStructure(s: Structure, plan: ShapePlan): number {
     h = mix(h, c);
     h = mix(h, block ? block.rot : 9);
     // Damage (mischief): mixed in only when present, so a sound town hashes as before.
-    if (block?.ruin) h = mix(mix(h, 0x7a1d), block.ruin);
+    if (!ignoreRuin && block?.ruin) h = mix(mix(h, 0x7a1d), block.ruin);
     h = mix(h, kinds.has(c) ? KIND_CODE.get(kinds.get(c)!)! : 0);
     h = mix(h, floor ? KIND_CODE.get(floor)! : 0);
     h = mix(h, floorAt.get(c) ?? -1);
