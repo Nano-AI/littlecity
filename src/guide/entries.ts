@@ -169,7 +169,7 @@ function keepGateAndPlaza(b: TownBuilder): void {
   b.path(23, 22, 23, 23).plaza(22, 24, 24, 25);
 }
 
-export const ENTRIES: readonly GuideEntry[] = [
+const LISTED: readonly GuideEntry[] = [
   // ── the Auto block ────────────────────────────────────────────────────
   {
     id: 'auto',
@@ -1704,6 +1704,9 @@ export const ENTRIES: readonly GuideEntry[] = [
     frame: [15, 15, 22, 21, 3],
   },
 ];
+
+/** Every entry, in the order the guide shows them: group by group (GROUPS), each group as listed. */
+export const ENTRIES: readonly GuideEntry[] = GROUPS.flatMap((g) => LISTED.filter((e) => e.group === g.id));
 
 /**
  * The roles the guide leaves out, and why. Every role in the game is either
