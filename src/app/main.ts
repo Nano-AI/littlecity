@@ -123,7 +123,7 @@ applyCalendar(signals, params.get('season') ?? scn?.season, params.get('weather'
 let life: LifeRuntime = createLife(view.stage, signals);
 let ui: Interface | null = null;
 let note: SceneNote | null = null;
-const statsWatch = createStatsWatch();
+const statsWatch = createStatsWatch({ shape: () => game.shape });
 let statsStrip: ReturnType<typeof createStatsStrip> | null = null;
 
 const autosave = createAutosave({

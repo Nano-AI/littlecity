@@ -282,8 +282,6 @@ export interface CrowdOptions {
 
 export interface Crowd {
   readonly people: readonly Person[];
-  /** Every resident the town plan has, all variants, before the cap (the stats strip's population). */
-  readonly residents: number;
   readonly nav: NavGraph | null;
   readonly router: Router | null;
   readonly haunts: readonly Haunt[];
@@ -1221,7 +1219,6 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
   // ── L50: the scuffle ──────────────────────────────────────────────────
   let inns = new Set<StructureId>();
   let shapeNow: ShapePlan | null = null;
-  let residents = 0;
   const scuffles = createScuffles({
     people,
     nav: () => nav,
@@ -1802,10 +1799,8 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       // Those who can never leave their house (resident/indoors) are kept, at home, and are not counted.
       const wanted = new Map<string, { home: StructureId; index: number; look: number; child: boolean; indoors: boolean }>();
       let walkers = 0;
-      residents = 0;
       for (const a of dressing.actors) {
         if (a.type !== 'resident' || a.home === undefined) continue;
-        residents++;
         if (a.variant !== 'indoors' && walkers++ >= cap) continue;
         const params = (a.params ?? {}) as { index?: number; look?: number };
         wanted.set(a.id, { home: a.home, index: params.index ?? 0, look: params.look ?? 0, child: a.variant === 'child', indoors: a.variant === 'indoors' });
@@ -2149,9 +2144,6 @@ export function createCrowd(opts: CrowdOptions = {}): Crowd {
       }
     },
 
-    get residents() {
-      return residents;
-    },
     get scuffles() {
       return scuffles;
     },

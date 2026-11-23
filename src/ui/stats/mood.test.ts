@@ -6,17 +6,17 @@ describe("mood", () => {
     expect(createMood().value).toBe(70);
   });
 
-  test("a nuke craters it and a wedding lifts it", () => {
+  test("a nuke dents it and a wedding lifts it", () => {
     const m = createMood();
     m.hit("nuke");
-    expect(m.value).toBe(25);
+    expect(m.value).toBe(66);
     m.hit("scene");
-    expect(m.value).toBe(31);
+    expect(m.value).toBe(70);
   });
 
   test("never below 0 or above 100", () => {
     const m = createMood();
-    m.hit("ruin", 400);
+    m.hit("ruin", 4);
     expect(m.value).toBe(0);
     const h = createMood(98);
     h.hit("festival");
@@ -26,15 +26,15 @@ describe("mood", () => {
   test("mending lifts it a little", () => {
     const m = createMood();
     m.hit("mend");
-    expect(m.value).toBe(72);
+    expect(m.value).toBe(71);
   });
 
   test("drifts back to rest", () => {
     const m = createMood();
-    m.hit("nuke");
+    m.hit("ruin", 1);
     m.step(90);
-    expect(m.value).toBeGreaterThan(50);
-    expect(m.value).toBeLessThan(60);
+    expect(m.value).toBeGreaterThan(45);
+    expect(m.value).toBeLessThan(50);
     m.step(600);
     expect(Math.abs(m.value - 70)).toBeLessThan(0.5);
     const h = createMood();
@@ -49,7 +49,17 @@ describe("mood", () => {
     m.hit("nuke");
     m.step(0);
     m.step(-5);
-    expect(m.value).toBe(25);
+    expect(m.value).toBe(66);
+  });
+
+  test("drag lowers where it settles", () => {
+    const m = createMood();
+    m.drag(40);
+    m.step(600);
+    expect(Math.abs(m.value - 30)).toBeLessThan(0.5);
+    m.drag(0);
+    m.step(600);
+    expect(Math.abs(m.value - 70)).toBeLessThan(0.5);
   });
 });
 

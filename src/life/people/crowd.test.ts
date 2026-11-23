@@ -100,8 +100,6 @@ describe('a day in the town', () => {
     const phone = createCrowd({ cap: 30 });
     phone.sync(big.shape, big.dressing, clock().time);
     expect(phone.people.map((p) => p.id)).toEqual(residents.slice(0, 30).map((a) => a.id));
-    // The strip's population counts them all, not just the thirty who walk.
-    expect(phone.residents).toBe(42);
   });
 });
 

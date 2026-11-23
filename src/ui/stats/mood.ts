@@ -13,6 +13,7 @@ export type { MoodCause, SillyKey };
 /** Mood from 0 to 100: things happen to it, and it drifts back to `rest`. */
 export function createMood(rest: number = MOOD.rest) {
   let value = rest;
+  let drag = 0;
   return {
     get value() {
       return value;
@@ -20,9 +21,14 @@ export function createMood(rest: number = MOOD.rest) {
     hit(cause: MoodCause, n = 1) {
       value = Math.min(100, Math.max(0, value + MOOD_WEIGHTS[cause] * n));
     },
+    /** Lowers where it settles (while something weighs on the town), until set again. */
+    drag(d: number) {
+      drag = d;
+    },
     step(dt: number) {
+      const to = Math.min(100, Math.max(0, rest - drag));
       if (dt > 0)
-        value = rest + (value - rest) * Math.exp(-dt / MOOD.recoverySeconds);
+        value = to + (value - to) * Math.exp(-dt / MOOD.recoverySeconds);
     },
   };
 }

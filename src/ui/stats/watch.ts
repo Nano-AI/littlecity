@@ -7,7 +7,10 @@ import { crowdOf } from '@/life/doors/table';
 import { mischiefOf, type MischiefEvent } from '@/life/mischief/director';
 import { raidsOf } from '@/life/raid/raids';
 import { scenesOnStage } from '@/life/town/scenes';
-import { SILLY } from '@/style/stats';
+import type { CellKey } from '@/core/grid';
+import type { ShapePlan, StructureId } from '@/resolve/plan';
+import { PEOPLE } from '@/style/people';
+import { MOOD, SILLY } from '@/style/stats';
 import { createMood, createTally, type SillyKey } from './mood';
 
 export interface StatsView {
@@ -22,7 +25,15 @@ const ROTATE = 4000;
 
 type Chain = { id: string; open?: boolean };
 
-export function createStatsWatch() {
+export interface StatsWatchOptions {
+  /** The town's shape, read at call time (it changes with every edit). */
+  shape?: () => Pick<ShapePlan, 'structures' | 'structureAt'> | null;
+}
+
+/** Everyone the town houses, by the same rule as the plan's residents (L21) but without its cap. */
+type Census = { total: number; homes: Map<StructureId, number> };
+
+export function createStatsWatch(opts: StatsWatchOptions = {}) {
   const mood = createMood();
   const tally = createTally();
   /** Mischief events wait here for the next update. */
@@ -45,6 +56,38 @@ export function createStatsWatch() {
   let marketOpen = false;
   let festival = false;
 
+  // The census is kept until the shape's structures change (they change only on edits).
+  let censusOf: object | null = null;
+  let census: Census = { total: 0, homes: new Map() };
+
+  function counted(): Census {
+    const shape = opts.shape?.();
+    if (shape && shape.structures !== censusOf) {
+      censusOf = shape.structures;
+      census = { total: 0, homes: new Map() };
+      for (const [id, st] of shape.structures) {
+        if (st.kind !== 'house' || st.cells.length === 0) continue;
+        const n = Math.ceil(st.cells.length / Math.max(1, PEOPLE.cellsPerResident));
+        census.homes.set(id, n);
+        census.total += n;
+      }
+    }
+    return census;
+  }
+
+  /** The share (0 to 1) of all residents whose homes are among these structures, each counted once. */
+  function share(structures: Iterable<StructureId | undefined>): number {
+    const { total, homes } = counted();
+    if (!total) return 0;
+    let n = 0;
+    for (const id of new Set(structures)) if (id !== undefined) n += homes.get(id) ?? 0;
+    return n / total;
+  }
+  const ofCells = (cells: Iterable<CellKey>) => {
+    const at = opts.shape?.()?.structureAt;
+    return share([...cells].map((c) => at?.get(c)));
+  };
+
   function listen(stage: LifeStage): void {
     if (listening.has(stage)) return;
     listening.add(stage);
@@ -53,7 +96,6 @@ export function createStatsWatch() {
 
   function apply(e: MischiefEvent): void {
     if (e.type === 'lit') {
-      mood.hit('fire');
       tally.add('fires');
     } else if (e.type === 'drop' && e.bomb.nuke) {
       mood.hit('nuke');
@@ -62,12 +104,12 @@ export function createStatsWatch() {
       mood.hit('bomb');
       tally.add('bombs');
     } else if (e.type === 'strike') {
-      mood.hit('lightning');
+      mood.hit('lightning', ofCells([e.strike.cell]));
       tally.add('lightning');
     } else if (e.type === 'knock') {
-      mood.hit('mallet');
+      mood.hit('mallet', ofCells([e.cell]));
     } else if (e.type === 'blast') {
-      mood.hit('ruin', e.blast.hit.length);
+      mood.hit('ruin', ofCells(e.blast.hit.map((h) => h.cell)));
       tally.add('ruined', e.blast.hit.length);
     } else if (e.type === 'mend') {
       mood.hit('mend');
@@ -79,9 +121,9 @@ export function createStatsWatch() {
     for (let e = queue.shift(); e; e = queue.shift()) apply(e);
   }
 
-  function people(stage: LifeStage): void {
-    const crowd = crowdOf(stage);
-    if (crowd) population = crowd.residents;
+  function people(): void {
+    const total = counted().total;
+    population = total > 0 ? total : null;
   }
 
   function scenes(stage: object): void {
@@ -142,7 +184,9 @@ export function createStatsWatch() {
   }
 
   function burning(stage: LifeStage): void {
-    tally.set('burning', mischiefOf(stage).engine.burning().length);
+    const fires = mischiefOf(stage).engine.burning();
+    tally.set('burning', fires.length);
+    mood.drag(MOOD.fireDrag * share(fires.map((f) => f.structure)));
   }
 
   function days(stage: object): void {
@@ -168,7 +212,7 @@ export function createStatsWatch() {
       const s = stage as LifeStage;
       listen(s);
       mischief();
-      people(s);
+      people();
       scenes(s);
       raiding(s);
       scuffling(s);
