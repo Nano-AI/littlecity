@@ -449,11 +449,13 @@ export class Director {
     const turn = [...due.filter((u) => u.sid > this.mendFrom), ...due.filter((u) => u.sid <= this.mendFrom)];
     let any = false;
     let used = 0;
+    let full = false;
     for (const u of turn) {
       const cost = u.cells.length * u.steps;
       const owed = this.mendOwed.get(u.sid);
-      if (used > 0 && used + cost > MEND.cellsPerTick) {
-        // Not this tick: it keeps what it is owed, but no more than one step (it takes that when its turn comes).
+      if (full || (used > 0 && used + cost > MEND.cellsPerTick)) {
+        // Strictly in turn: the tick ends here, and this building leads the next one. It keeps what it is owed, but no more than one step.
+        full = true;
         if (owed !== undefined) this.mendOwed.set(u.sid, Math.min(owed + dt * u.rate, MEND.step));
         continue;
       }
@@ -524,6 +526,7 @@ export class Director {
     this.waves = [];
     this.engine.cancel();
     this.mendOwed.clear();
+    this.mendFrom = -1;
     this.bombs.length = 0;
     this.strikes.length = 0;
     this.quietFrames = 0;

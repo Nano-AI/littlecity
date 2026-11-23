@@ -175,9 +175,11 @@ describe('the town mends in bounded batches', () => {
   const ENV = { wind: () => ({ dirX: 1, dirZ: 0, strength: 0.3 }) };
 
   /** A town of two-floor houses, every cell a blast ruin, mended by a director over a real game; the size of every batch it sends. */
-  function mend(houses: number, w = 1) {
+  function mend(houses: number, w = 1, big = false) {
     const terrain = flatTerrain(3);
     const b = new TownBuilder(emptyWorld(3), terrain);
+    if (big) b.house(8, 40, { floors: 2, w: 2, d: 2, color: 0 });
+    const bigCells = new Set(b.world.blocks.keys());
     for (let i = 0; i < houses; i++) b.house(8 + (i % 6) * 5, 8 + Math.floor(i / 6) * 5, { floors: 2, w, d: w, color: i % 6 });
     const d = new Director(5);
     const game = createGame({ world: b.world, terrain }, { show: (shape) => d.sync(shape) });
@@ -195,8 +197,12 @@ describe('the town mends in bounded batches', () => {
     });
     const ruin = packRuin({ stage: 3, cause: 'blast' });
     game.editAll([...game.world.blocks.keys()].map((cell) => ({ type: 'setRuin', cell, ruin })));
-    for (let t = 0; t < 600 * 30; t++) d.update(1 / 30, ENV);
-    return { batches, ruins: [...game.world.blocks.values()].filter((x) => x.ruin).length, cells: game.world.blocks.size };
+    let bigFirst = -1;
+    for (let t = 0; t < 600 * 30; t++) {
+      d.update(1 / 30, ENV);
+      if (bigFirst < 0 && [...bigCells].some((c) => game.world.blocks.get(c)?.ruin !== ruin)) bigFirst = t / 30;
+    }
+    return { bigFirst, batches, ruins: [...game.world.blocks.values()].filter((x) => x.ruin).length, cells: game.world.blocks.size };
   }
 
   test('a big aftermath mends in batches no bigger than MEND.cellsPerTick, and every building is mended', () => {
@@ -218,6 +224,19 @@ describe('the town mends in bounded batches', () => {
     try {
       const r = mend(1, 2);
       expect(r.cells).toBeGreaterThan(4);
+      expect(r.ruins).toBe(0);
+    } finally {
+      MEND.cellsPerTick = was;
+    }
+  });
+
+  test('a building bigger than the cap is not passed over by smaller ones when many are due', () => {
+    const was = MEND.cellsPerTick;
+    MEND.cellsPerTick = 6;
+    try {
+      const r = mend(8, 1, true);
+      // Everything is due by quiet + stagger; the big one leads within one lap of the due buildings (0.5 s a tick).
+      expect(r.bigFirst).toBeLessThanOrEqual(MEND.quiet + MEND.stagger + 9 * 0.5);
       expect(r.ruins).toBe(0);
     } finally {
       MEND.cellsPerTick = was;
