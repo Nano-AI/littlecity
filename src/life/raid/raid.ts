@@ -241,8 +241,8 @@ export class Raid {
         v.rowing = 1;
         this.boats.push(v);
         this.boatState.push('row-in');
-        // A boat's length and a half behind the one ahead (out of sight beyond the edge till its turn).
-        this.boatS.push(-b * 2.4);
+        // A clear gap behind the one ahead, a boat and a half long (out of sight beyond the edge till its turn).
+        this.boatS.push(-b * 3.6);
       }
     }
     // The band, scaled to the town.
@@ -1123,7 +1123,9 @@ export class Raid {
     for (const r of this.raiders) {
       if (!r.routed || r.where !== 'ashore' || !r.person) continue;
       const p = r.person;
-      if (p.mode === 'linger' && p.goal?.errand?.tag === 'raid:to-sea') this.intoSea(r, board);
+      const tag = p.goal?.errand?.tag;
+      // (Sent packing to the boat, and the boat has gone without him: into the sea all the same.)
+      if (p.mode === 'linger' && (tag === 'raid:to-sea' || (tag === 'raid:board' && this.over(r.vessel)))) this.intoSea(r, board);
     }
     void chainId;
   }
@@ -1419,6 +1421,18 @@ export class Raid {
       if (p.goal?.errand?.tag !== 'raid:board') continue;
       const sp = this.shorePoint(r);
       if (p.mode !== 'linger' && !(p.mode === 'walk' && Math.hypot(p.x - sp.x, p.z - sp.z) < 1.3 && (r.stepFor > 2.5 || p.stuck > 1))) continue;
+      // His boat gone (sunk, or rowed off without him): another still on the shore, or the sea.
+      if (this.over(r.vessel) && r.vessel > 0) {
+        const other = this.boatState.indexOf('wait');
+        if (other >= 0) {
+          r.vessel = other + 1;
+          r.landing = other;
+          r.seat = this.freeSeat(other + 1);
+          board.drop(p);
+          board.crowd.rethink(p);
+        } else this.intoSea(r, board);
+        continue;
+      }
       const v = this.vesselOf(r);
       const i = r.vessel - 1;
       // The vessel is still there to go to.

@@ -72,20 +72,30 @@ try {
   // The boats raid: no ship; the rowing boats come in one behind another, wait at their landings, row off laden.
   page = await open('raid-boats');
   await page.evaluate(() => window.__lc.raids.summon({ at: null, kind: 'boats' }));
-  const boatAt = (k) => () => {
-    const b = window.__lc.raids.current.boats[k] ?? window.__lc.raids.current.boats[0];
-    return [b.x, 0.6, b.z];
-  };
+  // (Each is sent to the page as it is written: no closures.)
+  const boatAt = [
+    () => {
+      const b = window.__lc.raids.current.boats[0];
+      return [b.x, 0.6, b.z];
+    },
+    () => {
+      const r = window.__lc.raids.current;
+      const b = r.boats[1] ?? r.boats[0];
+      return [b.x, 0.6, b.z];
+    },
+  ];
   await play(page, () => {
     const r = window.__lc.raids.current;
-    return r && r.boats.every((b) => !b.edgeCut) && r.boatState.every((s) => s === 'row-in');
+    // The second one just in over the edge, the first ahead of it (the rest still beyond the edge, in a line).
+    const b = r?.boats[1];
+    return !!b && !b.edgeCut && Math.min(b.x, b.z, 48 - b.x, 48 - b.z) > 1;
   });
-  for (const yaw of [45, 225]) await shoot(page, `rowing boats coming in, yaw ${yaw}`, boatAt(1), yaw);
+  for (const yaw of [45, 225]) await shoot(page, `rowing boats coming in, yaw ${yaw}`, boatAt[1], yaw);
   zoomNow = 17;
-  await shoot(page, 'a boat under oars, close (the bow)', boatAt(0), 20);
+  await shoot(page, 'a boat under oars, close (the bow)', boatAt[0], 20);
   zoomNow = zoom;
   await play(page, () => window.__lc.raids.current?.boatState.every((s) => s === 'wait'));
-  await shoot(page, 'boats waiting at their landings', boatAt(0), 45);
+  await shoot(page, 'boats waiting at their landings', boatAt[0], 45);
   await play(page, () => window.__lc.raids.current?.boatState.some((s) => s === 'row-out'), 60 * 240);
   for (let i = 0; i < 60 * 3; i++) await page.clock.runFor(FRAME);
   zoomNow = 17;
@@ -117,6 +127,8 @@ try {
   fs.mkdirSync(path.dirname(out), { recursive: true });
   await sheet.screenshot({ path: out });
   console.log(path.relative(ROOT, out));
+} catch (err) {
+  console.error(err);
 } finally {
   await browser.close();
   await server.close?.();
