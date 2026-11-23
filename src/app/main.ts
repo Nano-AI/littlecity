@@ -136,6 +136,7 @@ autosave.enabled = !scn && !visiting;
  */
 let busyFrames = 0;
 let lastDressed = -Infinity;
+let ghostQueued = false;
 const BUSY_FRAMES = 3;
 
 const game = createGame(tiered(start), {
@@ -388,6 +389,14 @@ function frame(now: number): void {
     view.setDressing(ready.dressing);
     life.sync(ready);
     ui?.dressed(ready.dressing);
+    // The ghost's shaders are linked once, while idle, not on the first hover over the town.
+    if (!ghostQueued) {
+      ghostQueued = true;
+      const prepare = (): void => view.prepareGhost?.();
+      const idle = (globalThis as { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+      if (idle) idle(prepare, { timeout: 4000 });
+      else setTimeout(prepare, 1500);
+    }
   }
   // Fly mode moves the eye on real time (it carries on when the town's clock is held).
   ui?.fly.frame(real);

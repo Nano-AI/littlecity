@@ -619,6 +619,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   let eyePose: EyePose | null = null;
   let eyePrepared = false;
+  let ghostPrepared = false;
   let lens: EyeFrame | null = null;
   /** Which set of materials the meshes wear now. */
   let wearing: 'orbit' | 'fly' = 'orbit';
@@ -1314,6 +1315,17 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       renderer.setRenderTarget(eyeTarget());
       renderer.clear(true, true, false);
       renderer.setRenderTarget(was);
+    },
+    prepareGhost() {
+      if (ghostPrepared) return;
+      ghostPrepared = true;
+      // The ghost's view holds nothing until a piece is held, and three skips an empty one, so the
+      // surface material is compiled through a mesh of its own. No target is needed: the program is
+      // keyed by its shader and defines alone, so the ghost's buffer stays unmade until first used.
+      const probe = new THREE.Mesh(new THREE.BufferGeometry(), ghostMaterial);
+      probe.frustumCulled = false;
+      void renderer.compileAsync(new THREE.Scene().add(probe), camera).then(() => probe.geometry.dispose(), () => probe.geometry.dispose());
+      void renderer.compileAsync(ghostPostScene, postCamera).catch(() => undefined);
     },
     quality() {
       return { level, levels: levels.map((q) => ({ ...q })) };

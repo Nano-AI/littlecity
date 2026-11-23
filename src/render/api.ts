@@ -127,6 +127,11 @@ export interface TownView {
    * made), so the first take-off does not stall a frame. Call when the page is idle; harmless twice.
    */
   prepareEye?(): void;
+  /**
+   * Gets the held piece's ghost ready ahead of time (its two shaders compiled), so the first hover
+   * does not stall a frame. Call when the page is idle; harmless twice.
+   */
+  prepareGhost?(): void;
 
   /**
    * Added for the quality governor (src/render/quality.ts). How sharp the page is drawn: the levels
