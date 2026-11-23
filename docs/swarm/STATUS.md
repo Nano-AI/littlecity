@@ -1794,3 +1794,11 @@ browser on a random island: "A farming village is growing." Gate:
 browser lost `lc:welcomed` (the domain move) and whose current island
 is empty gets a town grown on it; one undo or the note's button takes
 it back.
+
+**Guide: every naturally occurring event (Derek, 2026-11-22).** He asked
+what all the events are and for them to be in the guide (it lists six).
+→ town-scenes agent (`acfb086248bffb0ff`), resumed: an entry per thing
+that happens by itself (big occasions, seasonal scenes, daily life, the
+waterfront, after mischief), grouped, each with what to build and when
+it happens, a picture and a proof; and the list written in the docs.
+Running: town-scenes (the guide).
