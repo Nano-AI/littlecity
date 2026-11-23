@@ -36,7 +36,7 @@ import { PALETTE } from '@/style/palette';
 import { afloatTopple, chunkMatrix, debrisOf, restMatrix, WATER_Y, type Chunk } from './debris';
 import { ashFloor, beam, crackShape, fallenBeams, groundColour, heap, raftersOn, scorchRing, sootShape, studsOn } from './extras';
 import { cutField, profileOf, STONE_KINDS, type Column, type Plane, type Profile } from './field';
-import { area, backOf, bounds, centroid, clip, clonePoly, normalOf, polysOf as polysOfMesh, Soup, tint, transformPoly, vert, type Poly, type Vert } from './poly';
+import { area, backOf, bounds, centroid, clip, clonePoly, normalOf, polysOf as polysOfMesh, Soup, tint, transformPoly, vert, VERT, type Poly, type Vert } from './poly';
 import { scaffold } from './scaffold';
 
 /** The colour of the open ground under a column (what its scorch mark recovers to). */
@@ -317,9 +317,8 @@ function debrisPart(removed: readonly Poly[], prof: Profile): Poly[] {
 export function damageOutput(out: GenOutput, s: Structure, plan: ShapePlan, polys?: readonly Poly[]): GenOutput {
   const prof = profileOf(s, plan);
   if (!prof.damaged || out.mesh.position.length === 0) return out;
-  // The damage passes tint and cut the polygons they are given, so a caller's cached ones are copied.
-  const mine = polys?.map(clonePoly);
-  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof, mine) : afloat(prof) ? afloatDamage(out.mesh, prof) : buildingDamage(out.mesh, prof, true, mine);
+  // The damage passes tint and cut the polygons they are given, so they must be the caller's own (unpacked) ones.
+  const mesh = s.kind === 'tree' ? treeDamage(out.mesh, prof, polys as Poly[] | undefined) : afloat(prof) ? afloatDamage(out.mesh, prof) : buildingDamage(out.mesh, prof, true, polys as Poly[] | undefined);
   return { mesh, anchors: out.anchors };
 }
 
@@ -870,17 +869,61 @@ function afloatDamage(intact: MeshData, prof: Profile): MeshData {
   return moved(prof.s.kind === 'dock' ? buildingDamage(intact, prof) : now, m);
 }
 
-const INTACT_CACHE_MAX = 512;
+/** Polygons as flat typed arrays: a `Float64Array` per vertex and an object per polygon are what made the cache heavy. */
+export interface PackedPolys {
+  floats: Float64Array;
+  counts: Int32Array;
+  pattern: Int32Array;
+  ink: Int32Array;
+}
+
+export function packPolys(polys: readonly Poly[]): PackedPolys {
+  let n = 0;
+  for (const p of polys) n += p.v.length;
+  const floats = new Float64Array(n * VERT);
+  const counts = new Int32Array(polys.length);
+  const pattern = new Int32Array(polys.length);
+  const ink = new Int32Array(polys.length);
+  let at = 0;
+  polys.forEach((p, i) => {
+    counts[i] = p.v.length;
+    pattern[i] = p.pattern;
+    ink[i] = p.ink;
+    for (const v of p.v) {
+      floats.set(v, at);
+      at += VERT;
+    }
+  });
+  return { floats, counts, pattern, ink };
+}
+
+/** A fresh list every time, so a damage pass may tint and cut it freely. */
+export function unpackPolys(k: PackedPolys): Poly[] {
+  let at = 0;
+  return Array.from(k.counts, (c, i) => {
+    const v: Float64Array[] = [];
+    for (let j = 0; j < c; j++, at += VERT) v.push(k.floats.slice(at, at + VERT));
+    return { v, pattern: k.pattern[i]!, ink: k.ink[i]! };
+  });
+}
+
+/** The most floats the intact cache holds (8 bytes each: 32 MB). */
+export const intactCache = { maxFloats: 4_000_000 };
 
 /** Wraps a generator registry so every structure is drawn with its damage. */
 export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry } {
-  // A damaged structure's sound drawing and polygons, kept while only its ruin changes (a char or mend step).
-  const cache = new Map<number, { key: number; style: number; intact: GenOutput; polys: Poly[]; hash: number; out: GenOutput }>();
+  // A damaged structure's sound drawing and packed polygons, kept while only its ruin changes (a char or mend step).
+  const cache = new Map<number, { key: number; style: number; intact: GenOutput; polys: PackedPolys; hash: number; out: GenOutput }>();
+  let floats = 0;
+  const drop = (id: number) => {
+    floats -= cache.get(id)?.polys.floats.length ?? 0;
+    cache.delete(id);
+  };
   return {
     ...reg,
     build: (s, plan, parts) => {
       if (!s.cells.some((c) => plan.world.blocks.get(c)?.ruin)) {
-        cache.delete(s.id);
+        drop(s.id);
         return reg.build(s, plan, parts);
       }
       const key = hashStructure(s, plan, true);
@@ -889,12 +932,17 @@ export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact
       if (e && e.key === key && e.style === style) {
         if (e.hash === s.hash) return e.out;
       } else {
-        // ponytail: blunt bound, cleared whole when full; a per-town sweep is the upgrade if it ever thrashes.
-        if (cache.size >= INTACT_CACHE_MAX) cache.clear();
+        drop(s.id);
         const intact = reg.build(s, plan, parts);
-        e = { key, style, intact, polys: polysOfMesh(intact.mesh), hash: 0, out: intact };
+        e = { key, style, intact, polys: packPolys(polysOfMesh(intact.mesh)), hash: 0, out: intact };
+        // ponytail: blunt bound on total floats held, cleared whole when passed; a per-town sweep is the upgrade if it ever thrashes.
+        if (floats + e.polys.floats.length > intactCache.maxFloats) {
+          cache.clear();
+          floats = 0;
+        }
+        floats += e.polys.floats.length;
       }
-      e.out = damageOutput(e.intact, s, plan, e.polys);
+      e.out = damageOutput(e.intact, s, plan, unpackPolys(e.polys));
       e.hash = s.hash;
       cache.set(s.id, e);
       return e.out;

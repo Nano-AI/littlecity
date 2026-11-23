@@ -12,7 +12,8 @@ import { resolveShape } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { packRuin } from '@/world/damage';
 import { emptyWorld } from '@/world/world';
-import { blastChunks, damageOutput, withDamage } from './damage';
+import { blastChunks, damageOutput, intactCache, packPolys, unpackPolys, withDamage } from './damage';
+import { polysOf } from './poly';
 import { restMatrix } from './debris';
 
 const STATES = [
@@ -132,5 +133,33 @@ describe('the intact drawing is kept apart from its damage', () => {
     resetStyles();
     reg.build(s, shape, allParts());
     expect(calls).toBe(2);
+  });
+
+  test('packing round-trips: unpacked polygons equal polysOfMesh(intact)', () => {
+    const { shape, s } = damaged('house', A);
+    const mesh = (allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry }).intact.build(s, shape, allParts()).mesh;
+    const want = polysOf(mesh);
+    const got = unpackPolys(packPolys(want));
+    expect(want.length).toBeGreaterThan(0);
+    expect(got).toEqual(want);
+    expect(got[0]).not.toBe(want[0]);
+  });
+
+  test('the cache clears past its float bound', () => {
+    const was = intactCache.maxFloats;
+    try {
+      intactCache.maxFloats = 1;
+      let calls = 0;
+      const base = allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry };
+      const reg = withDamage({ ...base.intact, build: (s, p, parts) => (calls++, base.intact.build(s, p, parts)) });
+      const one = damaged('house', A);
+      const two = damaged('tower', A);
+      reg.build(one.s, one.shape, allParts());
+      reg.build(two.s, two.shape, allParts());
+      reg.build(one.s, one.shape, allParts());
+      expect(calls).toBe(3);
+    } finally {
+      intactCache.maxFloats = was;
+    }
   });
 });
