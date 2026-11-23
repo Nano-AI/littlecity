@@ -20,12 +20,24 @@ export const DOG_COATS: readonly [string, string][] = [
   ['#d9a35f', '#f4eee2'],
 ];
 
+// Smoothing the normals is the cost, and a town draws the same few poses and coats over and over. The
+// mesh is only ever copied into the render pool (never changed), so callers can share one. Keyed by the
+// raw coat, since the ink name carries it; coats are a handful of post refs, so no bound is needed.
+const made = new Map<string, MeshData>();
+
 /**
  * A dog in one pose and coat. Drawn as two soft bodies (src/gen/soft.ts): the body with its patch, legs
  * and tail is one round mass with one outline, the head with its snout another (the line where the head
  * sits on the body is drawn on purpose); the ears and the nose keep lines of their own.
  */
 export function dogMesh(pose: DogPose, coat: number): MeshData {
+  const key = `${pose}|${coat}`;
+  let mesh = made.get(key);
+  if (!mesh) made.set(key, (mesh = build(pose, coat)));
+  return mesh;
+}
+
+function build(pose: DogPose, coat: number): MeshData {
   const [fur, patch] = DOG_COATS[((coat % DOG_COATS.length) + DOG_COATS.length) % DOG_COATS.length]!;
   const b = new MeshBuilder({ ink: `dog-${pose}-${coat}` });
   const sit = pose === 'sit', bark = pose === 'bark';
