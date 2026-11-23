@@ -1,10 +1,11 @@
-/* The stats strip (src/ui/stats/strip.ts): top centre, under no hand, out of the way of the menu and the clock. */
+/* The stats strip (src/ui/stats/strip.ts): top right, under the clock and weather group (.lc-corner-right), right-aligned with it. */
 .lc-stats {
   position: fixed;
   z-index: 5;
-  top: calc(10px + env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(60px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  left: auto;
+  transform: none;
   display: flex;
   align-items: center;
   gap: 14px;

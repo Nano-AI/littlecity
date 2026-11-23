@@ -791,8 +791,7 @@
   position: absolute;
   /* Above My towns (z-index 8): a town that cannot be opened says so over the sheet. */
   z-index: 9;
-  /* Below the stats strip (src/ui/stats). */
-  top: calc(60px + env(safe-area-inset-top));
+  top: calc(14px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
