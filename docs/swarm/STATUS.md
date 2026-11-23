@@ -1757,3 +1757,24 @@ vessels and wrecks (a clip at the water plane beside the map-edge cut
 if workable), checked from his camera angle; the big ship removed from
 the boats raid, boats come in from the map's edge.
 Running: raids (sunk vessels, boats raid).
+
+**Sunk vessels and the boats raid, merged** (`f59c042`, Opus). Filmed
+with no clip from Derek's low angle: the raid longship (sinks about 4
+cells) and the harbour galleon (4.2) both hung under the slab from
+about +10 s; rowing boats (1.4) did not. Fix: in the surface shader,
+beside the map-edge cut, a fragment of anything marked for that cut
+(vessels, wrecks, swimmers) below the sea's surface is discarded
+(`if (vCut > 0.5 && vW.y < uSeaY - 0.015) discard;`). Holds through
+undo, mend, the Hand and town changes because it depends on no game
+state. Test `tests/e2e/sunk.e2e.test.ts` (fails without the clip).
+Tool `src/life/testing/sink-frames.mjs`. The boats raid is now two to
+four clinker rowing boats alone, in from beyond the map's edge in line
+with oars in time, a raider standing in each bow (the chief with the
+standard), each to its own landing; loot in the boats (a chest in the
+stern); each boat leaves when its crew is aboard; a sunk boat's raiders
+go to another, the last boat sunk strands the band. No stand-off ship,
+so the planner no longer needs a big circle of clear water. Gate:
+2,335 passed, 12 skipped, clean. Not covered by the clip: things baked
+into the town (a toppled stilt house). Not seen clearly on film: a
+small harbour boat capsizing.
+Running: nothing of mine.
