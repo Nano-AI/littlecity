@@ -9,11 +9,12 @@ import { columnIndex, key } from '@/core/grid';
 import { identity, type Mat4Like } from '@/core/mat4';
 import { createGame } from '@/app/game';
 import { flatTerrain, TownBuilder } from '@/scenario';
+import { packRuin } from '@/world/damage';
 import { emptyWorld } from '@/world/world';
 import type { InstanceHandle, LifeStage } from '../api';
 import { createLife } from '../runtime';
 import { createSignals } from '../signals';
-import { mischiefOf, STRIKE, type MischiefEvent } from './director';
+import { Director, mischiefOf, MEND, STRIKE, type MischiefEvent } from './director';
 import mischiefSystem from './mischief.system';
 import lightningSystem from './lightning.system';
 import nukeSystem, { SCORCH } from './nuke.system';
@@ -167,5 +168,59 @@ describe('nothing of the mischief outlives the town', () => {
     run(STRIKE.gone);
     expect(d.active).toBe(false);
     expect(counting.shown()).toBe(0);
+  });
+});
+
+describe('the town mends in bounded batches', () => {
+  const ENV = { wind: () => ({ dirX: 1, dirZ: 0, strength: 0.3 }) };
+
+  /** A town of two-floor houses, every cell a blast ruin, mended by a director over a real game; the size of every batch it sends. */
+  function mend(houses: number, w = 1) {
+    const terrain = flatTerrain(3);
+    const b = new TownBuilder(emptyWorld(3), terrain);
+    for (let i = 0; i < houses; i++) b.house(8 + (i % 6) * 5, 8 + Math.floor(i / 6) * 5, { floors: 2, w, d: w, color: i % 6 });
+    const d = new Director(5);
+    const game = createGame({ world: b.world, terrain }, { show: (shape) => d.sync(shape) });
+    const batches: number[] = [];
+    d.connect({
+      begin: () => game.begin(),
+      apply: (edits) => void game.editAll(edits),
+      end: () => game.end(),
+      abort: () => void game.abort(),
+      edit: (edits) => void game.editAll(edits),
+      amend: (edits) => {
+        batches.push(edits.length);
+        void game.amend(edits);
+      },
+    });
+    const ruin = packRuin({ stage: 3, cause: 'blast' });
+    game.editAll([...game.world.blocks.keys()].map((cell) => ({ type: 'setRuin', cell, ruin })));
+    for (let t = 0; t < 600 * 30; t++) d.update(1 / 30, ENV);
+    return { batches, ruins: [...game.world.blocks.values()].filter((x) => x.ruin).length, cells: game.world.blocks.size };
+  }
+
+  test('a big aftermath mends in batches no bigger than MEND.cellsPerTick, and every building is mended', () => {
+    const was = MEND.cellsPerTick;
+    MEND.cellsPerTick = 6;
+    try {
+      const r = mend(12);
+      expect(r.cells).toBeGreaterThan(12);
+      expect(Math.max(...r.batches)).toBeLessThanOrEqual(6);
+      expect(r.ruins).toBe(0);
+    } finally {
+      MEND.cellsPerTick = was;
+    }
+  });
+
+  test('a building bigger than the cap still mends', () => {
+    const was = MEND.cellsPerTick;
+    MEND.cellsPerTick = 4;
+    try {
+      const r = mend(1, 2);
+      expect(r.cells).toBeGreaterThan(4);
+      expect(r.ruins).toBe(0);
+    } finally {
+      MEND.cellsPerTick = was;
+    }
   });
 });

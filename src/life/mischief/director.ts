@@ -22,8 +22,8 @@ import { BLAST } from '@/style/damage';
 import { MEND_STEPS } from '@/world/damage';
 import { rand } from '@/core/rand';
 
-/** The town mending itself: seconds of quiet after a building was hurt, a spread on top, seconds a step, a crew's speed. */
-export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2 };
+/** The town mending itself: seconds of quiet after a building was hurt, a spread on top, seconds a step, a crew's speed, and the most cells a tick repairs. */
+export const MEND = { quiet: 6, stagger: 4, step: 2.8, crew: 2.2, cellsPerTick: 96 };
 
 /**
  * The nuke: its fall and fuse (seconds), its power against a bomb's, how near the middle chunks fly, the crater's radius.
@@ -404,6 +404,8 @@ export class Director {
   private mendClock = 0;
   /** Seconds of mending owed per structure. */
   private mendOwed = new Map<StructureId, number>();
+  /** The last structure a mend tick served: the next tick starts after it, so every building gets its turn. */
+  private mendFrom = -1;
 
   /**
    * The town mends its own damage (design section 13b): every damaged building that is not burning starts
@@ -424,7 +426,8 @@ export class Director {
       l.push(cell);
     }
     for (const sid of [...this.mendOwed.keys()]) if (!bySid.has(sid)) this.mendOwed.delete(sid);
-    let any = false;
+    // Every building due a repair this tick, in structure order; the cap serves them in turn from the cursor.
+    const due: { sid: StructureId; cells: CellKey[]; steps: number; rate: number }[] = [];
     for (const [sid, cells] of [...bySid].sort((a, b) => a[0] - b[0])) {
       const since = Math.min(...cells.map((c) => this.engine.sinceHit(c)));
       const wait = MEND.quiet + rand(sid, 'mend-wait') * MEND.stagger;
@@ -435,18 +438,38 @@ export class Director {
       const ruins = cells.map((c) => shape.world.blocks.get(c)!.ruin!);
       if (ruins.some((r) => (r & 16) !== 0)) continue; // chunks still in the air
       const owed = this.mendOwed.get(sid);
-      if (owed === undefined || !ruins.every((r) => (r & 8) !== 0)) {
-        // First: the scaffolding goes up.
-        for (const c of cells) any = this.engine.repair(c, 1) || any;
-        this.mendOwed.set(sid, rand(sid, 'mend-phase') * MEND.step);
+      const rate = this.crewed.has(sid) || this.remote.has(sid) ? MEND.crew : 1;
+      // First the scaffolding goes up (one repair); then a step each time the owed seconds reach MEND.step.
+      const scaffold = owed === undefined || !ruins.every((r) => (r & 8) !== 0);
+      const steps = scaffold ? 1 : Math.floor((owed + dt * rate) / MEND.step);
+      if (steps === 0) this.mendOwed.set(sid, owed! + dt * rate);
+      else due.push({ sid, cells, steps, rate });
+    }
+    // Round-robin: those after the cursor first. The first is always served, however big; then while they fit.
+    const turn = [...due.filter((u) => u.sid > this.mendFrom), ...due.filter((u) => u.sid <= this.mendFrom)];
+    let any = false;
+    let used = 0;
+    for (const u of turn) {
+      const cost = u.cells.length * u.steps;
+      const owed = this.mendOwed.get(u.sid);
+      if (used > 0 && used + cost > MEND.cellsPerTick) {
+        // Not this tick: it keeps what it is owed, but no more than one step (it takes that when its turn comes).
+        if (owed !== undefined) this.mendOwed.set(u.sid, Math.min(owed + dt * u.rate, MEND.step));
         continue;
       }
-      let left = owed + dt * (this.crewed.has(sid) || this.remote.has(sid) ? MEND.crew : 1);
+      used += cost;
+      this.mendFrom = u.sid;
+      if (owed === undefined || !u.cells.every((c) => (shape.world.blocks.get(c)!.ruin! & 8) !== 0)) {
+        for (const c of u.cells) any = this.engine.repair(c, 1) || any;
+        this.mendOwed.set(u.sid, rand(u.sid, 'mend-phase') * MEND.step);
+        continue;
+      }
+      let left = owed + dt * u.rate;
       while (left >= MEND.step) {
         left -= MEND.step;
-        for (const c of cells) any = this.engine.repair(c, 1) || any;
+        for (const c of u.cells) any = this.engine.repair(c, 1) || any;
       }
-      this.mendOwed.set(sid, left);
+      this.mendOwed.set(u.sid, left);
     }
     if (!any) return;
     const edits = this.engine.takeEdits();
