@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildWithin } from './rebuild-budget';
+import { buildWithin, oldestFirst } from './rebuild-budget';
 
 /** A clock that moves on by `cost` milliseconds each time something is built. */
 function setup(cost: number) {
@@ -35,5 +35,20 @@ describe('building within a budget', () => {
     const { built, build, clock } = setup(4);
     expect(buildWithin([], build, 6, clock)).toEqual([]);
     expect(built).toEqual([]);
+  });
+});
+
+describe('the queue of waiting rebuilds', () => {
+  test('what waited keeps its place, new changes join at the back, what needs nothing leaves', () => {
+    expect(oldestFirst([3, 1, 9], [1, 2, 3, 4])).toEqual([3, 1, 2, 4]);
+  });
+
+  test('under changes every frame, nothing starves behind newer ones', () => {
+    // Every structure changes again each frame, and two fit in the budget.
+    const { built, build, clock } = setup(4);
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8];
+    let waiting: number[] = [];
+    for (let frame = 0; frame < 4; frame++) waiting = buildWithin(oldestFirst(waiting, ids), build, 6, clock);
+    expect([...built].sort()).toEqual(ids);
   });
 });

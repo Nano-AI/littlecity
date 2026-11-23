@@ -55,7 +55,7 @@ import {
 } from './camera';
 import { gradeAt } from './grade';
 import { qualityLevels, type Quality } from './quality';
-import { buildWithin, REBUILD_BUDGET_MS } from './rebuild-budget';
+import { buildWithin, oldestFirst, REBUILD_BUDGET_MS } from './rebuild-budget';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
@@ -708,7 +708,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     spent.view = Math.max(0, rebuildMs - spent.generators - spent.layers - spent.parts);
     lastSpent = { ...spent };
   };
-  /** Structures drawn at an old hash, rebuilt a few a frame by render() (setTown's `spread`). */
+  /** Structures drawn at an old hash, oldest first, rebuilt a few a frame by render() (setTown's `spread`). */
   let pending = new Set<StructureId>();
   /** A setTown or setDressing ran since the last frame: that frame does no deferred rebuilding. */
   let busy = false;
@@ -898,15 +898,17 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       setAnchors(d.anchors, {});
       structures.delete(id);
     }
-    const changed: Structure[] = [];
+    const changed = new Map<StructureId, Structure>();
     for (const s of next.structures.values()) {
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
-      if (spread && old) changed.push(s);
+      if (spread && old) changed.set(s.id, s);
       else buildStructure(s, next);
     }
-    // Spread (mischief): what does not fit in the budget keeps its old drawing; render() gets to it.
-    pending = new Set(buildWithin(changed, (s) => buildStructure(s, next), REBUILD_BUDGET_MS).map((s) => s.id));
+    // Spread (mischief): oldest first, and what does not fit in the budget keeps its old drawing;
+    // render() gets to it.
+    const queue = oldestFirst(pending, [...changed.keys()]);
+    pending = new Set(buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS));
     for (const layer of generators.layers()) {
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;
