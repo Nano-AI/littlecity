@@ -12,8 +12,7 @@ import { resolveShape } from '@/resolve/index';
 import { flatTerrain, TownBuilder } from '@/scenario';
 import { packRuin } from '@/world/damage';
 import { emptyWorld } from '@/world/world';
-import { blastChunks, damageOutput, intactCache, packPolys, unpackPolys, withDamage } from './damage';
-import { polysOf } from './poly';
+import { blastChunks, damageOutput, intactCache, withDamage } from './damage';
 import { restMatrix } from './debris';
 
 const STATES = [
@@ -59,8 +58,9 @@ describe('the same ruin, the same break', () => {
   test('building a ruin twice gives the same mesh', () => {
     const { shape, s } = damaged('house', packRuin({ stage: 3, cause: 'blast' }));
     const a = allGenerators().build(s, shape, allParts()).mesh;
-    const b = allGenerators().build(s, shape, allParts()).mesh;
+    const b = damageOutput((allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry }).intact.build(s, shape, allParts()), s, shape).mesh;
     expect(Array.from(a.position)).toEqual(Array.from(b.position));
+    expect(Array.from(a.color)).toEqual(Array.from(b.color));
   });
 
   test('the flying chunks come to rest exactly where the heap is baked', () => {
@@ -135,28 +135,21 @@ describe('the intact drawing is kept apart from its damage', () => {
     expect(calls).toBe(2);
   });
 
-  test('packing round-trips: unpacked polygons equal polysOfMesh(intact)', () => {
-    const { shape, s } = damaged('house', A);
-    const mesh = (allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry }).intact.build(s, shape, allParts()).mesh;
-    const want = polysOf(mesh);
-    const got = unpackPolys(packPolys(want));
-    expect(want.length).toBeGreaterThan(0);
-    expect(got).toEqual(want);
-    expect(got[0]).not.toBe(want[0]);
-  });
-
-  test('the cache clears past its float bound', () => {
+  test('eviction keeps the newest entries', () => {
     const was = intactCache.maxFloats;
     try {
-      intactCache.maxFloats = 1;
       let calls = 0;
       const base = allGenerators() as GeneratorRegistry & { intact: GeneratorRegistry };
       const reg = withDamage({ ...base.intact, build: (s, p, parts) => (calls++, base.intact.build(s, p, parts)) });
       const one = damaged('house', A);
       const two = damaged('tower', A);
-      reg.build(one.s, one.shape, allParts());
-      reg.build(two.s, two.shape, allParts());
-      reg.build(one.s, one.shape, allParts());
+      const parts = allParts();
+      intactCache.maxFloats = 1;
+      reg.build(one.s, one.shape, parts);
+      reg.build(two.s, two.shape, parts); // evicts the house, keeps itself
+      reg.build(two.s, two.shape, parts);
+      expect(calls).toBe(2);
+      reg.build(one.s, one.shape, parts); // the house was evicted
       expect(calls).toBe(3);
     } finally {
       intactCache.maxFloats = was;
