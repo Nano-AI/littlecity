@@ -1802,3 +1802,24 @@ that happens by itself (big occasions, seasonal scenes, daily life, the
 waterfront, after mischief), grouped, each with what to build and when
 it happens, a picture and a proof; and the list written in the docs.
 Running: town-scenes (the guide).
+
+**Guide: the town's happenings, merged** (`e7b84fc`, Opus). 25 entries
+in six new groups in place of `events`: Big days (market day, a
+wedding, a raid, the midwinter festival), Through the seasons (beach
+day, picnics, snow day, harvest supper, carol singers, the harvest), By
+the water (ships unloading, waving a ship in, the catch), Every day
+(bread, water, washing, school and hopscotch, the smith, a show, games
+on the field, dogs, a scuffle), Evening and night (lamplighter, night
+watch), After mischief (the fire brigade and mending). A new optional
+"When" line on cards; the picture tool can summon a raid, a fire or a
+scuffle; picture budget 3 → 4 MB (now about 2.6). The whole list with
+rule numbers: `docs/swarm/events.md`. Left out as entries: things
+already in the guide as places (garrison, rider, maypole, apple
+picking), things that need the player acting (builders, the blown
+about, swimmers), ambience. Weak pictures (agent's list): bread, water,
+washing, the scuffle, waving a ship in, dogs. Gate: 2,352 passed, 1
+failed: `tests/e2e/hand.e2e.test.ts` "a still release…" timed out
+picking a person up a second time (the person had walked on between
+reading their place and the press); passes alone four times running;
+a flaky test to fix, not this merge.
+Running: nothing of mine.
