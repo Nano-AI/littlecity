@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global console, document, process */
+/* global document, process */
 // Opens the app, opens the guide and screenshots it scrolled to the happenings, on a desktop and a phone:
 //   node src/life/testing/guide-look.mjs   → .context/shots/guide-<desktop|phone>-<n>.png
 import { launchBrowser, openPage } from '../../../tools/lib/browser.mjs';
