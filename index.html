@@ -49,6 +49,14 @@
       body { position: fixed; inset: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
       .lc-about { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
       #town { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
+      .lc-loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; pointer-events: none; opacity: 1; transition: opacity 0.4s ease; }
+      .lc-loading[data-state="done"] { opacity: 0; }
+      .lc-loading svg { width: min(200px, 60vw); height: auto; overflow: visible; fill: none; stroke: #3a2f2a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .lc-loading path { stroke-dasharray: 1 2; stroke-dashoffset: 0; animation: lc-draw 0.45s ease-out backwards; animation-delay: calc(var(--i) * 0.2s); }
+      .lc-loading-line { margin: 0; font: 600 14px/1.2 ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Nunito', 'Varela Round', system-ui, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 0.02em; opacity: 0.75; padding: 0 16px; text-align: center; }
+      @keyframes lc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+      .lc-loading[data-state="failed"] path { animation: none; }
+      @media (prefers-reduced-motion: reduce) { .lc-loading path { animation: none; } .lc-loading { transition: none; } }
     </style>
   </head>
   <body>
@@ -63,6 +71,34 @@
       <p>Works on computers, iPhone, iPad and Android. Made by Derek Yao.</p>
       <nav><a href="/about/" tabindex="-1">About Little City</a> · <a href="/guide/" tabindex="-1">The guide: every special building and how to get it</a></nav>
     </main>
+    <div class="lc-loading" role="status" data-state="loading">
+      <svg viewBox="0 0 200 120" aria-hidden="true">
+        <path pathLength="1" style="--i:0" d="M6 98 C26 94 38 101 58 97 S92 92 112 98 S158 102 176 96 S190 97 195 99" />
+        <path pathLength="1" style="--i:1" d="M20 94 L21 62 L53 61 L52 93" />
+        <path pathLength="1" style="--i:2" d="M14 65 L37 38 L60 64" />
+        <path pathLength="1" style="--i:3" d="M32 94 L33 79 L42 78 L42 93" />
+        <path pathLength="1" style="--i:4" d="M122 95 L130 36 L152 37 L159 93" />
+        <path pathLength="1" style="--i:5" d="M127 50 L156 51 M125 72 L155 73" />
+        <path pathLength="1" style="--i:6" d="M127 36 L130 24 L152 24 L152 36 M131 24 L141 12 L151 24" />
+        <path pathLength="1" style="--i:7" d="M168 22 L180 15 M172 30 L186 29 M170 38 L181 44" />
+        <path pathLength="1" style="--i:8" d="M70 108 C80 105 88 110 99 107 M104 112 C112 109 118 113 128 110" />
+      </svg>
+      <p class="lc-loading-line">Drawing your town…</p>
+    </div>
+    <script>
+      // A start that fails says so. Only while the loader is still waiting; a later error leaves the town alone.
+      function lcFailed(e) {
+        // A script that never arrived fires on its element; a runtime error fires on window and must be ours.
+        var t = e.target;
+        if (t !== window && !(t && t.tagName === 'SCRIPT')) return;
+        if (t === window && (!e.filename || e.filename.indexOf(location.origin + '/') !== 0)) return;
+        var l = document.querySelector('.lc-loading');
+        if (!l || l.getAttribute('data-state') !== 'loading') return;
+        l.setAttribute('data-state', 'failed');
+        l.querySelector('.lc-loading-line').textContent = "This browser couldn't draw the town. Try reloading, or another browser.";
+      }
+      window.addEventListener('error', lcFailed, true);
+    </script>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>
