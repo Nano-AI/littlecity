@@ -107,3 +107,45 @@ Sources, all read inside `update` (each may be null; skip when null):
 - [ ] **Step 1:** `npm run build`; with the CDP harness on `dist/`, take screenshots at 1440×900 DPR 2 and 390×844 DPR 3 on `?scenario=bench-2000`, after `?scenario=L57.wedding` has run 20 s, and after a nuke (drive the Mischief tab or `__lc` hooks): the face changes expression, the count updates, nothing overlaps.
 - [ ] **Step 2:** Frame check on bench-2000 idle: p95 frame unchanged (±1 ms) against the base build.
 - [ ] **Step 3:** `npm run check`.
+
+---
+
+## Amendment (2026-11-23, after the user saw it running)
+
+The user's feedback after trying it: "the happiness score is so fluctuating... If one person is affected by a bomb in a small proximity, it shouldn't impact the happiness of the whole town", and "Sims games usually have this kind of stuff at the top right... sticking that in the top right might be a good idea." Task 4 (see it) runs after these two.
+
+### Task 5: The strip sits in the top right
+
+**Files:** Modify `src/ui/stats/stats.css`, `src/ui/ui.css` (the toast offsets Task 3 changed).
+
+- [ ] **Step 1:** On desktop, place `.lc-stats` directly under the top-right group (`.lc-corner-right`, `ui.css:138-150`), right-aligned with it: `top: calc(60px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); left: auto; transform: none`. Keep all three chips on desktop, and keep the phone rule as it is (two chips, under the top-right group). Update the comment at the top of stats.css.
+- [ ] **Step 2:** Desktop toasts go back to where they were before Task 3 (`.lc-toasts` `top: calc(14px + env(safe-area-inset-top))`, with Task 3's comment removed). Phones keep `108px`, because on phones the strip shares the top-right with the toasts' column.
+- [ ] **Step 3:** `npm run lint` passes. Commit: `"Stats: in the top right, under the clock and weather, the way a town sim keeps them"`.
+
+### Task 6: Happiness by the share of the town touched
+
+**Files:**
+- Modify `src/style/stats.ts`, `src/ui/stats/mood.ts`, `src/ui/stats/watch.ts`, `src/life/people/crowd.ts` (beside `residents`) and `src/app/main.ts` (the watch's lookup).
+- Tests: `src/ui/stats/mood.test.ts`, `src/ui/stats/watch.test.ts`.
+
+**Interfaces:**
+- `Crowd.homes: ReadonlyMap<StructureId, number>`: residents per home (every resident actor with a home, counted in the same sync loop as `residents`, before the cap). Spawning stays byte-identical.
+- `createMood()` gains `drag(d: number): void`. `step(dt)` relaxes toward `clamp(rest - drag, 0, 100)` instead of `rest`, and the drag defaults to 0, so the existing tests hold.
+- `createStatsWatch(opts?: { structureAt?: (cell: CellKey) => StructureId | undefined })`. `main.ts` passes `(cell) => game.shape.structureAt.get(cell)`, read at call time because the shape changes with every edit.
+- `src/style/stats.ts` tunables:
+  - **Flat hits** (the whole town hears it): scene +4, market +2, festival +6, mend +1, raid −8, scuffle −1, sunk −2, nuke −4 (the siren and the flash), bomb −1.
+  - **Share hits** (× the share of all residents whose homes were touched, 0–1): ruin −60, lightning −40, mallet −40.
+  - **Fire** no longer hits per cell. While homes burn, the mood is dragged: `drag = MOOD.fireDrag (40) × share of residents whose homes are burning now`.
+
+**Share** = (sum of `crowd.homes.get(s)` over the distinct structures touched) / `crowd.residents`. It is 0 when there is no crowd or no residents. A blast's `hit` cells and a strike's or knock's cell map to structures through `structureAt`, deduplicated per event. `engine.burning()` items carry `structure` (`engine.ts:67-73`), deduplicated per update. A cell with no structure touches no one. The silly tallies are unchanged: every fire, bomb and ruin still counts.
+
+- [ ] **Step 1: Write the failing tests:**
+  - `mood.test.ts`, `drag lowers where it settles`: `drag(40)`, `step(600)` → within 0.5 of 30; then `drag(0)`, `step(600)` → within 0.5 of 70.
+  - `watch.test.ts`, `one bomb on one house barely moves it`: 1,500 residents, the blasted house holds 5 → the mood stays ≥ 69.5 (70 − 60·5/1500 = 69.8).
+  - `watch.test.ts`, `a blast across a fifth of the homes drops it about twelve`: blast cells covering homes that hold 200 of 1,000 residents → 58 ± 0.5. Test the blast event alone, without a drop.
+  - `watch.test.ts`, `fires drag it down while they burn and let go when they are out`: homes holding half the residents burning, after a long run of updates → within 1 of 50; with burning emptied, after a long run → within 1 of 70.
+  - `watch.test.ts`, `a blast on empty ground touches no one`: cells with no structure → the mood is unchanged (no drop event), and nothing throws.
+- [ ] **Step 2:** Run `npx vitest run --project unit src/ui/stats` and see it FAIL.
+- [ ] **Step 3:** Implement. Keep each source in its own small function.
+- [ ] **Step 4:** Run `npx vitest run --project unit src/ui/stats src/life/people && npm run typecheck && npm run lint` and see it PASS. Then run the full unit suite once.
+- [ ] **Step 5:** Commit: `"Stats: happiness moves with the share of the town touched; fires weigh on it while they burn"`.
