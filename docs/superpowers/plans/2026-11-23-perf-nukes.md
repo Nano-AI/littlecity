@@ -228,3 +228,74 @@ One quiet run per build; a second base run was contaminated (load rose to 22).
 ## Follow-ups (not in this plan)
 
 - **F5, the ruin-only resolve fast path.** A batch of only `setRuin`/`repair` skips the 97 shape rules and refreshes structure hashes, content keys and the ruined set. `flush` hands fire edits over at most about 4 times a second. Expected savings: about 80 ms/s of resolve and about 60 ms/s of dressing while burning. It touches the resolver's contract, so it needs its own plan.
+
+---
+
+## Amendment (2026-11-23, after measuring Tasks 1–4)
+
+These numbers come from the profiling pass on b7092d0, a quiet machine (load about 3) and single runs (scratchpad `perf/nuke-findings-2.md`).
+
+**What Tasks 1–4 fixed** (4 nukes, base → branch):
+- p99 217 → 67 ms, and the worst frame 567 → 217 ms.
+- Browser long frames over 100 ms: 62 → 8.
+- The rebuild phase is solved: 41 → 58 fps, worst frame 317 → 33 ms.
+- The burn phase: 30 → 40 fps.
+
+**What's left, and a regression:**
+- **R1, memory (regression).** The intact cache holds polygon object graphs: a `Float64Array` per vertex, in an object per polygon. JS heap peak is 1,345 MB against 645 MB on base, and 555 MB against 243 MB at the end of a run. GC is 3–4× base in every phase (burn: 1.67 s against 0.52 s). This is a tab-kill risk on phones.
+- **R2, dressing pace.** The dressing resolve is the only heavy job in 11 of the 27 long burn frames (585 ms). It runs about 8 times a second during mischief, because `dressDue` only throttles during growth, and it often shares a frame with the next mischief edit.
+- **R3, flame sampler.** `samplerOf` (`src/life/mischief/mischief.system.ts:432-443`) builds a structure the renderer hasn't drawn yet, plus `polysOf`, inside the life update with no budget. In the blast phase it's the only heavy job in 3 of the 9 long frames, at 142–172 ms each.
+- Not in this plan: vertex pool compaction (a full `copyWithin` plus a 30–39 MB `bufferSubData`; base has it too) and the resolver fast path.
+
+### Task 6: A slim intact cache (R1)
+
+**Files:** Modify `src/gen/damage/damage.ts` (the `withDamage` cache, `damageOutput`'s `polys` input, `clonePoly` use). Test: `src/gen/damage/damage.test.ts`.
+
+- **Packing.** Store each entry's intact polygons packed:
+  - one `Float64Array` holding every vertex's floats back to back;
+  - an `Int32Array` of per-polygon vertex counts;
+  - typed arrays for `pattern` and `ink`.
+- **Unpacking.** The damage pass gets a freshly unpacked polygon list each time. Unpacking replaces `clonePoly` and keeps Review Focus 4: the cache is never written by a damage pass.
+- **Bound.** Bound the cache by the total floats it holds: `INTACT_CACHE_MAX_FLOATS = 4_000_000` (32 MB). Past that, clear it, keeping the `ponytail:` note. Drop the 512-entry bound. Entries keep the intact `GenOutput` mesh (typed arrays already) and the damaged `out`.
+- **Tests:**
+  - The existing "twice" test (byte-identical A, B, A) and "follows the style version" stay green.
+  - Add `packing round-trips: unpacked polygons equal polysOfMesh(intact)`: the same vertex values, counts, pattern and ink.
+  - Add `the cache clears past its float bound`: set the bound low in the test and restore it in `finally`.
+- **Commit:** `"The intact drawing is kept packed, not as thousands of little arrays"`
+
+### Task 7: Dressings paced while mischief is busy, and never with a mischief edit (R2)
+
+**Files:** Modify `src/app/main.ts` (the `dressDue` call, about line 398) and `src/life/mischief/director.ts` (`update`: `flush` and `mendTick`). Test: `src/ui/growth.test.ts` if `dressDue` changes, plus a director test beside `carryover.test.ts`.
+
+- `main.ts` passes `growing || mischief.busy` to `dressDue`, so dressings come at most every 300 ms while mischief is busy.
+- **Holding edits in a dressed frame.**
+  - The director gains `holdEdits: boolean`. While it's true, `update` skips `flush` and `mendTick` (their work waits for the next update), and everything else in `update` runs as usual.
+  - `main.ts` sets it to true in a frame that dressed, before the life update runs, and to false afterwards.
+  - Check the frame order in `main.ts`: if the life update runs before the dressing in the frame, hold the edits in the frame after a dressing instead, so the two never share a frame.
+- **Tests:**
+  - `a held update makes no edits and a later one makes them all`: the same final world as never holding.
+  - `dressings are paced while mischief is busy`: unit-level on `dressDue`, or on the predicate main passes.
+- **Commit:** `"While mischief is busy the town is dressed a few times a second, never in a frame with a mischief edit"`
+
+### Task 8: The flames never draw a building themselves (R3)
+
+**Files:** Modify `src/life/mischief/mischief.system.ts` (`samplerOf`) and `src/gen/damage/damage.ts` (a read-only `peek`). Test: `src/life/mischief/*.test.ts`.
+
+- `withDamage(reg)` exposes `peek(sid: StructureId): { hash: number; out: GenOutput } | null`, the latest built output for a structure, without building.
+- `samplerOf`:
+  - If it already has a sampler, it keeps it until `peek(sid)?.hash === s.hash`, i.e. the renderer has drawn the current hash. Then it derives a new sampler from that `out` (the 1.5 s throttle stays).
+  - If it has no sampler, it uses `peek(sid)` whatever its hash.
+  - Only if there is neither does it build, as today. That's a building's first fire, before anything is cached; a sound building is built by the renderer anyway.
+- **Tests:**
+  - `a burning building's flames keep their old roof until the town has drawn the new one`: no `build` call while the hash is ahead of `peek`.
+  - `the flames move to the new roof once it is drawn`.
+- **Commit:** `"The flames wait for the town to draw a building, rather than drawing it themselves"`
+
+### Task 9: Measure again (controller)
+
+Run on a quiet machine (load ≤ 4): `nukes.mjs` base vs branch, 2 rounds interleaved, plus the JS heap peak and the GC time per phase, read via CDP `Performance.getMetrics` / `HeapProfiler`. Expected:
+- heap peak within about 15% of base;
+- burn-phase long frames (> 100 ms) fewer than b7092d0's;
+- no blast frame above about 120 ms caused by the sampler.
+
+Then the full gate once.
