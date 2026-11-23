@@ -300,3 +300,18 @@ describe('L51 bread and L52 water', () => {
     expect(b).toEqual(a);
   });
 });
+
+describe('the board counts what it is given', () => {
+  test('counts what is laid in its stores, not what was refused', () => {
+    const t = createLivingTown({ seed: 1, chains: [] });
+    const spot = (x: number) => ({ x, y: 0, z: 0, yaw: 0 });
+    const store = t.board.store('test:loaves', [spot(0), spot(1)]);
+    const store2 = t.board.store('test:fish', [spot(2)]);
+    expect(t.board.put(store, 'loaf')).toBe(true);
+    expect(t.board.put(store, 'loaf')).toBe(true);
+    expect(t.board.put(store, 'loaf')).toBe(false);
+    expect(t.board.put(store2, 'fish')).toBe(true);
+    expect(t.board.delivered.get('loaf')).toBe(2);
+    expect(t.board.delivered.get('fish')).toBe(1);
+  });
+});

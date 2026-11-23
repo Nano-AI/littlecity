@@ -112,6 +112,8 @@ export interface Board {
   /** A store at a place (made the first time, kept across changes of the town by its key). */
   store(key: string, spots: Spot[]): Store;
   readonly stores: ReadonlyMap<string, Store>;
+  /** How many of each kind have been laid in any store since the board was made (successful puts only). */
+  readonly delivered: ReadonlyMap<Load, number>;
   /** Lays a thing in a store's first free spot; false if full. */
   put(store: Store, kind: Load): boolean;
   /** Takes the thing from a store's last filled spot (of this kind, if given); null if none. */
@@ -157,6 +159,7 @@ export function createBoard(opts: BoardOptions): Board {
   const plans = new Map<Person, Plan>();
   const claimed = new Map<Person, Chain>();
   const stores = new Map<string, Store>();
+  const delivered = new Map<Load, number>();
   let posts = new Map<string, Post[]>();
   let shape: ShapePlan | null = null;
   let dressing: DressingPlan | null = null;
@@ -254,6 +257,7 @@ export function createBoard(opts: BoardOptions): Board {
     },
     posts: (chain) => posts.get(chain) ?? [],
     stores,
+    delivered,
     store(key, spots) {
       let s = stores.get(key);
       if (!s) {
@@ -278,6 +282,7 @@ export function createBoard(opts: BoardOptions): Board {
       const i = s.items.findIndex((x) => x === null);
       if (i < 0 || !s.live) return false;
       s.items[i] = kind;
+      delivered.set(kind, (delivered.get(kind) ?? 0) + 1);
       draw(s, i);
       // A small puff where it lands: the eye goes to it.
       if (opts.stage) {
