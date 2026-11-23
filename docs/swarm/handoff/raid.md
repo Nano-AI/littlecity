@@ -18,8 +18,10 @@ the ship and the town chases them into the sea.
 - `site.ts` (pure): landings (walkable cells at the water's level with open
   sea beside them, how open the ground behind is, their neighbours), the town's
   heart, the landing raid's beach / turning point / route in and out
-  (`ship-routes.ts`), the boats raid's stand-off point and boat paths.
-- `raid.ts`: the `Raid` (beats, the ship and boats, the band, loot piles,
+  (`ship-routes.ts`), the boats raid's ways (`boatWays`: each boat from beyond
+  the edge to its landing and out again, all coming in over the same water).
+- `raid.ts`: the `Raid` (beats, the ship (null in a boats raid; `lead` is the
+  ship or the first boat afloat) and boats, the band, loot piles,
   targets, the town running, stopping them). Sea side in `stepSea` (called by
   the system), land side in `stepLand` / `offer` (called by the chain).
 - `vessel.ts` (hull, yard and sail, oar banks, loot heap, posed on the swell,
@@ -105,6 +107,9 @@ them).
 - The castle's marching troop does not sally out (its guards brawl); dogs do
   not chase; sheep do not scatter; a stall's baked goods stay; people do not
   peek from windows; castle gates do not keep raiders out.
-- The boats raid's stand-off point is still near the map's edge on islands
-  with a narrow ring of sea (it needs a clear circle to turn in).
+- Sunk things stay under: `surface.ts` discards any mover fragment below
+  `uSeaY - 0.015` (beside the map-edge cut). Frames from a low angle:
+  `node src/life/testing/sink-frames.mjs --time night|day`.
+- Boats on the shore wait for their own crew; a raider whose boat is sunk is
+  moved to another boat still there (seats may double up).
 - p95 with fires burning is the fire's, not the raid's.

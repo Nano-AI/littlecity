@@ -16,11 +16,12 @@
 // way backwards: rows astern to the turning point, spins, and sails off to
 // an edge.
 //
-// THE BOATS RAID. A bigger longship stands off in deep water (a point with a
-// clear circle round it, as near the town as there is one), towing two to
-// four rowing boats that cast off and row to different landings round the
-// town (spread out, so it is hit from more than one side), wait on the
-// shore, and carry the band back.
+// THE BOATS RAID. No ship: two to four rowing boats, each with its own way in
+// from beyond the edge of the map (all over the same water, the first one's)
+// to a different landing round the town (spread out, so it is hit from more
+// than one side), where it waits in the shallows, and its own way out over an
+// edge. No clear circle is needed: a boat comes in bow first and turns about
+// as it rows off.
 //
 // Which: a beach close to the town favours the landing; a rocky or built-up
 // shore the boats; and chance.
@@ -64,7 +65,7 @@ export interface Pose {
 export interface Voyage {
   /** From beyond the edge of the map to the turning point. */
   arrive: Path;
-  /** Where it turns about (and, for the boats raid, stands off). */
+  /** Where it turns about (the boats raid: the first boat's landing, for the camera). */
   turn: Pose;
   /** From the turning point back out beyond an edge. */
   leave: Path;
@@ -82,8 +83,9 @@ export interface RaidSite {
   beached: Pose | null;
   /** Where the band comes ashore: one landing for a landing raid, two to four for the boats. */
   landings: Landing[];
-  /** Boats raid: each boat's way from the ship's side to its landing (and back the same way). */
+  /** Boats raid: each boat's way in from beyond the edge of the map to its landing (and `boatWays`: in and out). */
   boatPaths: Path[];
+  boatWays: { arrive: Path; leave: Path }[];
 }
 
 /** The clearance hull of a longship of this size. */
@@ -199,7 +201,7 @@ function smooth(field: SeaField, pts: Pt[], r: number): Pt[] {
  * Ways between the turning point and the edges of the map: in (from beyond an edge to the turning point) and
  * out (to beyond another edge, or the same if it must). Null if a hull cannot get there.
  */
-export function voyageTo(field: SeaField, h: HullSize, turn: Pose, pick: number): Voyage | null {
+export function voyageTo(field: SeaField, h: HullSize, turn: Pose, pick: number, from?: Pt): Voyage | null {
   const r = h.halfBeam + 0.22;
   const g = graphFrom(field, [turn.x, turn.z], r);
   const ends = edgePoints(field, 1.5, r).filter((e) => g.cost[columnIndex(Math.floor(e.x), Math.floor(e.z))]! < Infinity);
@@ -225,8 +227,10 @@ export function voyageTo(field: SeaField, h: HullSize, turn: Pose, pick: number)
     }
     return path;
   };
+  // Coming in beside another (a boat beside the first): the edge nearest where that one came in.
+  if (from) ends.sort((a, b) => Math.hypot(a.x - from[0], a.z - from[1]) - Math.hypot(b.x - from[0], b.z - from[1]));
   const few = Math.min(ends.length, 4);
-  const first = Math.min(few - 1, Math.floor(pick * few));
+  const first = from ? 0 : Math.min(few - 1, Math.floor(pick * few));
   let arrive: Path | null = null, leave: Path | null = null;
   let inSide = -1;
   for (let k = 0; k < Math.min(ends.length, 6) && !arrive; k++) {
@@ -312,7 +316,7 @@ function planLanding(field: SeaField, shore: readonly Landing[], towns: (l: Land
     if (!turn) continue;
     const voyage = voyageTo(field, h, turn, rand(seed, 'voyage'));
     if (!voyage) continue;
-    return { kind: 'landing', size, hull: h, voyage, beached: { x: bx, z: bz, yaw }, landings: [l], boatPaths: [] };
+    return { kind: 'landing', size, hull: h, voyage, beached: { x: bx, z: bz, yaw }, landings: [l], boatPaths: [], boatWays: [] };
   }
   return null;
 }
@@ -324,64 +328,32 @@ function hullClearish(field: SeaField, h: HullSize, x: number, z: number, yaw: n
   return true;
 }
 
-function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landing) => number, near: (l: Landing) => number, heart: { x: number; z: number }, seed: number): SiteFor | null {
-  const size = 1.5;
-  const h = longshipHull(size);
-  const reach = Math.max(-h.stern, h.bow) + h.halfBeam * 0.5;
+function planBoats(field: SeaField, shore: readonly Landing[], towns: (l: Landing) => number, near: (l: Landing) => number, _heart: { x: number; z: number }, seed: number): SiteFor | null {
   // Landings round the town, spread out: the nearest one first, then each the farthest from those taken.
   const pool = shore.filter((l) => towns(l) < 14 && l.open >= 9).sort((a, b) => near(a) + Math.max(0, 16 - a.open) * 0.5 - near(b) - Math.max(0, 16 - b.open) * 0.5 || a.cell - b.cell);
   if (pool.length === 0) return null;
-  // Where the ship stands off: the clear water nearest the landings.
-  const spots: { x: number; z: number; d: number }[] = [];
-  for (let z = 4; z < SIZE_Z - 4; z += 1) {
-    for (let x = 4; x < SIZE_X - 4; x += 1) {
-      if (!roomToTurn(field, x + 0.5, z + 0.5, reach * 0.55)) continue;
-      spots.push({ x: x + 0.5, z: z + 0.5, d: Math.hypot(x + 0.5 - heart.x, z + 0.5 - heart.z) });
-    }
+  const want = Math.min(4, Math.max(2, Math.round(2 + rand(seed, 'boats') * 2.2)));
+  const pick = rand(seed, 'voyage');
+  const kept: Landing[] = [];
+  const ways: { arrive: Path; leave: Path }[] = [];
+  // Each boat its own way in from beyond the edge of the map to its landing, and out again: no ship stands off.
+  const tryOne = (l: Landing): boolean => {
+    const lead: Pt = [l.x + l.ox * 2.2, l.z + l.oz * 2.2];
+    const shallows: Pt = [l.x + l.ox * 1.05, l.z + l.oz * 1.05];
+    if (field.at(lead[0], lead[1]) < BOAT_HULL.halfBeam + 0.25) return false;
+    // The first picks its edge; the rest come in over the same water beside it (a little fleet, not boats from everywhere).
+    const first = ways[0]?.arrive.points[0];
+    const v = voyageTo(field, BOAT_HULL, { x: lead[0], z: lead[1], yaw: Math.atan2(-l.ox, -l.oz) }, pick, first ? [first[0], first[1]] : undefined);
+    if (!v) return false;
+    ways.push({ arrive: pathOf([...v.arrive.points, shallows]), leave: pathOf([shallows, ...v.leave.points]) });
+    kept.push(l);
+    return true;
+  };
+  for (const l of pool) {
+    if (kept.length >= want) break;
+    if (kept.some((c) => Math.hypot(c.x - l.x, c.z - l.z) < 4)) continue;
+    tryOne(l);
   }
-  spots.sort((a, b) => a.d - b.d || a.x - b.x || a.z - b.z);
-  const bg = (from: Pt) => graphFrom(field, from, BOAT.halfBeam + 0.15);
-  for (const spot of spots.slice(0, 12)) {
-    const g = bg([spot.x, spot.z]);
-    // Landings a boat can row to from here, not too far.
-    const reachable = pool.filter((l) => {
-      const wx = l.x + l.ox * 2.2, wz = l.z + l.oz * 2.2;
-      const c = g.cost[columnIndex(Math.floor(wx), Math.floor(wz))]!;
-      return c < 40;
-    });
-    if (reachable.length === 0) continue;
-    const want = Math.min(4, Math.max(2, Math.round(2 + rand(seed, 'boats') * 2.2)));
-    const chosen: Landing[] = [reachable[0]!];
-    while (chosen.length < want) {
-      let best: Landing | null = null, bestD = 0;
-      for (const l of reachable) {
-        const d = Math.min(...chosen.map((c) => Math.hypot(c.x - l.x, c.z - l.z)));
-        if (d > bestD) {
-          bestD = d;
-          best = l;
-        }
-      }
-      if (!best || bestD < 4) break;
-      chosen.push(best);
-    }
-    const boatPaths: Path[] = [];
-    const yaw = Math.atan2(chosen[0]!.x - spot.x, chosen[0]!.z - spot.z) + Math.PI / 2;
-    const kept: Landing[] = [];
-    for (const l of chosen) {
-      const wx = l.x + l.ox * 1.05, wz = l.z + l.oz * 1.05;
-      const route = routeTo(g, [spot.x, spot.z], [l.x + l.ox * 2.2, l.z + l.oz * 2.2]);
-      if (!route) continue;
-      // From beside the ship, along the way, into the shallows square to the shore.
-      const lead: Pt = [l.x + l.ox * 2.2, l.z + l.oz * 2.2];
-      const pts: Pt[] = [...route.slice(0, -1), lead, [wx, wz]];
-      boatPaths.push(pathOf(smooth(field, pts, BOAT.halfBeam)));
-      kept.push(l);
-    }
-    if (kept.length === 0) continue;
-    const turn: Pose = { x: spot.x, z: spot.z, yaw };
-    const voyage = voyageTo(field, h, turn, rand(seed, 'voyage'));
-    if (!voyage) continue;
-    return { kind: 'boats', size, hull: h, voyage, beached: null, landings: kept, boatPaths };
-  }
-  return null;
+  if (kept.length === 0) return null;
+  return { kind: 'boats', size: 1, hull: BOAT_HULL, voyage: { arrive: ways[0]!.arrive, turn: { x: kept[0]!.x, z: kept[0]!.z, yaw: 0 }, leave: ways[0]!.leave }, beached: null, landings: kept, boatPaths: ways.map((w) => w.arrive), boatWays: ways };
 }

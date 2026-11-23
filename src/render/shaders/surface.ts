@@ -423,6 +423,10 @@ void main(){
 #if defined(EDGECUT)
   // The edge of the map is a wall: what crosses it is cut off there, bow first, and shown again bow first.
   if (vCut > 0.5 && mapEdge(vW.xz) > 0.0) discard;
+  // And the sea is a floor they pass through: nothing that moves on the water is drawn below its surface
+  // (the sea is opaque, so this hides nothing that could be seen; but a ship going down, a capsized boat or a
+  // wreck sinking near the slab's edge would otherwise show through it and hang under the map).
+  if (vCut > 0.5 && vW.y < uSeaY - 0.015) discard;
 #endif
 #if defined(CAP)
   // The cut face of a ship crossing the edge: its back faces, seen through the cut, drawn as a flat dark

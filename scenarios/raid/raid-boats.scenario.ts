@@ -12,6 +12,6 @@ const town = grownTown('market', 3, 1, 'market');
 export default scenario({
   ...town,
   name: 'raid-boats',
-  about: 'A grown market town to raid: a big longship stands off its east shore and sends its rowing boats in (the Raid tool, or the sequence verb raidboats).',
+  about: 'A grown market town to raid: two to four rowing boats come in from beyond the edge of the map, each to its own landing (the Raid tool, or the sequence verb raidboats).',
   cameras: [town.cameras![0]!, { name: 'shore', yaw: 45, pitch: 35, zoom: 3.2, target: [38, 1, 18] }],
 });
