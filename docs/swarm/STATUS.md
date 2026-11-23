@@ -1778,3 +1778,19 @@ so the planner no longer needs a big circle of clear water. Gate:
 into the town (a toppled stilt house). Not seen clearly on film: a
 small harbour boat capsizing.
 Running: nothing of mine.
+
+**First visit grows a town (orchestrator, Derek 2026-11-22).** On the
+very first open in a browser (`lc:welcomed` not set), on an empty
+island, a town grows by itself 900 ms after the island appears (`grow()`
+with the dice's kind), with a closable note beside the menu button
+offering "Empty island instead" (the growth skipped and undone). Not on
+a shared link (`#t=`), a scenario or `?mischief`; not if the player
+places something first; never twice. `src/ui/welcome.ts`,
+`tests/e2e/welcome.e2e.test.ts` (four tests). Tools and tests are not
+first-time visitors (`openPage` marks the visit seen unless
+`welcome: true`), so nothing else changes for them. Checked in a
+browser on a random island: "A farming village is growing." Gate:
+2,334 passed, 12 skipped, clean. Known edge: a returning player whose
+browser lost `lc:welcomed` (the domain move) and whose current island
+is empty gets a town grown on it; one undo or the note's button takes
+it back.
