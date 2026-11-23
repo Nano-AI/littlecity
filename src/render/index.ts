@@ -182,7 +182,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     : qualityLevels(globalThis.devicePixelRatio ?? 1);
   let level = 0;
   let pixelRatio = levels[0]!.pixelRatio;
-  let superSample: 1 | 2 = levels[0]!.superSample;
+  let superSample = levels[0]!.superSample;
   let halfInk = levels[0]!.halfInk;
   renderer.setPixelRatio(pixelRatio);
   renderer.autoClear = false;
@@ -777,13 +777,15 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const resizeTargets = (): void => {
     const w = Math.max(1, Math.round(width * pixelRatio));
     const h = Math.max(1, Math.round(height * pixelRatio));
-    sceneRT.setSize(w * superSample, h * superSample);
-    eyeRT?.setSize(w * superSample, h * superSample);
+    // (1.5 times is not a whole number of pixels on every size.)
+    const sw = Math.max(1, Math.round(w * superSample)), sh = Math.max(1, Math.round(h * superSample));
+    sceneRT.setSize(sw, sh);
+    eyeRT?.setSize(sw, sh);
     if (halfInk) inkTarget().setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   };
   /** Changes how sharp the page is drawn: the targets are resized, the composite recompiled if it must be. */
   const applyQuality = (q: Quality): void => {
-    const shader = q.halfInk !== halfInk || q.superSample !== superSample;
+    const shader = q.halfInk !== halfInk || q.superSample > 1 !== superSample > 1;
     pixelRatio = q.pixelRatio;
     superSample = q.superSample;
     halfInk = q.halfInk;

@@ -37,6 +37,35 @@ describe('quality levels', () => {
     expect(errors).toEqual([]);
   });
 
+  test('a big 1x screen starts a step below full super-sampling, and draws at every level (1.5 times too), flying as well', async () => {
+    // 2560 x 1440 at 1x drawn at twice the size each way is 14.7 million pixels a frame: more than a
+    // frame has time for on a laptop's graphics, and the picture juddered as the camera turned.
+    const { page, errors } = await app.open('/?seed=7&gen=1&quality=auto', { width: 2560, height: 1440, scale: 1 });
+    await page.waitForFunction('window.__lc !== undefined');
+    const q = await quality(page);
+    expect(q.levels.map((l) => l.superSample)).toEqual([2, 1.5, 1, 1]);
+    expect(q.level).toBe(1);
+    const visit = async (): Promise<void> => {
+      for (const i of q.levels.keys()) {
+        await page.evaluate((i) => (window as unknown as { __lc: { view: { setQuality(n: number): void } } }).__lc.view.setQuality(i), i);
+        await frames(page);
+        expect(await drawn(page)).toEqual({ w: 2560, h: 1440 });
+      }
+    };
+    await visit();
+    await page.evaluate('window.__lc.ui.fly.testHold(1)');
+    await page.keyboard.press('f');
+    await page.waitForFunction("window.__lc.ui.fly.phase === 'flying'");
+    await visit();
+    expect(errors).toEqual([]);
+    await page.context().close();
+    // A small 1x window starts at the sharpest.
+    const small = await app.open('/?seed=7&gen=1&quality=auto', { width: 1280, height: 800, scale: 1 });
+    await small.page.waitForFunction('window.__lc !== undefined');
+    expect((await quality(small.page)).level).toBe(0);
+    await small.page.context().close();
+  });
+
   test('every level draws, the canvas following its pixel ratio, there and back, flying as well', async () => {
     const { page, errors } = await app.open('/?seed=7&gen=1', { width: 900, height: 600, scale: 2 });
     await page.waitForFunction('window.__lc !== undefined');

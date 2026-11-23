@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-/* global performance, requestAnimationFrame, setTimeout */
+/* global performance, requestAnimationFrame, setTimeout, HTMLCanvasElement */
 // node tools/perf.mjs [scenario ...] [--seconds 20] [--size 1280x800] [--scale 2] [--query "weather=rain"]
-//                     [--play house|pan] [--click-ms 700] [--profile] [--worst 4] [--depth 16] [--incl 40] [--passes] [--gl] [--heap] [--url http://...] [--swallow posthog] [--top 25] [--vsync] [--windows 4] [--json out.json]
+//                     [--play house|pan|orbit] [--click-ms 700] [--profile] [--worst 4] [--depth 16] [--incl 40] [--passes] [--gl] [--heap] [--url http://...] [--swallow posthog] [--top 25] [--vsync] [--windows 4] [--json out.json]
 //
 // The real game page (index.html, the frame loop in src/app/main.ts) with a scenario open, played for
 // some seconds with the display's frame-rate cap taken off, so the numbers show how long a frame
@@ -87,7 +87,39 @@ try {
     // analytics on (--url of a production build, --query analytics=on, --swallow posthog) without
     // sending anything to it.
     const swallowed = [];
+    const fetched = [];
     if (flags.swallow) {
+      // What a recorder does to the page: pictures taken of a canvas (createImageBitmap, toDataURL, toBlob), workers started.
+      await ctx.addInitScript(() => {
+        const log = (globalThis.__snaps = { bitmaps: [], workers: 0, other: 0 });
+        const real = globalThis.createImageBitmap;
+        globalThis.createImageBitmap = function (...args) {
+          const t = performance.now();
+          const p = real.apply(this, args);
+          const sync = performance.now() - t;
+          const src = args[0];
+          p.then(() => log.bitmaps.push([t, sync, performance.now() - t, src?.width ?? 0, src?.height ?? 0]), () => {});
+          return p;
+        };
+        const RealWorker = globalThis.Worker;
+        globalThis.Worker = class extends RealWorker {
+          constructor(...a) {
+            super(...a);
+            log.workers++;
+          }
+        };
+        for (const name of ['toDataURL', 'toBlob']) {
+          const was = HTMLCanvasElement.prototype[name];
+          HTMLCanvasElement.prototype[name] = function (...a) {
+            log.other++;
+            return was.apply(this, a);
+          };
+        }
+      });
+      ctx.on('request', (req) => {
+        const u = new URL(req.url());
+        if (u.hostname.includes(String(flags.swallow)) && req.method() === 'GET') fetched.push(u.pathname.replace(/phc_[A-Za-z0-9]+/, '<key>'));
+      });
       await ctx.route((url) => url.hostname.includes(String(flags.swallow)), async (route) => {
         const req = route.request();
         if (req.method() !== 'POST') return route.continue();
@@ -128,6 +160,19 @@ try {
       const item = String(flags.play);
       const every = Number(flags['click-ms'] ?? 700);
       const cx = width / 2, cy = height / 2;
+      if (item === 'orbit') {
+        // The camera turned by a left drag that sweeps side to side for the whole run.
+        await page.mouse.move(cx, cy);
+        await page.mouse.down();
+        const t0 = Date.now();
+        while (playing) {
+          const t = (Date.now() - t0) / 1000;
+          await page.mouse.move(cx + Math.sin(t * 1.1) * width * 0.3, cy + Math.sin(t * 0.7) * height * 0.08);
+          await new Promise((r) => setTimeout(r, 4));
+        }
+        await page.mouse.up();
+        return;
+      }
       if (item === 'pan') {
         await page.mouse.move(cx, cy);
         await page.mouse.down({ button: 'right' });
@@ -161,17 +206,33 @@ try {
           })();
           const start = performance.now();
           let last = start;
+          // The sharpness level, whenever the governor changes it.
+          const levels = [];
           const tick = (now) => {
             gaps.push(now - last);
             at.push(now - start);
             last = now;
+            const level = window.__lc.quality?.()?.level ?? 0;
+            if (!levels.length || levels[levels.length - 1][1] !== level) levels.push([now - start, level]);
             if (now - start < ms) requestAnimationFrame(tick);
-            else resolve({ gaps, at, mark, start });
+            else resolve({ gaps, at, mark, start, levels });
           };
           requestAnimationFrame(tick);
         }),
       seconds * 1000,
     );
+    // The split of a frame's drawing between the passes, taken while the play still goes on.
+    let passes = null;
+    const passesRaw = flags.passes ? await page.evaluate(
+        (ms) =>
+          new Promise((resolve) => {
+            const view = window.__lc.view;
+            if (!view.profileLive) return resolve(null);
+            view.profileLive(true);
+            setTimeout(() => resolve(view.profileLive(false)), ms);
+          }),
+        Number(flags.passes === true ? 4000 : flags.passes),
+      ) : null;
     playing = false;
     await play;
     let profile = null;
@@ -217,6 +278,7 @@ try {
     const mb = (b) => `${f(b / 1048576, 1)} MB`;
     console.log(`  JS heap held ${mb(before.heap)} -> ${mb(after.heap)} (${mb(uncollected)} before collecting); page elements ${before.nodes} -> ${after.nodes}; blocks ${before.blocks} -> ${after.blocks}`);
     if (after.info) console.log(`  renderer: ${JSON.stringify(before.info)} -> ${JSON.stringify(after.info)}`);
+    if (run.levels.length > 1 || run.levels[0]?.[1] > 0) console.log(`  sharpness level over the run: ${run.levels.map(([t, l]) => `${l} from ${f(t / 1000, 1)} s`).join(', ')}`);
     if (after.quality) console.log(`  quality level ${after.quality.level} of ${after.quality.levels.length}: ${JSON.stringify(after.quality.levels[after.quality.level])}`);
     if (errors.length) console.log(`  page errors: ${errors.slice(0, 3).join(' | ')}`);
 
@@ -228,6 +290,17 @@ try {
         paths.set(path, e);
       }
       console.log(`  requests swallowed (${flags.swallow}): ${[...paths].map(([k, e]) => `${e.n} × ${k} (${f(e.bytes / 1024, 0)} KB)`).join(', ') || 'none'}`);
+      console.log(`  fetched from it: ${[...new Set(fetched)].join(', ') || 'nothing'}`);
+      const snaps = await page.evaluate(() => globalThis.__snaps);
+      const inRun = snaps.bitmaps.filter((b) => b[0] >= run.start);
+      console.log(`  pictures taken of a canvas in the run: ${inRun.length} by createImageBitmap${inRun.length ? ` (${inRun[0][3]} × ${inRun[0][4]}; the call itself ${f(pct(inRun.map((b) => b[1]), 0.5))} ms median, ${f(Math.max(...inRun.map((b) => b[1])))} worst; ready after ${f(pct(inRun.map((b) => b[2]), 0.5))} ms median, ${f(Math.max(...inRun.map((b) => b[2])))} worst)` : ''}; ${snaps.other} by toDataURL or toBlob since the page opened; ${snaps.workers} workers started`);
+      // The frames in which a picture was taken, against the rest.
+      if (inRun.length) {
+        const hit = new Set(inRun.map((b) => run.at.findIndex((t) => run.start + t > b[0])));
+        const near = (i) => hit.has(i) || hit.has(i - 1) || hit.has(i - 2);
+        const withPic = run.gaps.filter((_, i) => i > 0 && near(i)), without = run.gaps.filter((_, i) => i > 0 && !near(i));
+        console.log(`    frames at or just after a picture: ${withPic.length}, median ${f(pct(withPic, 0.5))} ms, worst ${f(Math.max(...withPic))}, over 20 ms: ${withPic.filter((g) => g > 20).length}; the other ${without.length} frames: worst ${f(Math.max(...without))}, over 20 ms: ${without.filter((g) => g > 20).length}`);
+      }
     }
     if (held) {
       console.log(`  memory allocated in the run and still held at its end: ${mb(held.total)} (sampled)`);
@@ -265,18 +338,8 @@ try {
     }
 
     // The split of a frame's drawing between the passes (each waited for, so the frames run slower than real).
-    let passes = null;
     if (flags.passes) {
-      passes = await page.evaluate(
-        (ms) =>
-          new Promise((resolve) => {
-            const view = window.__lc.view;
-            if (!view.profileLive) return resolve(null);
-            view.profileLive(true);
-            setTimeout(() => resolve(view.profileLive(false)), ms);
-          }),
-        Number(flags.passes === true ? 4000 : flags.passes),
-      );
+      passes = passesRaw;
       if (passes) {
         const n = passes['frames#'] || 1;
         console.log(`  drawing, by pass (ms each time it ran; how often; ms a frame), over ${n} frames:`);
