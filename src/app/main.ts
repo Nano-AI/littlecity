@@ -47,6 +47,7 @@ import { createGame, type GameStart } from './game';
 import { createMusic } from './music';
 import { browserLibrary } from './library';
 import { createKeeper, ID_KEY } from './towns';
+import { dismissLoader } from './loader';
 
 function storage(): Storage | null {
   try {
@@ -396,6 +397,7 @@ function frame(now: number): void {
   life.update(dt);
   mischief.flush();
   render();
+  if (ready) dismissLoader();
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).
   if (ui) (note ??= sceneNote(ui)).update(view.stage);
