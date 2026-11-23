@@ -60,6 +60,16 @@
   </head>
   <body>
     <canvas id="town" aria-label="Little City: your town, drawn in ink and pencil"></canvas>
+    <!-- What the page is, for search engines and screen readers: the game itself is the canvas above.
+         Kept true to the game (tools/seo/site.ts has the long version, published at /about/). -->
+    <main class="lc-about">
+      <h1>Little City: a hand-drawn city builder in your browser</h1>
+      <p>A hand-drawn town diorama builder, free in your browser. Place a few blocks, watch them turn into a town, then watch it come to life.</p>
+      <p>A house beside a tall tower becomes a chapel. Four blocks stacked by the sea become a lighthouse. Then people move in: the miller carries flour to the bakery, boats go out for fish, and some days there's a market or a wedding on the square. The seasons turn and the lamps come on at dusk.</p>
+      <p>Or grow a whole town on a new island, a harbour town, a castle town or a farming village, and just watch it.</p>
+      <p>Works on computers, iPhone, iPad and Android. Made by Derek Yao.</p>
+      <nav><a href="/about/" tabindex="-1">About Little City</a> · <a href="/guide/" tabindex="-1">The guide: every special building and how to get it</a></nav>
+    </main>
     <div class="lc-loading" role="status" data-state="loading">
       <svg viewBox="0 0 200 120" aria-hidden="true">
         <path pathLength="1" style="--i:0" d="M6 98 C26 94 38 101 58 97 S92 92 112 98 S158 102 176 96 S190 97 195 99" />
@@ -74,16 +84,6 @@
       </svg>
       <p class="lc-loading-line">Drawing your town…</p>
     </div>
-    <!-- What the page is, for search engines and screen readers: the game itself is the canvas above.
-         Kept true to the game (tools/seo/site.ts has the long version, published at /about/). -->
-    <main class="lc-about">
-      <h1>Little City: a hand-drawn city builder in your browser</h1>
-      <p>A hand-drawn town diorama builder, free in your browser. Place a few blocks, watch them turn into a town, then watch it come to life.</p>
-      <p>A house beside a tall tower becomes a chapel. Four blocks stacked by the sea become a lighthouse. Then people move in: the miller carries flour to the bakery, boats go out for fish, and some days there's a market or a wedding on the square. The seasons turn and the lamps come on at dusk.</p>
-      <p>Or grow a whole town on a new island, a harbour town, a castle town or a farming village, and just watch it.</p>
-      <p>Works on computers, iPhone, iPad and Android. Made by Derek Yao.</p>
-      <nav><a href="/about/" tabindex="-1">About Little City</a> · <a href="/guide/" tabindex="-1">The guide: every special building and how to get it</a></nav>
-    </main>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

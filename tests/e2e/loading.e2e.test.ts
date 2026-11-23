@@ -18,11 +18,16 @@ describe('the loading drawing', () => {
     const { page } = await app.open('/?seed=1', { javaScriptEnabled: false });
     expect(await page.locator('.lc-loading').isVisible()).toBe(true);
     expect(await page.textContent('.lc-loading-line')).toBe('Drawing your town…');
+    expect(await page.evaluate(`getComputedStyle(document.querySelector('.lc-loading')).pointerEvents`)).toBe('none');
   });
 
   test('the drawing finishes and holds', async () => {
     const { page } = await app.open('/?seed=1', { javaScriptEnabled: false });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(100);
+    // The last stroke has the longest delay: still undrawn.
+    const early = (await page.evaluate(offsets)) as string[];
+    expect(parseFloat(early[early.length - 1]!)).toBe(1);
+    await page.waitForTimeout(2900);
     const all = (await page.evaluate(offsets)) as string[];
     expect(all.length).toBeGreaterThan(5);
     expect(all.every((o) => o === '0px')).toBe(true);

@@ -4,6 +4,8 @@ export function dismissLoader(doc: Document = document): void {
   if (!el || el.dataset.state === 'done') return;
   el.dataset.state = 'done';
   if (doc.defaultView?.matchMedia('(prefers-reduced-motion: reduce)').matches) return el.remove();
-  el.addEventListener('transitionend', () => el.remove(), { once: true });
+  el.addEventListener('transitionend', (e) => {
+    if (e.target === el) el.remove();
+  });
   setTimeout(() => el.remove(), 600);
 }
