@@ -32,11 +32,16 @@ export function createStatsWatch() {
   let population: number | null = null;
   let silly: { key: SillyKey; n: number } | null = null;
   let shownAt = -Infinity;
-  // What each source saw last, so only what is new counts.
+  // What each source saw last, so only what is new counts. Those that belong to one town (its scenes,
+  // board, crowd) start again, from nothing, when the town's own object changes.
   let sceneN = 0;
+  let sceneBook: object | null = null;
   let raids = 0;
   let scuffle = 0;
+  let scuffleCrowd: object | null = null;
+  let goodsBoard: object | null = null;
   const gave = new Map<string, number>();
+  let daysBoard: object | null = null;
   let marketOpen = false;
   let festival = false;
 
@@ -46,28 +51,48 @@ export function createStatsWatch() {
     mischiefOf(stage).on((e) => queue.push(e));
   }
 
-  function mischief(): void {
-    for (const e of queue.splice(0)) {
-      if (e.type === 'lit') { mood.hit('fire'); tally.add('fires'); }
-      else if (e.type === 'drop' && e.bomb.nuke) { mood.hit('nuke'); tally.add('nukes'); }
-      else if (e.type === 'drop') { mood.hit('bomb'); tally.add('bombs'); }
-      else if (e.type === 'strike') { mood.hit('lightning'); tally.add('lightning'); }
-      else if (e.type === 'knock') mood.hit('mallet');
-      else if (e.type === 'blast') { mood.hit('ruin', e.blast.hit.length); tally.add('ruined', e.blast.hit.length); }
-      else if (e.type === 'mend') mood.hit('mend');
+  function apply(e: MischiefEvent): void {
+    if (e.type === 'lit') {
+      mood.hit('fire');
+      tally.add('fires');
+    } else if (e.type === 'drop' && e.bomb.nuke) {
+      mood.hit('nuke');
+      tally.add('nukes');
+    } else if (e.type === 'drop') {
+      mood.hit('bomb');
+      tally.add('bombs');
+    } else if (e.type === 'strike') {
+      mood.hit('lightning');
+      tally.add('lightning');
+    } else if (e.type === 'knock') {
+      mood.hit('mallet');
+    } else if (e.type === 'blast') {
+      mood.hit('ruin', e.blast.hit.length);
+      tally.add('ruined', e.blast.hit.length);
+    } else if (e.type === 'mend') {
+      mood.hit('mend');
     }
+  }
+
+  /** One at a time, each taken off the queue before it is applied, so none is applied twice or lost with another. */
+  function mischief(): void {
+    for (let e = queue.shift(); e; e = queue.shift()) apply(e);
   }
 
   function people(stage: LifeStage): void {
     const crowd = crowdOf(stage);
-    if (crowd) population = crowd.people.filter((p) => p.mode !== 'gone' && !p.leaving && !p.raider && !p.ashore).length;
+    if (crowd) population = crowd.residents;
   }
 
   function scenes(stage: object): void {
-    const on = scenesOnStage(stage)?.on;
-    if (!on) return;
+    const book = scenesOnStage(stage);
+    if (!book) return;
+    if (book !== sceneBook) {
+      sceneBook = book;
+      sceneN = 0;
+    }
     let top = sceneN;
-    for (const s of on) {
+    for (const s of book.on) {
       if (s.n <= sceneN) continue;
       top = Math.max(top, s.n);
       if (s.kind === 'raid') continue;
@@ -79,21 +104,37 @@ export function createStatsWatch() {
 
   function raiding(stage: object): void {
     const n = raidsOf(stage).count;
-    if (n > raids) { mood.hit('raid'); tally.add('raids', n - raids); }
+    if (n > raids) {
+      mood.hit('raid');
+      tally.add('raids', n - raids);
+    }
     raids = n;
   }
 
   function scuffling(stage: LifeStage): void {
-    const n = crowdOf(stage)?.scuffles.now?.n;
-    if (n && n !== scuffle) { mood.hit('scuffle'); tally.add('scuffles'); }
+    const crowd = crowdOf(stage);
+    if (!crowd) return;
+    if (crowd !== scuffleCrowd) {
+      scuffleCrowd = crowd;
+      scuffle = 0;
+    }
+    const n = crowd.scuffles.now?.n;
+    if (n && n !== scuffle) {
+      mood.hit('scuffle');
+      tally.add('scuffles');
+    }
     if (n) scuffle = n;
   }
 
   function goods(stage: object): void {
-    const delivered = raidsOf(stage).board?.delivered;
-    if (!delivered) return;
+    const board = raidsOf(stage).board;
+    if (!board) return;
+    if (board !== goodsBoard) {
+      goodsBoard = board;
+      gave.clear();
+    }
     for (const [load, key] of [['loaf', 'loaves'], ['fishes', 'fish']] as const) {
-      const n = delivered.get(load) ?? 0;
+      const n = board.delivered.get(load) ?? 0;
       const d = n - (gave.get(load) ?? 0);
       if (d > 0) tally.add(key, d);
       gave.set(load, n);
@@ -108,21 +149,16 @@ export function createStatsWatch() {
     const board = raidsOf(stage).board;
     if (!board) return;
     const open = (board.chains.find((c) => c.id === 'market') as Chain | undefined)?.open === true;
-    if (open && !marketOpen) mood.hit('market');
-    marketOpen = open;
     const lit = board.season.festival >= 0.5;
-    if (lit && !festival) mood.hit('festival');
+    // A town just arrived at is not "news": take its market and lights as they are.
+    if (board === daysBoard) {
+      if (open && !marketOpen) mood.hit('market');
+      if (lit && !festival) mood.hit('festival');
+    }
+    daysBoard = board;
+    marketOpen = open;
     festival = lit;
   }
-
-  /** Runs one source; a source that throws (a town half made) must not stop the rest. */
-  const safely = (f: () => void) => {
-    try {
-      f();
-    } catch {
-      /* nothing to read yet */
-    }
-  };
 
   return {
     update(stage: object, now: number): StatsView | null {
@@ -130,15 +166,15 @@ export function createStatsWatch() {
       const dt = Number.isFinite(last) ? (now - last) / 1000 : 0;
       last = now;
       const s = stage as LifeStage;
-      safely(() => listen(s));
-      safely(mischief);
-      safely(() => people(s));
-      safely(() => scenes(s));
-      safely(() => raiding(s));
-      safely(() => scuffling(s));
-      safely(() => goods(s));
-      safely(() => burning(s));
-      safely(() => days(s));
+      listen(s);
+      mischief();
+      people(s);
+      scenes(s);
+      raiding(s);
+      scuffling(s);
+      goods(s);
+      burning(s);
+      days(s);
       mood.step(dt);
       // The silly count changes every ROTATE ms, and shows the live number of the one it is on.
       if (!silly || now - shownAt >= ROTATE) {
