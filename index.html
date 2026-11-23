@@ -87,14 +87,14 @@
     </div>
     <script>
       // A start that fails says so. Only while the loader is still waiting; a later error leaves the town alone.
-      function lcFailed() {
+      function lcFailed(e) {
+        if (e && e.filename && e.filename.indexOf(location.origin) !== 0) return;
         var l = document.querySelector('.lc-loading');
         if (!l || l.getAttribute('data-state') !== 'loading') return;
         l.setAttribute('data-state', 'failed');
         l.querySelector('.lc-loading-line').textContent = "This browser couldn't draw the town. Try reloading, or another browser.";
       }
       window.addEventListener('error', lcFailed);
-      window.addEventListener('unhandledrejection', lcFailed);
     </script>
     <script type="module" src="/src/app/main.ts"></script>
   </body>

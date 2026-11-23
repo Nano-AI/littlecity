@@ -74,7 +74,7 @@ describe('the loading drawing', () => {
       } as typeof real;
     });
     await page.reload();
-    await page.waitForTimeout(1500);
+    await page.waitForFunction('document.querySelector(".lc-loading")?.dataset.state === "failed"');
     expect(await page.textContent('.lc-loading-line')).toBe(
       "This browser couldn't draw the town. Try reloading, or another browser.",
     );
@@ -87,5 +87,19 @@ describe('the loading drawing', () => {
     await page.evaluate(() => setTimeout(() => { throw new Error('later'); }));
     await page.waitForTimeout(300);
     expect(await page.locator('.lc-loading').count()).toBe(0);
+  });
+
+  test('a stray rejection before the town shows changes nothing', async () => {
+    const { page } = await app.open('/?seed=1');
+    await page.addInitScript(() => {
+      (window as unknown as { __failed: boolean }).__failed = false;
+      new MutationObserver(() => {
+        if (document.querySelector('.lc-loading[data-state="failed"]')) (window as unknown as { __failed: boolean }).__failed = true;
+      }).observe(document, { subtree: true, attributes: true, childList: true });
+      void Promise.reject(new Error('stray'));
+    });
+    await page.reload();
+    await page.waitForFunction('window.__lc && window.__lc.ui');
+    expect(await page.evaluate('window.__failed')).toBe(false);
   });
 });
