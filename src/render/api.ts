@@ -69,6 +69,8 @@ export interface ViewStats {
    * and `vertices` count what was rebuilt.
    */
   rebuild?: { generators: number; layers: number; parts: number; view: number; structures: number; vertices: number };
+  /** Added for mischief. Structures whose new drawing is still waiting (setTown's `spread`); their old one shows meanwhile. */
+  pending: number;
 }
 
 export interface ViewOptions {
@@ -94,8 +96,14 @@ export interface TownView {
    * Shows a town. Rebuilds only what changed (by structure, layer-chunk and
    * prop hash). Pass `dressing: null` right after an edit; the previous
    * props stay until setDressing delivers the new ones.
+   *
+   * Added for mischief: with `spread`, changed structures already drawn are rebuilt a few a frame
+   * (within REBUILD_BUDGET_MS, in frames that run no setTown or setDressing) and keep their old
+   * drawing until then. New and removed structures and the layers still change at once. Without
+   * it, anything still waiting is rebuilt now. `'waiting'` (the player's own edit) builds everything
+   * it changed now but leaves what was already waiting, and kept its cells and edges, waiting.
    */
-  setTown(shape: ShapePlan, dressing: DressingPlan | null): void;
+  setTown(shape: ShapePlan, dressing: DressingPlan | null, opts?: { spread?: boolean | 'waiting' }): void;
   /** Delivers the dressing for the shape last passed to setTown. */
   setDressing(dressing: DressingPlan): void;
   setGhost(ghost: Ghost | null): void;
@@ -127,6 +135,11 @@ export interface TownView {
    * made), so the first take-off does not stall a frame. Call when the page is idle; harmless twice.
    */
   prepareEye?(): void;
+  /**
+   * Gets the held piece's ghost ready ahead of time (its two shaders compiled), so the first hover
+   * does not stall a frame. Call when the page is idle; harmless twice.
+   */
+  prepareGhost?(): void;
 
   /**
    * Added for the quality governor (src/render/quality.ts). How sharp the page is drawn: the levels
@@ -142,6 +155,8 @@ export interface TownView {
   /** Draws one frame. Reads time of day and wind from `signals`; never reads the clock itself. */
   render(signals: Signals): void;
   stats(): ViewStats;
+  /** Added for mischief. ViewStats.pending without making the stats: cheap enough to ask every frame. */
+  pending(): number;
   dispose(): void;
 }
 

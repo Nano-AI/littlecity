@@ -40,7 +40,7 @@ import { buildScenario, scenarioResolveOptions, type CameraSpec, type Scenario }
 import { findScenario } from '@/scenario/discover';
 import { generateTerrain, initialWorld, NEW_ISLAND_GEN, terrainOf, type TerrainGen } from '@/terrain/terrain';
 import { download, townFromHash, townPicture } from '@/ui/files';
-import { onlyStartingTrees } from '@/ui/growth';
+import { dressDue, onlyStartingTrees } from '@/ui/growth';
 import { createInterface, type Interface } from '@/ui/interface';
 import { loadTown } from '@/world/save';
 import { startAnalytics, track, townShown } from './analytics';
@@ -139,13 +139,19 @@ autosave.enabled = !scn && !visiting;
  * resolved or rebuilt (an edit, its dressing). The quality governor leaves them out.
  */
 let busyFrames = 0;
+let lastDressed = -Infinity;
+/** Mischief's edit is being shown: its changed buildings are redrawn a few a frame, not all in this one. */
+let fromMischief = false;
+let ghostQueued = false;
 const BUSY_FRAMES = 3;
 
 const game = createGame(tiered(start), {
   // CONTRACTS section 12: setTown before life.sync, so the instances exist.
   show(shape: ShapePlan, landed: Edit | null) {
     busyFrames = BUSY_FRAMES;
-    view.setTown(shape, null);
+    // Mischief's edits are spread over frames. The player's own (a click, a growth piece) draws what it
+    // changed and leaves mischief's waiting rebuilds waiting. Undo, redo, abort and a new town draw all now.
+    view.setTown(shape, null, { spread: fromMischief || (landed !== null ? 'waiting' : false) });
     life.sync({ shape, dressing: null });
     townShown(shape, landed !== null);
     if (landed?.type === 'placeBlock') signals.emit('blockLanded', landed.cell);
@@ -164,13 +170,22 @@ gameNow = game;
 const music = createMusic();
 
 const mischief = mischiefOf(view.stage);
+/** Runs one of mischief's edits with its rebuilds spread over frames. */
+const spreading = (run: () => void): void => {
+  fromMischief = true;
+  try {
+    run();
+  } finally {
+    fromMischief = false;
+  }
+};
 mischief.connect({
   begin: () => game.begin(),
-  apply: (edits) => void game.editAll(edits),
+  apply: (edits) => spreading(() => game.editAll(edits)),
   end: () => game.end(),
   abort: () => void game.abort(),
-  edit: (edits) => void game.editAll(edits),
-  amend: (edits) => void game.amend(edits),
+  edit: (edits) => spreading(() => game.editAll(edits)),
+  amend: (edits) => spreading(() => game.amend(edits)),
 });
 
 /** A different town: life and the signals start over with its seed; the held time of day carries across. */
@@ -179,6 +194,8 @@ function open(next: GameStart): void {
   mischief.detach();
   const { seasonHolding, weatherHolding } = signals;
   life.dispose();
+  // A new island must not wait out the old one's dressing interval and show its props meanwhile.
+  lastDressed = -Infinity;
   signals = createSignals(next.world.seed);
   signals.hold(holding);
   if (seasonHolding !== 'run') signals.holdSeason(seasonHolding);
@@ -383,12 +400,22 @@ function frame(now: number): void {
   if (busyFrames > 0) busyFrames--;
   const dt = signals.advance((now - last) / 1000);
   last = now;
-  const ready = game.poll();
+  // While a town grows, its dressing follows a few times a second, not after every piece.
+  const ready = dressDue(now, lastDressed, (ui?.growth.active ?? false) || mischief.busy) ? game.poll() : null;
   if (ready) {
+    lastDressed = now;
     busyFrames = BUSY_FRAMES;
     view.setDressing(ready.dressing);
     life.sync(ready);
     ui?.dressed(ready.dressing);
+    // The ghost's shaders are linked once, while idle, not on the first hover over the town.
+    if (!ghostQueued) {
+      ghostQueued = true;
+      const prepare = (): void => view.prepareGhost?.();
+      const idle = (globalThis as { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+      if (idle) idle(prepare, { timeout: 4000 });
+      else setTimeout(prepare, 1500);
+    }
   }
   // Fly mode moves the eye on real time (it carries on when the town's clock is held).
   ui?.fly.frame(real);
@@ -397,8 +424,14 @@ function frame(now: number): void {
   const eye = view.getEyeCamera();
   const cam = view.getCamera();
   mischief.camera = eye ? { yaw: eye.yaw, pitch: -eye.pitch } : { yaw: cam.yaw, pitch: cam.pitch };
+  // A frame that dressed the town makes no mischief edit (the two heavy jobs do not share a frame).
+  mischief.holdEdits = ready !== null;
   life.update(dt);
   mischief.flush();
+  mischief.holdEdits = false;
+  ui?.beforeRender();
+  // A frame that rebuilds what mischief left waiting says nothing of how fast the page draws either.
+  if (view.pending() > 0) busyFrames = Math.max(busyFrames, 1);
   render();
   ui?.frame();
   // L57, L63: a note when a wedding, a beach day or another scene is on (one at a time, now and then).

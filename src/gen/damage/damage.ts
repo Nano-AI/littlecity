@@ -26,7 +26,9 @@
 
 import { CELL_H, columnIndex, DIR4, inColumnBounds, keyX, keyY, keyZ, type Dir4 } from '@/core/grid';
 import { hash, rand } from '@/core/rand';
+import { styleVersion } from '@/core/style';
 import type { GenOutput, GeneratorRegistry } from '@/gen/api';
+import { hashStructure } from '@/resolve/engine/hash';
 import { mergeMeshes, MeshBuilder, PATTERN, type MeshData } from '@/gen/mesh';
 import type { ShapePlan, Structure } from '@/resolve/plan';
 import { DAMAGE_COLORS, RUIN, rgb } from '@/style/damage';
@@ -866,11 +868,54 @@ function afloatDamage(intact: MeshData, prof: Profile): MeshData {
   return moved(prof.s.kind === 'dock' ? buildingDamage(intact, prof) : now, m);
 }
 
+/** The most elements (floats, ids) of intact mesh the cache holds: about 180 four-floor houses, 32 MB of the mostly 4-byte arrays. */
+export const intactCache = { maxFloats: 8_000_000 };
+
+function meshFloats(m: MeshData): number {
+  let n = 0;
+  for (const v of Object.values(m)) if (ArrayBuffer.isView(v)) n += (v as Float32Array).length;
+  return n;
+}
+
 /** Wraps a generator registry so every structure is drawn with its damage. */
-export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry } {
+export function withDamage(reg: GeneratorRegistry): GeneratorRegistry & { intact: GeneratorRegistry; peek: (sid: number) => { hash: number; out: GenOutput } | null } {
+  // A damaged structure's sound drawing, kept while only its ruin changes (a char or mend step).
+  const cache = new Map<number, { key: number; style: number; parts: unknown; intact: GenOutput; floats: number; hash: number; out: GenOutput }>();
+  let floats = 0;
+  const drop = (id: number) => {
+    floats -= cache.get(id)?.floats ?? 0;
+    cache.delete(id);
+  };
   return {
     ...reg,
-    build: (s, plan, parts) => damageOutput(reg.build(s, plan, parts), s, plan),
+    build: (s, plan, parts) => {
+      if (!s.cells.some((c) => plan.world.blocks.get(c)?.ruin)) {
+        drop(s.id);
+        return reg.build(s, plan, parts);
+      }
+      const key = hashStructure(s, plan, true);
+      const style = styleVersion();
+      let e = cache.get(s.id);
+      if (e && e.key === key && e.style === style && e.parts === parts) {
+        if (e.hash === s.hash) return e.out;
+      } else {
+        const intact = reg.build(s, plan, parts);
+        e = { key, style, parts, intact, floats: meshFloats(intact.mesh), hash: 0, out: intact };
+      }
+      e.out = damageOutput(e.intact, s, plan);
+      e.hash = s.hash;
+      drop(s.id);
+      cache.set(s.id, e);
+      floats += e.floats;
+      // ponytail: FIFO by insertion (a refresh moves an entry to the back); a true LRU on hit is the upgrade if it ever thrashes.
+      while (floats > intactCache.maxFloats && cache.size > 1) drop(cache.keys().next().value!);
+      return e.out;
+    },
     intact: reg,
+    // The latest damaged drawing, without building one (null for a sound or never-drawn structure).
+    peek: (sid) => {
+      const e = cache.get(sid);
+      return e ? { hash: e.hash, out: e.out } : null;
+    },
   };
 }

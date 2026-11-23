@@ -113,3 +113,24 @@ export function ghostForRun(run: Run, host: GhostHost): Ghost | null {
   const shimmer = [...new Set([...changedAutos(host.world, host.shape, preview), ...joinedCells(host.world, preview, run.edits, show)])];
   return { plan: preview, show, ...withShimmer(shimmer) };
 }
+
+/**
+ * Paces the ghost to once a frame. Each new target cell costs a whole-town
+ * resolve, so a stream of pointer moves must not each pay it, and a frame that
+ * already carried a dressing gives the ghost up until the next one.
+ */
+export function createGhostPace(): { want(): void; heavy(): void; frame(run: () => void): void } {
+  let wanted = false;
+  let carriedDressing = false;
+  return {
+    want: () => { wanted = true; },
+    heavy: () => { carriedDressing = true; },
+    frame(run) {
+      const go = wanted && !carriedDressing;
+      carriedDressing = false;
+      if (!go) return;
+      wanted = false;
+      run();
+    },
+  };
+}

@@ -5,7 +5,7 @@ import { E, edgeKey, key, N, S, W, type CellKey } from '@/core/grid';
 import { hash } from '@/core/rand';
 import type { Edit, Terrain, World } from '@/core/world';
 import { flatTerrain, TerrainBuilder } from '@/scenario';
-import { applyEdit, canApply, edgeIsValid, emptyWorld, nextChangeKind, stairsUpDirs } from './world';
+import { applyEdit, applyEdits, canApply, edgeIsValid, emptyWorld, nextChangeKind, stairsUpDirs } from './world';
 import type { PlacedKind } from '@/core/kinds';
 
 const flat = flatTerrain(4); // height 1 on columns 4–43, water around
@@ -331,5 +331,51 @@ describe('edits at bounds are refused (Review Focus 3)', () => {
       }
     }
     expect(count).toBeGreaterThan(0);
+  });
+});
+
+describe('applyEdits', () => {
+  const a = key(10, 1, 10);
+  const b = key(12, 1, 10);
+  const c = key(14, 1, 10);
+  const batch: Edit[] = [
+    { type: 'setRuin', cell: a, ruin: 2 },
+    { type: 'repair', cell: b },
+    { type: 'repair', cell: c }, // empty cell: refused
+    { type: 'placeBlock', cell: c, kind: 'house', color: 'auto', from: null },
+    { type: 'setRuin', cell: c, ruin: 1 },
+  ];
+  const base = () => applyEdit(place(place(w0, 'house', 10, 1, 10), 'house', 12, 1, 10), flat, { type: 'setRuin', cell: b, ruin: 1 });
+
+  test('applyEdits gives the same world as applying the edits one by one', () => {
+    const w = base();
+    let ref = w;
+    let n = 0;
+    for (const e of batch) {
+      if (!canApply(ref, flat, e).ok) continue;
+      ref = applyEdit(ref, flat, e);
+      n++;
+    }
+    const r = applyEdits(w, flat, batch);
+    expect(r.applied).toBe(n);
+    expect(n).toBe(4);
+    expect([...r.world.blocks]).toEqual([...ref.blocks]);
+    expect([...r.world.floors]).toEqual([...ref.floors]);
+    expect([...r.world.edges]).toEqual([...ref.edges]);
+    expect(r.world.nextSeq).toBe(ref.nextSeq);
+  });
+
+  test('applyEdits leaves the world it was given untouched', () => {
+    const w = base();
+    const before = [...w.blocks];
+    applyEdits(w, flat, batch);
+    expect([...w.blocks]).toEqual(before);
+  });
+
+  test('a batch with nothing accepted returns the same world', () => {
+    const w = base();
+    const r = applyEdits(w, flat, [{ type: 'repair', cell: c }]);
+    expect(r.applied).toBe(0);
+    expect(r.world).toBe(w);
   });
 });

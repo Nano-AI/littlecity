@@ -24,7 +24,7 @@
 // (light beams, the ghost preview).
 
 import * as THREE from 'three';
-import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z } from '@/core/grid';
+import { allChunks, CELL_H, CHUNK, keyX, keyY, keyZ, SEA_Y, SIZE_X, SIZE_Z, type CellKey, type EdgeKey } from '@/core/grid';
 import { identity, type Mat4Like, type Vec3 } from '@/core/mat4';
 import { allStyles, styleVersion } from '@/core/style';
 import { isAirMesh } from '@/gen/airborne';
@@ -32,7 +32,7 @@ import type { PartOutput } from '@/gen/api';
 import { createLayout, type Layout } from '@/gen/layout';
 import { MeshBuilder, parseColor, type MeshData } from '@/gen/mesh';
 import type { InstanceHandle, LifeStage, Signals, SpawnSpec } from '@/life/api';
-import type { Actor, DressingPlan, Prop, ShapePlan, StructureId } from '@/resolve/plan';
+import type { Actor, DressingPlan, Prop, ShapePlan, Structure, StructureId } from '@/resolve/plan';
 import { seasonOf, weatherOf } from '@/life/season';
 import { GRADE, LOOK } from '@/style/look';
 import { PALETTE } from '@/style/palette';
@@ -55,6 +55,7 @@ import {
 } from './camera';
 import { gradeAt } from './grade';
 import { qualityLevels, type Quality } from './quality';
+import { buildWithin, oldestFirst, REBUILD_BUDGET_MS, sameAnchors, sameKeys } from './rebuild-budget';
 import { paperOf, seasonFrame, seasonGrade } from './season';
 import { PoolMesh } from './poolmesh';
 import { createPrecip } from './precip';
@@ -128,6 +129,9 @@ interface DrawnStructure {
   hash: number;
   chunk: string;
   anchors: Record<string, Mat4Like>;
+  /** The cells and edges it was drawn with: only a structure that kept them may wait for its rebuild. */
+  cells: readonly CellKey[];
+  edges: readonly EdgeKey[];
   /** 0 while baked; a slot while lifted. */
   slot: number;
   lifts: number;
@@ -619,6 +623,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   };
   let eyePose: EyePose | null = null;
   let eyePrepared = false;
+  let ghostPrepared = false;
   let lens: EyeFrame | null = null;
   /** Which set of materials the meshes wear now. */
   let wearing: 'orbit' | 'fly' = 'orbit';
@@ -706,6 +711,10 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     spent.view = Math.max(0, rebuildMs - spent.generators - spent.layers - spent.parts);
     lastSpent = { ...spent };
   };
+  /** Structures drawn at an old hash, oldest first, rebuilt a few a frame by render() (setTown's `spread`). */
+  let pending = new Set<StructureId>();
+  /** A setTown or setDressing ran since the last frame: that frame does no deferred rebuilding. */
+  let busy = false;
   let spawnCounter = 0;
   let ghostKeys: string[] = [];
   let ghostSlots: number[] = [];
@@ -849,15 +858,46 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     return chunkKeyOf(keyX(c), keyZ(c));
   };
 
-  const syncShape = (next: ShapePlan): void => {
+  /** Draws a structure; true if any of its anchor frames moved (or it is new). */
+  const buildStructure = (s: Structure, next: ShapePlan): boolean => {
+    const { generators, parts } = registries!;
+    const old = structures.get(s.id);
+    const t = performance.now();
+    const out = generators.build(s, next, parts);
+    spent.generators += performance.now() - t;
+    spent.structures++;
+    spent.vertices += out.mesh.position.length / 3;
+    const chunk = structureChunk(s);
+    if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
+    chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
+    const moved = !old || !sameAnchors(old.anchors, out.anchors);
+    setAnchors(old?.anchors, out.anchors);
+    if (old) {
+      old.hash = s.hash;
+      old.chunk = chunk;
+      old.anchors = out.anchors;
+      old.cells = s.cells;
+      old.edges = s.edges;
+    } else {
+      structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, cells: s.cells, edges: s.edges, slot: 0, lifts: 0, alive: true });
+    }
+    return moved;
+  };
+
+  /** `budget`: a spread sync may build some of its queue now (false once this frame has rebuilt). */
+  const syncShape = (next: ShapePlan, spread: boolean | 'waiting' = false, budget = true): void => {
     const reg = registriesFor(next);
     if (!registries || reg.generators !== registries.generators || reg.parts !== registries.parts) {
       // Other generators draw this town: nothing cached applies.
       dropAll();
       registries = reg;
     }
-    // styleVersion() is part of every cache key (CONTRACTS section 14): a changed style value redraws.
-    if (styleChanged()) invalidate();
+    // styleVersion() is part of every cache key (CONTRACTS section 14): a changed style value redraws,
+    // all of it at once.
+    if (styleChanged()) {
+      invalidate();
+      spread = false;
+    }
     const { generators, parts } = reg;
     for (const [id, d] of structures) {
       if (next.structures.has(id)) continue;
@@ -867,26 +907,20 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       setAnchors(d.anchors, {});
       structures.delete(id);
     }
+    const changed = new Map<StructureId, Structure>();
     for (const s of next.structures.values()) {
       const old = structures.get(s.id);
       if (old && old.hash === s.hash) continue;
-      const t = performance.now();
-      const out = generators.build(s, next, parts);
-      spent.generators += performance.now() - t;
-      spent.structures++;
-      spent.vertices += out.mesh.position.length / 3;
-      const chunk = structureChunk(s);
-      if (old && old.chunk !== chunk) chunkPools.get(old.chunk)!.pool.remove(`s:${s.id}`);
-      chunkPools.get(chunk)!.pool.put(`s:${s.id}`, s.hash, out.mesh, old?.slot ?? 0);
-      setAnchors(old?.anchors, out.anchors);
-      if (old) {
-        old.hash = s.hash;
-        old.chunk = chunk;
-        old.anchors = out.anchors;
-      } else {
-        structures.set(s.id, { hash: s.hash, chunk, anchors: out.anchors, slot: 0, lifts: 0, alive: true });
-      }
+      // Only what stayed put may wait: a building the land carried down must not float over the crater.
+      // The player's own edit ('waiting') leaves waiting only what was already.
+      const may = spread === true || (spread === 'waiting' && pending.has(s.id));
+      if (may && old && sameKeys(old.cells, s.cells) && sameKeys(old.edges, s.edges)) changed.set(s.id, s);
+      else buildStructure(s, next);
     }
+    // Spread (mischief): oldest first, and what does not fit in the budget keeps its old drawing;
+    // render() gets to it.
+    const queue = oldestFirst(pending, [...changed.keys()]);
+    pending = new Set(spread === true && budget ? buildWithin(queue, (id) => buildStructure(changed.get(id)!, next), REBUILD_BUDGET_MS) : queue);
     for (const layer of generators.layers()) {
       for (const chunk of allChunks()) {
         const k = `${chunk.cx}:${chunk.cz}`;
@@ -967,7 +1001,11 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
   const noRelease = (): void => {};
   const itemHandle = (id: string, entry: DrawnItem): InstanceHandle => makeHandle(() => (items.get(id) === entry ? entry.slot : 0), () => entry.base, noRelease);
 
-  const syncDressing = (next: DressingPlan): void => {
+  /**
+   * `onlyMoved` (a drain's sync, with no life.sync after it): an item whose mesh and place are as they
+   * were keeps whatever pose and visibility life gave it.
+   */
+  const syncDressing = (next: DressingPlan, onlyMoved = false): void => {
     const seen = new Set<string>();
     const live = new Set<string>();
     const where = getLayout()!;
@@ -986,6 +1024,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         items.set(item.id, (it = entry));
       }
       const hash = item.hash * 31 + Math.round(span * 1000);
+      const same = it.hash === hash && sameKeys(it.base, base);
       if (it.hash !== hash) {
         const mesh = propOutput(item, category, span).mesh;
         (it.mover ? movers : dynamic).pool.put(`i:${item.id}`, hash, mesh, it.slot);
@@ -993,6 +1032,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         it.hash = hash;
       }
       it.base = base;
+      if (onlyMoved && same) return;
       slots.setMatrix(it.slot, base);
       // An anchored item whose anchor is gone has nowhere to be; free-roaming actors start at the origin
       // and are shown: their behaviour places them.
@@ -1167,11 +1207,14 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     canvas,
     stage,
 
-    setTown(nextShape, nextDressing) {
+    setTown(nextShape, nextDressing, opts) {
+      // A frame that already rebuilt (mending in life.update, then the flush) spends no second budget.
+      const first = !busy;
+      busy = true;
       const t0 = beginRebuild();
       groundMotion.changed(shape, nextShape, lastSeconds ?? 0);
       shape = nextShape;
-      syncShape(nextShape);
+      syncShape(nextShape, opts?.spread, first);
       if (nextDressing) dressing = nextDressing;
       rebuildLayout();
       if (nextDressing) syncDressing(nextDressing);
@@ -1179,6 +1222,7 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
     setDressing(nextDressing) {
       if (!shape) throw new Error('setDressing before setTown');
+      busy = true;
       const t0 = beginRebuild();
       dressing = nextDressing;
       rebuildLayout();
@@ -1315,6 +1359,17 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
       renderer.clear(true, true, false);
       renderer.setRenderTarget(was);
     },
+    prepareGhost() {
+      if (ghostPrepared) return;
+      ghostPrepared = true;
+      // The ghost's view holds nothing until a piece is held, and three skips an empty one, so the
+      // surface material is compiled through a mesh of its own. No target is needed: the program is
+      // keyed by its shader and defines alone, so the ghost's buffer stays unmade until first used.
+      const probe = new THREE.Mesh(new THREE.BufferGeometry(), ghostMaterial);
+      probe.frustumCulled = false;
+      void renderer.compileAsync(new THREE.Scene().add(probe), camera).then(() => probe.geometry.dispose(), () => probe.geometry.dispose());
+      void renderer.compileAsync(ghostPostScene, postCamera).catch(() => undefined);
+    },
     quality() {
       return { level, levels: levels.map((q) => ({ ...q })) };
     },
@@ -1338,6 +1393,28 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
         if (dressing) syncDressing(dressing);
         endRebuild(t0);
       }
+      // Mischief's waiting rebuilds, a few a frame, and never in a frame that already rebuilt. A ruin
+      // change keeps the generator's anchors, so the dressing is left as it is unless one moved.
+      if (!busy && pending.size > 0 && shape) {
+        const plan = shape;
+        let moved = false;
+        pending = new Set(
+          buildWithin(
+            [...pending],
+            (id) => {
+              const s = plan.structures.get(id);
+              const d = structures.get(id);
+              // Gone, or already drawn as it is now: dropped.
+              if (s && d && d.hash !== s.hash) moved = buildStructure(s, plan) || moved;
+            },
+            REBUILD_BUDGET_MS,
+          ),
+        );
+        rebuildLayout();
+        // Output that leans on its neighbours can move an anchor with the cells unchanged: the props follow.
+        if (moved && dressing) syncDressing(dressing, true);
+      }
+      busy = false;
       // Camera damping runs on life time, which is already clamped to 100 ms a step.
       const seconds = signals.time.seconds;
       const dt = lastSeconds === null ? 0 : seconds - lastSeconds;
@@ -1610,8 +1687,9 @@ export function createTownView(canvas: HTMLCanvasElement, opts: ViewOptions = {}
     },
 
     stats(): ViewStats {
-      return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent } };
+      return { drawCalls, triangles, rebuildMs, rebuild: { ...lastSpent }, pending: pending.size };
     },
+    pending: () => pending.size,
 
     dispose() {
       clearGhost();

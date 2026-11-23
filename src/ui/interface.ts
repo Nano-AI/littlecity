@@ -35,7 +35,7 @@ import { findIsland } from '@/terrain/kinds';
 import { hash } from '@/core/rand';
 import { copyText, download, downloadTown, makePostcard, readTownFile, shareLink } from './files';
 import type { GestureSink } from './gestures';
-import { ghostFor, ghostForLand, ghostForRun } from './ghost';
+import { createGhostPace, ghostFor, ghostForLand, ghostForRun } from './ghost';
 import { createGuide, type Guide } from './guide';
 import { clampLength, createScrollSteps, growthOf, maxLengthOf, planRun, type Run } from './length';
 import { createMarkers } from './markers';
@@ -103,6 +103,8 @@ export interface Interface {
   dressed(dressing: DressingPlan): void;
   /** L57: glides the camera to look at a place (as Escape glides back to the whole island). */
   glideTo(target: readonly [number, number, number], zoom?: number): void;
+  /** Call once per frame, just before the town is drawn (after dressed(), so the ghost can yield to a dressing). */
+  beforeRender(): void;
   /** Call once per frame, after the town has been drawn. */
   frame(): void;
   /** The world or the history changed: refresh the buttons and the ghost. */
@@ -693,6 +695,8 @@ export function createInterface(host: InterfaceHost): Interface {
     count.style.transform = `translate(${Math.round(hoverAt.x + r.left + 16)}px, ${Math.round(hoverAt.y + r.top + 14)}px)`;
   };
 
+  const ghostPace = createGhostPace();
+  let dressedThisFrame = false;
   const updateGhost = (): void => {
     if (placingRun) return;
     if (growth.active) return setGhost(null, '');
@@ -1036,13 +1040,13 @@ export function createInterface(host: InterfaceHost): Interface {
     zoom(factor, x, y) {
       recentre = null;
       view.zoomBy(factor, x, y);
-      if (hoverAt) updateGhost();
+      if (hoverAt) ghostPace.want();
     },
     scroll: scrollLength,
     hover(x, y) {
       hoverAt = { x, y };
       if (handHeld()) canvas.style.cursor = hand.hover(x, y) ? 'grab' : '';
-      updateGhost();
+      ghostPace.want();
     },
     hoverEnd() {
       hand.hoverEnd();
@@ -1319,16 +1323,24 @@ export function createInterface(host: InterfaceHost): Interface {
     dressed(dressing) {
       guide.dressed(dressing);
       fly.dressed(dressing);
+      ghostPace.heavy();
+      dressedThisFrame = true;
     },
     glideTo(target, zoom) {
       const now = view.getCamera();
       startRecentre({ ...now, target: [target[0], target[1], target[2]], zoom: Math.max(now.zoom, zoom ?? 0) });
     },
+    beforeRender() {
+      ghostPace.frame(updateGhost);
+    },
     frame() {
       stepRecentre();
       for (const s of sliders) s.refresh();
       flushStroke();
-      growth.tick(performance.now());
+      // One heavy job per frame: a frame that carried a whole-town dressing leaves growth's edit for the
+      // next one, which picks up the elapsed time, so the growth rate holds.
+      if (!dressedThisFrame) growth.tick(performance.now());
+      dressedThisFrame = false;
       markers.update(tray.state.item === 'change' && !tray.state.idle, game.world, game.terrain);
     },
     sync() {
@@ -1339,7 +1351,7 @@ export function createInterface(host: InterfaceHost): Interface {
       showSeasons();
       guide.townChanged();
       welcome.townChanged();
-      if (hoverAt) updateGhost();
+      if (hoverAt) ghostPace.want();
     },
     debug: () => ({
       item: tray.state.item,

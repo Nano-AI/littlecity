@@ -7,21 +7,23 @@
 //
 // It is not part of the app: nothing imports it but the tests.
 
+import { columnIndex, key, keyX, keyZ } from '@/core/grid';
 import { translation } from '@/core/mat4';
 import { resetStyles, setStyle, type StyleValue } from '@/core/style';
 import { MeshBuilder } from '@/gen/mesh';
 import type { DayPart, InstanceHandle } from '@/life/api';
 import { createSignals, type TownSignals } from '@/life/signals';
 import { applyCalendar } from '@/life/season';
-import type { Edit } from '@/core/world';
+import type { Edit, World } from '@/core/world';
 import type { ResolveOptions } from '@/resolve/engine/api';
 import { resolveDressing, resolveShape } from '@/resolve/index';
-import type { DressingPlan, ShapePlan } from '@/resolve/plan';
+import type { DressingPlan, ShapePlan, Structure } from '@/resolve/plan';
 import { buildScenario, scenarioResolveOptions } from '@/scenario';
 import { findScenario } from '@/scenario/discover';
 import { applyEdit, canApply } from '@/world/world';
 import type { EyePose, CameraPose, TownView, ViewOptions } from '../api';
 import { createTownView } from '../index';
+import { sameKeys } from '../rebuild-budget';
 
 export interface FrameSummary {
   drawCalls: number;
@@ -52,6 +54,8 @@ let options: ResolveOptions | null = null;
 let dressing: DressingPlan | null = null;
 let lifted: InstanceHandle | null = null;
 let spawned: InstanceHandle[] = [];
+/** Where each item held by holdItems was put. */
+const kept = new Map<string, number[]>();
 
 function summary(): FrameSummary {
   const gl = canvas!.getContext('webgl2')!;
@@ -101,6 +105,21 @@ function summary(): FrameSummary {
     corners: [at(2, 2), at(w - 3, 2), at(2, h - 3), at(w - 3, h - 3)],
     thumb: [...thumb].map((v, i) => Math.round(v / counts[Math.floor(i / 3)]!)),
   };
+}
+
+/**
+ * The town as opened, every cell of its first `n` houses at this packed ruin, and the land a level
+ * down under `sunk` more houses after those, the first whose land can go down (a 'land' edit carries
+ * what stands on it).
+ */
+function damaged(n: number, ruin: number, sunk: number): World {
+  const houses = [...shape!.structures.values()].filter((s) => s.kind === 'house');
+  const t = shape!.terrain;
+  let world = shape!.world;
+  for (const s of houses.slice(0, n)) for (const cell of s.cells) world = applyEdit(world, t, { type: 'setRuin', cell, ruin });
+  if (sunk === 0) return world;
+  const under = (ss: readonly Structure[]): Edit => ({ type: 'land', up: [], down: [...new Set(ss.flatMap((s) => s.cells.map((c) => columnIndex(keyX(c), keyZ(c)))))] });
+  return applyEdit(world, t, under(houses.slice(n).filter((s) => canApply(world, t, under([s])).ok).slice(0, sunk)));
 }
 
 const api = {
@@ -179,6 +198,93 @@ const api = {
     }
     return out;
   },
+  /**
+   * Mischief: gives every cell of the first `n` houses this packed ruin (packRuin) and shows the town,
+   * spread over frames or not. Each call starts from the town as opened. Returns ViewStats.pending.
+   */
+  ruinHouses(n: number, ruin: number, spread: boolean): number {
+    view!.setTown(resolveShape(damaged(n, ruin, 0), shape!.terrain, options ?? {}), null, { spread });
+    return view!.stats().pending;
+  },
+  /**
+   * A nuke in small: as ruinHouses, and the land under `sunk` more houses goes down a level, carrying
+   * them (see damaged). Then the dressing for that town arrives, before any frame. Returns ViewStats.pending
+   * as the setTown left it, `moved` (structures that changed and lost their cells or edges: none of
+   * these may wait) and `stayed` (those that changed in place: the most that may).
+   */
+  crater(n: number, ruin: number, sunk: number, spread: boolean): { pending: number; moved: number; stayed: number } {
+    const next = resolveShape(damaged(n, ruin, sunk), shape!.terrain, options ?? {});
+    view!.setTown(next, null, { spread });
+    const pending = view!.stats().pending;
+    dressing = resolveDressing(next, options ?? {});
+    view!.setDressing(dressing);
+    let moved = 0, stayed = 0;
+    for (const s of next.structures.values()) {
+      const was = shape!.structures.get(s.id);
+      if (!was || was.hash === s.hash) continue;
+      if (sameKeys(was.cells, s.cells) && sameKeys(was.edges, s.edges)) stayed++;
+      else moved++;
+    }
+    return { pending, moved, stayed };
+  },
+  /**
+   * The player's own edit in a burning town: as ruinHouses, and a house block placed on a free column
+   * at least three cells from those houses, in one setTown with `spread`. Returns ViewStats.pending,
+   * what the setTown built (ViewStats.rebuild.structures), `changed` (structures the block made or
+   * changed) and `touched` (structures it took cells or edges from).
+   */
+  place(n: number, ruin: number, spread: boolean | 'waiting'): { pending: number; built: number; changed: number; touched: number } {
+    const t = shape!.terrain;
+    const ruined = damaged(n, ruin, 0);
+    const near = [...shape!.structures.values()].filter((s) => s.kind === 'house').slice(0, n).flatMap((s) => s.cells);
+    let world: World | null = null;
+    for (let i = 0; !world && i < 400; i++) {
+      const x = 5 + ((i * 7) % 38), z = 5 + ((i * 11) % 38);
+      if (near.some((c) => Math.abs(keyX(c) - x) < 3 && Math.abs(keyZ(c) - z) < 3)) continue;
+      let y = t.height[columnIndex(x, z)]!;
+      while (ruined.blocks.has(key(x, y, z))) y++;
+      const edit: Edit = { type: 'placeBlock', cell: key(x, y, z), kind: 'house', color: 'auto', from: ruined.blocks.has(key(x, y - 1, z)) ? key(x, y - 1, z) : null };
+      if (y >= 1 && canApply(ruined, t, edit).ok) world = applyEdit(ruined, t, edit);
+    }
+    const before = resolveShape(ruined, t, options ?? {});
+    const next = resolveShape(world!, t, options ?? {});
+    view!.setTown(next, null, { spread });
+    const stats = view!.stats();
+    let changed = 0, touched = 0;
+    for (const s of next.structures.values()) if (before.structures.get(s.id)?.hash !== s.hash) changed++;
+    for (const s of before.structures.values()) {
+      const now = next.structures.get(s.id);
+      if (!now || !sameKeys(now.cells, s.cells) || !sameKeys(now.edges, s.edges)) touched++;
+    }
+    return { pending: stats.pending, built: stats.rebuild!.structures, changed, touched };
+  },
+  /**
+   * Life's part: hides every prop and actor, as a behaviour may hide its own (the view must leave that
+   * alone), and keeps where each was put. Returns how many.
+   */
+  holdItems(): number {
+    kept.clear();
+    for (const item of [...dressing!.props, ...dressing!.actors]) {
+      const h = view!.stage.instance(item.id);
+      if (!h) continue;
+      kept.set(item.id, Array.from(h.base));
+      h.setVisible(false);
+    }
+    return kept.size;
+  },
+  /** The held items the view has put somewhere new since holdItems: hidden again. Returns how many. */
+  movedItems(): number {
+    let n = 0;
+    for (const [id, base] of kept) {
+      const h = view!.stage.instance(id);
+      if (!h || sameKeys(Array.from(h.base), base)) continue;
+      h.setVisible(false);
+      n++;
+    }
+    return n;
+  },
+  /** Structures whose new drawing is still waiting (view.pending(), as the frame loop asks it). */
+  pending: (): number => view!.pending(),
   /** Spawns `n` small boxes over the town, as life spawns walkers and puffs. */
   spawn(n: number): number {
     const b = new MeshBuilder({ ink: 'probe' }).setColor('#e56b58');

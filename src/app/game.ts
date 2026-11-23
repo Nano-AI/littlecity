@@ -15,7 +15,7 @@ import type { DressingPlan, ShapePlan } from '@/resolve/plan';
 import { createStagedResolver, type StagedResolver } from '@/resolve/staged';
 import { canRedo, canUndo, createHistory, pushHistory, redo, replacePresent, undo, type History } from '@/world/history';
 import { islandOf } from '@/terrain/land';
-import { applyEdit, canApply } from '@/world/world';
+import { applyEdit, applyEdits, canApply } from '@/world/world';
 
 export interface GameStart {
   world: World;
@@ -140,13 +140,7 @@ export function createGame(start: GameStart, events: GameEvents): Game {
       return verdict;
     },
     editAll(edits) {
-      let next = world;
-      let n = 0;
-      for (const e of edits) {
-        if (!canApply(next, terrain, e).ok) continue;
-        next = applyEdit(next, terrain, e);
-        n++;
-      }
+      const { world: next, applied: n } = applyEdits(world, terrain, edits);
       if (n === 0) return 0;
       if (batch === null) history = pushHistory(history, next);
       show(next, null);
@@ -169,13 +163,7 @@ export function createGame(start: GameStart, events: GameEvents): Game {
       return true;
     },
     amend(edits) {
-      let next = world;
-      let n = 0;
-      for (const e of edits) {
-        if (!canApply(next, terrain, e).ok) continue;
-        next = applyEdit(next, terrain, e);
-        n++;
-      }
+      const { world: next, applied: n } = applyEdits(world, terrain, edits);
       if (n === 0) return 0;
       if (batch === null) history = replacePresent(history, next);
       show(next, null);

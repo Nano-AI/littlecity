@@ -55,7 +55,29 @@ export function obstacleColumns(terrain: Terrain, kinds: ReadonlyMap<CellKey, Ki
   return m;
 }
 
+/** Fields worked out lately, newest first. Callers share them and none writes to `blocked` or `dist`. */
+const recent: { hash: number; key: Uint8Array; field: SeaField }[] = [];
+const RECENT = 4;
+
+/** The field for a mask, worked out once per shape of shore: nearly every resolve asks again with the same columns. */
 export function seaField(blocked: Uint8Array): SeaField {
+  let hash = 2166136261;
+  for (let i = 0; i < blocked.length; i++) hash = Math.imul(hash ^ blocked[i]!, 16777619);
+  const at = recent.findIndex((r) => r.hash === hash && r.key.length === blocked.length && r.key.every((b, i) => b === blocked[i]));
+  if (at >= 0) {
+    const [hit] = recent.splice(at, 1);
+    recent.unshift(hit!);
+    return hit!.field;
+  }
+  // The key is a private copy: a caller reuses and edits its own mask after asking.
+  const key = blocked.slice();
+  const field = seaFieldUncached(key);
+  recent.unshift({ hash, key, field });
+  if (recent.length > RECENT) recent.pop();
+  return field;
+}
+
+export function seaFieldUncached(blocked: Uint8Array): SeaField {
   const dist = new Float32Array(NX * NZ).fill(REACH);
   const is = (x: number, z: number): boolean => x >= 0 && z >= 0 && x < SIZE_X && z < SIZE_Z && blocked[columnIndex(x, z)] === 1;
   for (let z = 0; z < SIZE_Z; z++) {

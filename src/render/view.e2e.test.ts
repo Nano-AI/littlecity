@@ -5,6 +5,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Page } from 'playwright';
+import { packRuin } from '@/world/damage';
 import { startApp, type App } from '../../tests/helpers/browser';
 import type { SweepResult } from './testing/flicker';
 import type { FrameSummary } from './testing/probe';
@@ -30,9 +31,21 @@ const settled = async (): Promise<FrameSummary> => {
   await look(`window.__look.frame()`);
   return look<FrameSummary>(`window.__look.frame()`);
 };
+/** As settled, once the grounding map has caught up with items shown or hidden (it follows them every fourth frame). */
+const shaded = async (): Promise<FrameSummary> => {
+  await look(`(() => { for (let i = 0; i < 4; i++) window.__look.frameOnly(); })()`);
+  return settled();
+};
 const lum = (c: readonly number[]): number => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;
 /** Mean absolute difference between two frames' thumbnails, 0–255. */
 const differ = (a: FrameSummary, b: FrameSummary): number => a.thumb.reduce((sum, v, i) => sum + Math.abs(v - b.thumb[i]!), 0) / a.thumb.length;
+/** Two packed ruins (src/world/damage.ts): a burnt-out shell, and cracked by a blast. */
+const BURNT = packRuin({ stage: 3, cause: 'fire' });
+const CRACKED = packRuin({ stage: 1, cause: 'blast' });
+type Crater = { pending: number; moved: number; stayed: number };
+type Placed = { pending: number; built: number; changed: number; touched: number };
+/** Draws frames until no rebuild is waiting; returns how many it took. */
+const drain = `(() => { let n = 0; while (window.__look.pending() > 0 && n < 1000) { window.__look.frameOnly(); n++; } return n; })()`;
 
 describe('the view', () => {
   test('draws ink on paper, in a dozen draw calls', async () => {
@@ -184,6 +197,117 @@ describe('the view', () => {
     expect(thick.dark).toBeGreaterThan(before.dark * 1.2);
     await look(`window.__look.style()`);
     expect((await settled()).thumb).toEqual(before.thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("a spread rebuild lands on the same picture as an immediate one, never in the edit's frame", async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    const before = await settled();
+    const pending = await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`);
+    expect(pending).toBeGreaterThan(0);
+    // The edit's frame only draws: the old drawing of what is waiting stays.
+    await look(`window.__look.frameOnly()`);
+    expect(await look<number>(`window.__look.pending()`)).toBe(pending);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    expect(spread.thumb).not.toEqual(before.thumb); // the houses are in view
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, false)`)).toBe(0);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('two spread changes in a row land on the final picture', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    await look(`window.__look.ruinHouses(20, ${CRACKED}, true)`);
+    await look(drain);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.ruinHouses(20, ${CRACKED}, false)`);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('a building the land carries down is redrawn in the edit, never left floating over the crater', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    // Burnt houses waiting at the front of the queue, so houses carried down after them would wait too.
+    expect(await look<number>(`window.__look.ruinHouses(10, ${BURNT}, true)`)).toBeGreaterThan(0);
+    const dug = await look<Crater>(`window.__look.crater(10, ${BURNT}, 20, true)`);
+    // Only what changed in place is left waiting: everything the land carried down was drawn at once.
+    expect(dug.moved).toBeGreaterThanOrEqual(10);
+    expect(dug.pending).toBeLessThanOrEqual(dug.stayed);
+    expect(errors).toEqual([]);
+  });
+
+  test('a crater dressed before its rebuilds land ends on the same picture, props and all', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Crater>(`window.__look.crater(19, ${BURNT}, 1, true)`)).pending).toBeGreaterThan(0);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Crater>(`window.__look.crater(19, ${BURNT}, 1, false)`)).pending).toBe(0);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("a drain that moves an anchor moves what stands on it and leaves life's other poses alone", async () => {
+    // Burnt houses waiting at the front, so the crater's neighbours whose anchors move are drained later.
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(10, ${BURNT}, true)`)).toBeGreaterThan(0);
+    await look(`window.__look.crater(10, ${BURNT}, 20, true)`);
+    expect(await look<number>(`window.__look.holdItems()`)).toBeGreaterThan(3);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    // Something stood on an anchor the drain moved: it was put in its new place (and hidden again here).
+    expect(await look<number>(`window.__look.movedItems()`)).toBeGreaterThan(0);
+    // Nothing else was shown again or put back.
+    const held = await shaded();
+    await look(`window.__look.props(false)`);
+    await look(`window.__look.actors(false)`);
+    expect(held.thumb).toEqual((await shaded()).thumb);
+    // All shown, it is the town an immediate build gives.
+    await look(`window.__look.props(true)`);
+    await look(`window.__look.actors(true)`);
+    const spread = await shaded();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.crater(10, ${BURNT}, 20, false)`);
+    await look(`window.__look.props(true)`);
+    await look(`window.__look.actors(true)`);
+    expect(spread.thumb).toEqual((await shaded()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test("the player's own edit draws what it changed now and leaves mischief's waiting rebuilds waiting", async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    const waiting = await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`);
+    expect(waiting).toBeGreaterThan(0);
+    const edit = await look<Placed>(`window.__look.place(20, ${BURNT}, 'waiting')`);
+    // The block's building is drawn in its frame, and nothing more than the block changed.
+    expect(edit.built).toBeGreaterThan(0);
+    expect(edit.built).toBeLessThanOrEqual(edit.changed);
+    expect(edit.pending).toBeGreaterThanOrEqual(waiting - edit.touched);
+    expect(await look<number>(drain)).toBeGreaterThan(0);
+    const spread = await settled();
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect((await look<Placed>(`window.__look.place(20, ${BURNT}, false)`)).pending).toBe(0);
+    expect(spread.thumb).toEqual((await settled()).thumb);
+    expect(errors).toEqual([]);
+  });
+
+  test('two spread changes in one frame spend one budget between them', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    await look(`window.__look.frameOnly()`); // a fresh frame: the first change has its budget
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    // No frame between them (mending inside life.update, then the flush): the second only queues.
+    const second = await look<Crater>(`window.__look.crater(20, ${CRACKED}, 0, true)`);
+    expect(second.pending).toBe(second.stayed);
+    expect(errors).toEqual([]);
+  });
+
+  test('an ordinary setTown after a spread one leaves nothing pending', async () => {
+    await look(`window.__look.open('everything', { ink: 'full' })`);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, true)`)).toBeGreaterThan(0);
+    expect(await look<number>(`window.__look.ruinHouses(20, ${BURNT}, false)`)).toBe(0);
     expect(errors).toEqual([]);
   });
 
